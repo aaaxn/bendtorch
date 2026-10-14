@@ -14,4 +14,5 @@ import ./read-write-contract-LAWS.bend as ReadWriteContract
 import ./clone-metadata-contract-LAWS.bend as CloneMetadataContract
 import ./transform-contract-LAWS.bend as TransformContract
 import ./from-values-contract-LAWS.bend as FromValuesContract
+import ./permute-values-contract-LAWS.bend as PermuteValuesContract
 import ./contracts/LAWS.bend as Contracts
