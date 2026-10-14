@@ -11,9 +11,10 @@ twins and implementation mutants, beside the runner that checks them.
 
 `pointwise/` holds:
 
-- `consumers.bend`: eight consumers of `broadcast_pointwise`. Each one takes
-  its plan from `Shape.broadcast_checked` and its inputs as the replayed
-  tensors that `Core.from_values` returns, and restates literal values:
+- `consumers.bend`: ten consumers of `broadcast_pointwise`. Each one takes
+  its plan from `Shape.broadcast_checked`. The first eight take their inputs
+  as the replayed tensors that `Core.from_values` returns, and restate
+  literal values:
   - `[2, 3] - [3]` at output indices 0, 4 and 5.
   - `[2, 1] * [1, 3]`, an outer product, at indices 1 and 3.
   - `[3] + [3]` at index 2.
@@ -23,7 +24,16 @@ twins and implementation mutants, beside the runner that checks them.
   Each value consumer also states one word of each returned input. F32
   operations are opaque, so `[2, 3] - [3]` at index 4 is stated as
   `F32.sub(5.0, 20.0)`.
-- `controls.bend`: four value witnesses, each paired with one wrong value.
+
+  The last two name the producers themselves. `from_values_sub` states
+  `[3] - [3]` at index 2 for the actual `Core.from_values` results, and gets
+  the contract through `from_values_replayed`. `new_sub` does the same for
+  two `Core.new` fills through `new_replayed`, and states
+  `F32.sub(2.0, 5.0)`. `from_values_pointwise` and `new_pointwise` are the
+  generic compositions they instantiate. BendTT evaluates the produced inputs
+  while it checks these two, and on the `[2, 3]` grid it runs out of fuel, so
+  they use `[3]`.
+- `controls.bend`: five value witnesses, each paired with one wrong value.
 - `mutants.txt`: the before and after text of each mutation.
 
 | Control | Change | Source rejection | BendTT rejection |
@@ -32,6 +42,7 @@ twins and implementation mutants, beside the runner that checks them.
 | False twin `outer_witness` | `F32.mul(2.0, 30.0)`, left row not broadcast | the witness | the witness |
 | False twin `keep_witness` | `8.0` for a `7.0` fill | the witness | the witness |
 | False twin `kept_witness` | left word 4 reads the output value | the witness | the witness |
+| False twin `produced_witness` | `F32.sub(30.0, 3.0)` for the `Core.from_values` inputs, operands swapped | the witness | the witness |
 | Swapped operands | `right_step` writes `f(operation, y, x)` | `step_lift` | `step_lift.qvvvvv` |
 | Wrong write index | `right_step` writes at `index + 1` | `step_lift` | `step_lift.qvvvvv` |
 | Missing write | `right_step` skips the write | `step_lift` | `step_lift.qvvvvv` |

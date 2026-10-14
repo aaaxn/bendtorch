@@ -175,8 +175,18 @@ from `lt_mul_add`: `a * n + b < m * n` when `a < m` and `b < n`.
 ## Controls
 
 `verification/families/` holds literal consumers of `broadcast_pointwise`,
-`sum_ordered` and `dot_ordered`, consumers of failed folds, false twins of
-eight value statements, and twenty mutants of the family loops and of their
-instances. Its
-[README](../verification/families/README.md) lists each control and the
-rejection it expects.
+two of them on the actual `Core.from_values` and `Core.new` results, of
+`sum_ordered` and `dot_ordered`, and of failed folds, false twins of nine
+value statements, and twenty mutants of the family loops and of their
+instances. Its [README](../verification/families/README.md) lists each
+control and the rejection it expects.
+
+The proofs and controls check what the laws state, not the compiled code.
+`tools/s2_families.py`, which the S2 gate runs, compiles `Broadcast.binary`
+in the native and JavaScript lanes and runs the 67 S2 `add`, `sub` and `mul`
+requests that reach Bend through it. They include the `ieee_edges` cases,
+whose words are signed zeros, subnormals, the largest finite values, NaN and
+infinities. Each lane must give the output words that the S2 numerical policy
+accepts, the four broadcast and capacity errors, and both inputs unchanged.
+Its results are in `pointwise-family/` of the S2 output, apart from the
+`Elementwise.binary` corpus.
