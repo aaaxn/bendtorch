@@ -16,9 +16,13 @@ from tools.tensor_runtime import (
     SUCCESS_GROUPS,
     U32Range,
     bend_program,
+    build_joins,
+    built_cells,
     case_source,
+    check_copy_audit,
     corpus_cases,
     decode_case,
+    expected_copy_audit,
     load_corpus,
     native_command,
     negative_program,
@@ -335,6 +339,88 @@ class RuntimeAdapterTests(unittest.TestCase):
         self.assertNotIn("run_case_", main)
 
 
+def binary_request(op: str, *shapes: list[int]) -> dict:
+    names = ("a", "b", "bias")
+    return {
+        "op": op,
+        "inputs": {
+            name: {"shape": shape, "fill_zero": True}
+            for name, shape in zip(names, shapes, strict=False)
+        },
+    }
+
+
+class CopyAuditTests(unittest.TestCase):
+    def test_build_joins_every_inner_node_of_the_balanced_output(self):
+        for cells, joins in (
+            (0, 0),
+            (1, 0),
+            (2, 1),
+            (3, 3),
+            (15, 15),
+            (21, 31),
+            (32768, 32767),
+            (32769, 65535),
+            (1 << 20, (1 << 20) - 1),
+        ):
+            with self.subTest(cells=cells):
+                self.assertEqual(build_joins(cells), joins)
+
+    def test_built_cells_counts_only_outputs_the_build_writes(self):
+        for request, cells in (
+            (binary_request("add", [3], []), 3),
+            (binary_request("mul", [2, 1, 3, 1], [1, 3]), 18),
+            (binary_request("sub", [0, 3], [1, 3]), 0),
+            (binary_request("add", [1 << 20], []), 1 << 20),
+            (binary_request("add", [2, 3], [4, 3]), 0),
+            (binary_request("add", [1024, 1], [1, 1025]), 0),
+            (binary_request("add", [1, 1, 1, 1, 1], [1]), 0),
+            (binary_request("add", [1], [1048577]), 0),
+            (
+                {
+                    "op": "add",
+                    "inputs": {
+                        "a": {"shape": [2], "f32_bits": ["00000000"]},
+                        "b": {"shape": [1], "fill_zero": True},
+                    },
+                },
+                0,
+            ),
+            (binary_request("matmul_add", [2, 3], [3, 2], [2]), 4),
+            (binary_request("matmul_add", [2, 3], [4, 2], [2]), 0),
+            (binary_request("matmul", [2, 3], [3, 2]), 0),
+            (binary_request("clone", [4]), 0),
+        ):
+            with self.subTest(request=request):
+                self.assertEqual(built_cells(request), cells)
+
+    def test_frozen_corpus_expects_723_joins_and_no_split(self):
+        transported = []
+        for case in corpus_cases(load_corpus()):
+            try:
+                request = decode_case(case)
+            except U32Range:
+                continue
+            if "compile_negative" not in request:
+                transported.append(request)
+        self.assertEqual(len(transported), 202)
+        self.assertEqual(expected_copy_audit(transported), (0, 723))
+
+    def test_audit_rejects_any_split_or_join_beyond_the_builds(self):
+        requests = [binary_request("add", [3], []), binary_request("sum", [4])]
+        check_copy_audit("STORAGE_COPY_AUDIT 0 3\n", requests)
+        for stderr in (
+            "STORAGE_COPY_AUDIT 0 4\n",
+            "STORAGE_COPY_AUDIT 0 2\n",
+            "STORAGE_COPY_AUDIT 1 3\n",
+            "STORAGE_COPY_AUDIT 0 3\nSTORAGE_COPY_AUDIT 0 3\n",
+            "",
+        ):
+            with self.subTest(stderr=stderr):
+                with self.assertRaises(GateError):
+                    check_copy_audit(stderr, requests)
+
+
 class NativeCorpusTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -433,8 +519,7 @@ class NativeCorpusTests(unittest.TestCase):
             ],
         )
         native = evidence.run("entry-points-native-run", native_command(executable))
-        if native.stderr != "STORAGE_COPY_AUDIT 0 0\n":
-            raise GateError("Entry-point checks copied live packed arrays")
+        check_copy_audit(native.stderr, entry_cases)
         javascript = evidence.directory / "entry-points.js"
         evidence.run(
             "entry-points-js-export",
@@ -628,11 +713,11 @@ class NativeCorpusTests(unittest.TestCase):
                 self.javascript_results[case["id"]]["shape_result"], case["expected"]
             )
 
-    def test_native_copy_audit_is_zero_and_evidence_is_hash_addressed(self):
+    def test_native_copy_audit_counts_only_build_joins_and_evidence_is_hashed(self):
         evidence = self.directory / "run"
         self.assertEqual(
             (evidence / "corpus-audit-run.stderr").read_text(),
-            "STORAGE_COPY_AUDIT 0 0\n",
+            "STORAGE_COPY_AUDIT 0 723\n",
         )
         report = json.loads((evidence / "report.json").read_text())
         self.assertEqual(report["hostname"], platform.node())
