@@ -16,7 +16,7 @@ from tools.common import (
     required_exports,
 )
 from tools.tensor_families import run_gate as pointwise_family
-from tools.tensor_numerics import special, verify_case_v3
+from tools.tensor_numerics import special, verify_case
 from tools.tensor_ordered import verify_ordered_case, verify_ordered_lane
 from tools.tensor_runtime import (
     CORPUS,
@@ -53,7 +53,7 @@ def verify_lane(corpus: dict, observations: list[dict], *, native: bool) -> dict
         )
     observed = {row["id"]: row for row in observations}
     accepted = [
-        verify_case_v3(case, observed[case["id"]]["result"])
+        verify_case(case, observed[case["id"]]["result"])
         for group in SUCCESS_GROUPS
         for case in corpus[group]
     ]
@@ -170,7 +170,7 @@ def verify_supplement(supplement: dict, observations: list[dict]) -> dict:
         if "result" not in observed[case["id"]]:
             raise GateError(f"{case['id']}: supplement case did not succeed")
         result = observed[case["id"]]["result"]
-        accepted.append(verify_case_v3(case, result))
+        accepted.append(verify_case(case, result))
         if "ordered_reference" in case:
             ordered.append(
                 verify_ordered_case(

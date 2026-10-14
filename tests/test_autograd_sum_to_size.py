@@ -26,13 +26,13 @@ def output(rows: list[int], shape: list[int], retained: list[int]) -> str:
     lines = [
         "S3:begin:case",
         "S3:retained",
-        f"S2:shape:{json.dumps(shape)}",
-        f"S2:count:{len(retained)}",
-        *[f"S2:word:{item}" for item in retained],
+        f"tensor:shape:{json.dumps(shape)}",
+        f"tensor:count:{len(retained)}",
+        *[f"tensor:word:{item}" for item in retained],
         "S3:output",
-        f"S2:shape:{json.dumps(shape)}",
-        f"S2:count:{len(rows)}",
-        *[f"S2:word:{item}" for item in rows],
+        f"tensor:shape:{json.dumps(shape)}",
+        f"tensor:count:{len(rows)}",
+        *[f"tensor:word:{item}" for item in rows],
         "S3:end",
     ]
     return "\n".join(lines) + "\n"
@@ -85,8 +85,8 @@ class SumToSizeReferenceTests(unittest.TestCase):
         self.assertEqual(rows[0]["outcome"]["words"], [1])
 
 
-class StageRegistrationTests(unittest.TestCase):
-    def test_s3_gate_registers_sum_to_size_and_its_laws(self):
+class GateRegistrationTests(unittest.TestCase):
+    def test_autograd_gate_registers_sum_to_size_and_its_laws(self):
         self.assertIn("sum_to_size", SUBGATES)
         required = json.loads((ROOT / "verification/autograd.json").read_text())[
             "required_exports"

@@ -23,9 +23,9 @@ def case(shape: list[int], before: list[dict], after: list[dict]) -> dict:
 
 def tensor(shape: list[int], words: list[int]) -> list[str]:
     return [
-        f"S2:shape:{shape}".replace(" ", ""),
-        f"S2:count:{len(words)}",
-        *[f"S2:word:{item}" for item in words],
+        f"tensor:shape:{shape}".replace(" ", ""),
+        f"tensor:count:{len(words)}",
+        *[f"tensor:word:{item}" for item in words],
     ]
 
 
@@ -109,8 +109,8 @@ class LifecycleVerificationTests(unittest.TestCase):
             verify([row], parse(bad, ["case"]), "native")
 
 
-class StageRegistrationTests(unittest.TestCase):
-    def test_s3_gate_registers_lifecycle_and_its_controls(self):
+class GateRegistrationTests(unittest.TestCase):
+    def test_autograd_gate_registers_lifecycle_and_its_controls(self):
         self.assertIn("lifecycle", SUBGATES)
         controls = [
             name for name in PROOF_CONTROLS if name.startswith(("grad-", "reset-"))

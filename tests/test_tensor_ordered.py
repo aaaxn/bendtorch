@@ -3,7 +3,7 @@ import json
 import unittest
 
 from tools.common import ROOT, GateError
-from tools.tensor_numerics import verify_case
+from tools.tensor_numerics import verify_envelope
 from tools.tensor_ordered import verify_ordered_case, verify_ordered_lane
 from tools.tensor_runtime import parse_native_output
 
@@ -24,18 +24,23 @@ class OrderedAcceptanceTests(unittest.TestCase):
         )
         record = next(row for row in self.records["cases"] if row["id"] == case["id"])
         actual = copy.deepcopy(case["outputs"]["result"])
-        verify_case(case, actual)
+        verify_envelope(case, actual)
         self.assertEqual(verify_ordered_case(record, actual)["elements"], 1)
         actual["f32_bits"] = ["3f800000"]
         actual["classifications"] = ["positive_normal"]
-        self.assertEqual(verify_case(case, actual)["max_exact_error"]["numerator"], "0")
+        self.assertEqual(
+            verify_envelope(case, actual)["max_exact_error"]["numerator"], "0"
+        )
         with self.assertRaisesRegex(GateError, "primitive-rounding mismatch"):
             verify_ordered_case(record, actual)
 
     def test_fusion_control_and_existing_native_parser(self):
         case = self.controls["cases"][1]
         record = {"id": case["id"], "result": case["ordered_result"]}
-        text = f"S2:begin:{case['id']}\nS2:shape:[1,1]\nS2:count:1\nS2:word:0\nS2:end\n"
+        text = (
+            f"tensor:begin:{case['id']}\ntensor:shape:[1,1]\n"
+            "tensor:count:1\ntensor:word:0\ntensor:end\n"
+        )
         observed = parse_native_output(text)[0]["result"]
         self.assertEqual(verify_ordered_case(record, observed)["elements"], 1)
         with self.assertRaisesRegex(GateError, "primitive-rounding mismatch"):

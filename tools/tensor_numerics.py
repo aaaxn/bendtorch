@@ -24,7 +24,7 @@ def rational(encoded: dict) -> Fraction:
     return Fraction(int(encoded["numerator"]), int(encoded["denominator"]))
 
 
-def verify_case(case: dict, actual: dict) -> dict:
+def verify_envelope(case: dict, actual: dict) -> dict:
     reference = case["independent_reference"]
     oracle = case["outputs"]["result"]
     ideal = reference["result"]
@@ -110,8 +110,8 @@ def verify_case(case: dict, actual: dict) -> dict:
 ZERO_WORDS = ("00000000", "80000000")
 
 
-def verify_case_v3(case: dict, actual: dict) -> dict:
-    accepted = verify_case(case, actual)
+def verify_case(case: dict, actual: dict) -> dict:
+    accepted = verify_envelope(case, actual)
     policy = case["comparison_policy"]
     observed_words = actual["f32_bits"]
     expected_words = case["independent_reference"]["result"]["f32_bits"]

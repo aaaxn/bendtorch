@@ -189,18 +189,18 @@ def program(
 
 
 def snapshot(rows: list[str], identifier: str) -> tuple[dict, list[str]]:
-    if len(rows) < 2 or not rows[0].startswith("S2:shape:"):
+    if len(rows) < 2 or not rows[0].startswith("tensor:shape:"):
         raise GateError(f"{identifier}: missing tensor shape")
-    shape = json.loads(rows[0].removeprefix("S2:shape:"))
-    if not rows[1].startswith("S2:count:"):
+    shape = json.loads(rows[0].removeprefix("tensor:shape:"))
+    if not rows[1].startswith("tensor:count:"):
         raise GateError(f"{identifier}: missing element count")
-    count = int(rows[1].removeprefix("S2:count:"))
+    count = int(rows[1].removeprefix("tensor:count:"))
     if count != math.prod(shape):
         raise GateError(f"{identifier}: element count disagrees with shape")
     words = rows[2 : 2 + count]
-    if len(words) != count or not all(row.startswith("S2:word:") for row in words):
+    if len(words) != count or not all(row.startswith("tensor:word:") for row in words):
         raise GateError(f"{identifier}: missing or extra tensor words")
-    values = [int(row.removeprefix("S2:word:")) for row in words]
+    values = [int(row.removeprefix("tensor:word:")) for row in words]
     return {"shape": shape, "words": values}, rows[2 + count :]
 
 

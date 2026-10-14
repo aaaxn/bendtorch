@@ -88,14 +88,14 @@ class BroadcastParserTests(unittest.TestCase):
         text = self.output(
             [
                 "S3:retained",
-                "S2:shape:[1]",
-                "S2:count:1",
-                f"S2:word:{word(5)}",
+                "tensor:shape:[1]",
+                "tensor:count:1",
+                f"tensor:word:{word(5)}",
                 "S3:output",
-                "S2:shape:[2]",
-                "S2:count:2",
-                f"S2:word:{word(5)}",
-                f"S2:word:{word(5)}",
+                "tensor:shape:[2]",
+                "tensor:count:2",
+                f"tensor:word:{word(5)}",
+                f"tensor:word:{word(5)}",
             ]
         )
         observed = parse(text, ["case"])
@@ -105,25 +105,25 @@ class BroadcastParserTests(unittest.TestCase):
         row = case([1], [2], [word(5)])
         good = [
             "S3:retained",
-            "S2:shape:[1]",
-            "S2:count:1",
-            f"S2:word:{word(5)}",
+            "tensor:shape:[1]",
+            "tensor:count:1",
+            f"tensor:word:{word(5)}",
         ]
         for rows in (
             [
                 *good,
                 "S3:output",
-                "S2:shape:[2]",
-                "S2:count:2",
-                "S2:word:0",
-                "S2:word:0",
+                "tensor:shape:[2]",
+                "tensor:count:2",
+                "tensor:word:0",
+                "tensor:word:0",
             ],
             [*good, "S3:error:100"],
             [
                 "S3:retained",
-                "S2:shape:[1]",
-                "S2:count:1",
-                "S2:word:0",
+                "tensor:shape:[1]",
+                "tensor:count:1",
+                "tensor:word:0",
                 "S3:error:100",
             ],
         ):
@@ -138,13 +138,13 @@ class BroadcastParserTests(unittest.TestCase):
         row = case([1], [1], [0x7FC01234])
         rows = [
             "S3:retained",
-            "S2:shape:[1]",
-            "S2:count:1",
-            "S2:word:2143289344",
+            "tensor:shape:[1]",
+            "tensor:count:1",
+            "tensor:word:2143289344",
             "S3:output",
-            "S2:shape:[1]",
-            "S2:count:1",
-            "S2:word:2143289344",
+            "tensor:shape:[1]",
+            "tensor:count:1",
+            "tensor:word:2143289344",
         ]
         observed = parse(self.output(rows), ["case"])
         verify([row], observed, "javascript")
@@ -158,8 +158,8 @@ class BroadcastParserTests(unittest.TestCase):
         self.assertIn('IO.print("S3:begin:row_to_matrix")', text)
 
 
-class StageRegistrationTests(unittest.TestCase):
-    def test_s3_gate_registers_broadcast_and_its_laws(self):
+class GateRegistrationTests(unittest.TestCase):
+    def test_autograd_gate_registers_broadcast_and_its_laws(self):
         self.assertIn("broadcast", SUBGATES)
         required = json.loads((ROOT / "verification/autograd.json").read_text())[
             "required_exports"
