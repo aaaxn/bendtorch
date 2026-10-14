@@ -15,6 +15,10 @@ SIGN = 0x80000000
 NEGATIVE_ZERO = 0x80000000
 INFINITY = 0x7F800000
 QUIET_NAN = 0x7FC01234
+OTHER_NAN = 0x7FC05678
+THIRD_NAN = 0x7FC0ABCD
+SIGNALING_NAN = 0x7FA00001
+QUIET = 0x00400000
 BINARY = ("add", "sub", "mul")
 
 # Each mutant breaks one contract on a copy of backward.bend; the JavaScript
@@ -161,6 +165,61 @@ def handwritten() -> list[dict]:
             "id": "inf_minus_inf",
             "steps": [leaf(float("inf")), op("sub", 0, 0), run(1), *reads(2)],
         },
+        binary_case("nan_payloads_add", "add", QUIET_NAN, OTHER_NAN),
+        binary_case("nan_payloads_mul", "mul", QUIET_NAN, OTHER_NAN),
+        binary_case("nan_payloads_sub", "sub", QUIET_NAN, OTHER_NAN),
+        binary_case("nan_signaling_mul", "mul", QUIET_NAN, SIGNALING_NAN),
+        {
+            "id": "nan_upstream_mul",
+            "steps": [
+                leaf(QUIET_NAN),
+                leaf(OTHER_NAN),
+                leaf(THIRD_NAN),
+                op("mul", 0, 1),
+                op("mul", 3, 2),
+                run(4),
+                *reads(5),
+            ],
+        },
+        {
+            "id": "nan_fan_out",
+            "steps": [
+                leaf(1.0),
+                leaf(QUIET_NAN),
+                leaf(OTHER_NAN),
+                op("mul", 0, 1),
+                op("mul", 0, 2),
+                op("add", 3, 4),
+                run(5),
+                *reads(6),
+            ],
+        },
+        {
+            "id": "nan_twice_non_leaf",
+            "steps": [
+                leaf(QUIET_NAN),
+                leaf(OTHER_NAN),
+                op("mul", 0, 1),
+                op("neg", 2),
+                op("add", 3, 2),
+                run(4),
+                run(4),
+                *reads(5),
+            ],
+        },
+        {
+            "id": "nan_twice_leaf",
+            "steps": [
+                leaf(QUIET_NAN),
+                leaf(OTHER_NAN),
+                op("mul", 0, 1),
+                op("neg", 2),
+                op("mul", 3, 1),
+                run(4),
+                run(2),
+                *reads(5),
+            ],
+        },
         binary_case("overflow", "mul", 3e38, 10.0),
         binary_case("subnormal", "mul", 1, 0.5),
         binary_case("subnormal_sum", "add", 1, 0x80000002),
@@ -281,16 +340,31 @@ def cases() -> list[dict]:
     return result
 
 
+# F32 NaN payloads of the native lane on the pinned toolchain (clang 19 -O3 on
+# x86-64): when an operand is NaN, the result is that operand's NaN, quieted.
+# With two NaN operands, add and mul return the second operand's NaN and sub
+# returns the first's. Python's binary64 arithmetic selects differently, so it
+# is never used when an operand is NaN.
+def nan_operand(first: int, second: int, second_first: bool) -> int | None:
+    for operand in (second, first) if second_first else (first, second):
+        if is_nan(operand):
+            return operand | QUIET
+    return None
+
+
 def add_word(left: int, right: int) -> int:
-    return bits(f32(value(left) + value(right)))
+    nan = nan_operand(left, right, True)
+    return bits(f32(value(left) + value(right))) if nan is None else nan
 
 
 def mul_word(left: int, right: int) -> int:
-    return bits(f32(value(left) * value(right)))
+    nan = nan_operand(left, right, True)
+    return bits(f32(value(left) * value(right))) if nan is None else nan
 
 
 def sub_word(left: int, right: int) -> int:
-    return bits(f32(value(left) - value(right)))
+    nan = nan_operand(left, right, False)
+    return bits(f32(value(left) - value(right))) if nan is None else nan
 
 
 def neg_word(number: int) -> int:

@@ -28,6 +28,7 @@ ERROR_LAWS = {
             "backward_2d_LAWS.neg_unknown",
             "backward_2d_LAWS.backward_unknown",
             "backward_2d_LAWS.backward_dangling",
+            "backward_2d_LAWS.backward_rejects_unbound_operand",
         ],
     ),
 }

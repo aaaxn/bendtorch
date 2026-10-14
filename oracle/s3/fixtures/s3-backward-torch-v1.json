@@ -478,6 +478,155 @@
    ]
   },
   {
+   "id": "nan_payloads_add",
+   "lines": [
+    "S3:id:0",
+    "S3:id:1",
+    "S3:id:2",
+    "S3:backward",
+    "S3:value:2143294004",
+    "S3:grad:1065353216",
+    "S3:value:2143311480",
+    "S3:grad:1065353216",
+    "S3:value:2143311480",
+    "S3:grad:1065353216"
+   ]
+  },
+  {
+   "id": "nan_payloads_mul",
+   "lines": [
+    "S3:id:0",
+    "S3:id:1",
+    "S3:id:2",
+    "S3:backward",
+    "S3:value:2143294004",
+    "S3:grad:2143311480",
+    "S3:value:2143311480",
+    "S3:grad:2143294004",
+    "S3:value:2143311480",
+    "S3:grad:1065353216"
+   ]
+  },
+  {
+   "id": "nan_payloads_sub",
+   "lines": [
+    "S3:id:0",
+    "S3:id:1",
+    "S3:id:2",
+    "S3:backward",
+    "S3:value:2143294004",
+    "S3:grad:1065353216",
+    "S3:value:2143311480",
+    "S3:grad:3212836864",
+    "S3:value:2143311480",
+    "S3:grad:1065353216"
+   ]
+  },
+  {
+   "id": "nan_signaling_mul",
+   "lines": [
+    "S3:id:0",
+    "S3:id:1",
+    "S3:id:2",
+    "S3:backward",
+    "S3:value:2143294004",
+    "S3:grad:2145386497",
+    "S3:value:2141192193",
+    "S3:grad:2143294004",
+    "S3:value:2145386497",
+    "S3:grad:1065353216"
+   ]
+  },
+  {
+   "id": "nan_upstream_mul",
+   "lines": [
+    "S3:id:0",
+    "S3:id:1",
+    "S3:id:2",
+    "S3:id:3",
+    "S3:id:4",
+    "S3:backward",
+    "S3:value:2143294004",
+    "S3:grad:2143311480",
+    "S3:value:2143311480",
+    "S3:grad:2143294004",
+    "S3:value:2143333325",
+    "S3:grad:2143311480",
+    "S3:value:2143311480",
+    "S3:grad:2143333325",
+    "S3:value:2143333325",
+    "S3:grad:1065353216"
+   ]
+  },
+  {
+   "id": "nan_fan_out",
+   "lines": [
+    "S3:id:0",
+    "S3:id:1",
+    "S3:id:2",
+    "S3:id:3",
+    "S3:id:4",
+    "S3:id:5",
+    "S3:backward",
+    "S3:value:1065353216",
+    "S3:grad:2143294004",
+    "S3:value:2143294004",
+    "S3:grad:1065353216",
+    "S3:value:2143311480",
+    "S3:grad:1065353216",
+    "S3:value:2143294004",
+    "S3:grad:1065353216",
+    "S3:value:2143311480",
+    "S3:grad:1065353216",
+    "S3:value:2143311480",
+    "S3:grad:1065353216"
+   ]
+  },
+  {
+   "id": "nan_twice_non_leaf",
+   "lines": [
+    "S3:id:0",
+    "S3:id:1",
+    "S3:id:2",
+    "S3:id:3",
+    "S3:id:4",
+    "S3:backward",
+    "S3:backward",
+    "S3:value:2143294004",
+    "S3:grad:2143311480",
+    "S3:value:2143311480",
+    "S3:grad:2143294004",
+    "S3:value:2143311480",
+    "S3:grad:0",
+    "S3:value:4290795128",
+    "S3:grad:1073741824",
+    "S3:value:2143311480",
+    "S3:grad:1073741824"
+   ]
+  },
+  {
+   "id": "nan_twice_leaf",
+   "lines": [
+    "S3:id:0",
+    "S3:id:1",
+    "S3:id:2",
+    "S3:id:3",
+    "S3:id:4",
+    "S3:backward",
+    "S3:backward",
+    "S3:value:2143294004",
+    "S3:grad:2143311480",
+    "S3:value:2143311480",
+    "S3:grad:2143294004",
+    "S3:value:2143311480",
+    "S3:grad:4290795128",
+    "S3:value:4290795128",
+    "S3:grad:2143311480",
+    "S3:value:2143311480",
+    "S3:grad:1065353216"
+   ]
+  },
+  {
    "id": "overflow",
    "lines": [
     "S3:id:0",
@@ -3006,6 +3155,6 @@
   "torch_version": "2.14.1+cpu"
  },
  "purpose": "PyTorch observations for every S3 backward request; the root test compares the gate reference with them",
- "requests": "def072dcd7c4b698c015d878164f1dd3213e082ef09719b2ed02e97acc4a6ea0",
+ "requests": "94b14f49f5b42e49d4880a0db46c26546dfcdaf091b6276bcd5ee97a4a61212c",
  "schema_version": 1
 }

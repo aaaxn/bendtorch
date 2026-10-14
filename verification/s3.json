@@ -56,6 +56,9 @@
     "_2e_._2f_.._2f_src_2f_autograd_2f_backward_2d_LAWS.backward_twice_accumulates",
     "_2e_._2f_.._2f_src_2f_autograd_2f_backward_2d_LAWS.backward_twice_mul",
     "_2e_._2f_.._2f_src_2f_autograd_2f_backward_2d_LAWS.zero_grad_empties",
-    "_2e_._2f_.._2f_src_2f_autograd_2f_backward_2d_LAWS.zero_grad_keeps_nodes"
+    "_2e_._2f_.._2f_src_2f_autograd_2f_backward_2d_LAWS.zero_grad_keeps_nodes",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_backward_2d_LAWS.wired_matches_operand_bounds",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_backward_2d_LAWS.backward_rejects_unbound_operand",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_backward_2d_LAWS.backward_accepts_bound_operands"
   ]
 }

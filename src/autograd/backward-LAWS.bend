@@ -86,6 +86,28 @@ def reached(nodes: List<&2, Backward.Node>, +count: Nat, +output: Nat) -> List<&
     case Con{node, +rest} 1n+below:
       reached_chosen(node, rest, below, unit => reached(rest, below, output), Nat.is_eq(below, output))
 
+# Operand bounds, stated without the engine's validator: a node may name only
+# nodes older than itself, so each operand id must be below the number of
+# older nodes. An operand that is the node itself, a newer node or a missing
+# node fails this bound.
+def bounded(ids: List<&2, Nat>, +bound: Nat) -> Bool:
+  match ids:
+    case Nil{}:
+      True{}
+    case Con{+id, rest}:
+      Bool.and(Nat.is_lt(id, bound), bounded(rest, bound))
+
+def well_formed(nodes: List<&2, Backward.Node>) -> Bool:
+  match nodes:
+    case Nil{}:
+      True{}
+    case Con{node, +rest}:
+      Bool.and(bounded(targets(node), List.length(&2, Backward.Node, rest)), well_formed(rest))
+
+def entry_node(entry: Backward.Entry) -> Backward.Node:
+  Backward.Entry{node, value, slot} = entry
+  node
+
 # Which gradients are present.
 def somes(gradients: List<&2, Maybe<&2, F32>>) -> List<&2, Bool>:
   match gradients:
@@ -380,6 +402,33 @@ law backward_dangling:
   for inside: {Nat.is_lt(output, List.length(&2, Backward.Entry, entries)) == True{} : Bool}
   for unsound: {Backward.wired(Backward.nodes(entries), List.length(&2, Backward.Entry, entries)) == False{} : Bool}
   {Backward.backward(Backward.Tape{entries}, output) == Fail{Backward.DanglingOperand{}} : Result<&2, &2, Backward.Error, Backward.Tape>}
+
+# The engine's wiring check is exactly the operand-bound specification above.
+law wired_matches_operand_bounds:
+  for +graph: List<&2, Backward.Node>
+  {Backward.wired(graph, List.length(&2, Backward.Node, graph)) == well_formed(graph) : Bool}
+
+# An entry with an operand that is itself, a newer entry or a missing entry
+# makes backward of any output on the tape fail with DanglingOperand.
+law backward_rejects_unbound_operand:
+  for +newer: List<&2, Backward.Entry>
+  for +entry: Backward.Entry
+  for +rest: List<&2, Backward.Entry>
+  for +output: Nat
+  for inside: {Nat.is_lt(output, List.length(&2, Backward.Entry, List.append(&2, Backward.Entry, newer, entry <> rest))) == True{} : Bool}
+  for unbound: {bounded(targets(entry_node(entry)), List.length(&2, Backward.Entry, rest)) == False{} : Bool}
+  {Backward.backward(Backward.Tape{List.append(&2, Backward.Entry, newer, entry <> rest)}, output) == Fail{Backward.DanglingOperand{}} :
+    Result<&2, &2, Backward.Error, Backward.Tape>}
+
+# A tape whose every operand is bound is accepted for every output it holds.
+law backward_accepts_bound_operands:
+  for +entries: List<&2, Backward.Entry>
+  for +output: Nat
+  for inside: {Nat.is_lt(output, List.length(&2, Backward.Entry, entries)) == True{} : Bool}
+  for bound: {well_formed(Backward.nodes(entries)) == True{} : Bool}
+  {Backward.backward(Backward.Tape{entries}, output) ==
+    Done{Backward.Tape{Backward.merge(entries, Backward.pass(Backward.nodes(entries), List.length(&2, Backward.Entry, entries), output))}} :
+    Result<&2, &2, Backward.Error, Backward.Tape>}
 
 # Otherwise backward accumulates the gradients of pass into the slots.
 law backward_success:

@@ -82,7 +82,7 @@ is part of the contract.
 
 ## Laws
 
-`src/autograd/backward-LAWS.bend` states 32 laws, and `backward-PROOF.bend`
+`src/autograd/backward-LAWS.bend` states 35 laws, and `backward-PROOF.bend`
 proves them. The structural laws quantify over every tape, every list of
 nodes or slots and every id. The laws about one recorded program quantify
 over every F32 input value. F32 arithmetic is opaque to the laws: a law says
@@ -116,21 +116,29 @@ value.
   recording, the unchanged tape. `backward_dangling` states
   `DanglingOperand` for a tape that fails the wiring check, and
   `backward_success` states the result otherwise.
+- **Wiring:** `wired_matches_operand_bounds` proves that the engine's wiring
+  check equals a separate specification in the laws file: every operand id of
+  a node is below the number of older nodes. `backward_rejects_unbound_operand`
+  states `DanglingOperand` for any tape with an entry whose operand is that
+  entry, a newer entry or a missing one, at any position and for any output
+  the tape holds. `backward_accepts_bound_operands` states that a tape meeting
+  the specification is accepted.
 - **Repeated backward:** `backward_twice_accumulates` (for every tape and
   output, a second backward accumulates the same gradients again) and
   `backward_twice_mul` (both slots of `x*y` read `g + g`).
 - **zero_grad:** `zero_grad_empties` and `zero_grad_keeps_nodes`.
 
-The S3 gate also applies eight proof controls and two error controls to a copy
+The S3 gate also applies nine proof controls and two error controls to a copy
 of the sources, and the proofs reject each one: seeding the newest node, a
 lookup or a slot update that matches a larger id, dropping a later
 contribution, swapping the `Mul` VJP operands, dropping the `Sub` sign,
-overwriting a slot instead of adding, a `zero_grad` that keeps the slot, and
-each error code reported as the other.
+overwriting a slot instead of adding, a wiring check that skips the operand
+bounds (rejected at `wired_matches_operand_bounds`), a `zero_grad` that keeps
+the slot, and each error code reported as the other.
 
 ## Runtime lanes
 
-`tools/s3_backward.py` runs 83 scripts on native Bend CPU
+`tools/s3_backward.py` runs 91 scripts on native Bend CPU
 (`--threads 1 --gpu off`) and on the generated JavaScript. Each script records
 leaves and operations, runs `backward` on chosen outputs, calls `zero_grad`,
 and reads the value and `grad` of every node. The harness
@@ -138,12 +146,18 @@ and reads the value and `grad` of every node. The harness
 every id, error and word. A `Forge` step pushes an entry without checks, so
 the gate can build tapes with dangling operands.
 
-- 35 handwritten scripts: the unused-node graph with each output selected, the
+- 43 handwritten scripts: the unused-node graph with each output selected, the
   four ops and their VJPs, `x*x`, `x-x` and `x+x`, the fan-out program with
   inputs whose order changes the result, a diamond, an interior output,
   repeated backward on one and on two outputs, `zero_grad` with a `-0.0`
   contribution, NaN, infinities, overflow, subnormals, unknown operands and
-  outputs, and four forged tapes.
+  outputs, and four forged tapes: three with an operand that is the node
+  itself, a newer node or a missing node, and one with sound wiring but a
+  forward value and saved operands that disagree with its leaves.
+- 8 scripts where two NaNs with different payloads meet: `add`, `mul` and
+  `sub` of two quiet NaNs, a quiet and a signaling NaN, a NaN gradient
+  through `mul`, a NaN fan-out, and repeated backward through a non-leaf and
+  at a leaf.
 - 48 generated scripts (fixed seed): 2 to 5 leaves from a pool that includes
   `±0.0`, `1e8` and `0.1`, 3 to 14 random operations, one or two backward
   calls on one of the four newest nodes, and sometimes a `zero_grad` and a
@@ -151,7 +165,13 @@ the gate can build tapes with dangling operands.
 
 Both lanes must print exactly the lines of a Python reference that applies the
 same rules in the same order and rounds to F32 after each operation. The
-native lane must match bit for bit. The JavaScript lane may return a NaN with
+native lane must match bit for bit, NaN payloads included. When an operand is
+NaN, the reference does not use Python arithmetic. It implements the payload
+rule of the pinned native lane (clang 19 `-O3` on x86-64): the result is a NaN
+operand, quieted. With two NaN operands, `add` and `mul` keep the second
+operand's NaN and `sub` keeps the first's. The rule was measured on this
+toolchain; it is a property of the compiled code, not of IEEE 754, and the
+same C at `-O0` picks differently. The JavaScript lane may return a NaN with
 another payload, as in the other S3 subgates.
 
 The subgate also builds four runtime controls from a mutated copy of
@@ -168,16 +188,18 @@ and writes `oracle/s3/fixtures/s3-backward-torch-v1.json`. The root test
 `tests/test_s3_backward.py` compares it with the Python reference. Bend never
 calls PyTorch.
 
-76 scripts agree with PyTorch line for line: every id, value, gradient word
+83 scripts agree with PyTorch line for line: every id, value, gradient word
 and `None`, including NaN payloads, infinities, `-0.0` and subnormals. The
 nonfinite cases come from PyTorch, not from forward duals: at `x = inf`,
 `y = 0`, `x * y` is NaN, but reverse mode gives `dx = 0` and `dy = inf`, where
-dual numbers would give NaN. The other 7 differ as listed:
+dual numbers would give NaN. The other 8 differ as listed:
 
 | Scripts | bendtorch | PyTorch |
 | --- | --- | --- |
 | `unknown_operand`, `unknown_output`, `unknown_output_empty` | `UnknownNode` (103) for each unknown id | `IndexError` from the Python list that the oracle uses as a tape; every other line agrees |
-| `dangling_self`, `dangling_newer`, `dangling_mul`, `forged_sound` | `DanglingOperand` (104), or a gradient from forged saved values | not representable: PyTorch builds its graph from tensors, so no node can name a missing or newer operand |
+| `dangling_self`, `dangling_newer`, `dangling_mul` | `DanglingOperand` (104) | not representable: PyTorch builds its graph from tensors, so no node can name itself, a newer node or a missing node |
+| `forged_sound` | gradients from the forged saved operands | not representable: PyTorch saves the operands it was given, so saved values cannot disagree with the leaves |
+| `nan_payloads_sub` | `NaN_a - NaN_b` keeps `NaN_a`'s payload | keeps `NaN_b`'s payload; every other line agrees, including `add` and `mul` of the same NaNs |
 
 ## Reproduce
 

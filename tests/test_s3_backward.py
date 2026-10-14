@@ -9,6 +9,8 @@ from tools.s3 import PROOF_CONTROLS, SUBGATES
 from tools.s3_backward import (
     DANGLING_OPERAND,
     NEGATIVE_ZERO,
+    OTHER_NAN,
+    QUIET_NAN,
     RUNTIME_CONTROLS,
     UNKNOWN_NODE,
     cases,
@@ -24,11 +26,13 @@ from tools.s3_backward import (
 from tools.s3_broadcast import is_nan, word
 
 FIXTURE = ROOT / "oracle/s3/fixtures/s3-backward-torch-v1.json"
-FIXTURE_SHA256 = "6aace8f965881f81dd65a54bf30a8d88fd57ff5483ead64530d8712e5840ade4"
+FIXTURE_SHA256 = "8c5692d6fef448459e75293f5f7ef562671630c9aa017ff79c2d09bbc0c5622a"
 # Requests that PyTorch cannot express or reports differently; the S3 backward
 # page lists each one.
 UNKNOWN_IDS = {"unknown_operand", "unknown_output_empty", "unknown_output"}
 FORGED = {"dangling_self", "dangling_newer", "dangling_mul", "forged_sound"}
+# Native sub keeps the first NaN operand's payload; PyTorch keeps the second's.
+SUB_PAYLOAD = {"nan_payloads_sub"}
 
 
 def case(steps: list[dict]) -> dict:
@@ -92,6 +96,28 @@ class BackwardReferenceTests(unittest.TestCase):
 ZERO = {"op": "zero_grad"}
 
 
+class NanPayloadTests(unittest.TestCase):
+    # Observed on native Bend (clang 19 -O3, x86-64) and PyTorch 2.14.1+cpu.
+    def test_add_and_mul_keep_the_second_nan(self):
+        for name in ("add", "mul"):
+            lines = reference(
+                case([leaf(QUIET_NAN), leaf(OTHER_NAN), op(name, 0, 1), *reads(3)])
+            )
+            self.assertEqual(lines[-2], f"S3:value:{OTHER_NAN}")
+
+    def test_sub_keeps_the_first_nan(self):
+        lines = reference(
+            case([leaf(QUIET_NAN), leaf(OTHER_NAN), op("sub", 0, 1), *reads(3)])
+        )
+        self.assertEqual(lines[-2], f"S3:value:{QUIET_NAN}")
+
+    def test_a_signaling_nan_is_quieted(self):
+        lines = reference(
+            case([leaf(1.0), leaf(0x7FA00001), op("mul", 0, 1), *reads(3)])
+        )
+        self.assertEqual(lines[-2], f"S3:value:{0x7FE00001}")
+
+
 class BackwardVerificationTests(unittest.TestCase):
     def frame(self, lines: list[str]) -> str:
         return "\n".join(["S3:begin:case", *lines, "S3:end"]) + "\n"
@@ -147,6 +173,18 @@ class BackwardTorchOracleTests(unittest.TestCase):
                     self.assertEqual(observed["unrepresentable"], "forge")
                     continue
                 expected = reference(row)
+                if identifier in SUB_PAYLOAD:
+                    differ = [
+                        (seen, wanted)
+                        for seen, wanted in zip(
+                            observed["lines"], expected, strict=True
+                        )
+                        if seen != wanted
+                    ]
+                    self.assertEqual(
+                        differ, [(f"S3:value:{OTHER_NAN}", f"S3:value:{QUIET_NAN}")]
+                    )
+                    continue
                 if identifier in UNKNOWN_IDS:
                     self.assertEqual(len(observed["lines"]), len(expected))
                     for seen, wanted in zip(observed["lines"], expected, strict=True):
@@ -156,7 +194,9 @@ class BackwardTorchOracleTests(unittest.TestCase):
                     continue
                 self.assertEqual(observed["lines"], expected)
                 exact += 1
-        self.assertEqual(exact, len(cases()) - len(UNKNOWN_IDS) - len(FORGED))
+        self.assertEqual(
+            exact, len(cases()) - len(UNKNOWN_IDS) - len(FORGED) - len(SUB_PAYLOAD)
+        )
 
     def test_nonfinite_cases_are_compared_with_pytorch_not_duals(self):
         rows = {row["id"]: row for row in self.fixture["backward"]}
@@ -174,9 +214,9 @@ class StageRegistrationTests(unittest.TestCase):
         required = json.loads((ROOT / "verification/s3.json").read_text())[
             "required_exports"
         ]
-        self.assertEqual(sum("backward_2d_LAWS" in name for name in required), 32)
+        self.assertEqual(sum("backward_2d_LAWS" in name for name in required), 35)
         controls = [name for name in PROOF_CONTROLS if name.startswith("backward-")]
-        self.assertEqual(len(controls), 8)
+        self.assertEqual(len(controls), 9)
         for path, original, _ in PROOF_CONTROLS.values():
             self.assertEqual((ROOT / path).read_text().count(original), 1)
 

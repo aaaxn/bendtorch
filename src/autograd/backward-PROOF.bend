@@ -436,6 +436,94 @@ def Laws.backward_success(entries, output, inside, sound):
       Result<&2, &2, Backward.Error, Backward.Tape>}
   {==}
 
+# Operand bounds.
+
+def and_true(+value: Bool) -> {Bool.and(value, True{}) == value : Bool}:
+  match value:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+
+def and_false(+value: Bool) -> {Bool.and(value, False{}) == False{} : Bool}:
+  match value:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+
+def operands_bounded(+node: Backward.Node, +bound: Nat) ->
+  {Backward.operands_below(node, bound) == Laws.bounded(Laws.targets(node), bound) : Bool}:
+  match node:
+    case Backward.Leaf{}:
+      {==}
+    case Backward.Add{a, b}:
+      Equal.cong(Bool, Bool, flag => Bool.and(Nat.is_lt(a, bound), flag), Nat.is_lt(b, bound), Bool.and(Nat.is_lt(b, bound), True{}),
+        Equal.sym(Bool, Bool.and(Nat.is_lt(b, bound), True{}), Nat.is_lt(b, bound), and_true(Nat.is_lt(b, bound))))
+    case Backward.Sub{a, b}:
+      Equal.cong(Bool, Bool, flag => Bool.and(Nat.is_lt(a, bound), flag), Nat.is_lt(b, bound), Bool.and(Nat.is_lt(b, bound), True{}),
+        Equal.sym(Bool, Bool.and(Nat.is_lt(b, bound), True{}), Nat.is_lt(b, bound), and_true(Nat.is_lt(b, bound))))
+    case Backward.Mul{a, b, left, right}:
+      Equal.cong(Bool, Bool, flag => Bool.and(Nat.is_lt(a, bound), flag), Nat.is_lt(b, bound), Bool.and(Nat.is_lt(b, bound), True{}),
+        Equal.sym(Bool, Bool.and(Nat.is_lt(b, bound), True{}), Nat.is_lt(b, bound), and_true(Nat.is_lt(b, bound))))
+    case Backward.Neg{a}:
+      Equal.sym(Bool, Bool.and(Nat.is_lt(a, bound), True{}), Nat.is_lt(a, bound), and_true(Nat.is_lt(a, bound)))
+
+def Laws.wired_matches_operand_bounds(graph):
+  match graph:
+    case Nil{}:
+      {==}
+    case Con{node, rest}:
+      %Equal.sym(Bool, Backward.operands_below(node, List.length(&2, Backward.Node, rest)),
+        Laws.bounded(Laws.targets(node), List.length(&2, Backward.Node, rest)), operands_bounded(node, List.length(&2, Backward.Node, rest))) :
+        {Bool.and(_, Backward.wired(rest, List.length(&2, Backward.Node, rest))) ==
+          Bool.and(Laws.bounded(Laws.targets(node), List.length(&2, Backward.Node, rest)), Laws.well_formed(rest)) : Bool}
+      Equal.cong(Bool, Bool, flag => Bool.and(Laws.bounded(Laws.targets(node), List.length(&2, Backward.Node, rest)), flag),
+        Backward.wired(rest, List.length(&2, Backward.Node, rest)), Laws.well_formed(rest), Laws.wired_matches_operand_bounds(rest))
+
+def wired_entries(+entries: List<&2, Backward.Entry>) ->
+  {Backward.wired(Backward.nodes(entries), List.length(&2, Backward.Entry, entries)) == Laws.well_formed(Backward.nodes(entries)) : Bool}:
+  %Equal.sym(Nat, List.length(&2, Backward.Entry, entries), List.length(&2, Backward.Node, Backward.nodes(entries)), nodes_length(entries)) :
+    {Backward.wired(Backward.nodes(entries), _) == Laws.well_formed(Backward.nodes(entries)) : Bool}
+  Laws.wired_matches_operand_bounds(Backward.nodes(entries))
+
+def head_ill_formed(+entry: Backward.Entry, +rest: List<&2, Backward.Entry>,
+  unbound: {Laws.bounded(Laws.targets(Laws.entry_node(entry)), List.length(&2, Backward.Entry, rest)) == False{} : Bool}) ->
+  {Laws.well_formed(Backward.nodes(entry <> rest)) == False{} : Bool}:
+  match entry:
+    case Backward.Entry{node, value, slot}:
+      %nodes_length(rest) :
+        {Bool.and(Laws.bounded(Laws.targets(node), _), Laws.well_formed(Backward.nodes(rest))) == False{} : Bool}
+      %Equal.sym(Bool, Laws.bounded(Laws.targets(node), List.length(&2, Backward.Entry, rest)), False{}, unbound) :
+        {Bool.and(_, Laws.well_formed(Backward.nodes(rest))) == False{} : Bool}
+      {==}
+
+def unbound_ill_formed(+newer: List<&2, Backward.Entry>, +entry: Backward.Entry, +rest: List<&2, Backward.Entry>,
+  +unbound: {Laws.bounded(Laws.targets(Laws.entry_node(entry)), List.length(&2, Backward.Entry, rest)) == False{} : Bool}) ->
+  {Laws.well_formed(Backward.nodes(List.append(&2, Backward.Entry, newer, entry <> rest))) == False{} : Bool}:
+  match newer:
+    case Nil{}:
+      head_ill_formed(entry, rest, unbound)
+    case Con{Backward.Entry{node, value, slot}, tail}:
+      %Equal.sym(Bool, Laws.well_formed(Backward.nodes(List.append(&2, Backward.Entry, tail, entry <> rest))), False{},
+        unbound_ill_formed(tail, entry, rest, unbound)) :
+        {Bool.and(Laws.bounded(Laws.targets(node), List.length(&2, Backward.Node, Backward.nodes(List.append(&2, Backward.Entry, tail, entry <> rest)))), _) ==
+          False{} : Bool}
+      and_false(Laws.bounded(Laws.targets(node), List.length(&2, Backward.Node, Backward.nodes(List.append(&2, Backward.Entry, tail, entry <> rest)))))
+
+def Laws.backward_rejects_unbound_operand(newer, entry, rest, output, inside, unbound):
+  Laws.backward_dangling(List.append(&2, Backward.Entry, newer, entry <> rest), output, inside,
+    Equal.trans(Bool, Backward.wired(Backward.nodes(List.append(&2, Backward.Entry, newer, entry <> rest)),
+        List.length(&2, Backward.Entry, List.append(&2, Backward.Entry, newer, entry <> rest))),
+      Laws.well_formed(Backward.nodes(List.append(&2, Backward.Entry, newer, entry <> rest))), False{},
+      wired_entries(List.append(&2, Backward.Entry, newer, entry <> rest)),
+      unbound_ill_formed(newer, entry, rest, unbound)))
+
+def Laws.backward_accepts_bound_operands(entries, output, inside, bound):
+  Laws.backward_success(entries, output, inside,
+    Equal.trans(Bool, Backward.wired(Backward.nodes(entries), List.length(&2, Backward.Entry, entries)),
+      Laws.well_formed(Backward.nodes(entries)), True{}, wired_entries(entries), bound))
+
 # Repeated backward.
 
 def nodes_merge(+entries: List<&2, Backward.Entry>, +gradients: List<&2, Maybe<&2, F32>>) ->

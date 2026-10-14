@@ -162,6 +162,11 @@ PROOF_CONTROLS = {
         "Entry{node, value, accumulate(slot, gradient)} <> merge(rest, more)",
         "Entry{node, value, gradient} <> merge(rest, more)",
     ),
+    "backward-wiring-check-bypassed": (
+        "src/autograd/backward.bend",
+        "      Bool.and(operands_below(node, below), wired(rest, below))",
+        "      wired(rest, below)",
+    ),
     "backward-zero-grad-keeps-slot": (
         "src/autograd/backward.bend",
         "Entry{node, value, None{}} <> cleared(rest)",

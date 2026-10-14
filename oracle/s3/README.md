@@ -43,11 +43,14 @@ scalars and writes `fixtures/s3-backward-torch-v1.json`. Each script records
 leaves and `+`, `-`, `*` and unary `-` in order; every node keeps its gradient
 (`retain_grad()`), every `backward` keeps the graph (`retain_graph=True`), and
 `zero_grad` sets every `.grad` to `None`. `tests/test_s3_backward.py` in the
-root suite compares the gate's Python reference with this file. 76 scripts
-agree line for line. Three scripts use node ids that the tape does not hold;
-bendtorch reports `UnknownNode` where the replay raises `IndexError`. Four
-scripts forge tapes with dangling operands, which PyTorch cannot express, and
-are recorded as `unrepresentable`. [docs/s3-backward.md](../../docs/s3-backward.md)
+root suite compares the gate's Python reference with this file. 83 of 91
+scripts agree line for line. Three scripts use node ids that the tape does not
+hold; bendtorch reports `UnknownNode` where the replay raises `IndexError`.
+Four scripts forge tapes and are recorded as `unrepresentable`: three with
+malformed wiring (an operand that is the node itself, a newer node or a
+missing node) and one with sound wiring but saved state that disagrees with
+its leaves. In `nan_payloads_sub`, PyTorch's `NaN_a - NaN_b` keeps the second
+payload and bendtorch's native lane keeps the first. [docs/s3-backward.md](../../docs/s3-backward.md)
 lists them.
 
 ## Reproduce
