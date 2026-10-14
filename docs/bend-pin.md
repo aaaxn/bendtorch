@@ -87,8 +87,7 @@ Recheck each entry under AGENTS.md "Known Bend2 bugs" on the new commit with
 its example, under both `--check-only` and `--verdict`. If an entry is fixed,
 say so in the PR and propose removing it.
 
-The committed `evidence/sN/` runs are historical. Do not replace them on a
-pin bump; the PR description carries the new run's commands and results.
+The PR description carries the new run's commands and results.
 
 ## History
 

@@ -12,7 +12,7 @@ previous tensor entrypoints, with no removal.
 
 ## Snapshot identity
 
-The single integrated gate run retained in `evidence/s2/` froze 88 inputs.
+The single integrated S2 gate run froze 88 inputs.
 The SHA256 of `source-inventory.json` is
 `723b8b7ec013b3a67aea5a7603d4a31eeebce9c243409268fbe7f1298b203568`.
 Its freshly exported, directly checked proof has SHA256

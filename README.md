@@ -230,8 +230,7 @@ uv run --locked python -m verification.families.run --output <new directory>
 in the order the capabilities were added. `tools.s0` checks the toolchain
 itself, `tools.s1` shapes and storage, `tools.s2` tensors and the frozen
 corpus, and `tools.s3` the autograd building blocks and their laws. The last
-two commands check the proved contracts and their negative controls. `evidence/`
-keeps one recorded run of each completed gate.
+two commands check the proved contracts and their negative controls.
 
 The oracle has its own uv project with a CPU-only PyTorch, so PyTorch is
 never installed in the root environment. The [oracle](oracle/README.md) and
@@ -250,7 +249,6 @@ the references.
 | `oracle/` | The isolated PyTorch reference project and its frozen fixtures. |
 | `experiments/` | Experimental code, outside `src/` until it is promoted. |
 | `probes/` | Small Bend programs used by the gates. |
-| `evidence/` | Recorded gate runs. |
 | `docs/` | Design notes and contracts for each capability. |
 
 ## Contributing
