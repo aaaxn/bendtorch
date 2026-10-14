@@ -192,8 +192,8 @@ These finish in seconds:
 
 ```sh
 uv run --locked python -m unittest discover -s tests -p test_tensor_numerics.py -v
-uv run --locked ruff check tools tests
-uv run --locked ruff format --check tools tests
+uv run --locked ruff check tools tests verification experiments
+uv run --locked ruff format --check tools tests verification experiments
 uv run --locked ty check
 ```
 

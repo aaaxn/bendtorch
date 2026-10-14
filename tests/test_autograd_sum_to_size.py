@@ -43,7 +43,7 @@ class SumToSizeReferenceTests(unittest.TestCase):
     # For a scalar, the direct method reduces and returns +0.0, but autograd
     # does not reduce, so the gradient of a same-shape operand keeps -0.0
     # (80000000) for every shape here, scalar included. sum_to_size follows
-    # autograd.
+    # autograd; reduce_to folds from +0.0.
     def test_identity_keeps_negative_zero_like_pytorch(self):
         for shape in ([], [1], [2, 3], [1, 3]):
             words = [NEGATIVE_ZERO] * math.prod(shape)
@@ -109,7 +109,7 @@ class StageRegistrationTests(unittest.TestCase):
 
 class SumToSizeRuntimeTests(unittest.TestCase):
     def test_native_and_javascript_lanes(self):
-        with tempfile.TemporaryDirectory(prefix="s3-sum-to-size-") as directory:
+        with tempfile.TemporaryDirectory(prefix="autograd-sum-to-size-") as directory:
             summary = run_gate(ROOT / ".tools", Path(directory) / "run")
         self.assertEqual(summary["native"], summary["javascript"])
         self.assertEqual(summary["native"]["cases"], len(cases()))

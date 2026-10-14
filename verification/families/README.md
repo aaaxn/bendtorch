@@ -143,9 +143,11 @@ declarations.
 `reduce/` holds:
 
 - `consumers.bend`: five consumers of `reduce_fold_fiber`, the law that states
-  each output cell of `reduce_to` as an ordered fold over the contribution
-  words that land on it. Each one reduces the `[2, 3]` contribution
-  `[1, 2, 3, 4, 5, 6]`, built by `Core.from_values`, to a target:
+  `ReduceFold.cell` as the `reduce_to` specification of one output cell: an
+  ordered fold over the contribution words that land on it. `Reduce.reduce_to`
+  does not call `ReduceFold.cell` yet. Each consumer reduces the `[2, 3]`
+  contribution `[1, 2, 3, 4, 5, 6]`, replayed as the writes of
+  `Core.from_values`, to a target:
   - `[3]`: cell 1 adds column 1, words 1 and 4.
   - `[2, 1]`: cell 1 adds row 1, words 3, 4 and 5.
   - `[]`: the one cell adds every word.

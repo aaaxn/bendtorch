@@ -134,7 +134,7 @@ class StageRegistrationTests(unittest.TestCase):
 
 class LifecycleRuntimeTests(unittest.TestCase):
     def test_native_and_javascript_lanes(self):
-        with tempfile.TemporaryDirectory(prefix="s3-lifecycle-") as directory:
+        with tempfile.TemporaryDirectory(prefix="autograd-lifecycle-") as directory:
             summary = run_gate(ROOT / ".tools", Path(directory) / "run")
         self.assertEqual(summary["native"], summary["javascript"])
         self.assertEqual(summary["native"]["cases"], len(cases()))

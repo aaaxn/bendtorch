@@ -261,7 +261,7 @@ the run as preliminary and records drift in `live_source_drift`, allowing a defe
 screen while proof helpers are still being edited; it is not a final-source claim.
 The integration tests also label their independent snapshot runs as screening.
 Failures retain their actual diagnostics and are never recorded as passing
-checks. Runtime tests leave fresh run directories named `s2-runtime-tests-*`
+checks. Runtime tests leave fresh run directories named `tensor-runtime-tests-*`
 under `.evidence/` for inspection.
 
 `tools.storage.instrument_copy_audit` instruments the emitted C without
