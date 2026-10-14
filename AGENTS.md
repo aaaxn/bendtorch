@@ -135,7 +135,8 @@ finds and never tries another value. So it finds no model for
 `Pos{n: Nat, positive: {Nat.is_lt(0n, n) == True{} : Bool}}`: it picks
 `n = 0`, and `Pos{1n, {==}}` is never tried. `--check-only` passes and
 `--verdict` fails with `no model for pick~make`. `Nat -> Shape.Shape` fails
-the same way. Repro: `bend probes/template_model.bend --verdict`.
+the same way. It affects the pin `32d23b43` and release 2.0.37, the latest
+release on 2026-10-14. Repro: `bend probes/template_model.bend --verdict`.
 Workaround: give an index-map template the type `P -> Nat -> Nat` and state
 its bound as a Bool hypothesis, such as `Pointwise.inside(...) == True{}`,
 that each instance proves. A `~` parameter whose type is empty also has no
