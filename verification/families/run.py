@@ -57,7 +57,7 @@ def family_controls(family, snapshot, output, bend, kernel, parallel, reasons) -
             *(
                 (
                     f"{name}/source-{label}",
-                    [*bend, copies[label] / family.proof, "--check-only"],
+                    [*bend, copies[label] / family.checked(label), "--check-only"],
                     1,
                 )
                 for label in family.mutants

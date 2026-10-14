@@ -1,6 +1,7 @@
 import Base
 import ../../../src/shape/core.bend as Shape
 import ../../../src/storage/LAWS.bend as StorageLaws
+import ../../../src/storage/main.bend as Storage
 import ../../../src/tensor/core.bend as Core
 import ../../../src/tensor/lifecycle.bend as Lifecycle
 import ../../../src/tensor/reduction.bend as Reduction
@@ -187,3 +188,66 @@ def dot_empty() -> {Fold.pair_value(dot_result(1n, 2n, 0n, 3n, empty_grid_shape(
   open_empty_dot(1n, 2n, 0n, 3n, empty_grid_shape(), [], {==}, empty_wide_shape(), [], {==},
     Contracts.dot_ordered(2n, 0n, 3n, 1n, {==}, 2n, {==}, empty_grid_shape(), {==}, 0.0, writes([]), {==},
       empty_wide_shape(), {==}, 0.0, writes([]), {==}))
+
+# Failure. The family laws require every index in bounds, so these consumers
+# run the generic loops directly with an index map that leaves the input:
+# `doubled` reads index 4 of a three-word input at step 2, after two
+# successful steps.
+def doubled(plan: Unit, index: Nat) -> Nat:
+  Nat.mul(2n, index)
+
+def failure(result: Core.Dynamic & Result<&2, &1, Core.Error, F32>) -> Maybe<&2, Core.Error>:
+  (input, outcome) = result
+  match outcome:
+    case Fail{error}:
+      Some{error}
+    case Done{word}:
+      None{}
+
+def pair_failure(result: (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, F32>) -> Maybe<&2, Core.Error>:
+  (inputs, outcome) = result
+  match outcome:
+    case Fail{error}:
+      Some{error}
+    case Done{word}:
+      None{}
+
+def out_of_bounds() -> Maybe<&2, Core.Error>:
+  Some{Core.StorageError{Storage.OutOfBounds{}}}
+
+def failed_sum() -> Core.Dynamic & Result<&2, &1, Core.Error, F32>:
+  Fold.run(~Unit, ~Sum.add, ~Unit, ~doubled, Unit{}, Unit{}, 3n, input(three_shape(), three_values(), {==}))
+
+def failed_left() -> (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, F32>:
+  Fold.pair_run(~Unit, ~Dot.multiply_add, ~Unit, ~doubled, ~Sum.position, Unit{}, Unit{}, 3n,
+    input(three_shape(), three_values(), {==}), input(three_shape(), [10.0, 20.0, 30.0], {==}))
+
+def failed_right() -> (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, F32>:
+  Fold.pair_run(~Unit, ~Dot.multiply_add, ~Unit, ~Sum.position, ~doubled, Unit{}, Unit{}, 3n,
+    input(three_shape(), three_values(), {==}), input(three_shape(), [10.0, 20.0, 30.0], {==}))
+
+type FailCase<-error: Maybe<&2, Core.Error>, -first: Maybe<&2, F32>, -last: Maybe<&2, F32>> is Data:
+  FailCase{
+    error_exact: {error == out_of_bounds() : Maybe<&2, Core.Error>},
+    first_kept: {first == Some{1.0} : Maybe<&2, F32>},
+    last_kept: {last == Some{3.0} : Maybe<&2, F32>}}
+
+type PairFailCase<-error: Maybe<&2, Core.Error>, -left_first: Maybe<&2, F32>, -left_last: Maybe<&2, F32>,
+  -right_first: Maybe<&2, F32>, -right_last: Maybe<&2, F32>> is Data:
+  PairFailCase{
+    error_exact: {error == out_of_bounds() : Maybe<&2, Core.Error>},
+    left_first_kept: {left_first == Some{1.0} : Maybe<&2, F32>},
+    left_last_kept: {left_last == Some{3.0} : Maybe<&2, F32>},
+    right_first_kept: {right_first == Some{10.0} : Maybe<&2, F32>},
+    right_last_kept: {right_last == Some{30.0} : Maybe<&2, F32>}}
+
+def sum_fails() -> FailCase<failure(failed_sum()), Fold.input_point(failed_sum(), 0), Fold.input_point(failed_sum(), 2)>:
+  FailCase{{==}, {==}, {==}}
+
+def pair_fails_left() -> PairFailCase<pair_failure(failed_left()), Fold.left_point(failed_left(), 0), Fold.left_point(failed_left(), 2),
+  Fold.right_point(failed_left(), 0), Fold.right_point(failed_left(), 2)>:
+  PairFailCase{{==}, {==}, {==}, {==}, {==}}
+
+def pair_fails_right() -> PairFailCase<pair_failure(failed_right()), Fold.left_point(failed_right(), 0), Fold.left_point(failed_right(), 2),
+  Fold.right_point(failed_right(), 0), Fold.right_point(failed_right(), 2)>:
+  PairFailCase{{==}, {==}, {==}, {==}, {==}}

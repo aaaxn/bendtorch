@@ -26,10 +26,15 @@ class Value(NamedTuple):
 
 
 class Site(NamedTuple):
+    """Where the checkers reject a mutant. A `consumer` site is a declaration
+    of the family's `consumers.bend`, which then is the module the source
+    check runs, for behavior that no law states."""
+
     source_def: str
     source_mark: str
     kernel_declaration: str
     replaced: tuple[str, ...]
+    consumer: bool = False
 
 
 class Law(NamedTuple):
@@ -73,6 +78,12 @@ class Family:
     def entry_path(self) -> str:
         return f"{self.experiment}/entry.bend"
 
+    def checked(self, label: str) -> str:
+        """The module whose source check must reject the mutant."""
+        if self.sites[label].consumer:
+            return f"{self.experiment}/consumers.bend"
+        return self.proof
+
     def mutant_copy(self, snapshot: Path, target: Path, label: str) -> None:
         path, old, new = self.mutants[label]
         shutil.copytree(snapshot / "src", target / "src")
@@ -82,6 +93,10 @@ class Family:
             raise GateError(f"{label}: mutation target in {path} is not unique")
         edited.write_text(text.replace(old, new))
         (target / self.experiment).mkdir(parents=True)
+        shutil.copyfile(
+            snapshot / self.experiment / "consumers.bend",
+            target / self.experiment / "consumers.bend",
+        )
         (target / self.entry_path).write_text(
             "import Base\n"
             + "".join(
@@ -152,7 +167,9 @@ class Family:
             ):
                 raise GateError(f"{label}: kernel rejection is not the value statement")
         elif label in self.sites:
-            site = f"{self.prefix}{self.sites[label].kernel_declaration}"
+            site = self.sites[label].kernel_declaration
+            if not self.sites[label].consumer:
+                site = f"{self.prefix}{site}"
             if location != site or not expected or expected == observed:
                 raise GateError(f"{label}: kernel rejection is not at {site}")
         else:

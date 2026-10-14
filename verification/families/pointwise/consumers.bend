@@ -188,3 +188,102 @@ def keep_scalar() -> PointCase<result(Elementwise.KeepLeft{}, scalar_three(), [7
 
 def empty() -> EmptyCase<result(Elementwise.Add{}, empty_plan(), [], [], {==}, {==}), [2, 0]>:
   expose_empty(Elementwise.Add{}, empty_plan(), [], [], {==}, {==})
+
+# The family on tensors that the public producers build. A producer failure
+# leaves no inputs to broadcast.
+def produced_right(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, left: Core.Tensor<Shape.left_shape(plan)>,
+  right: Result<&2, &1, Core.Error, Core.Tensor<Shape.right_shape(plan)>>) ->
+  Maybe<&1, (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>>:
+  match right:
+    case Fail{error}:
+      None{}
+    case Done{tensor}:
+      Some{Broadcast.binary(operation, plan, Core.Packed{Shape.left_shape(plan), left}, Core.Packed{Shape.right_shape(plan), tensor})}
+
+def produced(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan,
+  left: Result<&2, &1, Core.Error, Core.Tensor<Shape.left_shape(plan)>>,
+  right: Result<&2, &1, Core.Error, Core.Tensor<Shape.right_shape(plan)>>) ->
+  Maybe<&1, (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>>:
+  match left:
+    case Fail{error}:
+      None{}
+    case Done{tensor}:
+      produced_right(operation, plan, tensor, right)
+
+def produced_point(outcome: Maybe<&1, (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>>, +index: U32) -> Maybe<&2, F32>:
+  match outcome:
+    case None{}:
+      None{}
+    case Some{result}:
+      Pointwise.output_point(result, index)
+
+# What the family promises for a produced pair; nothing when a producer fails.
+def Produced(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan,
+  +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>,
+  outcome: Maybe<&1, (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>>) -> Type:
+  match outcome:
+    case None{}:
+      Empty
+    case Some{result}:
+      Records.PointwiseContract<Shape.output_shape(plan), Shape.left_shape(plan), Shape.right_shape(plan),
+        index => Broadcast.cell(operation, plan, left_fill, left_ops, right_fill, right_ops, index),
+        other => Replayed.value(Shape.left_shape(plan), left_fill, left_ops, other),
+        other => Replayed.value(Shape.right_shape(plan), right_fill, right_ops, other),
+        result>
+
+# `from_values_replayed` turns both `Core.from_values` results into replayed
+# tensors, and `broadcast_pointwise` gives the contract of their broadcast.
+def from_values_pointwise(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan,
+  +left: List<&2, F32>, left_counted: {List.length(&2, F32, left) == Shape.logical_numel(Shape.dimensions(Shape.left_shape(plan))) : Nat},
+  +right: List<&2, F32>, right_counted: {List.length(&2, F32, right) == Shape.logical_numel(Shape.dimensions(Shape.right_shape(plan))) : Nat}) ->
+  Produced(operation, plan, 0.0, writes(left), 0.0, writes(right),
+    produced(operation, plan, Core.from_values(Shape.left_shape(plan), left), Core.from_values(Shape.right_shape(plan), right))):
+  Contracts.from_values_replayed(Shape.left_shape(plan), left, left_counted,
+    r => Produced(operation, plan, 0.0, writes(left), 0.0, writes(right),
+      produced(operation, plan, r, Core.from_values(Shape.right_shape(plan), right))),
+    left_fits => Contracts.from_values_replayed(Shape.right_shape(plan), right, right_counted,
+      r => Produced(operation, plan, 0.0, writes(left), 0.0, writes(right),
+        produced(operation, plan, Done{Core.TTensor{Replayed.storage(Shape.left_shape(plan), 0.0, writes(left)), left_fits}}, r)),
+      right_fits => Contracts.broadcast_pointwise(operation, plan, 0.0, writes(left), left_fits, 0.0, writes(right), right_fits)))
+
+# The same through `new_replayed`, for two `Core.new` fills.
+def new_pointwise(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +left_fill: F32, +right_fill: F32) ->
+  Produced(operation, plan, left_fill, Nil{}, right_fill, Nil{},
+    produced(operation, plan, Core.new(Shape.left_shape(plan), left_fill), Core.new(Shape.right_shape(plan), right_fill))):
+  Contracts.new_replayed(Shape.left_shape(plan), left_fill,
+    r => Produced(operation, plan, left_fill, Nil{}, right_fill, Nil{},
+      produced(operation, plan, r, Core.new(Shape.right_shape(plan), right_fill))),
+    left_fits => Contracts.new_replayed(Shape.right_shape(plan), right_fill,
+      r => Produced(operation, plan, left_fill, Nil{}, right_fill, Nil{},
+        produced(operation, plan, Done{Core.TTensor{Replayed.storage(Shape.left_shape(plan), left_fill, Nil{}), left_fits}}, r)),
+      right_fits => Contracts.broadcast_pointwise(operation, plan, left_fill, Nil{}, left_fits, right_fill, Nil{}, right_fits)))
+
+def produced_value(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan,
+  +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>,
+  outcome: Maybe<&1, (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>>,
+  evidence: Produced(operation, plan, left_fill, left_ops, right_fill, right_ops, outcome),
+  +index: U32, inside: {Nat.is_lt(U32.to_nat(index), Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan)))) == True{} : Bool}) ->
+  {produced_point(outcome, index) ==
+    Some{Broadcast.cell(operation, plan, left_fill, left_ops, right_fill, right_ops, U32.to_nat(index))} : Maybe<&2, F32>}:
+  match outcome:
+    case None{}:
+      Empty.absurd({None{} == Some{Broadcast.cell(operation, plan, left_fill, left_ops, right_fill, right_ops, U32.to_nat(index))} : Maybe<&2, F32>}, evidence)
+    case Some{result}:
+      Records.PointwiseContract{successful, dimensions, value, left_kept, right_kept} = evidence
+      value(index, inside)
+
+# The kernel evaluates the produced inputs while it checks these, and runs out
+# of fuel on the [2, 3] grid, so they use [3] - [3].
+def from_values_sub() ->
+  {produced_point(produced(Elementwise.Sub{}, three_three(), Core.from_values(three_shape(), [1.0, 2.0, 3.0]),
+    Core.from_values(three_shape(), three_values())), 2) == Some{F32.sub(3.0, 30.0)} : Maybe<&2, F32>}:
+  produced_value(Elementwise.Sub{}, three_three(), 0.0, writes([1.0, 2.0, 3.0]), 0.0, writes(three_values()),
+    produced(Elementwise.Sub{}, three_three(), Core.from_values(three_shape(), [1.0, 2.0, 3.0]), Core.from_values(three_shape(), three_values())),
+    from_values_pointwise(Elementwise.Sub{}, three_three(), [1.0, 2.0, 3.0], {==}, three_values(), {==}), 2, {==})
+
+def new_sub() ->
+  {produced_point(produced(Elementwise.Sub{}, three_three(), Core.new(three_shape(), 2.0), Core.new(three_shape(), 5.0)), 2) ==
+    Some{F32.sub(2.0, 5.0)} : Maybe<&2, F32>}:
+  produced_value(Elementwise.Sub{}, three_three(), 2.0, Nil{}, 5.0, Nil{},
+    produced(Elementwise.Sub{}, three_three(), Core.new(three_shape(), 2.0), Core.new(three_shape(), 5.0)),
+    new_pointwise(Elementwise.Sub{}, three_three(), 2.0, 5.0), 2, {==})

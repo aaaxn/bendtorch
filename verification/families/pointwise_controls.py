@@ -40,6 +40,8 @@ FAMILY = controls.Family(
             "add_same",
             "keep_scalar",
             "empty",
+            "from_values_sub",
+            "new_sub",
         )
     ),
     witnesses={
@@ -47,6 +49,7 @@ FAMILY = controls.Family(
         "outer_witness": Witness("expected_outer", "unbroadcast_outer"),
         "keep_witness": Witness("expected_keep", "wrong_keep"),
         "kept_witness": Witness("expected_kept", "overwritten_kept"),
+        "produced_witness": Witness("expected_produced", "swapped_produced"),
     },
     values={
         "expected_sub": Value(
@@ -69,8 +72,16 @@ FAMILY = controls.Family(
         "overwritten_kept": Value(
             "Some{F32.sub(5.0, 20.0)}", f"(.Some, ((F32.sub {FIVE} {TWENTY}), ()))"
         ),
+        "expected_produced": Value(
+            "Some{F32.sub(3.0, 30.0)}",
+            "(.Some, ((F32.sub F32.lit1077936128 F32.lit1106247680), ()))",
+        ),
+        "swapped_produced": Value(
+            "Some{F32.sub(30.0, 3.0)}",
+            "(.Some, ((F32.sub F32.lit1106247680 F32.lit1077936128), ()))",
+        ),
     },
-    subjects=("result",),
+    subjects=("result", "produced"),
     mutants=controls.load_mutants("pointwise"),
     sites={
         "swapped-operands": Site(

@@ -36,16 +36,32 @@ class PointwiseControlTests(unittest.TestCase):
                 snapshot = Path(directory) / "snapshot"
                 snapshot.mkdir()
                 (snapshot / "src").symlink_to(ROOT / "src")
+                (snapshot / family.experiment).parent.mkdir(parents=True)
+                (snapshot / family.experiment).symlink_to(ROOT / family.experiment)
                 for label, (path, old, new) in family.mutants.items():
                     target = Path(directory) / label
                     family.mutant_copy(snapshot, target, label)
                     text = (target / path).read_text()
                     self.assertEqual(text, (ROOT / path).read_text().replace(old, new))
                     self.assertTrue((target / family.entry_path).exists())
+                    self.assertTrue((target / family.checked(label)).exists())
                     for name in family.operations - {path}:
                         self.assertEqual(
                             (target / name).read_text(), (ROOT / name).read_text()
                         )
+
+    def test_failure_mutants_are_checked_by_the_consumers(self):
+        checked = {label: fold.checked(label) for label in fold.mutants}
+        failures = {"failed-step-done", "pair-left-failed-done"}
+        failures.add("pair-right-failed-swapped")
+        for label, path in checked.items():
+            expected = (
+                "verification/families/fold/consumers.bend"
+                if label in failures
+                else controls.PROOF
+            )
+            self.assertEqual(path, expected, label)
+        self.assertTrue(all(not site.consumer for site in pointwise.sites.values()))
 
     def test_false_twin_changes_only_the_statement(self):
         for family in FAMILIES:

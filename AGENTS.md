@@ -24,6 +24,32 @@ alias bend="bun $PWD/.tools/bend/bend2/main.ts"
 A global `bend` on your `PATH` can be a different version. Bend 2.0.25
 rejects `src/shape/core.bend`. When the two disagree, the pinned one decides.
 
+## Worktrees
+
+Every task runs in its own worktree under `.worktrees/` in the primary
+checkout, on a `bendtorch/<task>` branch. The primary checkout stays on a
+clean `main`, and its `.tools/` holds the bootstrapped toolchain.
+
+```sh
+git worktree add .worktrees/<task> -b bendtorch/<task> main
+cd .worktrees/<task> && ln -s ../../.tools .tools && uv sync --locked
+```
+
+- Base a stacked PR's branch on its parent PR branch instead of `main`.
+  Bring later base commits in with a merge, which keeps the published
+  history.
+- Continue an existing task worktree rather than creating a second one for
+  the same branch; `git worktree list` shows them.
+- `.tools/` takes about 4 GB, most of it Lean, so worktrees link the primary
+  checkout's copy instead of bootstrapping their own. A branch that changes
+  the pin in `verification/references.json` replaces the link with its own
+  bootstrap, as `docs/bend-pin.md` describes.
+- Each worktree has its own `.venv`, so the gates run that branch's `tools/`
+  and follow its `uv.lock`. Keep worktrees on the same filesystem as the uv
+  cache: uv hardlinks packages from the cache there and copies them anywhere
+  else, which matters for the PyTorch in the oracle environment.
+- Gate runs write to the worktree's own `.evidence/`.
+
 ## When using Bend
 
 - Run `bend guide` to learn it. Read `bend guide shaders` before you write
@@ -101,7 +127,20 @@ the user asks.
 The user has seen these bugs and approved the workaround each one lists. Use
 the workaround; report any case it does not cover.
 
-None on the current pin.
+"A template parameter has no model". `--verdict` exports each `~` parameter
+as an opaque constant and needs a model of its type. The model search tries
+each constructor in turn, but it fills each field with the first model it
+finds and never tries another value. So it finds no model for
+`~make: Nat -> Pos` with
+`Pos{n: Nat, positive: {Nat.is_lt(0n, n) == True{} : Bool}}`: it picks
+`n = 0`, and `Pos{1n, {==}}` is never tried. `--check-only` passes and
+`--verdict` fails with `no model for pick~make`. `Nat -> Shape.Shape` fails
+the same way. It affects the pin `32d23b43` and release 2.0.37, the latest
+release on 2026-10-14. Repro: `bend probes/template_model.bend --verdict`.
+Workaround: give an index-map template the type `P -> Nat -> Nat` and state
+its bound as a Bool hypothesis, such as `Pointwise.inside(...) == True{}`,
+that each instance proves. A `~` parameter whose type is empty also has no
+model; that failure is correct and is not this bug.
 
 Fixed: "A match leaves behind proofs about a variable it moves" (`convoy_bind`
 dropped a dependent parameter from a match's arms, so `--verdict` failed where

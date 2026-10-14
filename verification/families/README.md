@@ -11,9 +11,10 @@ twins and implementation mutants, beside the runner that checks them.
 
 `pointwise/` holds:
 
-- `consumers.bend`: eight consumers of `broadcast_pointwise`. Each one takes
-  its plan from `Shape.broadcast_checked` and its inputs as the replayed
-  tensors that `Core.from_values` returns, and restates literal values:
+- `consumers.bend`: ten consumers of `broadcast_pointwise`. Each one takes
+  its plan from `Shape.broadcast_checked`. The first eight take their inputs
+  as the replayed tensors that `Core.from_values` returns, and restate
+  literal values:
   - `[2, 3] - [3]` at output indices 0, 4 and 5.
   - `[2, 1] * [1, 3]`, an outer product, at indices 1 and 3.
   - `[3] + [3]` at index 2.
@@ -23,7 +24,16 @@ twins and implementation mutants, beside the runner that checks them.
   Each value consumer also states one word of each returned input. F32
   operations are opaque, so `[2, 3] - [3]` at index 4 is stated as
   `F32.sub(5.0, 20.0)`.
-- `controls.bend`: four value witnesses, each paired with one wrong value.
+
+  The last two name the producers themselves. `from_values_sub` states
+  `[3] - [3]` at index 2 for the actual `Core.from_values` results, and gets
+  the contract through `from_values_replayed`. `new_sub` does the same for
+  two `Core.new` fills through `new_replayed`, and states
+  `F32.sub(2.0, 5.0)`. `from_values_pointwise` and `new_pointwise` are the
+  generic compositions they instantiate. BendTT evaluates the produced inputs
+  while it checks these two, and on the `[2, 3]` grid it runs out of fuel, so
+  they use `[3]`.
+- `controls.bend`: five value witnesses, each paired with one wrong value.
 - `mutants.txt`: the before and after text of each mutation.
 
 | Control | Change | Source rejection | BendTT rejection |
@@ -32,6 +42,7 @@ twins and implementation mutants, beside the runner that checks them.
 | False twin `outer_witness` | `F32.mul(2.0, 30.0)`, left row not broadcast | the witness | the witness |
 | False twin `keep_witness` | `8.0` for a `7.0` fill | the witness | the witness |
 | False twin `kept_witness` | left word 4 reads the output value | the witness | the witness |
+| False twin `produced_witness` | `F32.sub(30.0, 3.0)` for the `Core.from_values` inputs, operands swapped | the witness | the witness |
 | Swapped operands | `right_step` writes `f(operation, y, x)` | `step_lift` | `step_lift.qvvvvv` |
 | Wrong write index | `right_step` writes at `index + 1` | `step_lift` | `step_lift.qvvvvv` |
 | Missing write | `right_step` skips the write | `step_lift` | `step_lift.qvvvvv` |
@@ -61,9 +72,9 @@ instance copy, only the instance copy for the swapped maps, or only
 
 `fold/` holds:
 
-- `consumers.bend`: seven consumers of `sum_ordered` and `dot_ordered`. Each
-  one takes its inputs as the replayed tensors that `Core.from_values`
-  returns, and restates literal values:
+- `consumers.bend`: seven consumers of `sum_ordered` and `dot_ordered`, and
+  three of failed folds. Each one takes its inputs as the replayed tensors
+  that `Core.from_values` returns. The first seven restate literal values:
   - The sums of `[1, 2, 3]`, of a `[2, 3]` grid and of a rank-0 `[7]`.
   - The sum of the empty `[2, 0]`, which is `0.0`.
   - Cells `(1, 0)` and `(0, 1)` of the product of a `[2, 3]` and a `[3, 2]`
@@ -74,6 +85,16 @@ instance copy, only the instance copy for the swapped maps, or only
   Each non-empty consumer also states one word of each returned input. A total
   is stated as the term the fold builds: the sum of `[1, 2, 3]` is
   `F32.add(F32.add(F32.add(0.0, 1.0), 2.0), 3.0)`.
+
+  The family laws require every index in bounds, so no law says what a failed
+  fold returns. The last three consumers run `Fold.run` and `Fold.pair_run`
+  directly with the index map `doubled(k) = 2k`, which reads index 4 of a
+  three-word input at step 2, after two successful steps. `sum_fails` folds
+  `[1, 2, 3]` that way, `pair_fails_left` reads the left input with `doubled`
+  and `pair_fails_right` reads the right input with it, after the left read
+  of the same step succeeds. Each states the error,
+  `StorageError{OutOfBounds}`, and the first and last word of each returned
+  input.
 - `controls.bend`: four value witnesses, each paired with one wrong value.
 - `mutants.txt`: the before and after text of each mutation.
 
@@ -91,12 +112,19 @@ instance copy, only the instance copy for the swapped maps, or only
 | Pair wrong map | `pair_loop` reads the left input at `ib` | `pair_step_lift` | `pair_step_lift.qvvvvv` |
 | Pair negative zero start | `pair_run` starts at `F32.neg(0.0)` | `pair_contract` | `pair_contract.qvvvvv` |
 | Pair cursor off by one | `pair_run` starts the loop at 1 | `pair_contract` | `pair_contract.qvvvvv` |
+| Failed step done | `step` returns `Done{accumulator}` when a read fails | `sum_fails` | `consumers.sum_fails` |
+| Pair left failed done | `pair_left` returns `Done{accumulator}` when the left read fails | `pair_fails_left` | `consumers.pair_fails_left` |
+| Pair right failed swapped | `pair_right` returns the inputs as `(right, left)` when the right read fails | `pair_fails_right` | `consumers.pair_fails_right` |
 | Sum swapped add | `Sum.add` returns `F32.add(word, accumulator)` | `total_words` | `total_words` |
 | Dot untransposed right | `Dot.right_index` reads `column * inner + k` | `total_factors` | `total_factors` |
 
 The first eight mutants change the generic loops in `fold.bend`, and the
-generic proofs reject them. The last two change one instance each. The proof
-that relates the instance's `Fold.total` to its specification rejects them.
+generic proofs reject them. The next three change what the loops return when
+a read fails. The proofs accept them, since no law covers a failed read, and
+the runner checks them against `fold/consumers.bend` instead, where the
+failure consumers reject them. The last two change one instance each. The
+proof that relates the instance's `Fold.total` to its specification rejects
+them.
 
 `fold/entry.bend` imports `broadcast.bend` before `sum.bend` and `dot.bend`.
 The BendTT export names each opaque template constant after the first module
