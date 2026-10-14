@@ -264,7 +264,7 @@ def main():
     if args.identity_only:
         return
     configure_cpu()
-    fixture = args.output_dir / "s0.json"
+    fixture = args.output_dir / "toolchain.json"
     data = json_bytes(build_fixtures(identity))
     if args.check:
         if not fixture.exists() or fixture.read_bytes() != data:
