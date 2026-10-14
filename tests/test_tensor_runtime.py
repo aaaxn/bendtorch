@@ -147,18 +147,18 @@ class RuntimeAdapterTests(unittest.TestCase):
     def test_native_word_parser_preserves_all_payload_bits_and_scalar_shape(self):
         text = "\n".join(
             [
-                "S2:begin:scalar",
-                "S2:shape:[]",
-                "S2:count:1",
-                "S2:word:2147483648",
-                "S2:end",
-                "S2:begin:words",
-                "S2:shape:[3]",
-                "S2:count:3",
-                "S2:word:1",
-                "S2:word:2139095041",
-                "S2:word:4294967295",
-                "S2:end",
+                "tensor:begin:scalar",
+                "tensor:shape:[]",
+                "tensor:count:1",
+                "tensor:word:2147483648",
+                "tensor:end",
+                "tensor:begin:words",
+                "tensor:shape:[3]",
+                "tensor:count:3",
+                "tensor:word:1",
+                "tensor:word:2139095041",
+                "tensor:word:4294967295",
+                "tensor:end",
                 "",
             ]
         )
@@ -170,10 +170,10 @@ class RuntimeAdapterTests(unittest.TestCase):
 
     def test_parser_accepts_empty_and_shape_only_without_padding(self):
         text = (
-            "S2:begin:empty\nS2:shape:[2, 0, 3]\nS2:count:0\nS2:end\n"
-            "S2:begin:huge_zero\nS2:shape:[4294967295,4294967295,4294967295,0]\n"
-            "S2:numel:0\nS2:end\n"
-            "S2:begin:capacity\nS2:shape:[1024,1024]\nS2:numel:1048576\nS2:end\n"
+            "tensor:begin:empty\ntensor:shape:[2, 0, 3]\ntensor:count:0\ntensor:end\n"
+            "tensor:begin:huge_zero\ntensor:shape:[4294967295,4294967295,4294967295,0]\n"
+            "tensor:numel:0\ntensor:end\n"
+            "tensor:begin:capacity\ntensor:shape:[1024,1024]\ntensor:numel:1048576\ntensor:end\n"
         )
         results = parse_native_output(text)
         self.assertEqual(results[0]["result"], {"shape": [2, 0, 3], "f32_bits": []})
@@ -190,18 +190,20 @@ class RuntimeAdapterTests(unittest.TestCase):
             ("matrix:rank", "MatmulRankMismatch"),
             ("matrix:inner", "MatmulInnerMismatch"),
         ):
-            rows = parse_native_output(f"S2:begin:error\nS2:error:{raw}\nS2:end\n")
+            rows = parse_native_output(
+                f"tensor:begin:error\ntensor:error:{raw}\ntensor:end\n"
+            )
             self.assertEqual(
                 rows, [{"id": "error", "error": expected, "raw_error": raw}]
             )
 
     def test_binary_parser_preserves_actual_retained_owners_on_success_and_error(self):
         owners = (
-            "S2:binary:called\nS2:retained:left\n"
-            "S2:shape:[4]\nS2:count:4\nS2:word:2147483648\n"
-            "S2:word:1\nS2:word:2143289345\nS2:word:4294967295\n"
-            "S2:retained:right\nS2:shape:[]\nS2:count:1\n"
-            "S2:word:1077936128\nS2:output\n"
+            "tensor:binary:called\ntensor:retained:left\n"
+            "tensor:shape:[4]\ntensor:count:4\ntensor:word:2147483648\n"
+            "tensor:word:1\ntensor:word:2143289345\ntensor:word:4294967295\n"
+            "tensor:retained:right\ntensor:shape:[]\ntensor:count:1\n"
+            "tensor:word:1077936128\ntensor:output\n"
         )
         retained = {
             "left": {
@@ -212,16 +214,16 @@ class RuntimeAdapterTests(unittest.TestCase):
         }
         for output, expected in (
             (
-                "S2:shape:[0]\nS2:count:0\n",
+                "tensor:shape:[0]\ntensor:count:0\n",
                 {"result": {"shape": [0], "f32_bits": []}},
             ),
             (
-                "S2:error:core:6\n",
+                "tensor:error:core:6\n",
                 {"error": "IncompatibleBroadcast", "raw_error": "core:6"},
             ),
         ):
             with self.subTest(output=output):
-                text = f"S2:begin:binary\n{owners}{output}S2:end\n"
+                text = f"tensor:begin:binary\n{owners}{output}tensor:end\n"
                 self.assertEqual(
                     parse_native_output(text),
                     [{"id": "binary", **expected, "retained": retained}],
@@ -230,77 +232,80 @@ class RuntimeAdapterTests(unittest.TestCase):
     def test_parser_distinguishes_pre_call_construction_errors_without_retention(self):
         for raw in ("core:1", "core:2", "core:10"):
             text = (
-                "S2:begin:construction\nS2:boundary:construction\n"
-                f"S2:error:{raw}\nS2:end\n"
+                "tensor:begin:construction\ntensor:boundary:construction\n"
+                f"tensor:error:{raw}\ntensor:end\n"
             )
             row = parse_native_output(text)[0]
             self.assertEqual(row["boundary"], "construction")
             self.assertEqual(row["raw_error"], raw)
             self.assertNotIn("retained", row)
         for payload in (
-            "S2:shape:[0]\nS2:count:0\n",
-            "S2:error:matrix:rank\n",
-            "S2:error:shape:1\n",
-            "S2:error:core:1\nS2:error:core:1\n",
-            "S2:binary:called\nS2:error:core:1\n",
+            "tensor:shape:[0]\ntensor:count:0\n",
+            "tensor:error:matrix:rank\n",
+            "tensor:error:shape:1\n",
+            "tensor:error:core:1\ntensor:error:core:1\n",
+            "tensor:binary:called\ntensor:error:core:1\n",
         ):
             with self.subTest(payload=payload), self.assertRaises(GateError):
                 parse_native_output(
-                    f"S2:begin:a\nS2:boundary:construction\n{payload}S2:end\n"
+                    f"tensor:begin:a\ntensor:boundary:construction\n{payload}tensor:end\n"
                 )
 
     def test_binary_parser_rejects_missing_duplicate_swapped_and_corrupt_sections(self):
-        left = "S2:shape:[1]\nS2:count:1\nS2:word:1073741824\n"
-        right = "S2:shape:[1]\nS2:count:1\nS2:word:1077936128\n"
-        output = "S2:shape:[1]\nS2:count:1\nS2:word:1084227584\n"
+        left = "tensor:shape:[1]\ntensor:count:1\ntensor:word:1073741824\n"
+        right = "tensor:shape:[1]\ntensor:count:1\ntensor:word:1077936128\n"
+        output = "tensor:shape:[1]\ntensor:count:1\ntensor:word:1084227584\n"
         valid = (
-            f"S2:begin:a\nS2:binary:called\nS2:retained:left\n{left}"
-            f"S2:retained:right\n{right}S2:output\n{output}S2:end\n"
+            f"tensor:begin:a\ntensor:binary:called\ntensor:retained:left\n{left}"
+            f"tensor:retained:right\n{right}tensor:output\n{output}tensor:end\n"
         )
         corruptions = (
-            valid.replace("S2:binary:called\n", ""),
-            valid.replace("S2:binary:called\n", "S2:binary:called\n" * 2),
-            valid.replace(f"S2:retained:left\n{left}", ""),
-            valid.replace(f"S2:retained:right\n{right}", ""),
-            valid.replace("S2:retained:right\n", "S2:retained:left\n"),
+            valid.replace("tensor:binary:called\n", ""),
+            valid.replace("tensor:binary:called\n", "tensor:binary:called\n" * 2),
+            valid.replace(f"tensor:retained:left\n{left}", ""),
+            valid.replace(f"tensor:retained:right\n{right}", ""),
+            valid.replace("tensor:retained:right\n", "tensor:retained:left\n"),
             valid.replace(
-                "S2:retained:right\n",
-                f"S2:retained:left\n{left}S2:retained:right\n",
+                "tensor:retained:right\n",
+                f"tensor:retained:left\n{left}tensor:retained:right\n",
             ),
             valid.replace(
-                f"S2:retained:left\n{left}S2:retained:right\n{right}",
-                f"S2:retained:right\n{right}S2:retained:left\n{left}",
+                f"tensor:retained:left\n{left}tensor:retained:right\n{right}",
+                f"tensor:retained:right\n{right}tensor:retained:left\n{left}",
             ),
-            valid.replace("S2:output\n", ""),
-            valid.replace("S2:output\n", "S2:output\n" * 2),
+            valid.replace("tensor:output\n", ""),
+            valid.replace("tensor:output\n", "tensor:output\n" * 2),
             valid.replace(left, left.replace("[1]", "[2]"), 1),
-            valid.replace(left, left.replace("S2:word:1073741824\n", ""), 1),
-            valid.replace(left, left + "S2:word:0\n", 1),
+            valid.replace(left, left.replace("tensor:word:1073741824\n", ""), 1),
+            valid.replace(left, left + "tensor:word:0\n", 1),
             valid.replace(left, left.replace("1073741824", "4294967296"), 1),
-            valid.replace(left, "S2:shape:[1]\nS2:numel:1\n", 1),
-            valid.replace(left, "S2:error:core:8\n", 1),
-            valid.replace(output, "S2:shape:[1]\nS2:numel:1\n"),
+            valid.replace(left, "tensor:shape:[1]\ntensor:numel:1\n", 1),
+            valid.replace(left, "tensor:error:core:8\n", 1),
+            valid.replace(output, "tensor:shape:[1]\ntensor:numel:1\n"),
         )
         for text in corruptions:
             with self.subTest(text=text), self.assertRaises(GateError):
                 parse_native_output(text)
 
     def test_parser_rejects_missing_duplicate_extra_and_malformed_observations(self):
-        valid = "S2:begin:a\nS2:shape:[1]\nS2:count:1\nS2:word:0\nS2:end\n"
+        valid = (
+            "tensor:begin:a\ntensor:shape:[1]\ntensor:count:1\n"
+            "tensor:word:0\ntensor:end\n"
+        )
         corruptions = (
-            valid.replace("S2:end\n", ""),
+            valid.replace("tensor:end\n", ""),
             valid + valid,
             "unframed\n" + valid,
-            valid.replace("S2:count:1", "S2:count:2"),
-            valid.replace("S2:word:0\n", ""),
-            valid.replace("S2:word:0\n", "S2:word:0\nS2:word:0\n"),
-            valid.replace("S2:word:0", "S2:word:-1"),
-            valid.replace("S2:word:0", "S2:word:4294967296"),
-            valid.replace("S2:shape:[1]", "S2:shape:[-1]"),
-            valid.replace("S2:shape:[1]", "S2:shape:null"),
-            valid.replace("S2:word:0", "S2:error:core:8"),
-            "S2:begin:a\nS2:error:foreign:1\nS2:end\n",
-            "S2:begin:a\nS2:error:core:99\nS2:end\n",
+            valid.replace("tensor:count:1", "tensor:count:2"),
+            valid.replace("tensor:word:0\n", ""),
+            valid.replace("tensor:word:0\n", "tensor:word:0\ntensor:word:0\n"),
+            valid.replace("tensor:word:0", "tensor:word:-1"),
+            valid.replace("tensor:word:0", "tensor:word:4294967296"),
+            valid.replace("tensor:shape:[1]", "tensor:shape:[-1]"),
+            valid.replace("tensor:shape:[1]", "tensor:shape:null"),
+            valid.replace("tensor:word:0", "tensor:error:core:8"),
+            "tensor:begin:a\ntensor:error:foreign:1\ntensor:end\n",
+            "tensor:begin:a\ntensor:error:core:99\ntensor:end\n",
         )
         for text in corruptions:
             with self.subTest(text=text), self.assertRaises(GateError):
@@ -327,7 +332,7 @@ class RuntimeAdapterTests(unittest.TestCase):
         cases = [decode_case(case) for case in load_corpus()["finite_cases"][:40]]
         program = bend_program(cases, ROOT / ".evidence")
         for case in cases:
-            self.assertEqual(program.count(f'S2:begin:{case["id"]}"'), 1)
+            self.assertEqual(program.count(f'tensor:begin:{case["id"]}"'), 1)
         for index in range(40):
             self.assertEqual(program.count(f"    run_case_{index}()\n"), 1)
         main = program.split("def main() -> IO(Unit):", 1)[1]

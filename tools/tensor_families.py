@@ -54,10 +54,10 @@ def program(selected: list[dict], directory: Path, source_root: Path = ROOT) -> 
             "",
             f"def run_case_{index}() -> IO(Unit):",
             "  do IO<Unit>:",
-            f'    IO.print("S2:begin:{request["id"]}")',
+            f'    IO.print("tensor:begin:{request["id"]}")',
             f"    Family.binary(Elementwise.{BINARY[request['op']]}{{}}, "
             f"{input_source(inputs['a'])}, {input_source(inputs['b'])})",
-            '    IO.print("S2:end")',
+            '    IO.print("tensor:end")',
         ]
     batches = range(0, len(selected), 16)
     for batch, start in enumerate(batches):

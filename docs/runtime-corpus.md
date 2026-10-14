@@ -105,12 +105,12 @@ errors retain their own domains.
 Every generated case is serialized independently:
 
 ```text
-S2:begin:case_id
-S2:shape:[2, 1]
-S2:count:2
-S2:word:1065353216
-S2:word:2147483648
-S2:end
+tensor:begin:case_id
+tensor:shape:[2, 1]
+tensor:count:2
+tensor:word:1065353216
+tensor:word:2147483648
+tensor:end
 ```
 
 The words above describe F32 `1.0` and negative zero. Decimal U32 transport is
@@ -119,34 +119,34 @@ floating-point conversion. It requires one logical word per element, excludes
 storage padding, checks shape/count consistency, and rejects truncated frames,
 duplicate/missing/reordered case IDs, extra stdout, unknown errors, and invalid
 U32 values. Scalars have shape `[]` and one word; any zero dimension has no words.
-Shape-only frames replace `S2:count` with `S2:numel` and contain no word records.
+Shape-only frames replace `tensor:count` with `tensor:numel` and contain no word records.
 
 Binary frames identify the call and serialize each returned owner before its
 output:
 
 ```text
-S2:begin:binary_case
-S2:binary:called
-S2:retained:left
-S2:shape:[1]
-S2:count:1
-S2:word:1073741824
-S2:retained:right
-S2:shape:[1]
-S2:count:1
-S2:word:1077936128
-S2:output
-S2:shape:[1]
-S2:count:1
-S2:word:1084227584
-S2:end
+tensor:begin:binary_case
+tensor:binary:called
+tensor:retained:left
+tensor:shape:[1]
+tensor:count:1
+tensor:word:1073741824
+tensor:retained:right
+tensor:shape:[1]
+tensor:count:1
+tensor:word:1077936128
+tensor:output
+tensor:shape:[1]
+tensor:count:1
+tensor:word:1084227584
+tensor:end
 ```
 
 The parser requires exactly one ordered left, right, and output section. Each
 retained section must be a complete tensor snapshot with matching dimensions,
 count, and logical words; errors and shape-only results are not retained owners.
 An actual binary failure uses the same retained sections followed by one output
-error. A constructor failure uses `S2:boundary:construction` followed by its core
+error. A constructor failure uses `tensor:boundary:construction` followed by its core
 error without a call marker or retained sections. The parser preserves raw NaN
 payloads as well as finite words, signed zeros, and subnormals. It validates
 transport, not semantic identity: the gate must compare the retained left and
