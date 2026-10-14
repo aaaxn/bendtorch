@@ -1,9 +1,10 @@
 import hashlib
 import json
+import math
 import unittest
 
+from tools.autograd_broadcast import MAX_ELEMENTS, MAX_RANK, is_nan
 from tools.autograd_broadcast import cases as broadcast_cases
-from tools.autograd_broadcast import is_nan
 from tools.autograd_broadcast import reference as broadcast_reference
 from tools.autograd_gradient import cases as gradient_cases
 from tools.autograd_gradient import reference as gradient_reference
@@ -14,16 +15,14 @@ from tools.common import ROOT
 FIXTURE = ROOT / "oracle/autograd/fixtures/s3-torch-v1.json"
 FIXTURE_SHA256 = "98b66eddc970576327945fb9ab3b90ee930952f27eb6939f35b835548e1f837d"
 LITERAL_LIMIT = 4096
-# Requests the bounded API rejects although PyTorch accepts them: rank 5 and
-# more than 2^20 elements. docs/torch-differences.md lists both limits.
-BOUNDED = {
-    "broadcast": {"target_rank_five", "target_capacity"},
-    "gradient": {"slot_rank_five", "slot_capacity"},
-}
 # PyTorch reduces this case's signaling NaN to a NaN with another payload.
 # A slot with no accumulated contribution is None in PyTorch; the gate's
 # gradient read materializes zeros (Gradient.grad gives None).
 NAN_PAYLOAD = {"special_words_rows"}
+
+
+def exceeds_limits(shape: list[int]) -> bool:
+    return len(shape) > MAX_RANK or math.prod(shape) > MAX_ELEMENTS
 
 
 def hexwords(words: list[int]) -> list[str]:
@@ -82,7 +81,7 @@ class AutogradTorchOracleTests(unittest.TestCase):
             observed = row["expand"]
             with self.subTest(case=case["id"]):
                 if "error" in expected:
-                    if case["id"] in BOUNDED["broadcast"]:
+                    if exceeds_limits(case["target"]):
                         self.assertNotIn("rejected", observed)
                     else:
                         self.assertIn("rejected", observed)
@@ -112,7 +111,7 @@ class AutogradTorchOracleTests(unittest.TestCase):
             expected = gradient_reference(case)
             with self.subTest(case=case["id"]):
                 if "error" in expected:
-                    self.assertIn(case["id"], BOUNDED["gradient"])
+                    self.assertTrue(exceeds_limits(case["shape"]))
                     self.assertNotIn("rejected", row)
                     continue
                 outcomes = ["accumulated" in item for item in expected["outcomes"]]

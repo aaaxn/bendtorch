@@ -6,9 +6,10 @@ import struct
 from pathlib import Path
 
 from tools.autograd_broadcast import (
-    CAPACITY,
     CAPACITY_EXCEEDED,
     INCOMPATIBLE_BROADCAST,
+    MAX_ELEMENTS,
+    MAX_RANK,
     RANK_EXCEEDED,
     SPECIAL_WORDS,
     counting_words,
@@ -129,9 +130,9 @@ def cases() -> list[dict]:
 
 def reference(case: dict) -> dict:
     shape, target, words = case["shape"], case["target"], case["words"]
-    if len(target) > 4:
+    if len(target) > MAX_RANK:
         return {"error": RANK_EXCEEDED}
-    if math.prod(target) > CAPACITY:
+    if math.prod(target) > MAX_ELEMENTS:
         return {"error": CAPACITY_EXCEEDED}
     rank = max(len(shape), len(target))
     left = [1] * (rank - len(target)) + target
@@ -141,7 +142,7 @@ def reference(case: dict) -> dict:
         if a != b and a != 1 and b != 1:
             return {"error": INCOMPATIBLE_BROADCAST}
         output.append(b if a == 1 else a)
-    if math.prod(output) > CAPACITY:
+    if math.prod(output) > MAX_ELEMENTS:
         return {"error": CAPACITY_EXCEEDED}
     if output != shape:
         return {"error": NOT_REDUCIBLE}
