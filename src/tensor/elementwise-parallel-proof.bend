@@ -5,6 +5,7 @@ import ../shape/nat_proofs.bend as Nats
 import ../shape/index_proofs.bend as Index
 import ../shape/plan_proofs.bend as PlanProof
 import ../shape/LAWS.bend as ShapeLaws
+# Proves the shape laws that importing ShapeLaws would otherwise leave open.
 import ../shape/PROOF.bend as ShapeProof
 import ../storage/model.bend as Model
 import ../storage/refinement.bend as Refinement
