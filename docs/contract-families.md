@@ -110,6 +110,6 @@ output cell `i` holds
 ## Controls
 
 `verification/families/` holds literal consumers of `broadcast_pointwise`,
-false twins of four value statements and six mutants of the family loop and
+false twins of four value statements and seven mutants of the family loop and
 of the broadcast instance. Its [README](../verification/families/README.md)
 lists each control and the rejection it expects.

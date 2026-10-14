@@ -27,3 +27,8 @@
   Pointwise.run(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~left_map, ~right_map,
 ### swapped-maps after src/tensor/contracts/broadcast.bend
   Pointwise.run(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~right_map, ~left_map,
+
+### wrong-output-shape before src/tensor/contracts/broadcast.bend
+    operation, plan, Shape.output_shape(plan), left, right)
+### wrong-output-shape after src/tensor/contracts/broadcast.bend
+    operation, plan, Shape.left_shape(plan), left, right)
