@@ -1,11 +1,23 @@
 import importlib
 import shutil
 from pathlib import Path
+from typing import NamedTuple
 
 from tools.common import GateError
 
 reads = importlib.import_module("verification.contracts.reads_controls")
 transforms = importlib.import_module("verification.contracts.transform_controls")
+
+
+class Witness(NamedTuple):
+    target: str
+    diagnostic_value: str
+
+
+class Site(NamedTuple):
+    definition: str
+    mark: str
+
 
 EXPERIMENT = "verification/contracts/from-values"
 SRC = reads.SRC
@@ -30,11 +42,10 @@ CONSUMERS = tuple(
         "empty",
     )
 )
-# witness -> (statement target, concrete value in the source diagnostic)
 WITNESSES = {
-    "three_first_witness": ("expected_first", "Some{1.0}"),
-    "three_second_witness": ("expected_second", "Some{2.0}"),
-    "grid_last_witness": ("expected_last", "Some{6.0}"),
+    "three_first_witness": Witness("expected_first", "Some{1.0}"),
+    "three_second_witness": Witness("expected_second", "Some{2.0}"),
+    "grid_last_witness": Witness("expected_last", "Some{6.0}"),
 }
 VALUES = {
     "expected_first": "(.Some, (F32.lit1065353216, ()))",
@@ -47,11 +58,10 @@ MUTANTS = transforms.load_mutants(
 )
 PROOF = "src/tensor/from-values-contract.bend"
 OTHER = "src/tensor/construction-contract-PROOF.bend"
-# label -> (rejecting def, text of the mutation on one side of the diagnostic only)
 SITES = {
-    "from-values-wrong-fill": ("decided_step", "index, 0.0, Storage.set("),
-    "from-values-cursor-off-by-one": ("counted_lift", "valid}, 1n))"),
-    "from-values-missing-last-write": (
+    "from-values-wrong-fill": Site("decided_step", "index, 0.0, Storage.set("),
+    "from-values-cursor-off-by-one": Site("counted_lift", "valid}, 1n))"),
+    "from-values-missing-last-write": Site(
         "fill_lift",
         "Core.fill_values_decided(shape, cursor, U32.from_nat(cursor), value,",
     ),
@@ -73,7 +83,7 @@ def mutant_copy(snapshot: Path, target: Path, label: str) -> None:
 
 
 def false_twin(controls: str, witness: str) -> str:
-    target = WITNESSES[witness][0]
+    target = WITNESSES[witness].target
     start = controls.index(f"def {witness}()")
     end = controls.index("}:\n", start) + 2
     header = controls[start:end]
@@ -91,7 +101,7 @@ def source_reason(output: str, label: str) -> str:
     if "*1" in expected + observed or "*2" in expected + observed:
         raise GateError(f"{label}: quantity/kind mismatch is not value sensitivity")
     if label in WITNESSES:
-        value = WITNESSES[label][1]
+        value = WITNESSES[label].diagnostic_value
         if (
             expected != f"{{{value} == Some{{8.0}} : Maybe<&2, F32>}}"
             or observed != f"{{{value} == {value} : Maybe<&2, F32>}}"
@@ -99,7 +109,7 @@ def source_reason(output: str, label: str) -> str:
         ):
             raise GateError(f"{label}: wrong concrete public value equation")
     elif label in SITES:
-        site, mark = SITES[label]
+        site, mark = SITES[label].definition, SITES[label].mark
         if (
             location != site
             or expected == observed
@@ -128,7 +138,7 @@ def kernel_reason(output: str, label: str) -> str:
         ):
             raise GateError(f"{label}: kernel rejection is not the value statement")
     elif label in SITES:
-        qualified = f"{SRC}from_2d_values_2d_contract.{SITES[label][0]}"
+        qualified = f"{SRC}from_2d_values_2d_contract.{SITES[label].definition}"
         if location != qualified or not expected or expected == observed:
             raise GateError(f"{label}: kernel rejection is not at {qualified}")
     else:
@@ -154,8 +164,9 @@ def check_export(text: str, catalog) -> dict[str, str]:
     for name, value in VALUES.items():
         if declarations[name][1].strip() != value:
             raise GateError(f"{name} is not {value}")
-    for witness, (target, _) in WITNESSES.items():
+    for witness in WITNESSES:
         header = declarations[witness][0]
+        target = WITNESSES[witness].target
         if not header.endswith(
             f"== {target} : (Maybe -.Q2 -F32)}}"
         ) and not header.endswith(f"== {target} : (Maybe.q2 -F32)}}"):

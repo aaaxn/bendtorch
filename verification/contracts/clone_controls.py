@@ -2,10 +2,24 @@ import importlib
 import re
 import shutil
 from pathlib import Path
+from typing import NamedTuple
 
 from tools.common import GateError
 
 reads = importlib.import_module("verification.contracts.reads_controls")
+
+
+class Witness(NamedTuple):
+    target: str
+    replacement: str
+    diagnostic_value: str
+
+
+class Site(NamedTuple):
+    proof: str
+    definition: str
+    mark: str
+
 
 EXPERIMENT = "verification/contracts/clone"
 SRC = reads.SRC
@@ -44,40 +58,38 @@ CONSUMERS = tuple(
         "empty_metadata",
     )
 )
-# witness -> (statement target, replacement, concrete value in the source diagnostic)
 WITNESSES = {
-    "second_last_witness": ("expected_fill", "wrong_value", "Some{7.0}"),
-    "written_one_witness": ("expected_written", "wrong_value", "Some{9.0}"),
-    "alias_one_witness": ("expected_fill", "expected_written", "Some{7.0}"),
-    "length_owner_zero_witness": ("expected_fill", "wrong_value", "Some{7.0}"),
+    "second_last_witness": Witness("expected_fill", "wrong_value", "Some{7.0}"),
+    "written_one_witness": Witness("expected_written", "wrong_value", "Some{9.0}"),
+    "alias_one_witness": Witness("expected_fill", "expected_written", "Some{7.0}"),
+    "length_owner_zero_witness": Witness("expected_fill", "wrong_value", "Some{7.0}"),
 }
 REPLACEMENT = {"wrong_value": "Some{8.0}", "expected_written": "Some{9.0}"}
 MUTANTS = reads.load_mutants(
     (Path(__file__).resolve().parent / "clone/mutants.txt").read_text()
 )
-# label -> (proof file, rejecting def, mark in the source expected side)
 SITES = {
-    "clone-first-last-zeroed": (
+    "clone-first-last-zeroed": Site(
         "src/tensor/clone-contract.bend",
         "first_value_done",
         "Core.first_last_zeroed(",
     ),
-    "clone-second-first-zeroed": (
+    "clone-second-first-zeroed": Site(
         "src/tensor/clone-contract.bend",
         "second_value_projection",
         "Core.drop_status(shape, Core.write_result(shape, second,",
     ),
-    "length-off-by-one": (
+    "length-off-by-one": Site(
         "src/tensor/metadata-contract.bend",
         "number_projection",
         "1n+number",
     ),
-    "length-owner-first-zeroed": (
+    "length-owner-first-zeroed": Site(
         "src/tensor/metadata-contract.bend",
         "owner_value_projection",
         "Core.drop_status(shape, Core.write_result(shape, storage,",
     ),
-    "count-off-by-one": (
+    "count-off-by-one": Site(
         "src/tensor/metadata-contract.bend",
         "read_count_pair",
         "U32.add(U32.from_nat(Shape.elements(shape)), 1)",
@@ -110,7 +122,8 @@ def mutant_copy(snapshot: Path, target: Path, label: str) -> None:
 
 
 def false_twin(controls: str, witness: str) -> str:
-    target, replacement, _ = WITNESSES[witness]
+    target = WITNESSES[witness].target
+    replacement = WITNESSES[witness].replacement
     start = controls.index(f"def {witness}()")
     end = controls.index("}:\n", start) + 2
     header = controls[start:end]
@@ -128,8 +141,8 @@ def source_reason(output: str, label: str) -> str:
     if "*1" in expected + observed or "*2" in expected + observed:
         raise GateError(f"{label}: quantity/kind mismatch is not value sensitivity")
     if label in WITNESSES:
-        _, replacement, value = WITNESSES[label]
-        wrong = REPLACEMENT[replacement]
+        value = WITNESSES[label].diagnostic_value
+        wrong = REPLACEMENT[WITNESSES[label].replacement]
         if (
             expected != f"{{{value} == {wrong} : Maybe<&2, F32>}}"
             or observed != f"{{{value} == {value} : Maybe<&2, F32>}}"
@@ -137,7 +150,7 @@ def source_reason(output: str, label: str) -> str:
         ):
             raise GateError(f"{label}: wrong concrete public value equation")
     elif label in SITES:
-        _, site, mark = SITES[label]
+        site, mark = SITES[label].definition, SITES[label].mark
         if location != site or mark not in expected or mark in observed:
             raise GateError(f"{label}: not rejected at {site}")
     else:
@@ -151,11 +164,12 @@ def kernel_reason(output: str, label: str) -> str:
     expected = next((x[10:] for x in lines if x.startswith("expected: ")), "")
     observed = next((x[10:] for x in lines if x.startswith("observed: ")), "")
     if label in WITNESSES:
-        target, replacement, _ = WITNESSES[label]
+        witness = WITNESSES[label]
         if (
             location != label
-            or f"== {replacement} : " not in expected
-            or expected.replace(f"== {replacement}", f"== {target}") != observed
+            or f"== {witness.replacement} : " not in expected
+            or expected.replace(f"== {witness.replacement}", f"== {witness.target}")
+            != observed
         ):
             raise GateError(f"{label}: kernel rejection is not the value statement")
     elif label in KERNEL_SITES:
@@ -197,8 +211,9 @@ def check_export(text: str, catalog) -> dict[str, str]:
     for name, value in values.items():
         if declarations[name][1].strip() != value:
             raise GateError(f"{name} is not {value}")
-    for witness, (target, _, _) in WITNESSES.items():
+    for witness in WITNESSES:
         header = declarations[witness][0]
+        target = WITNESSES[witness].target
         if not header.endswith(
             f"== {target} : (Maybe -.Q2 -F32)}}"
         ) and not header.endswith(f"== {target} : (Maybe.q2 -F32)}}"):

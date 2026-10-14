@@ -146,7 +146,8 @@ class ExperimentRunnerTests(unittest.TestCase):
 
     def test_reads_false_twin_changes_only_the_expected_value(self):
         controls = (ROOT / reads.EXPERIMENT / "controls.bend").read_text()
-        for witness, (expected, _) in reads.WITNESSES.items():
+        for witness in reads.WITNESSES:
+            expected = reads.WITNESSES[witness].target
             twin = reads.false_twin(controls, witness)
             self.assertEqual(
                 twin.count("wrong_value()"), controls.count("wrong_value()") + 1
@@ -230,7 +231,9 @@ class ExperimentRunnerTests(unittest.TestCase):
 
     def test_clone_false_twin_changes_only_the_statement(self):
         controls = (ROOT / clones.EXPERIMENT / "controls.bend").read_text()
-        for witness, (target, replacement, _) in clones.WITNESSES.items():
+        for witness in clones.WITNESSES:
+            target = clones.WITNESSES[witness].target
+            replacement = clones.WITNESSES[witness].replacement
             twin = clones.false_twin(controls, witness)
             start = twin.index(f"def {witness}()")
             header = twin[start : twin.index("}:\n", start)]
@@ -341,7 +344,8 @@ class ExperimentRunnerTests(unittest.TestCase):
 
     def test_from_values_false_twin_changes_only_the_statement(self):
         controls = (ROOT / values.EXPERIMENT / "controls.bend").read_text()
-        for witness, (target, _) in values.WITNESSES.items():
+        for witness in values.WITNESSES:
+            target = values.WITNESSES[witness].target
             twin = values.false_twin(controls, witness)
             start = twin.index(f"def {witness}()")
             end = twin.index("}:\n", start)
@@ -416,7 +420,8 @@ class ExperimentRunnerTests(unittest.TestCase):
 
     def test_permute_false_twin_changes_only_the_statement(self):
         controls = (ROOT / permutes.EXPERIMENT / "controls.bend").read_text()
-        for witness, (target, *_) in permutes.WITNESSES.items():
+        for witness in permutes.WITNESSES:
+            target = permutes.WITNESSES[witness].target
             twin = permutes.false_twin(controls, witness)
             start = twin.index(f"def {witness}()")
             end = twin.index("}:\n", start)

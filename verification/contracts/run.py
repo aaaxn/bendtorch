@@ -346,10 +346,11 @@ def read_write(snapshot, output, bend, kernel, run, parallel, reasons) -> None:
     )
     declarations = catalog(text)
     artifacts = {}
-    for witness, (expected, _) in reads.WITNESSES.items():
+    for witness in reads.WITNESSES:
         header, body = declarations[witness]
+        target = reads.WITNESSES[witness].target
         artifacts[witness] = replace_declaration(
-            text, witness, header.replace(f"== {expected}", "== wrong_value"), body
+            text, witness, header.replace(f"== {target}", "== wrong_value"), body
         )
     for label in reads.WRITE_MUTANTS:
         artifacts[label] = reads.transplant(text, exports[label].read_text(), catalog)
@@ -414,7 +415,7 @@ def clone_metadata(snapshot, output, bend, kernel, run, parallel, reasons) -> No
             *(
                 (
                     f"clone-source-{label}",
-                    [*bend, copies[label] / clones.SITES[label][0], "--check-only"],
+                    [*bend, copies[label] / clones.SITES[label].proof, "--check-only"],
                     1,
                 )
                 for label in clones.MUTANTS
@@ -424,7 +425,7 @@ def clone_metadata(snapshot, output, bend, kernel, run, parallel, reasons) -> No
                     f"clone-source-{label}-other-contract",
                     [
                         *bend,
-                        copies[label] / other[clones.SITES[label][0]],
+                        copies[label] / other[clones.SITES[label].proof],
                         "--check-only",
                     ],
                     0,
@@ -481,8 +482,10 @@ def clone_metadata(snapshot, output, bend, kernel, run, parallel, reasons) -> No
     )
     declarations = catalog(text)
     artifacts = {}
-    for witness, (target, replacement, _) in clones.WITNESSES.items():
+    for witness in clones.WITNESSES:
         header, body = declarations[witness]
+        target = clones.WITNESSES[witness].target
+        replacement = clones.WITNESSES[witness].replacement
         artifacts[witness] = replace_declaration(
             text, witness, header.replace(f"== {target}", f"== {replacement}"), body
         )
@@ -543,7 +546,11 @@ def transform(snapshot, output, bend, kernel, run, parallel, reasons) -> None:
             *(
                 (
                     f"transform-source-{label}",
-                    [*bend, copies[label] / transforms.SITES[label][0], "--check-only"],
+                    [
+                        *bend,
+                        copies[label] / transforms.SITES[label].proof,
+                        "--check-only",
+                    ],
                     1,
                 )
                 for label in transforms.MUTANTS
@@ -553,7 +560,7 @@ def transform(snapshot, output, bend, kernel, run, parallel, reasons) -> None:
                     f"transform-source-{label}-other-contract",
                     [
                         *bend,
-                        copies[label] / transforms.OTHER[transforms.SITES[label][0]],
+                        copies[label] / transforms.OTHER[transforms.SITES[label].proof],
                         "--check-only",
                     ],
                     0,
@@ -613,8 +620,10 @@ def transform(snapshot, output, bend, kernel, run, parallel, reasons) -> None:
     )
     declarations = catalog(text)
     artifacts = {}
-    for witness, (target, replacement, _) in transforms.WITNESSES.items():
+    for witness in transforms.WITNESSES:
         header, body = declarations[witness]
+        target = transforms.WITNESSES[witness].target
+        replacement = transforms.WITNESSES[witness].replacement
         artifacts[witness] = replace_declaration(
             text, witness, header.replace(f"== {target}", f"== {replacement}"), body
         )
@@ -742,8 +751,9 @@ def from_values(snapshot, output, bend, kernel, run, parallel, reasons) -> None:
     )
     declarations = catalog(text)
     artifacts = {}
-    for witness, (target, _) in values.WITNESSES.items():
+    for witness in values.WITNESSES:
         header, body = declarations[witness]
+        target = values.WITNESSES[witness].target
         artifacts[witness] = replace_declaration(
             text, witness, header.replace(f"== {target}", "== wrong_value"), body
         )
@@ -869,8 +879,9 @@ def permute_values(snapshot, output, bend, kernel, run, parallel, reasons) -> No
     )
     declarations = catalog(text)
     artifacts = {}
-    for witness, (target, *_) in permutes.WITNESSES.items():
+    for witness in permutes.WITNESSES:
         header, body = declarations[witness]
+        target = permutes.WITNESSES[witness].target
         artifacts[witness] = replace_declaration(
             text, witness, header.replace(f"== {target}", "== wrong_value"), body
         )
