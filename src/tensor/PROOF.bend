@@ -15,3 +15,4 @@ import ./read-write-contract-PROOF.bend as ReadWriteContract
 import ./clone-metadata-contract-PROOF.bend as CloneMetadataContract
 import ./transform-contract-PROOF.bend as TransformContract
 import ./from-values-contract-PROOF.bend as FromValuesContract
+import ./contracts/PROOF.bend as Contracts

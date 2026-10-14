@@ -26,7 +26,7 @@ with F32 tensors only, and it cannot train a model yet.
 | Sum | `src/tensor/reduction.bend` | Sum of a whole tensor to a scalar, in row-major order, starting from `+0.0`. |
 | Matmul | `src/tensor/matmul.bend` | `[m,k] @ [k,n]`. Each dot product adds in increasing `k`, starting from `+0.0`. |
 | Reshape, permute, transpose | `src/tensor/transforms.bend` | `reshape` keeps the linear order. `permute_copy` and `transpose_copy` write a new contiguous tensor. |
-| Proved contracts | `src/tensor/*-contract-LAWS.bend` | Laws that later proofs can use as inputs, for construction, reads and writes, clone and metadata, and reshape, plus the error cases of permute and transpose. |
+| Proved contracts | `src/tensor/*-contract-LAWS.bend`, `src/tensor/contracts/` | Laws that later proofs can use as inputs, for construction, reads and writes, clone and metadata, and reshape, plus the error cases of permute and transpose. A generic theorem for pointwise loops proves the values that a broadcast binary operation writes. |
 | Autograd building blocks | `src/autograd/` | `broadcast_to` (copies a tensor to a larger shape), `reduce_to` (sums a gradient back to the shape of its input), `sum_to_size` (the PyTorch-facing form of `reduce_to`, which keeps the input unchanged when no axis is reduced) and gradient slots (`Gradient.accumulate`, `Gradient.grad`, `Gradient.reset`, `Gradient.gradient`) that add the contributions to a gradient in the order they arrive, read as `None` until they receive one, and reset to `None`. |
 | Experimental tape | `experiments/s3a/` | Three autograd prototypes: a reverse tape, pullback closures and forward dual numbers. The reverse tape was chosen as the base for the real engine. |
 
@@ -36,8 +36,8 @@ explicitly. No two tensors share mutable storage.
 The [tensor core](docs/s2-core.md), [construction and clone](docs/s2-construction.md),
 [elementwise ops](docs/s2-elementwise.md), [sum and matmul](docs/s2-math.md),
 [transforms](docs/s2-transforms.md), [broadcast](docs/s3-broadcast.md),
-[reduce to shape](docs/s3-reduce.md), [sum to size](docs/s3-sum-to-size.md)
-and [gradient slots](docs/s3-gradient.md)
+[reduce to shape](docs/s3-reduce.md), [sum to size](docs/s3-sum-to-size.md),
+[gradient slots](docs/s3-gradient.md) and [contract families](docs/contract-families.md)
 pages document each capability. The [shape](docs/s1-shapes.md) and
 [storage](docs/s1-storage.md) pages document the layers below them. The
 [autograd design comparison](docs/s3-architecture.md) explains why the reverse
@@ -223,13 +223,14 @@ uv run --locked python -m tools.s1 --output .evidence/<new directory>
 uv run --locked python -m tools.s2 --output .evidence/<new directory>
 uv run --locked python -m tools.s3 --output .evidence/<new directory>
 uv run --locked python -m verification.r1-b.run --output <new directory>
+uv run --locked python -m verification.families.run --output <new directory>
 ```
 
 `PROOF.bend` checks the shape, storage and tensor laws. The gates are numbered
 in the order the capabilities were added. `tools.s0` checks the toolchain
 itself, `tools.s1` shapes and storage, `tools.s2` tensors and the frozen
 corpus, and `tools.s3` the autograd building blocks and their laws. The last
-command checks the proved contracts and their negative controls. `evidence/`
+two commands check the proved contracts and their negative controls. `evidence/`
 keeps one recorded run of each completed gate.
 
 The oracle has its own uv project with a CPU-only PyTorch, so PyTorch is

@@ -88,9 +88,10 @@ class StageAcceptanceTests(unittest.TestCase):
             if not line.startswith("import ./"):
                 continue
             path = ROOT / "src/tensor" / line.split()[1]
+            module = path.relative_to(ROOT / "src/tensor").with_suffix("")
             prefix = (
                 "_2e_._2f_.._2f_src_2f_tensor_2f_"
-                + path.stem.replace("-", "_2d_")
+                + module.as_posix().replace("-", "_2d_").replace("/", "_2f_")
                 + "."
             )
             laws.update(

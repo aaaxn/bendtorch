@@ -1,0 +1,153 @@
+import importlib
+import tempfile
+import unittest
+from pathlib import Path
+
+from tools.common import GateError
+
+r1b = importlib.import_module("verification.r1-b.run")
+pointwise = importlib.import_module("verification.families.pointwise_controls")
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def diagnostic(expected: str, observed: str, location: str) -> str:
+    return f"- expected : {expected}\n- observed : {observed}\nLocation: {location}\n"
+
+
+def kernel(location: str, expected: str, observed: str) -> str:
+    return (
+        f"SOME PROOFS FAIL\nIn {location}:\n"
+        f"expected: {expected}\nobserved: {observed}\n"
+    )
+
+
+class PointwiseControlTests(unittest.TestCase):
+    def test_mutants_edit_only_their_operation_file(self):
+        operations = {
+            "src/tensor/contracts/pointwise.bend",
+            "src/tensor/contracts/broadcast.bend",
+        }
+        for label, (path, old, new) in pointwise.MUTANTS.items():
+            self.assertIn(path, operations, label)
+            self.assertEqual((ROOT / path).read_text().count(old), 1, label)
+            self.assertNotEqual(old, new, label)
+        self.assertEqual(set(pointwise.MUTANTS), set(pointwise.SITES))
+        with tempfile.TemporaryDirectory() as directory:
+            snapshot = Path(directory) / "snapshot"
+            snapshot.mkdir()
+            (snapshot / "src").symlink_to(ROOT / "src")
+            for label, (path, old, new) in pointwise.MUTANTS.items():
+                target = Path(directory) / label
+                pointwise.mutant_copy(snapshot, target, label)
+                text = (target / path).read_text()
+                self.assertEqual(text, (ROOT / path).read_text().replace(old, new))
+                self.assertTrue((target / pointwise.ENTRY).exists())
+                other = operations - {path}
+                for name in other:
+                    self.assertEqual(
+                        (target / name).read_text(), (ROOT / name).read_text()
+                    )
+
+    def test_false_twin_changes_only_the_statement(self):
+        controls = (ROOT / pointwise.EXPERIMENT / "controls.bend").read_text()
+        for witness, (target, wrong) in pointwise.WITNESSES.items():
+            twin = pointwise.false_twin(controls, witness)
+            self.assertEqual(len(twin), len(controls) + len(wrong) - len(target))
+            start = controls.index(f"def {witness}()")
+            end = controls.index("}:\n", start)
+            self.assertEqual(twin[:start], controls[:start])
+            self.assertIn(f"== {wrong}() : ", twin[start:])
+            self.assertEqual(twin[twin.index("}:\n", start) :], controls[end:], witness)
+
+    def test_kernel_twin_changes_only_the_header(self):
+        text = (
+            "expected_sub : T =\n  a\n\n"
+            "sub_witness : {(f x) == expected_sub : (Maybe -.Q2 -F32)} =\n  proof\n"
+        )
+        twin = pointwise.kernel_twin(
+            text, "sub_witness", r1b.catalog, r1b.replace_declaration
+        )
+        header, body = r1b.catalog(twin)["sub_witness"]
+        self.assertEqual(
+            header, "sub_witness : {(f x) == swapped_sub : (Maybe -.Q2 -F32)}"
+        )
+        self.assertEqual(body, "  proof\n")
+        self.assertEqual(r1b.catalog(twin)["expected_sub"], ("expected_sub : T", "  a"))
+
+    def test_source_reason_requires_the_paired_wrong_value(self):
+        value = "Some{F32.sub(5.0, 20.0)}"
+        good = diagnostic(
+            f"{{{value} == Some{{F32.sub(20.0, 5.0)}} : Maybe<&2, F32>}}",
+            f"{{{value} == {value} : Maybe<&2, F32>}}",
+            "sub_witness",
+        )
+        self.assertIn(
+            "F32.sub(20.0, 5.0)", pointwise.source_reason(good, "sub_witness")
+        )
+        with self.assertRaises(GateError):
+            pointwise.source_reason(good, "outer_witness")
+        with self.assertRaises(GateError):
+            pointwise.source_reason(
+                diagnostic("*2", "*1", "sub_witness"), "sub_witness"
+            )
+
+    def test_source_reason_requires_the_mutation_on_one_side(self):
+        mark = "U32.add(U32.from_nat(cursor), 1)"
+        good = diagnostic(
+            f"Q(write({mark}))", "Q(write(U32.from_nat(cursor)))", "step_lift"
+        )
+        self.assertIn("step_lift", pointwise.source_reason(good, "wrong-write-index"))
+        both = diagnostic(f"Q(write({mark}))", f"Q(other({mark}))", "step_lift")
+        with self.assertRaises(GateError):
+            pointwise.source_reason(both, "wrong-write-index")
+        elsewhere = diagnostic(f"Q({mark})", "Q(x)", "run_lift")
+        with self.assertRaises(GateError):
+            pointwise.source_reason(elsewhere, "wrong-write-index")
+
+    def test_kernel_reason_requires_the_wrong_value_against_the_cell(self):
+        claim = "{((output_point (consumers.result +a)) +U32.lit4)"
+        maybe = "((Maybe -.Q2) -F32)}"
+        good = kernel(
+            "sub_witness",
+            f"{claim} == swapped_sub : {maybe}",
+            f"{claim} == (.Some, ((broadcast.cell +a), ())) : {maybe}",
+        )
+        self.assertIn("swapped_sub", pointwise.kernel_reason(good, "sub_witness"))
+        other = kernel(
+            "sub_witness",
+            f"{claim} == swapped_sub : {maybe}",
+            f"{{other}} == (.Some, ((broadcast.cell +a), ())) : {maybe}",
+        )
+        with self.assertRaises(GateError):
+            pointwise.kernel_reason(other, "sub_witness")
+
+    def test_kernel_reason_requires_the_named_declaration(self):
+        site = f"{pointwise.SRC}pointwise_2d_proof.step_lift.qvvvvv"
+        self.assertIn(
+            site, pointwise.kernel_reason(kernel(site, "a", "b"), "missing-write")
+        )
+        with self.assertRaises(GateError):
+            pointwise.kernel_reason(kernel(site, "a", "b"), "swapped-maps")
+        with self.assertRaises(GateError):
+            pointwise.kernel_reason(kernel(site, "a", "a"), "missing-write")
+
+    def test_replaced_requires_exactly_the_mutated_declarations(self):
+        source = pointwise.SRC
+        positive = (
+            f"{source}pointwise.step.qvvvvv : T =\n  a\n\n"
+            f"{source}pointwise.step.qvvvvv_1 : T =\n  b\n\n"
+            "Nat : T =\n  n\n"
+        )
+        instance = positive.replace("  b\n", "  c\n")
+        self.assertEqual(
+            pointwise.replaced(positive, instance, r1b.catalog, "swapped-maps"),
+            "pointwise.step.qvvvvv_1",
+        )
+        with self.assertRaises(GateError):
+            pointwise.replaced(positive, instance, r1b.catalog, "wrong-input-map")
+        with self.assertRaises(GateError):
+            pointwise.replaced(positive, positive, r1b.catalog, "swapped-maps")
+
+
+if __name__ == "__main__":
+    unittest.main()
