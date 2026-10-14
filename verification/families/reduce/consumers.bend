@@ -12,7 +12,9 @@ import ../../../src/autograd/reduce.bend as Reduce
 import ../../../src/autograd/reduce-LAWS.bend as ReduceLaws
 import ../../../src/autograd/reduce-fold.bend as ReduceFold
 import ../../../src/autograd/reduce-fold-LAWS.bend as Laws
-import ../../../src/autograd/PROOF.bend as AutogradProof
+import ../../../src/autograd/reduce-PROOF.bend as ReduceProof
+import ../../../src/autograd/reduce-fold-PROOF.bend as FoldProof
+import ../../../src/autograd/reduce-to-fold-PROOF.bend as ReduceToProof
 
 def scalar_shape() -> Shape.Shape:
   Shape.SShape{[], 1n, {==}, Unit{}, Unit{}}
