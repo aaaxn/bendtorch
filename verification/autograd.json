@@ -8,6 +8,7 @@
     "broadcast_2d_LAWS.broadcast_not_target",
     "reduce_2d_LAWS.reduce_retains_input",
     "reduce_2d_LAWS.reduce_mapping",
+    "reduce_2d_LAWS.listed_length",
     "reduce_2d_LAWS.reduce_valid_success",
     "reduce_2d_LAWS.reduce_empty_zeros",
     "reduce_2d_LAWS.reduce_shape_error",
