@@ -24,6 +24,32 @@ alias bend="bun $PWD/.tools/bend/bend2/main.ts"
 A global `bend` on your `PATH` can be a different version. Bend 2.0.25
 rejects `src/shape/core.bend`. When the two disagree, the pinned one decides.
 
+## Worktrees
+
+Every task runs in its own worktree under `.worktrees/` in the primary
+checkout, on a `bendtorch/<task>` branch. The primary checkout stays on a
+clean `main`, and its `.tools/` holds the bootstrapped toolchain.
+
+```sh
+git worktree add .worktrees/<task> -b bendtorch/<task> main
+cd .worktrees/<task> && ln -s ../../.tools .tools && uv sync --locked
+```
+
+- Base a stacked PR's branch on its parent PR branch instead of `main`.
+  Bring later base commits in with a merge, which keeps the published
+  history.
+- Continue an existing task worktree rather than creating a second one for
+  the same branch; `git worktree list` shows them.
+- `.tools/` takes about 4 GB, most of it Lean, so worktrees link the primary
+  checkout's copy instead of bootstrapping their own. A branch that changes
+  the pin in `verification/references.json` replaces the link with its own
+  bootstrap, as `docs/bend-pin.md` describes.
+- Each worktree has its own `.venv`, so the gates run that branch's `tools/`
+  and follow its `uv.lock`. Keep worktrees on the same filesystem as the uv
+  cache: uv hardlinks packages from the cache there and copies them anywhere
+  else, which matters for the PyTorch in the oracle environment.
+- Gate runs write to the worktree's own `.evidence/`.
+
 ## When using Bend
 
 - Run `bend guide` to learn it. Read `bend guide shaders` before you write
