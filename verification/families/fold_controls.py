@@ -142,6 +142,18 @@ FAMILY = controls.Family(
             "fold_2d_proof.pair_step_lift.qvvvvv",
             ("fold.pair_loop.qvvvvv", "fold.pair_loop.qvvvvv_1"),
         ),
+        "pair-negative-zero-start": Site(
+            "pair_contract",
+            "F32.neg(0.0)",
+            "fold_2d_proof.pair_contract.qvvvvv",
+            ("fold.pair_run.qvvvvv", "fold.pair_run.qvvvvv_1"),
+        ),
+        "pair-cursor-off-by-one": Site(
+            "pair_contract",
+            "plan, 1n, Core.Packed{left,",
+            "fold_2d_proof.pair_contract.qvvvvv",
+            ("fold.pair_run.qvvvvv", "fold.pair_run.qvvvvv_1"),
+        ),
         "sum-swapped-add": Site(
             "total_words",
             "{F32.add(StorageLaws.expected(",

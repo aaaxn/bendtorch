@@ -28,6 +28,16 @@
 ### pair-wrong-map after src/tensor/contracts/fold.bend
         right, accumulator, Core.read_dynamic(left, U32.from_nat(ib(plan, cursor))))
 
+### pair-negative-zero-start before src/tensor/contracts/fold.bend
+  pair_loop(~O, ~g, ~P, ~ia, ~ib, count, operation, plan, 0n, left, right, 0.0)
+### pair-negative-zero-start after src/tensor/contracts/fold.bend
+  pair_loop(~O, ~g, ~P, ~ia, ~ib, count, operation, plan, 0n, left, right, F32.neg(0.0))
+
+### pair-cursor-off-by-one before src/tensor/contracts/fold.bend
+  pair_loop(~O, ~g, ~P, ~ia, ~ib, count, operation, plan, 0n, left, right, 0.0)
+### pair-cursor-off-by-one after src/tensor/contracts/fold.bend
+  pair_loop(~O, ~g, ~P, ~ia, ~ib, count, operation, plan, 1n, left, right, 0.0)
+
 ### sum-swapped-add before src/tensor/contracts/sum.bend
   F32.add(accumulator, word)
 ### sum-swapped-add after src/tensor/contracts/sum.bend

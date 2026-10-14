@@ -89,12 +89,14 @@ instance copy, only the instance copy for the swapped maps, or only
 | Cursor off by one | `run` starts the loop at 1 | `contract` | `contract.qvvvv` |
 | Pair swapped operands | `pair_right` folds `g(operation, accumulator, y, x)` | `pair_step_lift` | `pair_step_lift.qvvvvv` |
 | Pair wrong map | `pair_loop` reads the left input at `ib` | `pair_step_lift` | `pair_step_lift.qvvvvv` |
+| Pair negative zero start | `pair_run` starts at `F32.neg(0.0)` | `pair_contract` | `pair_contract.qvvvvv` |
+| Pair cursor off by one | `pair_run` starts the loop at 1 | `pair_contract` | `pair_contract.qvvvvv` |
 | Sum swapped add | `Sum.add` returns `F32.add(word, accumulator)` | `total_words` | `total_words` |
 | Dot untransposed right | `Dot.right_index` reads `column * inner + k` | `total_factors` | `total_factors` |
 
-The first six mutants change the generic loops in `fold.bend`, and the generic
-proofs reject them. The last two change one instance each. The proof that
-relates the instance's `Fold.total` to its specification rejects them.
+The first eight mutants change the generic loops in `fold.bend`, and the
+generic proofs reject them. The last two change one instance each. The proof
+that relates the instance's `Fold.total` to its specification rejects them.
 
 `fold/entry.bend` imports `broadcast.bend` before `sum.bend` and `dot.bend`.
 The BendTT export names each opaque template constant after the first module
