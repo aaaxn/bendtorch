@@ -1,0 +1,19 @@
+### lands-on-source before src/autograd/reduce-fold.bend
+  Nat.is_eq(Broadcast.left_map(plan, position), U32.to_nat(index))
+### lands-on-source after src/autograd/reduce-fold.bend
+  Nat.is_eq(Broadcast.right_map(plan, position), U32.to_nat(index))
+
+### inverted-mask before src/autograd/reduce-fold.bend
+  Nat.is_eq(Broadcast.left_map(plan, position), U32.to_nat(index))
+### inverted-mask after src/autograd/reduce-fold.bend
+  Bool.not(Nat.is_eq(Broadcast.left_map(plan, position), U32.to_nat(index)))
+
+### reads-target-offset before src/autograd/reduce-fold.bend
+  Broadcast.right_map(plan, position)
+### reads-target-offset after src/autograd/reduce-fold.bend
+  Broadcast.left_map(plan, position)
+
+### target-count before src/autograd/reduce-fold.bend
+Cell{plan, index}, Shape.elements(Shape.right_shape(plan)), input)
+### target-count after src/autograd/reduce-fold.bend
+Cell{plan, index}, Shape.elements(Shape.left_shape(plan)), input)
