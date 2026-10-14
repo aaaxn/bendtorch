@@ -813,45 +813,6 @@ def total_history(+cell: Dot.Cell, +inner: U32, +columns: U32, +left: Shape.Shap
         {F32.add(total, F32.mul(x, _)) == F32.add(total, F32.mul(x, y)) : F32}
       {==}
 
-def products_split(+inner: U32, +columns: U32, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
-  +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +output: Shape.Shape, +previous: Nat, +index: U32,
-  below: {Nat.is_lt(U32.to_nat(index), 1n+previous) == True{} : Bool},
-  +room: {Nat.is_le(1n+previous, Shape.logical_numel(Shape.dimensions(output))) == True{} : Bool},
-  rec: {Nat.is_lt(U32.to_nat(index), previous) == True{} : Bool} ->
-    {Replayed.value(output, 0.0, products(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, previous), index) ==
-      product_total(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, U32.to_nat(index)) : F32},
-  decision: Shape.BoolCase<Nat.is_eq(U32.to_nat(index), previous)>) ->
-  {Replayed.value(output, 0.0, products(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, 1n+previous), index) ==
-    product_total(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, U32.to_nat(index)) : F32}:
-  match decision:
-    case Shape.BTrue{same}:
-      +written = product_total(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, previous)
-      +history = products(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, previous)
-      +old = Replayed.value(output, 0.0, history, index)
-      +step = Replayed.expected_snoc(history, StorageLaws.Write{U32.from_nat(previous), written}, U32.to_nat(Shape.count(output)), index, 0.0)
-      +inside = Conversion.le_successor_lt(previous, Shape.logical_numel(Shape.dimensions(output)), room)
-      +at = Lifecycle.natural_equal(U32.to_nat(index), previous, same)
-      Equal.trans(F32, Replayed.value(output, 0.0, Replayed.snoc(history, StorageLaws.Write{U32.from_nat(previous), written}), index),
-        written, product_total(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, U32.to_nat(index)),
-        Equal.trans(F32, Replayed.value(output, 0.0, Replayed.snoc(history, StorageLaws.Write{U32.from_nat(previous), written}), index),
-          StorageLaws.latest(U32.to_nat(Shape.count(output)), StorageLaws.Write{U32.from_nat(previous), written}, index, old), written,
-          step, PointwiseProof.write_hit(output, previous, index, written, old, inside, at)),
-        Equal.cong(Nat, F32, position => product_total(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, position),
-          previous, U32.to_nat(index), Equal.sym(Nat, U32.to_nat(index), previous, at)))
-    case Shape.BFalse{other}:
-      +written = product_total(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, previous)
-      +history = products(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, previous)
-      +old = Replayed.value(output, 0.0, history, index)
-      +step = Replayed.expected_snoc(history, StorageLaws.Write{U32.from_nat(previous), written}, U32.to_nat(Shape.count(output)), index, 0.0)
-      +inside = Conversion.le_successor_lt(previous, Shape.logical_numel(Shape.dimensions(output)), room)
-      +earlier = PointwiseProof.lt_succ_ne(U32.to_nat(index), previous, below, other)
-      Equal.trans(F32, Replayed.value(output, 0.0, Replayed.snoc(history, StorageLaws.Write{U32.from_nat(previous), written}), index),
-        old, product_total(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, U32.to_nat(index)),
-        Equal.trans(F32, Replayed.value(output, 0.0, Replayed.snoc(history, StorageLaws.Write{U32.from_nat(previous), written}), index),
-          StorageLaws.latest(U32.to_nat(Shape.count(output)), StorageLaws.Write{U32.from_nat(previous), written}, index, old), old,
-          step, PointwiseProof.write_miss(output, previous, index, written, old, inside, earlier)),
-        rec(earlier))
-
 def products_value(+inner: U32, +columns: U32, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
   +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +output: Shape.Shape, +count: Nat, +index: U32,
   below: {Nat.is_lt(U32.to_nat(index), count) == True{} : Bool},
@@ -864,7 +825,12 @@ def products_value(+inner: U32, +columns: U32, +left: Shape.Shape, +left_fill: F
         product_total(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, U32.to_nat(index)) : F32},
         Arith.lt_zero(U32.to_nat(index), below))
     case 1n+previous:
-      products_split(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, output, previous, index, below, room,
+      PointwiseProof.write_split(output, products(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, previous),
+        previous, product_total(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, previous), index,
+        product_total(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, U32.to_nat(index)),
+        below, room,
+        at => Equal.cong(Nat, F32, position => product_total(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, position),
+          previous, U32.to_nat(index), Equal.sym(Nat, U32.to_nat(index), previous, at)),
         earlier => products_value(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, output, previous, index, earlier,
           Conversion.le_predecessor(previous, Shape.logical_numel(Shape.dimensions(output)), room)),
         Shape.bool_case(Nat.is_eq(U32.to_nat(index), previous)))
