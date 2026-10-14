@@ -29,20 +29,20 @@ with F32 tensors only, and it cannot train a model yet.
 | Proved contracts | `src/tensor/*-contract-LAWS.bend`, `src/tensor/contracts/` | Laws that later proofs can use as inputs, for construction, reads and writes, clone and metadata, and reshape, plus the error cases of permute and transpose. A generic theorem for pointwise loops proves the values that a broadcast binary operation writes. A second one, for ordered folds, proves the total of a sum and of one matmul dot product, with its addition order. |
 | Autograd building blocks | `src/autograd/` | `broadcast_to` (copies a tensor to a larger shape), `reduce_to` (sums a gradient back to the shape of its input), `sum_to_size` (the PyTorch-facing form of `reduce_to`, which keeps the input unchanged when no axis is reduced) and gradient slots (`Gradient.accumulate`, `Gradient.grad`, `Gradient.reset`, `Gradient.gradient`) that add the contributions to a gradient in the order they arrive, read as `None` until they receive one, and reset to `None`. |
 | Scalar backward | `src/autograd/backward.bend` | Reverse-mode `backward` for F32 scalars on a tape of `add`, `sub`, `mul` and `neg`. It seeds the output the caller selects, gives `None` to every node that output does not reach, adds the contributions to a node used several times in a fixed order, accumulates repeated calls like PyTorch's `retain_graph=True`, and reports unknown node ids as errors. |
-| Experimental tape | `experiments/s3a/` | Three autograd prototypes: a reverse tape, pullback closures and forward dual numbers. The reverse tape was chosen as the base for the real engine. |
+| Experimental tape | `experiments/autograd-prototypes/` | Three autograd prototypes: a reverse tape, pullback closures and forward dual numbers. The reverse tape was chosen as the base for the real engine. |
 
 Every operation either consumes its inputs or gives them back to the caller
 explicitly. No two tensors share mutable storage.
 
-The [tensor core](docs/s2-core.md), [construction and clone](docs/s2-construction.md),
-[elementwise ops](docs/s2-elementwise.md), [sum and matmul](docs/s2-math.md),
-[transforms](docs/s2-transforms.md), [broadcast](docs/s3-broadcast.md),
-[reduce to shape](docs/s3-reduce.md), [sum to size](docs/s3-sum-to-size.md),
-[gradient slots](docs/s3-gradient.md), [scalar backward](docs/s3-backward.md)
+The [tensor core](docs/tensor-core.md), [construction and clone](docs/construction.md),
+[elementwise ops](docs/elementwise.md), [sum and matmul](docs/sum-and-matmul.md),
+[transforms](docs/transforms.md), [broadcast](docs/broadcast-to.md),
+[reduce to shape](docs/reduce-to.md), [sum to size](docs/sum-to-size.md),
+[gradient slots](docs/gradient-slots.md), [scalar backward](docs/backward.md)
 and [contract families](docs/contract-families.md)
-pages document each capability. The [shape](docs/s1-shapes.md) and
-[storage](docs/s1-storage.md) pages document the layers below them. The
-[autograd design comparison](docs/s3-architecture.md) explains why the reverse
+pages document each capability. The [shape](docs/shapes.md) and
+[storage](docs/storage.md) pages document the layers below them. The
+[autograd design comparison](docs/autograd-design.md) explains why the reverse
 tape was chosen.
 
 ## What is proved and what is tested
@@ -72,10 +72,10 @@ of permute and transpose. These live contracts cover tensors built by
 `Core.new` with one fill value. The values written by a successful permute,
 transpose, elementwise op, sum or matmul are proved only with erased evidence
 today. The autograd laws are erased too. The
-[proof boundary](docs/r1-proof-boundary.md) page explains the difference.
+[proof boundary](docs/proof-boundary.md) page explains the difference.
 
 **Tested.** The numerical results are tested, not proved. The frozen corpus in
-`oracle/s2/fixtures/s2-v2.json` has 161 successful operation cases, 45
+`oracle/tensor/fixtures/s2-v2.json` has 161 successful operation cases, 45
 expected errors and 7 shape-only cases, including empty and scalar tensors,
 signed zeros, subnormals, infinities and NaNs. The tensor gate runs every case
 in two lanes, native CPU and generated JavaScript. Data-moving operations must
@@ -84,7 +84,7 @@ results must be the correctly rounded word, which is also PyTorch's word.
 IEEE edge cases must give the exact word, or the same class (NaN or signed
 infinity) when the result is not finite. `sum` and `matmul` must be within a
 published rounding-error bound, and a zero result must have PyTorch's sign.
-The [numerical policy](oracle/s2/README.md) defines these rules. Version 2 of
+The [numerical policy](oracle/tensor/README.md) defines these rules. Version 2 of
 the policy was frozen before any Bend result was compared with it; version 3
 only adds checks to it. A supplement of 29 cases and 2 errors extends the
 corpus with `matmul_add` bias, cancellation and signed-zero cases and `get` on
@@ -92,7 +92,7 @@ special words. The cases were then used
 during development, so they are regression evidence, not held-out evidence.
 The autograd building blocks have their own native and JavaScript lanes, which
 compare each output word, bit for bit, with a Python reference that follows
-the same order. A frozen [PyTorch record](oracle/s3/README.md) of every one of
+the same order. A frozen [PyTorch record](oracle/autograd/README.md) of every one of
 those requests ties the references to PyTorch's `expand`, `sum_to_size` and
 `backward`: they agree word for word, apart from the listed rank, capacity,
 NaN-payload and `None`-gradient differences.
@@ -191,7 +191,7 @@ upstream main.
 These finish in seconds:
 
 ```sh
-uv run --locked python -m unittest discover -s tests -p test_s2_numerics.py -v
+uv run --locked python -m unittest discover -s tests -p test_tensor_numerics.py -v
 uv run --locked ruff check tools tests
 uv run --locked ruff format --check tools tests
 uv run --locked ty check
@@ -220,23 +220,23 @@ evidence to a new directory and refuses to overwrite an existing one.
 ```sh
 bend PROOF.bend --verdict
 uv run --locked python -m unittest discover -s tests -v
-uv run --locked python -m tools.s0 --output .evidence/<new directory>
+uv run --locked python -m tools.toolchain --output .evidence/<new directory>
 uv run --locked python -m tools.s1 --output .evidence/<new directory>
-uv run --locked python -m tools.s2 --output .evidence/<new directory>
-uv run --locked python -m tools.s3 --output .evidence/<new directory>
-uv run --locked python -m verification.r1-b.run --output <new directory>
+uv run --locked python -m tools.tensor --output .evidence/<new directory>
+uv run --locked python -m tools.autograd --output .evidence/<new directory>
+uv run --locked python -m verification.contracts.run --output <new directory>
 uv run --locked python -m verification.families.run --output <new directory>
 ```
 
 `PROOF.bend` checks the shape, storage and tensor laws. The gates are numbered
-in the order the capabilities were added. `tools.s0` checks the toolchain
-itself, `tools.s1` shapes and storage, `tools.s2` tensors and the frozen
-corpus, and `tools.s3` the autograd building blocks and their laws. The last
+in the order the capabilities were added. `tools.toolchain` checks the toolchain
+itself, `tools.s1` shapes and storage, `tools.tensor` tensors and the frozen
+corpus, and `tools.autograd` the autograd building blocks and their laws. The last
 two commands check the proved contracts and their negative controls.
 
 The oracle has its own uv project with a CPU-only PyTorch, so PyTorch is
 never installed in the root environment. The [oracle](oracle/README.md) and
-[tensor oracle](oracle/s2/README.md) pages explain how to check and regenerate
+[tensor oracle](oracle/tensor/README.md) pages explain how to check and regenerate
 the references.
 
 ## Repository layout

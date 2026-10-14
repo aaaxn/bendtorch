@@ -59,12 +59,12 @@ uv run --locked python -m unittest discover -s tests -v
 uv run --locked ruff check tools tests
 uv run --locked ruff format --check tools tests
 uv run --locked ty check
-uv run --locked python -m tools.s0 --output .evidence/s0-bend-<short sha>
+uv run --locked python -m tools.toolchain --output .evidence/s0-bend-<short sha>
 uv run --locked python -m tools.s1 --output .evidence/s1-bend-<short sha>
-uv run --locked python -m tools.s2 --output .evidence/s2-bend-<short sha>
+uv run --locked python -m tools.tensor --output .evidence/s2-bend-<short sha>
 ```
 
-Also run the native matmul smoke from `docs/s2-math.md` and compare its full
+Also run the native matmul smoke from `docs/sum-and-matmul.md` and compare its full
 output with the documented words. Record each command, its exit code and its
 wall time for the PR description.
 
@@ -94,5 +94,5 @@ The PR description carries the new run's commands and results.
 | Commit | Date | Differences found |
 | --- | --- | --- |
 | `0e14aa8` | 2026-10-12 | Bend 51ab8e8 looks for CUDA at `/usr/local/cuda` and `/opt/cuda` when `$CUDA_HOME` has none, so `bend -o` linked the CUDA lane into S0's `!` parallel-sum probe on a CUDA host. S0 now emits C and compiles it with the pinned clang, as S1 and S2 already do. The "match leaves behind proofs" Known Bend2 bug no longer reproduces (fixed upstream in 8828cc1). |
-| `63b2c0d` | 2026-10-13 | None. Bend 2.0.37 plus fixes; Lean stays 4.34.0 and `bendtt.lean` is unchanged. `--verdict` now prints the kernel's failure lines (upstream f846cb5), so a kernel failure such as `experiments/s3a/kernel-fuel-adds.bend` reads `In probe: out of fuel` under the verdict. Base `F32.round` no longer rounds `a + 0.5` (upstream 63b2c0d); bendtorch does not call it. The kernel fuel limit (bendlang/bend #1322, #1193, both open) is unchanged. |
+| `63b2c0d` | 2026-10-13 | None. Bend 2.0.37 plus fixes; Lean stays 4.34.0 and `bendtt.lean` is unchanged. `--verdict` now prints the kernel's failure lines (upstream f846cb5), so a kernel failure such as `experiments/autograd-prototypes/kernel-fuel-adds.bend` reads `In probe: out of fuel` under the verdict. Base `F32.round` no longer rounds `a + 0.5` (upstream 63b2c0d); bendtorch does not call it. The kernel fuel limit (bendlang/bend #1322, #1193, both open) is unchanged. |
 | `32d23b4` | 2026-10-13 | None. One upstream commit, which changes only Base: `List.any`, `List.all`, `List.find` and `List.contains` now carry the result so far and stop once it is known (upstream #1548). Nothing in bendtorch or elsewhere in Base calls them. The checker, `bendtt.lean`, the compiler and Lean 4.34.0 are unchanged, and so is the kernel fuel limit (bendlang/bend #1322, #1193, both open). |

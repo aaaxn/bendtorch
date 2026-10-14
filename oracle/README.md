@@ -46,13 +46,13 @@ uv run --frozen python generate.py
 Generation uses fixed inputs, CPU F32 operations, one intra-op thread, one inter-op
 thread, deterministic algorithms, and the highest F32 matmul precision. No random
 inputs or timestamps enter the artifacts. `--check` is read-only and compares
-`fixtures/s0.json` byte for byte. The unittest suite regenerates twice in
+`fixtures/toolchain.json` byte for byte. The unittest suite regenerates twice in
 isolated temporary directories under `oracle/` and checks both `s0.json` results
 against the frozen bytes.
 
 ## Fixture format
 
-`fixtures/s0.json` declares the verified `oracle` identity,
+`fixtures/toolchain.json` declares the verified `oracle` identity,
 `dtype: "float32"`, `device: "cpu"`, and independent `finite_cases` and
 `nonfinite_cases`. Each case has an `id`, `op`, named `inputs`, and named `outputs`.
 The `matmul_add` operation means `(a @ b) + bias`. All reduction cases reduce the

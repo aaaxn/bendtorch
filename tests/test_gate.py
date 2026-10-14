@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from tools.common import Evidence, GateError, check_inventory
-from tools.s0 import F32_PROBE
+from tools.toolchain import F32_PROBE
 
 
 class GateTests(unittest.TestCase):

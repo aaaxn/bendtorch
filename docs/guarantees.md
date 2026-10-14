@@ -1,7 +1,7 @@
 # Guarantee ledger
 
 The S0 gate establishes a reproducible checking path, not tensor correctness.
-Its authoritative inventory is `verification/s0.json`; immutable source and
+Its authoritative inventory is `verification/toolchain.json`; immutable source and
 artifact pins are in `verification/references.json`. Each run records the
 manifest hash, the hash of every file it wrote, each command's exit code,
 stdout, stderr and elapsed time, the host, and tool binary fingerprints.

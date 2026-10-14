@@ -29,8 +29,9 @@ def environment(tool_root: Path) -> dict[str, str]:
     env["BENDTT"] = str(tool_root / "kernel/bendtt")
     env["CC"] = str(tool_root / "llvm/usr/bin/clang-19")
     # Bend links CUDA into a `!` binary when $CUDA_HOME has nvrtc.h. Since
-    # bendlang/bend 51ab8e8 it also tries /usr/local/cuda and /opt/cuda, so S0
-    # compiles its `!` program from Bend's C with the pinned clang instead.
+    # bendlang/bend 51ab8e8 it also tries /usr/local/cuda and /opt/cuda, so the
+    # toolchain gate compiles its `!` program from Bend's C with the pinned clang
+    # instead.
     env["CUDA_HOME"] = str(tool_root / "no-cuda")
     env["LD_LIBRARY_PATH"] = str(tool_root / "llvm/usr/lib/x86_64-linux-gnu")
     env["LEAN_STACK_SIZE_KB"] = "4194304"
@@ -156,3 +157,42 @@ def check_inventory(text: str, required: list[str]) -> None:
     missing = set(required) - declarations
     if missing:
         raise GateError(f"Export omitted required declarations: {sorted(missing)}")
+
+
+def check_laws(
+    evidence: Evidence, name: str, root: Path, required: list[str], timeout: int = 300
+) -> Path:
+    """Checks a law root with the Bend checker and with `--verdict`, exports
+    it, requires each listed declaration in the export, and rechecks the
+    export with BendTT directly. Removing any one required declaration from
+    the export must fail the inventory."""
+    tool_root = evidence.tool_root
+    for check, mode in (("source", "--check-only"), ("kernel", "--verdict")):
+        evidence.run(
+            f"{name}-{check}-check",
+            bend(tool_root, root, mode),
+            contains="ALL PROOFS CHECK",
+            timeout=timeout,
+        )
+    artifact = evidence.directory / "PROOF.bendtt"
+    evidence.run(f"{name}-export", bend(tool_root, root, "-o", artifact))
+    text = artifact.read_text()
+    check_inventory(text, required)
+    evidence.run(
+        f"{name}-direct-kernel",
+        [str(tool_root / "kernel/bendtt"), str(artifact)],
+        contains="ALL PROOFS CHECK",
+        timeout=timeout,
+    )
+    for declaration in required:
+        missing = text.replace(declaration + " :", "omitted :", 1)
+        try:
+            check_inventory(missing, required)
+        except GateError:
+            continue
+        raise GateError(f"The inventory accepted an omitted declaration: {declaration}")
+    return artifact
+
+
+def required_exports(path: Path) -> list[str]:
+    return json.loads(path.read_text())["required_exports"]
