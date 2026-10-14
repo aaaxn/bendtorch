@@ -340,7 +340,9 @@ class NativeCorpusTests(unittest.TestCase):
     def setUpClass(cls):
         parent = ROOT / ".evidence"
         parent.mkdir(parents=True, exist_ok=True)
-        cls.directory = Path(tempfile.mkdtemp(prefix="s2-runtime-tests-", dir=parent))
+        cls.directory = Path(
+            tempfile.mkdtemp(prefix="tensor-runtime-tests-", dir=parent)
+        )
         cls.execution = run_native_corpus(
             ROOT / ".tools",
             cls.directory / "run",
