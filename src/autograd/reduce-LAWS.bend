@@ -48,8 +48,8 @@ def contribute(+values: List<&2, F32>, +target_index: U32, total: Maybe<&2, F32>
 
 # The specified accumulation: start at +0.0 and visit contribution positions
 # 0, 1, ..., count - 1 in ascending order; each position whose independent
-# broadcast projection (Projection.offset_spec, with the target as the left
-# operand) lands on target_index adds its word with one F32 add.
+# broadcast projection, Projection.offset_spec, has target_offset equal to
+# target_index adds the word at its source_offset with one F32 add.
 def fiber(+plan: Shape.BroadcastPlan, +values: List<&2, F32>, +target_index: U32, +count: Nat) -> Maybe<&2, F32>:
   match count:
     case 0n:
@@ -66,8 +66,7 @@ def planned_fiber(+values: List<&2, F32>, +target_index: U32, +count: Nat,
       fiber(plan, values, target_index, count)
 
 # values lists the contribution's words: the checked observation at every
-# U32 position is the word at that position, so values has exactly the
-# contribution's logical length.
+# U32 position is the word at that position.
 def Listed(-input: Core.Dynamic, +values: List<&2, F32>) -> Type:
   @+source: U32 -> {Core.checked_observe_dynamic(input, source) == word_at(values, U32.to_nat(source)) : Maybe<&2, F32>}
 
@@ -106,6 +105,9 @@ type MappingModel<-input: Core.Dynamic, -target: Shape.Shape,
 type Success<-pair: Core.Dynamic & Result<&2, &1, Reduce.Error, Core.Dynamic>> is Data:
   Success{-successful: {succeeded(pair) == True{} : Bool}}
 
+type Length<-input: Core.Dynamic, -values: List<&2, F32>> is Data:
+  Length{-exact: {List.length(&2, F32, values) == Shape.logical_numel(Totality.dimensions(input)) : Nat}}
+
 type Zeros<-target: Shape.Shape, -pair: Core.Dynamic & Result<&2, &1, Reduce.Error, Core.Dynamic>> is Data:
   Zeros{-zeros: ZeroValues(target, pair)}
 
@@ -122,6 +124,14 @@ law reduce_mapping:
   for input: Core.Dynamic
   for +target: Shape.Shape
   MappingModel<input, target, Reduce.reduce_to(input, target)>
+
+# A list of words that lists the contribution has exactly the contribution's
+# logical length.
+law listed_length:
+  for input: Core.Dynamic
+  for +values: List<&2, F32>
+  for listed: Listed(input, values)
+  Length<input, values>
 
 # A target whose right-aligned broadcast with the contribution shape is the
 # contribution shape itself always succeeds.

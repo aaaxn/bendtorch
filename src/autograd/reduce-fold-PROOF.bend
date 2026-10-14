@@ -157,8 +157,8 @@ def fiber_total(+plan: Shape.BroadcastPlan, +index: U32, +fill: F32, +ops: List<
       +limit = Shape.logical_numel(Shape.dimensions(output))
       +values = Contracts.words(right, fill, ops, Shape.logical_numel(Shape.dimensions(right)))
       +cell : ReduceFold.Cell = ReduceFold.Cell{plan, index}
-      +lm = Broadcast.left_map(plan, k)
-      +rm = Broadcast.right_map(plan, k)
+      +lm = ReduceFold.target_offset(plan, k)
+      +rm = ReduceFold.contribution_offset(plan, k)
       +before = Fold.total(~Unit, ~Sum.add, ~ReduceFold.Cell, ~ReduceFold.source, ~ReduceFold.lands, Unit{}, cell, right, fill, ops, k)
       +word = Replayed.value(right, fill, ops, U32.from_nat(rm))
       +lands = Nat.is_eq(lm, U32.to_nat(index))
