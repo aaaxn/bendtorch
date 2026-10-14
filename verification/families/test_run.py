@@ -6,7 +6,10 @@ from pathlib import Path
 from tools.common import GateError
 
 r1b = importlib.import_module("verification.r1-b.run")
-pointwise = importlib.import_module("verification.families.pointwise_controls")
+controls = importlib.import_module("verification.families.controls")
+pointwise = importlib.import_module("verification.families.pointwise_controls").FAMILY
+fold = importlib.import_module("verification.families.fold_controls").FAMILY
+FAMILIES = (pointwise, fold)
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -23,41 +26,56 @@ def kernel(location: str, expected: str, observed: str) -> str:
 
 class PointwiseControlTests(unittest.TestCase):
     def test_mutants_edit_only_their_operation_file(self):
-        operations = {
-            "src/tensor/contracts/pointwise.bend",
-            "src/tensor/contracts/broadcast.bend",
-        }
-        for label, (path, old, new) in pointwise.MUTANTS.items():
-            self.assertIn(path, operations, label)
-            self.assertEqual((ROOT / path).read_text().count(old), 1, label)
-            self.assertNotEqual(old, new, label)
-        self.assertEqual(set(pointwise.MUTANTS), set(pointwise.SITES))
-        with tempfile.TemporaryDirectory() as directory:
-            snapshot = Path(directory) / "snapshot"
-            snapshot.mkdir()
-            (snapshot / "src").symlink_to(ROOT / "src")
-            for label, (path, old, new) in pointwise.MUTANTS.items():
-                target = Path(directory) / label
-                pointwise.mutant_copy(snapshot, target, label)
-                text = (target / path).read_text()
-                self.assertEqual(text, (ROOT / path).read_text().replace(old, new))
-                self.assertTrue((target / pointwise.ENTRY).exists())
-                other = operations - {path}
-                for name in other:
-                    self.assertEqual(
-                        (target / name).read_text(), (ROOT / name).read_text()
-                    )
+        for family in FAMILIES:
+            for label, (path, old, new) in family.mutants.items():
+                self.assertIn(path, family.operations, label)
+                self.assertEqual((ROOT / path).read_text().count(old), 1, label)
+                self.assertNotEqual(old, new, label)
+            self.assertEqual(set(family.mutants), set(family.sites))
+            with tempfile.TemporaryDirectory() as directory:
+                snapshot = Path(directory) / "snapshot"
+                snapshot.mkdir()
+                (snapshot / "src").symlink_to(ROOT / "src")
+                (snapshot / family.experiment).parent.mkdir(parents=True)
+                (snapshot / family.experiment).symlink_to(ROOT / family.experiment)
+                for label, (path, old, new) in family.mutants.items():
+                    target = Path(directory) / label
+                    family.mutant_copy(snapshot, target, label)
+                    text = (target / path).read_text()
+                    self.assertEqual(text, (ROOT / path).read_text().replace(old, new))
+                    self.assertTrue((target / family.entry_path).exists())
+                    self.assertTrue((target / family.checked(label)).exists())
+                    for name in family.operations - {path}:
+                        self.assertEqual(
+                            (target / name).read_text(), (ROOT / name).read_text()
+                        )
+
+    def test_failure_mutants_are_checked_by_the_consumers(self):
+        checked = {label: fold.checked(label) for label in fold.mutants}
+        failures = {"failed-step-done", "pair-left-failed-done"}
+        failures.add("pair-right-failed-swapped")
+        for label, path in checked.items():
+            expected = (
+                "verification/families/fold/consumers.bend"
+                if label in failures
+                else controls.PROOF
+            )
+            self.assertEqual(path, expected, label)
+        self.assertTrue(all(not site.consumer for site in pointwise.sites.values()))
 
     def test_false_twin_changes_only_the_statement(self):
-        controls = (ROOT / pointwise.EXPERIMENT / "controls.bend").read_text()
-        for witness, (target, wrong) in pointwise.WITNESSES.items():
-            twin = pointwise.false_twin(controls, witness)
-            self.assertEqual(len(twin), len(controls) + len(wrong) - len(target))
-            start = controls.index(f"def {witness}()")
-            end = controls.index("}:\n", start)
-            self.assertEqual(twin[:start], controls[:start])
-            self.assertIn(f"== {wrong}() : ", twin[start:])
-            self.assertEqual(twin[twin.index("}:\n", start) :], controls[end:], witness)
+        for family in FAMILIES:
+            source = (ROOT / family.experiment / "controls.bend").read_text()
+            for witness, (target, wrong) in family.witnesses.items():
+                twin = family.false_twin(source, witness)
+                self.assertEqual(len(twin), len(source) + len(wrong) - len(target))
+                start = source.index(f"def {witness}()")
+                end = source.index("}:\n", start)
+                self.assertEqual(twin[:start], source[:start])
+                self.assertIn(f"== {wrong}() : ", twin[start:])
+                self.assertEqual(
+                    twin[twin.index("}:\n", start) :], source[end:], witness
+                )
 
     def test_kernel_twin_changes_only_the_header(self):
         text = (
@@ -122,7 +140,7 @@ class PointwiseControlTests(unittest.TestCase):
             pointwise.kernel_reason(other, "sub_witness")
 
     def test_kernel_reason_requires_the_named_declaration(self):
-        site = f"{pointwise.SRC}pointwise_2d_proof.step_lift.qvvvvv"
+        site = f"{controls.SRC}pointwise_2d_proof.step_lift.qvvvvv"
         self.assertIn(
             site, pointwise.kernel_reason(kernel(site, "a", "b"), "missing-write")
         )
@@ -132,7 +150,7 @@ class PointwiseControlTests(unittest.TestCase):
             pointwise.kernel_reason(kernel(site, "a", "a"), "missing-write")
 
     def test_replaced_requires_exactly_the_mutated_declarations(self):
-        source = pointwise.SRC
+        source = controls.SRC
         positive = (
             f"{source}pointwise.step.qvvvvv : T =\n  a\n\n"
             f"{source}pointwise.step.qvvvvv_1 : T =\n  b\n\n"

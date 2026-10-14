@@ -28,6 +28,8 @@
     "_2e_._2f_.._2f_src_2f_tensor_2f_contracts_2f_LAWS.from_values_replayed",
     "_2e_._2f_.._2f_src_2f_tensor_2f_contracts_2f_LAWS.replayed_read",
     "_2e_._2f_.._2f_src_2f_tensor_2f_contracts_2f_LAWS.broadcast_pointwise",
+    "_2e_._2f_.._2f_src_2f_tensor_2f_contracts_2f_LAWS.sum_ordered",
+    "_2e_._2f_.._2f_src_2f_tensor_2f_contracts_2f_LAWS.dot_ordered",
     "_2e_._2f_.._2f_src_2f_tensor_2f_elementwise_2d_LAWS.binary_retains_inputs",
     "_2e_._2f_.._2f_src_2f_tensor_2f_elementwise_2d_LAWS.binary_successful_output_dimensions",
     "_2e_._2f_.._2f_src_2f_tensor_2f_elementwise_2d_LAWS.binary_valid_success",
