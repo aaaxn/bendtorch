@@ -12,7 +12,6 @@ def marked(flag: Bool, +rest: List<&2, Bool>, rec: Unit -> List<&2, Bool>, same:
     case False{}:
       flag <> rec(Unit{})
 
-# Sets the flag of node target in a newest-first list of count flags.
 def mark(flags: List<&2, Bool>, +count: Nat, +target: Nat) -> List<&2, Bool>:
   match flags count:
     case Nil{} count:
@@ -22,7 +21,6 @@ def mark(flags: List<&2, Bool>, +count: Nat, +target: Nat) -> List<&2, Bool>:
     case Con{flag, +rest} 1n+below:
       marked(flag, rest, unit => mark(rest, below, target), Nat.is_eq(below, target))
 
-# The operand ids of a node, in operand order.
 def targets(node: Backward.Node) -> List<&2, Nat>:
   match node:
     case Backward.Leaf{}:
@@ -76,7 +74,6 @@ def reached_chosen(node: Backward.Node, +rest: List<&2, Backward.Node>, +below: 
     case False{}:
       False{} <> rec(Unit{})
 
-# The reached flag of each of count nodes, newest first.
 def reached(nodes: List<&2, Backward.Node>, +count: Nat, +output: Nat) -> List<&2, Bool>:
   match nodes count:
     case Nil{} count:
@@ -108,15 +105,12 @@ def entry_node(entry: Backward.Entry) -> Backward.Node:
   Backward.Entry{node, value, slot} = entry
   node
 
-# Which gradients are present.
 def somes(gradients: List<&2, Maybe<&2, F32>>) -> List<&2, Bool>:
   match gradients:
     case Nil{}:
       Nil{}
     case Con{gradient, rest}:
       Maybe.is_some(&2, F32, gradient) <> somes(rest)
-
-# Views of a tape.
 
 def nodes_of(tape: Backward.Tape) -> List<&2, Backward.Node>:
   Backward.Tape{entries} = tape
@@ -147,7 +141,6 @@ def grad_after(result: Result<&2, &2, Backward.Error, Backward.Tape>, +id: Nat) 
     case Done{tape}:
       Backward.grad(tape, id)
 
-# A second backward of output on the result of the first.
 def again(result: Result<&2, &2, Backward.Error, Backward.Tape>, +output: Nat) -> Result<&2, &2, Backward.Error, Backward.Tape>:
   match result:
     case Fail{error}:
@@ -159,8 +152,6 @@ def observe(+tape: Backward.Tape, +output: Nat) ->
   Result<&2, &2, Backward.Error, F32> & Result<&2, &2, Backward.Error, List<&2, Maybe<&2, F32>>>:
   (Backward.value(tape, output), Backward.gradients(tape, output))
 
-# Small programs recorded through the public API. Ids are creation order.
-
 def tape_of(pair: Backward.Tape & Nat) -> Backward.Tape:
   (tape, id) = pair
   tape
@@ -169,22 +160,16 @@ def recorded(pair: Backward.Tape & Result<&2, &2, Backward.Error, Nat>) -> Backw
   (tape, result) = pair
   tape
 
-# x = 0, y = 1, x op y = 2.
 def program_binary(kind: Backward.Binary, x: F32, y: F32) -> Backward.Tape:
   recorded(Backward.binary(tape_of(Backward.leaf(tape_of(Backward.leaf(Backward.empty(), x)), y)), kind, 0n, 1n))
 
-# x = 0, -x = 1.
 def program_neg(x: F32) -> Backward.Tape:
   recorded(Backward.neg(tape_of(Backward.leaf(Backward.empty(), x)), 0n))
 
-# x = 0, y = 1, z = 2, x * y = 3, z + z = 4. Node 4 is newer than the output
-# 3 and uses z twice; z is not used by 3.
 def program_unused(x: F32, y: F32, z: F32) -> Backward.Tape:
   recorded(Backward.add(recorded(Backward.mul(
     tape_of(Backward.leaf(tape_of(Backward.leaf(tape_of(Backward.leaf(Backward.empty(), x)), y)), z)), 0n, 1n)), 2n, 2n))
 
-# x = 0, a = 1, b = 2, c = 3, p = x * a = 4, q = x * b = 5, r = x * c = 6,
-# s = p + q = 7, t = s + r = 8. x has three consumers.
 def program_fan_out(x: F32, a: F32, b: F32, c: F32) -> Backward.Tape:
   recorded(Backward.add(recorded(Backward.add(recorded(Backward.mul(recorded(Backward.mul(recorded(Backward.mul(
     tape_of(Backward.leaf(tape_of(Backward.leaf(tape_of(Backward.leaf(tape_of(Backward.leaf(Backward.empty(), x)), a)), b)), c)),

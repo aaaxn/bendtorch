@@ -1,17 +1,10 @@
 import Base
 
-# Scalar reverse-mode differentiation on an explicit tape.
-#
 # A tape is a list of entries, newest first. The entry with k older entries
 # has id k, so ids follow creation order. A lookup walks down from the newest
 # entry and compares each entry's id with the requested one. It never computes
 # an offset by subtraction, so an id the tape does not hold reads as
 # UnknownNode and never as another entry.
-#
-# Recording an operation reads its operands' values, saves what its backward
-# rule needs (the operand values of a product) and pushes one entry whose
-# gradient slot is empty. An operand id the tape does not hold is refused with
-# UnknownNode, and the tape comes back unchanged.
 #
 # backward(tape, output) seeds d(output)/d(output) = 1.0 at the selected
 # output, never at the newest entry. Entries newer than the output receive
@@ -85,8 +78,6 @@ def find(-A: Data, xs: List<&2, A>, +count: Nat, +id: Nat) -> Maybe<&2, A>:
 def lookup(-A: Data, +xs: List<&2, A>, +id: Nat) -> Maybe<&2, A>:
   find(A, xs, List.length(&2, A, xs), id)
 
-# Gradient accumulation: the first contribution moves in, later ones are added
-# to the total, total first.
 def accumulate(total: Maybe<&2, F32>, contribution: Maybe<&2, F32>) -> Maybe<&2, F32>:
   match total contribution:
     case None{} contribution:
@@ -104,8 +95,6 @@ def bumped(slot: Maybe<&2, F32>, +rest: List<&2, Maybe<&2, F32>>, +contribution:
     case False{}:
       slot <> rec(Unit{})
 
-# Adds one contribution to the slot of node target in a newest-first list of
-# count slots. A target the list does not hold receives nothing.
 def bump(slots: List<&2, Maybe<&2, F32>>, +count: Nat, +target: Nat, +contribution: F32) -> List<&2, Maybe<&2, F32>>:
   match slots count:
     case Nil{} count:
@@ -130,7 +119,6 @@ def vjp(node: Node, +g: F32) -> List<&2, Contribution>:
     case Neg{a}:
       [Contribution{a, F32.neg(g)}]
 
-# Delivers contributions in list order to a newest-first list of count slots.
 def deliver(contributions: List<&2, Contribution>, +count: Nat, slots: List<&2, Maybe<&2, F32>>) -> List<&2, Maybe<&2, F32>>:
   match contributions:
     case Nil{}:
@@ -145,8 +133,6 @@ def contribute(node: Node, gradient: Maybe<&2, F32>, +count: Nat, slots: List<&2
     case Some{value}:
       deliver(vjp(node, value), count, slots)
 
-# Visits count nodes newest first. The head of gradients is the head node's
-# gradient; the rest are the pending gradients of the older nodes.
 def sweep(nodes: List<&2, Node>, gradients: List<&2, Maybe<&2, F32>>, +count: Nat) -> List<&2, Maybe<&2, F32>>:
   match nodes gradients count:
     case Nil{} gradients count:
@@ -185,7 +171,6 @@ def pass(nodes: List<&2, Node>, +count: Nat, +output: Nat) -> List<&2, Maybe<&2,
     case Con{node, +rest} 1n+below:
       chosen(node, rest, below, unit => pass(rest, below, output), Nat.is_eq(below, output))
 
-# Every operand id of node is below bound.
 def operands_below(node: Node, +bound: Nat) -> Bool:
   match node:
     case Leaf{}:
@@ -199,7 +184,6 @@ def operands_below(node: Node, +bound: Nat) -> Bool:
     case Neg{a}:
       Nat.is_lt(a, bound)
 
-# Every one of count nodes refers only to older nodes.
 def wired(nodes: List<&2, Node>, +count: Nat) -> Bool:
   match nodes count:
     case Nil{} count:
@@ -285,7 +269,6 @@ def entry_grad(found: Maybe<&2, Entry>) -> Result<&2, &2, Error, Maybe<&2, F32>>
     case Some{Entry{node, value, slot}}:
       Done{slot}
 
-# The forward value of node id.
 def value(tape: Tape, +id: Nat) -> Result<&2, &2, Error, F32>:
   Tape{entries} = tape
   entry_value(lookup(Entry, entries, id))
@@ -319,7 +302,7 @@ def operands(+entries: List<&2, Entry>, kind: Binary, +a: Nat, +b: Nat,
     case Done{x} Done{y}:
       (Tape{forward(kind, a, b, x, y) <> entries}, Done{List.length(&2, Entry, entries)})
 
-# Records a op b. An operand id the tape does not hold is refused with
+# Records `a op b`. An operand id the tape does not hold is refused with
 # UnknownNode, and the tape comes back unchanged.
 def binary(tape: Tape, kind: Binary, +a: Nat, +b: Nat) -> Tape & Result<&2, &2, Error, Nat>:
   Tape{+entries} = tape

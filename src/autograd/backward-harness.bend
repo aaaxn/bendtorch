@@ -101,7 +101,6 @@ def step(instruction: Step, +tape: Backward.Tape, rec: Backward.Tape -> IO(Unit)
         IO.print("S3:forged")
         rec(forged(tape, node, word))
 
-# Runs the steps in order on a tape.
 def script(steps: List<&2, Step>, tape: Backward.Tape) -> IO(Unit):
   match steps:
     case Nil{}:
