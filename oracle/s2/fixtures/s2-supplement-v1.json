@@ -1,0 +1,4034 @@
+{
+  "base_corpus": {
+    "file": "s2-v2.json",
+    "relation": "additional cases only; no base case is changed or removed",
+    "sha256": "35d996e7147b79444a78862fd1ffbfec44ed8728e5ea242ab96b7719bb251ed2"
+  },
+  "cases": [
+    {
+      "comparison_policy": "reduction_envelope",
+      "id": "matmul_add_scalar_bias",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "envelopes": [
+          {
+            "abs_sum": {
+              "denominator": "134217728",
+              "numerator": "760007885"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247097211817769415974908543932130788376576",
+              "numerator": "3371985580594530006542138331566870364167"
+            },
+            "condition_number": {
+              "denominator": "75976821",
+              "numerator": "108572555"
+            },
+            "exact": {
+              "denominator": "134217728",
+              "numerator": "-531837747"
+            },
+            "rounding_count": 7
+          },
+          {
+            "abs_sum": {
+              "denominator": "134217728",
+              "numerator": "248302797"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247097211817769415974908543932130788376576",
+              "numerator": "1101664163793893695622435872608041828359"
+            },
+            "condition_number": {
+              "denominator": "51450129",
+              "numerator": "82767599"
+            },
+            "exact": {
+              "denominator": "134217728",
+              "numerator": "-154350387"
+            },
+            "rounding_count": 7
+          },
+          {
+            "abs_sum": {
+              "denominator": "134217728",
+              "numerator": "1179438285"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247097211817769415974908543932130788376576",
+              "numerator": "5232904774693412228607468215959352770567"
+            },
+            "condition_number": {
+              "denominator": "1",
+              "numerator": "1"
+            },
+            "exact": {
+              "denominator": "134217728",
+              "numerator": "1179438285"
+            },
+            "rounding_count": 7
+          },
+          {
+            "abs_sum": {
+              "denominator": "134217728",
+              "numerator": "357354701"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247097211817769415974908543932130788376576",
+              "numerator": "1585503154259603073359421642550087254023"
+            },
+            "condition_number": {
+              "denominator": "129184563",
+              "numerator": "357354701"
+            },
+            "exact": {
+              "denominator": "134217728",
+              "numerator": "-129184563"
+            },
+            "rounding_count": 7
+          }
+        ],
+        "exact_values": [
+          {
+            "denominator": "134217728",
+            "numerator": "-531837747"
+          },
+          {
+            "denominator": "134217728",
+            "numerator": "-154350387"
+          },
+          {
+            "denominator": "134217728",
+            "numerator": "1179438285"
+          },
+          {
+            "denominator": "134217728",
+            "numerator": "-129184563"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "positive_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "c07d999a",
+            "bf933333",
+            "410c999a",
+            "bf766666"
+          ],
+          "shape": [
+            2,
+            2
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "positive_normal",
+            "negative_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "3f000000",
+            "bfa00000",
+            "40000000",
+            "40400000",
+            "3f400000",
+            "c0200000"
+          ],
+          "shape": [
+            2,
+            3
+          ]
+        },
+        "b": {
+          "classifications": [
+            "positive_normal",
+            "negative_normal",
+            "positive_normal",
+            "positive_normal",
+            "negative_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "3fc00000",
+            "bf000000",
+            "40100000",
+            "3f800000",
+            "bf800000",
+            "3e000000"
+          ],
+          "shape": [
+            3,
+            2
+          ]
+        },
+        "bias": {
+          "classifications": [
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "3dcccccd"
+          ],
+          "shape": []
+        }
+      },
+      "op": "matmul_add",
+      "ordered_reference": {
+        "classifications": [
+          "negative_normal",
+          "negative_normal",
+          "positive_normal",
+          "negative_normal"
+        ],
+        "f32_bits": [
+          "c07d999a",
+          "bf933333",
+          "410c999a",
+          "bf766666"
+        ],
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "outputs": {
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "positive_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "c07d999a",
+            "bf933333",
+            "410c999a",
+            "bf766666"
+          ],
+          "shape": [
+            2,
+            2
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "reduction_envelope",
+      "id": "matmul_add_row_bias",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "envelopes": [
+          {
+            "abs_sum": {
+              "denominator": "16777216",
+              "numerator": "98356429"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247097211817769415974908543932130788376576",
+              "numerator": "3491084415228346409872643511501834944519"
+            },
+            "condition_number": {
+              "denominator": "63124275",
+              "numerator": "98356429"
+            },
+            "exact": {
+              "denominator": "16777216",
+              "numerator": "-63124275"
+            },
+            "rounding_count": 7
+          },
+          {
+            "abs_sum": {
+              "denominator": "16777216",
+              "numerator": "41104179"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247097211817769415974908543932130788376576",
+              "numerator": "1458960641074680300821133980982168256519"
+            },
+            "condition_number": {
+              "denominator": "32715571",
+              "numerator": "41104179"
+            },
+            "exact": {
+              "denominator": "16777216",
+              "numerator": "-32715571"
+            },
+            "rounding_count": 7
+          },
+          {
+            "abs_sum": {
+              "denominator": "16777216",
+              "numerator": "150785229"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247097211817769415974908543932130788376576",
+              "numerator": "5352003609327228631937973395894317350919"
+            },
+            "condition_number": {
+              "denominator": "1",
+              "numerator": "1"
+            },
+            "exact": {
+              "denominator": "16777216",
+              "numerator": "150785229"
+            },
+            "rounding_count": 7
+          },
+          {
+            "abs_sum": {
+              "denominator": "16777216",
+              "numerator": "54735667"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247097211817769415974908543932130788376576",
+              "numerator": "1942799631540389678558119750924213682183"
+            },
+            "condition_number": {
+              "denominator": "29569843",
+              "numerator": "54735667"
+            },
+            "exact": {
+              "denominator": "16777216",
+              "numerator": "-29569843"
+            },
+            "rounding_count": 7
+          }
+        ],
+        "exact_values": [
+          {
+            "denominator": "16777216",
+            "numerator": "-63124275"
+          },
+          {
+            "denominator": "16777216",
+            "numerator": "-32715571"
+          },
+          {
+            "denominator": "16777216",
+            "numerator": "150785229"
+          },
+          {
+            "denominator": "16777216",
+            "numerator": "-29569843"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "positive_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "c070cccd",
+            "bff9999a",
+            "410fcccd",
+            "bfe1999a"
+          ],
+          "shape": [
+            2,
+            2
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "positive_normal",
+            "negative_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "3f000000",
+            "bfa00000",
+            "40000000",
+            "40400000",
+            "3f400000",
+            "c0200000"
+          ],
+          "shape": [
+            2,
+            3
+          ]
+        },
+        "b": {
+          "classifications": [
+            "positive_normal",
+            "negative_normal",
+            "positive_normal",
+            "positive_normal",
+            "negative_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "3fc00000",
+            "bf000000",
+            "40100000",
+            "3f800000",
+            "bf800000",
+            "3e000000"
+          ],
+          "shape": [
+            3,
+            2
+          ]
+        },
+        "bias": {
+          "classifications": [
+            "positive_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "3e99999a",
+            "bf333333"
+          ],
+          "shape": [
+            1,
+            2
+          ]
+        }
+      },
+      "op": "matmul_add",
+      "ordered_reference": {
+        "classifications": [
+          "negative_normal",
+          "negative_normal",
+          "positive_normal",
+          "negative_normal"
+        ],
+        "f32_bits": [
+          "c070cccd",
+          "bff9999a",
+          "410fcccd",
+          "bfe1999a"
+        ],
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "outputs": {
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "positive_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "c070cccd",
+            "bff9999a",
+            "410fcccd",
+            "bfe1999a"
+          ],
+          "shape": [
+            2,
+            2
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "reduction_envelope",
+      "id": "matmul_add_column_bias",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "envelopes": [
+          {
+            "abs_sum": {
+              "denominator": "67108864",
+              "numerator": "386714829"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247097211817769415974908543932130788376576",
+              "numerator": "3431534995693049657807989468915122044935"
+            },
+            "condition_number": {
+              "denominator": "95350511",
+              "numerator": "128904943"
+            },
+            "exact": {
+              "denominator": "67108864",
+              "numerator": "-286051533"
+            },
+            "rounding_count": 7
+          },
+          {
+            "abs_sum": {
+              "denominator": "67108864",
+              "numerator": "130862285"
+            },
+            "absolute_error_bound": {
+              "denominator": "475749032403939256471991636181310710262792192",
+              "numerator": "387071192964137782296095669985431169709"
+            },
+            "condition_number": {
+              "denominator": "97307853",
+              "numerator": "130862285"
+            },
+            "exact": {
+              "denominator": "67108864",
+              "numerator": "-97307853"
+            },
+            "rounding_count": 7
+          },
+          {
+            "abs_sum": {
+              "denominator": "8388608",
+              "numerator": "82103501"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247097211817769415974908543932130788376576",
+              "numerator": "5828398930115385842064782494680330797063"
+            },
+            "condition_number": {
+              "denominator": "1",
+              "numerator": "1"
+            },
+            "exact": {
+              "denominator": "8388608",
+              "numerator": "82103501"
+            },
+            "rounding_count": 7
+          },
+          {
+            "abs_sum": {
+              "denominator": "8388608",
+              "numerator": "30723277"
+            },
+            "absolute_error_bound": {
+              "denominator": "475749032403939256471991636181310710262792192",
+              "numerator": "726999103227192228938911973757021760173"
+            },
+            "condition_number": {
+              "denominator": "314573",
+              "numerator": "30723277"
+            },
+            "exact": {
+              "denominator": "8388608",
+              "numerator": "314573"
+            },
+            "rounding_count": 7
+          }
+        ],
+        "exact_values": [
+          {
+            "denominator": "67108864",
+            "numerator": "-286051533"
+          },
+          {
+            "denominator": "67108864",
+            "numerator": "-97307853"
+          },
+          {
+            "denominator": "8388608",
+            "numerator": "82103501"
+          },
+          {
+            "denominator": "8388608",
+            "numerator": "314573"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "c0886666",
+            "bfb9999a",
+            "411c999a",
+            "3d1999a0"
+          ],
+          "shape": [
+            2,
+            2
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "positive_normal",
+            "negative_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "3f000000",
+            "bfa00000",
+            "40000000",
+            "40400000",
+            "3f400000",
+            "c0200000"
+          ],
+          "shape": [
+            2,
+            3
+          ]
+        },
+        "b": {
+          "classifications": [
+            "positive_normal",
+            "negative_normal",
+            "positive_normal",
+            "positive_normal",
+            "negative_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "3fc00000",
+            "bf000000",
+            "40100000",
+            "3f800000",
+            "bf800000",
+            "3e000000"
+          ],
+          "shape": [
+            3,
+            2
+          ]
+        },
+        "bias": {
+          "classifications": [
+            "negative_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "be4ccccd",
+            "3f8ccccd"
+          ],
+          "shape": [
+            2,
+            1
+          ]
+        }
+      },
+      "op": "matmul_add",
+      "ordered_reference": {
+        "classifications": [
+          "negative_normal",
+          "negative_normal",
+          "positive_normal",
+          "positive_normal"
+        ],
+        "f32_bits": [
+          "c0886666",
+          "bfb9999a",
+          "411c999a",
+          "3d1999a0"
+        ],
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "outputs": {
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "c0886666",
+            "bfb9999a",
+            "411c999a",
+            "3d1999a0"
+          ],
+          "shape": [
+            2,
+            2
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "reduction_envelope",
+      "id": "matmul_add_full_bias",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "envelopes": [
+          {
+            "abs_sum": {
+              "denominator": "134217728",
+              "numerator": "760007885"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247097211817769415974908543932130788376576",
+              "numerator": "3371985580594530006542138331566870364167"
+            },
+            "condition_number": {
+              "denominator": "75976821",
+              "numerator": "108572555"
+            },
+            "exact": {
+              "denominator": "134217728",
+              "numerator": "-531837747"
+            },
+            "rounding_count": 7
+          },
+          {
+            "abs_sum": {
+              "denominator": "134217728",
+              "numerator": "248302797"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247097211817769415974908543932130788376576",
+              "numerator": "1101664163793893695622435872608041828359"
+            },
+            "condition_number": {
+              "denominator": "181193933",
+              "numerator": "248302797"
+            },
+            "exact": {
+              "denominator": "134217728",
+              "numerator": "-181193933"
+            },
+            "rounding_count": 7
+          },
+          {
+            "abs_sum": {
+              "denominator": "8589934592",
+              "numerator": "74633646703"
+            },
+            "absolute_error_bound": {
+              "denominator": "475749032403939256471991636181310710262792192",
+              "numerator": "1724650284588429557890090117565000624813"
+            },
+            "condition_number": {
+              "denominator": "1",
+              "numerator": "1"
+            },
+            "exact": {
+              "denominator": "8589934592",
+              "numerator": "74633646703"
+            },
+            "rounding_count": 7
+          },
+          {
+            "abs_sum": {
+              "denominator": "16",
+              "numerator": "16041"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247097211817769415974908543932130788376576",
+              "numerator": "597020095850803394482999133510796205621255"
+            },
+            "condition_number": {
+              "denominator": "5339",
+              "numerator": "5347"
+            },
+            "exact": {
+              "denominator": "16",
+              "numerator": "-16017"
+            },
+            "rounding_count": 7
+          }
+        ],
+        "exact_values": [
+          {
+            "denominator": "134217728",
+            "numerator": "-531837747"
+          },
+          {
+            "denominator": "134217728",
+            "numerator": "-181193933"
+          },
+          {
+            "denominator": "8589934592",
+            "numerator": "74633646703"
+          },
+          {
+            "denominator": "16",
+            "numerator": "-16017"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "positive_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "c07d999a",
+            "bfaccccd",
+            "410b0419",
+            "c47a4400"
+          ],
+          "shape": [
+            2,
+            2
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "positive_normal",
+            "negative_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "3f000000",
+            "bfa00000",
+            "40000000",
+            "40400000",
+            "3f400000",
+            "c0200000"
+          ],
+          "shape": [
+            2,
+            3
+          ]
+        },
+        "b": {
+          "classifications": [
+            "positive_normal",
+            "negative_normal",
+            "positive_normal",
+            "positive_normal",
+            "negative_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "3fc00000",
+            "bf000000",
+            "40100000",
+            "3f800000",
+            "bf800000",
+            "3e000000"
+          ],
+          "shape": [
+            3,
+            2
+          ]
+        },
+        "bias": {
+          "classifications": [
+            "positive_normal",
+            "negative_normal",
+            "positive_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "3dcccccd",
+            "bdcccccd",
+            "3a83126f",
+            "c47a0000"
+          ],
+          "shape": [
+            2,
+            2
+          ]
+        }
+      },
+      "op": "matmul_add",
+      "ordered_reference": {
+        "classifications": [
+          "negative_normal",
+          "negative_normal",
+          "positive_normal",
+          "negative_normal"
+        ],
+        "f32_bits": [
+          "c07d999a",
+          "bfaccccd",
+          "410b0419",
+          "c47a4400"
+        ],
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "outputs": {
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "positive_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "c07d999a",
+            "bfaccccd",
+            "410b0419",
+            "c47a4400"
+          ],
+          "shape": [
+            2,
+            2
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "reduction_envelope",
+      "id": "matmul_add_vector_rounded_bias",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "envelopes": [
+          {
+            "abs_sum": {
+              "denominator": "33554432",
+              "numerator": "197831339"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247097211817769415974908543932130788376576",
+              "numerator": "3510934218782260593361659588871765098503"
+            },
+            "condition_number": {
+              "denominator": "125130069",
+              "numerator": "197831339"
+            },
+            "exact": {
+              "denominator": "33554432",
+              "numerator": "-125130069"
+            },
+            "rounding_count": 7
+          },
+          {
+            "abs_sum": {
+              "denominator": "16777216",
+              "numerator": "40544939"
+            },
+            "absolute_error_bound": {
+              "denominator": "475749032403939256471991636181310710262792192",
+              "numerator": "479703618422624840175776508188694325933"
+            },
+            "condition_number": {
+              "denominator": "32156331",
+              "numerator": "40544939"
+            },
+            "exact": {
+              "denominator": "16777216",
+              "numerator": "-32156331"
+            },
+            "rounding_count": 7
+          },
+          {
+            "abs_sum": {
+              "denominator": "33554432",
+              "numerator": "302688939"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247097211817769415974908543932130788376576",
+              "numerator": "5371853412881142815426989473264247504903"
+            },
+            "condition_number": {
+              "denominator": "1",
+              "numerator": "1"
+            },
+            "exact": {
+              "denominator": "33554432",
+              "numerator": "302688939"
+            },
+            "rounding_count": 7
+          },
+          {
+            "abs_sum": {
+              "denominator": "16777216",
+              "numerator": "54176427"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247097211817769415974908543932130788376576",
+              "numerator": "1922949845733583898264315294508128403463"
+            },
+            "condition_number": {
+              "denominator": "9670201",
+              "numerator": "18058809"
+            },
+            "exact": {
+              "denominator": "16777216",
+              "numerator": "-29010603"
+            },
+            "rounding_count": 7
+          }
+        ],
+        "exact_values": [
+          {
+            "denominator": "33554432",
+            "numerator": "-125130069"
+          },
+          {
+            "denominator": "16777216",
+            "numerator": "-32156331"
+          },
+          {
+            "denominator": "33554432",
+            "numerator": "302688939"
+          },
+          {
+            "denominator": "16777216",
+            "numerator": "-29010603"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "positive_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "c06eaaab",
+            "bff55556",
+            "41105555",
+            "bfdd5556"
+          ],
+          "shape": [
+            2,
+            2
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "positive_normal",
+            "negative_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "3f000000",
+            "bfa00000",
+            "40000000",
+            "40400000",
+            "3f400000",
+            "c0200000"
+          ],
+          "shape": [
+            2,
+            3
+          ]
+        },
+        "b": {
+          "classifications": [
+            "positive_normal",
+            "negative_normal",
+            "positive_normal",
+            "positive_normal",
+            "negative_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "3fc00000",
+            "bf000000",
+            "40100000",
+            "3f800000",
+            "bf800000",
+            "3e000000"
+          ],
+          "shape": [
+            3,
+            2
+          ]
+        },
+        "bias": {
+          "classifications": [
+            "positive_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "3eaaaaab",
+            "bf2aaaab"
+          ],
+          "shape": [
+            2
+          ]
+        }
+      },
+      "op": "matmul_add",
+      "ordered_reference": {
+        "classifications": [
+          "negative_normal",
+          "negative_normal",
+          "positive_normal",
+          "negative_normal"
+        ],
+        "f32_bits": [
+          "c06eaaab",
+          "bff55556",
+          "41105555",
+          "bfdd5556"
+        ],
+        "shape": [
+          2,
+          2
+        ]
+      },
+      "outputs": {
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "positive_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "c06eaaab",
+            "bff55556",
+            "41105555",
+            "bfdd5556"
+          ],
+          "shape": [
+            2,
+            2
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "reduction_envelope",
+      "id": "matmul_add_cancellation",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "envelopes": [
+          {
+            "abs_sum": {
+              "denominator": "1",
+              "numerator": "33554433"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247267353001229885206640231235846672482304",
+              "numerator": "14272477352412557461755939023713210653537730565"
+            },
+            "condition_number": {
+              "denominator": "1",
+              "numerator": "33554433"
+            },
+            "exact": {
+              "denominator": "1",
+              "numerator": "1"
+            },
+            "rounding_count": 5
+          }
+        ],
+        "exact_values": [
+          {
+            "denominator": "1",
+            "numerator": "1"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "3f800000"
+          ],
+          "shape": [
+            1,
+            1
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "4b800000",
+            "3f800000"
+          ],
+          "shape": [
+            1,
+            2
+          ]
+        },
+        "b": {
+          "classifications": [
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "3f800000",
+            "3f800000"
+          ],
+          "shape": [
+            2,
+            1
+          ]
+        },
+        "bias": {
+          "classifications": [
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "cb800000"
+          ],
+          "shape": []
+        }
+      },
+      "op": "matmul_add",
+      "ordered_reference": {
+        "classifications": [
+          "positive_zero"
+        ],
+        "f32_bits": [
+          "00000000"
+        ],
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "outputs": {
+        "result": {
+          "classifications": [
+            "positive_zero"
+          ],
+          "f32_bits": [
+            "00000000"
+          ],
+          "shape": [
+            1,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "reduction_envelope",
+      "id": "matmul_add_zero_inner",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "envelopes": [
+          {
+            "abs_sum": {
+              "denominator": "2",
+              "numerator": "3"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247607635368150823670103605843278440693760",
+              "numerator": "127605887595351923798765477786913079297"
+            },
+            "condition_number": {
+              "denominator": "1",
+              "numerator": "1"
+            },
+            "exact": {
+              "denominator": "2",
+              "numerator": "3"
+            },
+            "rounding_count": 1
+          },
+          {
+            "abs_sum": {
+              "denominator": "4",
+              "numerator": "1"
+            },
+            "absolute_error_bound": {
+              "denominator": "83955741625609891224921770800343722261217280",
+              "numerator": "1251038113679920821556524292028559601"
+            },
+            "condition_number": {
+              "denominator": "1",
+              "numerator": "1"
+            },
+            "exact": {
+              "denominator": "4",
+              "numerator": "-1"
+            },
+            "rounding_count": 1
+          },
+          {
+            "abs_sum": {
+              "denominator": "1",
+              "numerator": "0"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247607635368150823670103605843278440693760",
+              "numerator": "1"
+            },
+            "condition_number": "zero",
+            "exact": {
+              "denominator": "1",
+              "numerator": "0"
+            },
+            "rounding_count": 1
+          },
+          {
+            "abs_sum": {
+              "denominator": "2",
+              "numerator": "3"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247607635368150823670103605843278440693760",
+              "numerator": "127605887595351923798765477786913079297"
+            },
+            "condition_number": {
+              "denominator": "1",
+              "numerator": "1"
+            },
+            "exact": {
+              "denominator": "2",
+              "numerator": "3"
+            },
+            "rounding_count": 1
+          },
+          {
+            "abs_sum": {
+              "denominator": "4",
+              "numerator": "1"
+            },
+            "absolute_error_bound": {
+              "denominator": "83955741625609891224921770800343722261217280",
+              "numerator": "1251038113679920821556524292028559601"
+            },
+            "condition_number": {
+              "denominator": "1",
+              "numerator": "1"
+            },
+            "exact": {
+              "denominator": "4",
+              "numerator": "-1"
+            },
+            "rounding_count": 1
+          },
+          {
+            "abs_sum": {
+              "denominator": "1",
+              "numerator": "0"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247607635368150823670103605843278440693760",
+              "numerator": "1"
+            },
+            "condition_number": "zero",
+            "exact": {
+              "denominator": "1",
+              "numerator": "0"
+            },
+            "rounding_count": 1
+          }
+        ],
+        "exact_values": [
+          {
+            "denominator": "2",
+            "numerator": "3"
+          },
+          {
+            "denominator": "4",
+            "numerator": "-1"
+          },
+          {
+            "denominator": "1",
+            "numerator": "0"
+          },
+          {
+            "denominator": "2",
+            "numerator": "3"
+          },
+          {
+            "denominator": "4",
+            "numerator": "-1"
+          },
+          {
+            "denominator": "1",
+            "numerator": "0"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "positive_normal",
+            "negative_normal",
+            "positive_zero",
+            "positive_normal",
+            "negative_normal",
+            "positive_zero"
+          ],
+          "f32_bits": [
+            "3fc00000",
+            "be800000",
+            "00000000",
+            "3fc00000",
+            "be800000",
+            "00000000"
+          ],
+          "shape": [
+            2,
+            3
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [],
+          "f32_bits": [],
+          "shape": [
+            2,
+            0
+          ]
+        },
+        "b": {
+          "classifications": [],
+          "f32_bits": [],
+          "shape": [
+            0,
+            3
+          ]
+        },
+        "bias": {
+          "classifications": [
+            "positive_normal",
+            "negative_normal",
+            "positive_zero"
+          ],
+          "f32_bits": [
+            "3fc00000",
+            "be800000",
+            "00000000"
+          ],
+          "shape": [
+            3
+          ]
+        }
+      },
+      "op": "matmul_add",
+      "ordered_reference": {
+        "classifications": [
+          "positive_normal",
+          "negative_normal",
+          "positive_zero",
+          "positive_normal",
+          "negative_normal",
+          "positive_zero"
+        ],
+        "f32_bits": [
+          "3fc00000",
+          "be800000",
+          "00000000",
+          "3fc00000",
+          "be800000",
+          "00000000"
+        ],
+        "shape": [
+          2,
+          3
+        ]
+      },
+      "outputs": {
+        "result": {
+          "classifications": [
+            "positive_normal",
+            "negative_normal",
+            "positive_zero",
+            "positive_normal",
+            "negative_normal",
+            "positive_zero"
+          ],
+          "f32_bits": [
+            "3fc00000",
+            "be800000",
+            "00000000",
+            "3fc00000",
+            "be800000",
+            "00000000"
+          ],
+          "shape": [
+            2,
+            3
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "reduction_envelope",
+      "id": "matmul_add_negative_zero_bias",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "envelopes": [
+          {
+            "abs_sum": {
+              "denominator": "1",
+              "numerator": "0"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247437494184690354438371918539562556588032",
+              "numerator": "3"
+            },
+            "condition_number": "zero",
+            "exact": {
+              "denominator": "1",
+              "numerator": "0"
+            },
+            "rounding_count": 3
+          }
+        ],
+        "exact_values": [
+          {
+            "denominator": "1",
+            "numerator": "0"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "positive_zero"
+          ],
+          "f32_bits": [
+            "00000000"
+          ],
+          "shape": [
+            1,
+            1
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "negative_zero"
+          ],
+          "f32_bits": [
+            "80000000"
+          ],
+          "shape": [
+            1,
+            1
+          ]
+        },
+        "b": {
+          "classifications": [
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "3f800000"
+          ],
+          "shape": [
+            1,
+            1
+          ]
+        },
+        "bias": {
+          "classifications": [
+            "negative_zero"
+          ],
+          "f32_bits": [
+            "80000000"
+          ],
+          "shape": [
+            1,
+            1
+          ]
+        }
+      },
+      "op": "matmul_add",
+      "ordered_reference": {
+        "classifications": [
+          "positive_zero"
+        ],
+        "f32_bits": [
+          "00000000"
+        ],
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "outputs": {
+        "result": {
+          "classifications": [
+            "positive_zero"
+          ],
+          "f32_bits": [
+            "00000000"
+          ],
+          "shape": [
+            1,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "reduction_envelope",
+      "id": "matmul_add_exact_zero_negative_bias",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "envelopes": [
+          {
+            "abs_sum": {
+              "denominator": "1",
+              "numerator": "2"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247267353001229885206640231235846672482304",
+              "numerator": "850705917302346158658436518579420528645"
+            },
+            "condition_number": "infinite",
+            "exact": {
+              "denominator": "1",
+              "numerator": "0"
+            },
+            "rounding_count": 5
+          }
+        ],
+        "exact_values": [
+          {
+            "denominator": "1",
+            "numerator": "0"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "positive_zero"
+          ],
+          "f32_bits": [
+            "00000000"
+          ],
+          "shape": [
+            1,
+            1
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "positive_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "3f800000",
+            "bf800000"
+          ],
+          "shape": [
+            1,
+            2
+          ]
+        },
+        "b": {
+          "classifications": [
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "3f800000",
+            "3f800000"
+          ],
+          "shape": [
+            2,
+            1
+          ]
+        },
+        "bias": {
+          "classifications": [
+            "negative_zero"
+          ],
+          "f32_bits": [
+            "80000000"
+          ],
+          "shape": []
+        }
+      },
+      "op": "matmul_add",
+      "ordered_reference": {
+        "classifications": [
+          "positive_zero"
+        ],
+        "f32_bits": [
+          "00000000"
+        ],
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "outputs": {
+        "result": {
+          "classifications": [
+            "positive_zero"
+          ],
+          "f32_bits": [
+            "00000000"
+          ],
+          "shape": [
+            1,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "reduction_envelope",
+      "id": "matmul_negative_zero_products",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "envelopes": [
+          {
+            "abs_sum": {
+              "denominator": "1",
+              "numerator": "0"
+            },
+            "absolute_error_bound": {
+              "denominator": "356811838105898240029955626518721926153633792",
+              "numerator": "1"
+            },
+            "condition_number": "zero",
+            "exact": {
+              "denominator": "1",
+              "numerator": "0"
+            },
+            "rounding_count": 4
+          }
+        ],
+        "exact_values": [
+          {
+            "denominator": "1",
+            "numerator": "0"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "positive_zero"
+          ],
+          "f32_bits": [
+            "00000000"
+          ],
+          "shape": [
+            1,
+            1
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "negative_zero",
+            "negative_zero"
+          ],
+          "f32_bits": [
+            "80000000",
+            "80000000"
+          ],
+          "shape": [
+            1,
+            2
+          ]
+        },
+        "b": {
+          "classifications": [
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "3f800000",
+            "3f800000"
+          ],
+          "shape": [
+            2,
+            1
+          ]
+        }
+      },
+      "op": "matmul",
+      "ordered_reference": {
+        "classifications": [
+          "positive_zero"
+        ],
+        "f32_bits": [
+          "00000000"
+        ],
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "outputs": {
+        "result": {
+          "classifications": [
+            "positive_zero"
+          ],
+          "f32_bits": [
+            "00000000"
+          ],
+          "shape": [
+            1,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "reduction_envelope",
+      "id": "matmul_underflow_negative_product",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "envelopes": [
+          {
+            "abs_sum": {
+              "denominator": "110427941548649020598956093796432407239217743554726184882600387580788736",
+              "numerator": "110427942249"
+            },
+            "absolute_error_bound": {
+              "denominator": "926336603470588014739547281113409466393752638107380957589475789462917456330752",
+              "numerator": "1298074214633706907132734510247273"
+            },
+            "condition_number": {
+              "denominator": "1",
+              "numerator": "1"
+            },
+            "exact": {
+              "denominator": "110427941548649020598956093796432407239217743554726184882600387580788736",
+              "numerator": "-110427942249"
+            },
+            "rounding_count": 2
+          }
+        ],
+        "exact_values": [
+          {
+            "denominator": "110427941548649020598956093796432407239217743554726184882600387580788736",
+            "numerator": "-110427942249"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "negative_zero"
+          ],
+          "f32_bits": [
+            "80000000"
+          ],
+          "shape": [
+            1,
+            1
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "8da24260"
+          ],
+          "shape": [
+            1,
+            1
+          ]
+        },
+        "b": {
+          "classifications": [
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "0da24260"
+          ],
+          "shape": [
+            1,
+            1
+          ]
+        }
+      },
+      "op": "matmul",
+      "ordered_reference": {
+        "classifications": [
+          "positive_zero"
+        ],
+        "f32_bits": [
+          "00000000"
+        ],
+        "shape": [
+          1,
+          1
+        ]
+      },
+      "outputs": {
+        "result": {
+          "classifications": [
+            "positive_zero"
+          ],
+          "f32_bits": [
+            "00000000"
+          ],
+          "shape": [
+            1,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "reduction_envelope",
+      "id": "sum_negative_zeros",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "envelopes": [
+          {
+            "abs_sum": {
+              "denominator": "1",
+              "numerator": "0"
+            },
+            "absolute_error_bound": {
+              "denominator": "1427247437494184690354438371918539562556588032",
+              "numerator": "3"
+            },
+            "condition_number": "zero",
+            "exact": {
+              "denominator": "1",
+              "numerator": "0"
+            },
+            "rounding_count": 3
+          }
+        ],
+        "exact_values": [
+          {
+            "denominator": "1",
+            "numerator": "0"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "positive_zero"
+          ],
+          "f32_bits": [
+            "00000000"
+          ],
+          "shape": []
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "negative_zero",
+            "negative_zero",
+            "negative_zero"
+          ],
+          "f32_bits": [
+            "80000000",
+            "80000000",
+            "80000000"
+          ],
+          "shape": [
+            3
+          ]
+        }
+      },
+      "op": "sum",
+      "ordered_reference": {
+        "classifications": [
+          "positive_zero"
+        ],
+        "f32_bits": [
+          "00000000"
+        ],
+        "shape": []
+      },
+      "outputs": {
+        "result": {
+          "classifications": [
+            "positive_zero"
+          ],
+          "f32_bits": [
+            "00000000"
+          ],
+          "shape": []
+        }
+      }
+    },
+    {
+      "comparison_policy": "exact_words",
+      "id": "get_special_0_0",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "result": {
+          "classifications": [
+            "negative_zero"
+          ],
+          "f32_bits": [
+            "80000000"
+          ],
+          "shape": []
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "negative_zero",
+            "positive_subnormal",
+            "negative_infinity",
+            "nan"
+          ],
+          "f32_bits": [
+            "80000000",
+            "00000001",
+            "ff800000",
+            "7fc01234"
+          ],
+          "nonfinite": [
+            {
+              "classification": "negative_infinity",
+              "index": 2
+            },
+            {
+              "classification": "nan",
+              "index": 3
+            }
+          ],
+          "shape": [
+            2,
+            2
+          ]
+        }
+      },
+      "op": "get",
+      "outputs": {
+        "result": {
+          "classifications": [
+            "negative_zero"
+          ],
+          "f32_bits": [
+            "80000000"
+          ],
+          "shape": []
+        }
+      },
+      "parameters": {
+        "coordinate": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "comparison_policy": "exact_words",
+      "id": "get_special_0_1",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "result": {
+          "classifications": [
+            "positive_subnormal"
+          ],
+          "f32_bits": [
+            "00000001"
+          ],
+          "shape": []
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "negative_zero",
+            "positive_subnormal",
+            "negative_infinity",
+            "nan"
+          ],
+          "f32_bits": [
+            "80000000",
+            "00000001",
+            "ff800000",
+            "7fc01234"
+          ],
+          "nonfinite": [
+            {
+              "classification": "negative_infinity",
+              "index": 2
+            },
+            {
+              "classification": "nan",
+              "index": 3
+            }
+          ],
+          "shape": [
+            2,
+            2
+          ]
+        }
+      },
+      "op": "get",
+      "outputs": {
+        "result": {
+          "classifications": [
+            "positive_subnormal"
+          ],
+          "f32_bits": [
+            "00000001"
+          ],
+          "shape": []
+        }
+      },
+      "parameters": {
+        "coordinate": [
+          0,
+          1
+        ]
+      }
+    },
+    {
+      "comparison_policy": "exact_words",
+      "id": "get_special_1_0",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "result": {
+          "classifications": [
+            "negative_infinity"
+          ],
+          "f32_bits": [
+            "ff800000"
+          ],
+          "nonfinite": [
+            {
+              "classification": "negative_infinity",
+              "index": 0
+            }
+          ],
+          "shape": []
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "negative_zero",
+            "positive_subnormal",
+            "negative_infinity",
+            "nan"
+          ],
+          "f32_bits": [
+            "80000000",
+            "00000001",
+            "ff800000",
+            "7fc01234"
+          ],
+          "nonfinite": [
+            {
+              "classification": "negative_infinity",
+              "index": 2
+            },
+            {
+              "classification": "nan",
+              "index": 3
+            }
+          ],
+          "shape": [
+            2,
+            2
+          ]
+        }
+      },
+      "op": "get",
+      "outputs": {
+        "result": {
+          "classifications": [
+            "negative_infinity"
+          ],
+          "f32_bits": [
+            "ff800000"
+          ],
+          "nonfinite": [
+            {
+              "classification": "negative_infinity",
+              "index": 0
+            }
+          ],
+          "shape": []
+        }
+      },
+      "parameters": {
+        "coordinate": [
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "comparison_policy": "exact_words",
+      "id": "get_special_1_1",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "result": {
+          "classifications": [
+            "nan"
+          ],
+          "f32_bits": [
+            "7fc01234"
+          ],
+          "nonfinite": [
+            {
+              "classification": "nan",
+              "index": 0
+            }
+          ],
+          "shape": []
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "negative_zero",
+            "positive_subnormal",
+            "negative_infinity",
+            "nan"
+          ],
+          "f32_bits": [
+            "80000000",
+            "00000001",
+            "ff800000",
+            "7fc01234"
+          ],
+          "nonfinite": [
+            {
+              "classification": "negative_infinity",
+              "index": 2
+            },
+            {
+              "classification": "nan",
+              "index": 3
+            }
+          ],
+          "shape": [
+            2,
+            2
+          ]
+        }
+      },
+      "op": "get",
+      "outputs": {
+        "result": {
+          "classifications": [
+            "nan"
+          ],
+          "f32_bits": [
+            "7fc01234"
+          ],
+          "nonfinite": [
+            {
+              "classification": "nan",
+              "index": 0
+            }
+          ],
+          "shape": []
+        }
+      },
+      "parameters": {
+        "coordinate": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "comparison_policy": "exact_words",
+      "id": "get_scalar_negative_zero",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "result": {
+          "classifications": [
+            "negative_zero"
+          ],
+          "f32_bits": [
+            "80000000"
+          ],
+          "shape": []
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "negative_zero"
+          ],
+          "f32_bits": [
+            "80000000"
+          ],
+          "shape": []
+        }
+      },
+      "op": "get",
+      "outputs": {
+        "result": {
+          "classifications": [
+            "negative_zero"
+          ],
+          "f32_bits": [
+            "80000000"
+          ],
+          "shape": []
+        }
+      },
+      "parameters": {
+        "coordinate": []
+      }
+    },
+    {
+      "comparison_policy": "bounded_elementwise",
+      "id": "add_scalar_left",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "exact_values": [
+          {
+            "denominator": "4",
+            "numerator": "-3"
+          },
+          {
+            "denominator": "8",
+            "numerator": "-3"
+          },
+          {
+            "denominator": "1",
+            "numerator": "0"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "positive_zero"
+          ],
+          "f32_bits": [
+            "bf400000",
+            "bec00000",
+            "00000000"
+          ],
+          "shape": [
+            3
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "3fa00000"
+          ],
+          "shape": []
+        },
+        "b": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "c0000000",
+            "bfd00000",
+            "bfa00000"
+          ],
+          "shape": [
+            3
+          ]
+        }
+      },
+      "op": "add",
+      "outputs": {
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "positive_zero"
+          ],
+          "f32_bits": [
+            "bf400000",
+            "bec00000",
+            "00000000"
+          ],
+          "shape": [
+            3
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "bounded_elementwise",
+      "id": "sub_scalar_left",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "exact_values": [
+          {
+            "denominator": "4",
+            "numerator": "13"
+          },
+          {
+            "denominator": "8",
+            "numerator": "23"
+          },
+          {
+            "denominator": "2",
+            "numerator": "5"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "positive_normal",
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "40500000",
+            "40380000",
+            "40200000"
+          ],
+          "shape": [
+            3
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "3fa00000"
+          ],
+          "shape": []
+        },
+        "b": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "c0000000",
+            "bfd00000",
+            "bfa00000"
+          ],
+          "shape": [
+            3
+          ]
+        }
+      },
+      "op": "sub",
+      "outputs": {
+        "result": {
+          "classifications": [
+            "positive_normal",
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "40500000",
+            "40380000",
+            "40200000"
+          ],
+          "shape": [
+            3
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "bounded_elementwise",
+      "id": "mul_scalar_left",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "exact_values": [
+          {
+            "denominator": "2",
+            "numerator": "-5"
+          },
+          {
+            "denominator": "32",
+            "numerator": "-65"
+          },
+          {
+            "denominator": "16",
+            "numerator": "-25"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "c0200000",
+            "c0020000",
+            "bfc80000"
+          ],
+          "shape": [
+            3
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "3fa00000"
+          ],
+          "shape": []
+        },
+        "b": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "c0000000",
+            "bfd00000",
+            "bfa00000"
+          ],
+          "shape": [
+            3
+          ]
+        }
+      },
+      "op": "mul",
+      "outputs": {
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "c0200000",
+            "c0020000",
+            "bfc80000"
+          ],
+          "shape": [
+            3
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "bounded_elementwise",
+      "id": "add_vector_left",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "exact_values": [
+          {
+            "denominator": "4",
+            "numerator": "-3"
+          },
+          {
+            "denominator": "8",
+            "numerator": "-7"
+          },
+          {
+            "denominator": "1",
+            "numerator": "-1"
+          },
+          {
+            "denominator": "8",
+            "numerator": "3"
+          },
+          {
+            "denominator": "4",
+            "numerator": "1"
+          },
+          {
+            "denominator": "8",
+            "numerator": "1"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "bf400000",
+            "bf600000",
+            "bf800000",
+            "3ec00000",
+            "3e800000",
+            "3e000000"
+          ],
+          "shape": [
+            2,
+            3
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "positive_normal",
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "3fa00000",
+            "3f400000",
+            "3e800000"
+          ],
+          "shape": [
+            3
+          ]
+        },
+        "b": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "c0000000",
+            "bfd00000",
+            "bfa00000",
+            "bf600000",
+            "bf000000",
+            "be000000"
+          ],
+          "shape": [
+            2,
+            3
+          ]
+        }
+      },
+      "op": "add",
+      "outputs": {
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "bf400000",
+            "bf600000",
+            "bf800000",
+            "3ec00000",
+            "3e800000",
+            "3e000000"
+          ],
+          "shape": [
+            2,
+            3
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "bounded_elementwise",
+      "id": "sub_vector_left",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "exact_values": [
+          {
+            "denominator": "4",
+            "numerator": "13"
+          },
+          {
+            "denominator": "8",
+            "numerator": "19"
+          },
+          {
+            "denominator": "2",
+            "numerator": "3"
+          },
+          {
+            "denominator": "8",
+            "numerator": "17"
+          },
+          {
+            "denominator": "4",
+            "numerator": "5"
+          },
+          {
+            "denominator": "8",
+            "numerator": "3"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "40500000",
+            "40180000",
+            "3fc00000",
+            "40080000",
+            "3fa00000",
+            "3ec00000"
+          ],
+          "shape": [
+            2,
+            3
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "positive_normal",
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "3fa00000",
+            "3f400000",
+            "3e800000"
+          ],
+          "shape": [
+            3
+          ]
+        },
+        "b": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "c0000000",
+            "bfd00000",
+            "bfa00000",
+            "bf600000",
+            "bf000000",
+            "be000000"
+          ],
+          "shape": [
+            2,
+            3
+          ]
+        }
+      },
+      "op": "sub",
+      "outputs": {
+        "result": {
+          "classifications": [
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "40500000",
+            "40180000",
+            "3fc00000",
+            "40080000",
+            "3fa00000",
+            "3ec00000"
+          ],
+          "shape": [
+            2,
+            3
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "bounded_elementwise",
+      "id": "mul_vector_left",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "exact_values": [
+          {
+            "denominator": "2",
+            "numerator": "-5"
+          },
+          {
+            "denominator": "32",
+            "numerator": "-39"
+          },
+          {
+            "denominator": "16",
+            "numerator": "-5"
+          },
+          {
+            "denominator": "32",
+            "numerator": "-35"
+          },
+          {
+            "denominator": "8",
+            "numerator": "-3"
+          },
+          {
+            "denominator": "32",
+            "numerator": "-1"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "c0200000",
+            "bf9c0000",
+            "bea00000",
+            "bf8c0000",
+            "bec00000",
+            "bd000000"
+          ],
+          "shape": [
+            2,
+            3
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "positive_normal",
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "3fa00000",
+            "3f400000",
+            "3e800000"
+          ],
+          "shape": [
+            3
+          ]
+        },
+        "b": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "c0000000",
+            "bfd00000",
+            "bfa00000",
+            "bf600000",
+            "bf000000",
+            "be000000"
+          ],
+          "shape": [
+            2,
+            3
+          ]
+        }
+      },
+      "op": "mul",
+      "outputs": {
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "c0200000",
+            "bf9c0000",
+            "bea00000",
+            "bf8c0000",
+            "bec00000",
+            "bd000000"
+          ],
+          "shape": [
+            2,
+            3
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "bounded_elementwise",
+      "id": "add_column_left",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "exact_values": [
+          {
+            "denominator": "4",
+            "numerator": "-3"
+          },
+          {
+            "denominator": "8",
+            "numerator": "-3"
+          },
+          {
+            "denominator": "1",
+            "numerator": "0"
+          },
+          {
+            "denominator": "8",
+            "numerator": "3"
+          },
+          {
+            "denominator": "4",
+            "numerator": "1"
+          },
+          {
+            "denominator": "8",
+            "numerator": "5"
+          },
+          {
+            "denominator": "1",
+            "numerator": "1"
+          },
+          {
+            "denominator": "8",
+            "numerator": "11"
+          },
+          {
+            "denominator": "4",
+            "numerator": "9"
+          },
+          {
+            "denominator": "8",
+            "numerator": "21"
+          },
+          {
+            "denominator": "1",
+            "numerator": "3"
+          },
+          {
+            "denominator": "8",
+            "numerator": "27"
+          },
+          {
+            "denominator": "4",
+            "numerator": "13"
+          },
+          {
+            "denominator": "8",
+            "numerator": "29"
+          },
+          {
+            "denominator": "1",
+            "numerator": "4"
+          },
+          {
+            "denominator": "8",
+            "numerator": "35"
+          },
+          {
+            "denominator": "4",
+            "numerator": "21"
+          },
+          {
+            "denominator": "8",
+            "numerator": "45"
+          },
+          {
+            "denominator": "1",
+            "numerator": "6"
+          },
+          {
+            "denominator": "8",
+            "numerator": "51"
+          },
+          {
+            "denominator": "4",
+            "numerator": "25"
+          },
+          {
+            "denominator": "8",
+            "numerator": "53"
+          },
+          {
+            "denominator": "1",
+            "numerator": "7"
+          },
+          {
+            "denominator": "8",
+            "numerator": "59"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "positive_zero",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "bf400000",
+            "bec00000",
+            "00000000",
+            "3ec00000",
+            "3e800000",
+            "3f200000",
+            "3f800000",
+            "3fb00000",
+            "40100000",
+            "40280000",
+            "40400000",
+            "40580000",
+            "40500000",
+            "40680000",
+            "40800000",
+            "408c0000",
+            "40a80000",
+            "40b40000",
+            "40c00000",
+            "40cc0000",
+            "40c80000",
+            "40d40000",
+            "40e00000",
+            "40ec0000"
+          ],
+          "shape": [
+            3,
+            2,
+            4
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "3fa00000",
+            "3f400000"
+          ],
+          "shape": [
+            2,
+            1
+          ]
+        },
+        "b": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "c0000000",
+            "bfd00000",
+            "bfa00000",
+            "bf600000",
+            "bf000000",
+            "be000000",
+            "3e800000",
+            "3f200000",
+            "3f800000",
+            "3fb00000",
+            "3fe00000",
+            "40080000",
+            "40200000",
+            "40380000",
+            "40500000",
+            "40680000",
+            "40800000",
+            "408c0000",
+            "40980000",
+            "40a40000",
+            "40b00000",
+            "40bc0000",
+            "40c80000",
+            "40d40000"
+          ],
+          "shape": [
+            3,
+            2,
+            4
+          ]
+        }
+      },
+      "op": "add",
+      "outputs": {
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "positive_zero",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "bf400000",
+            "bec00000",
+            "00000000",
+            "3ec00000",
+            "3e800000",
+            "3f200000",
+            "3f800000",
+            "3fb00000",
+            "40100000",
+            "40280000",
+            "40400000",
+            "40580000",
+            "40500000",
+            "40680000",
+            "40800000",
+            "408c0000",
+            "40a80000",
+            "40b40000",
+            "40c00000",
+            "40cc0000",
+            "40c80000",
+            "40d40000",
+            "40e00000",
+            "40ec0000"
+          ],
+          "shape": [
+            3,
+            2,
+            4
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "bounded_elementwise",
+      "id": "sub_column_left",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "exact_values": [
+          {
+            "denominator": "4",
+            "numerator": "13"
+          },
+          {
+            "denominator": "8",
+            "numerator": "23"
+          },
+          {
+            "denominator": "2",
+            "numerator": "5"
+          },
+          {
+            "denominator": "8",
+            "numerator": "17"
+          },
+          {
+            "denominator": "4",
+            "numerator": "5"
+          },
+          {
+            "denominator": "8",
+            "numerator": "7"
+          },
+          {
+            "denominator": "2",
+            "numerator": "1"
+          },
+          {
+            "denominator": "8",
+            "numerator": "1"
+          },
+          {
+            "denominator": "4",
+            "numerator": "1"
+          },
+          {
+            "denominator": "8",
+            "numerator": "-1"
+          },
+          {
+            "denominator": "2",
+            "numerator": "-1"
+          },
+          {
+            "denominator": "8",
+            "numerator": "-7"
+          },
+          {
+            "denominator": "4",
+            "numerator": "-7"
+          },
+          {
+            "denominator": "8",
+            "numerator": "-17"
+          },
+          {
+            "denominator": "2",
+            "numerator": "-5"
+          },
+          {
+            "denominator": "8",
+            "numerator": "-23"
+          },
+          {
+            "denominator": "4",
+            "numerator": "-11"
+          },
+          {
+            "denominator": "8",
+            "numerator": "-25"
+          },
+          {
+            "denominator": "2",
+            "numerator": "-7"
+          },
+          {
+            "denominator": "8",
+            "numerator": "-31"
+          },
+          {
+            "denominator": "4",
+            "numerator": "-19"
+          },
+          {
+            "denominator": "8",
+            "numerator": "-41"
+          },
+          {
+            "denominator": "2",
+            "numerator": "-11"
+          },
+          {
+            "denominator": "8",
+            "numerator": "-47"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "40500000",
+            "40380000",
+            "40200000",
+            "40080000",
+            "3fa00000",
+            "3f600000",
+            "3f000000",
+            "3e000000",
+            "3e800000",
+            "be000000",
+            "bf000000",
+            "bf600000",
+            "bfe00000",
+            "c0080000",
+            "c0200000",
+            "c0380000",
+            "c0300000",
+            "c0480000",
+            "c0600000",
+            "c0780000",
+            "c0980000",
+            "c0a40000",
+            "c0b00000",
+            "c0bc0000"
+          ],
+          "shape": [
+            3,
+            2,
+            4
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "3fa00000",
+            "3f400000"
+          ],
+          "shape": [
+            2,
+            1
+          ]
+        },
+        "b": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "c0000000",
+            "bfd00000",
+            "bfa00000",
+            "bf600000",
+            "bf000000",
+            "be000000",
+            "3e800000",
+            "3f200000",
+            "3f800000",
+            "3fb00000",
+            "3fe00000",
+            "40080000",
+            "40200000",
+            "40380000",
+            "40500000",
+            "40680000",
+            "40800000",
+            "408c0000",
+            "40980000",
+            "40a40000",
+            "40b00000",
+            "40bc0000",
+            "40c80000",
+            "40d40000"
+          ],
+          "shape": [
+            3,
+            2,
+            4
+          ]
+        }
+      },
+      "op": "sub",
+      "outputs": {
+        "result": {
+          "classifications": [
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "40500000",
+            "40380000",
+            "40200000",
+            "40080000",
+            "3fa00000",
+            "3f600000",
+            "3f000000",
+            "3e000000",
+            "3e800000",
+            "be000000",
+            "bf000000",
+            "bf600000",
+            "bfe00000",
+            "c0080000",
+            "c0200000",
+            "c0380000",
+            "c0300000",
+            "c0480000",
+            "c0600000",
+            "c0780000",
+            "c0980000",
+            "c0a40000",
+            "c0b00000",
+            "c0bc0000"
+          ],
+          "shape": [
+            3,
+            2,
+            4
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "bounded_elementwise",
+      "id": "mul_column_left",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "exact_values": [
+          {
+            "denominator": "2",
+            "numerator": "-5"
+          },
+          {
+            "denominator": "32",
+            "numerator": "-65"
+          },
+          {
+            "denominator": "16",
+            "numerator": "-25"
+          },
+          {
+            "denominator": "32",
+            "numerator": "-35"
+          },
+          {
+            "denominator": "8",
+            "numerator": "-3"
+          },
+          {
+            "denominator": "32",
+            "numerator": "-3"
+          },
+          {
+            "denominator": "16",
+            "numerator": "3"
+          },
+          {
+            "denominator": "32",
+            "numerator": "15"
+          },
+          {
+            "denominator": "4",
+            "numerator": "5"
+          },
+          {
+            "denominator": "32",
+            "numerator": "55"
+          },
+          {
+            "denominator": "16",
+            "numerator": "35"
+          },
+          {
+            "denominator": "32",
+            "numerator": "85"
+          },
+          {
+            "denominator": "8",
+            "numerator": "15"
+          },
+          {
+            "denominator": "32",
+            "numerator": "69"
+          },
+          {
+            "denominator": "16",
+            "numerator": "39"
+          },
+          {
+            "denominator": "32",
+            "numerator": "87"
+          },
+          {
+            "denominator": "1",
+            "numerator": "5"
+          },
+          {
+            "denominator": "32",
+            "numerator": "175"
+          },
+          {
+            "denominator": "16",
+            "numerator": "95"
+          },
+          {
+            "denominator": "32",
+            "numerator": "205"
+          },
+          {
+            "denominator": "8",
+            "numerator": "33"
+          },
+          {
+            "denominator": "32",
+            "numerator": "141"
+          },
+          {
+            "denominator": "16",
+            "numerator": "75"
+          },
+          {
+            "denominator": "32",
+            "numerator": "159"
+          }
+        ],
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "c0200000",
+            "c0020000",
+            "bfc80000",
+            "bf8c0000",
+            "bec00000",
+            "bdc00000",
+            "3e400000",
+            "3ef00000",
+            "3fa00000",
+            "3fdc0000",
+            "400c0000",
+            "402a0000",
+            "3ff00000",
+            "400a0000",
+            "401c0000",
+            "402e0000",
+            "40a00000",
+            "40af0000",
+            "40be0000",
+            "40cd0000",
+            "40840000",
+            "408d0000",
+            "40960000",
+            "409f0000"
+          ],
+          "shape": [
+            3,
+            2,
+            4
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "3fa00000",
+            "3f400000"
+          ],
+          "shape": [
+            2,
+            1
+          ]
+        },
+        "b": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "c0000000",
+            "bfd00000",
+            "bfa00000",
+            "bf600000",
+            "bf000000",
+            "be000000",
+            "3e800000",
+            "3f200000",
+            "3f800000",
+            "3fb00000",
+            "3fe00000",
+            "40080000",
+            "40200000",
+            "40380000",
+            "40500000",
+            "40680000",
+            "40800000",
+            "408c0000",
+            "40980000",
+            "40a40000",
+            "40b00000",
+            "40bc0000",
+            "40c80000",
+            "40d40000"
+          ],
+          "shape": [
+            3,
+            2,
+            4
+          ]
+        }
+      },
+      "op": "mul",
+      "outputs": {
+        "result": {
+          "classifications": [
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "negative_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal",
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "c0200000",
+            "c0020000",
+            "bfc80000",
+            "bf8c0000",
+            "bec00000",
+            "bdc00000",
+            "3e400000",
+            "3ef00000",
+            "3fa00000",
+            "3fdc0000",
+            "400c0000",
+            "402a0000",
+            "3ff00000",
+            "400a0000",
+            "401c0000",
+            "402e0000",
+            "40a00000",
+            "40af0000",
+            "40be0000",
+            "40cd0000",
+            "40840000",
+            "408d0000",
+            "40960000",
+            "409f0000"
+          ],
+          "shape": [
+            3,
+            2,
+            4
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "ieee_edges",
+      "id": "ieee_add_negative_overflow",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "result": {
+          "classifications": [
+            "negative_infinity"
+          ],
+          "f32_bits": [
+            "ff800000"
+          ],
+          "nonfinite": [
+            {
+              "classification": "negative_infinity",
+              "index": 0
+            }
+          ],
+          "shape": [
+            1
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "ff7fffff"
+          ],
+          "shape": [
+            1
+          ]
+        },
+        "b": {
+          "classifications": [
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "ff7fffff"
+          ],
+          "shape": [
+            1
+          ]
+        }
+      },
+      "op": "add",
+      "outputs": {
+        "result": {
+          "classifications": [
+            "negative_infinity"
+          ],
+          "f32_bits": [
+            "ff800000"
+          ],
+          "nonfinite": [
+            {
+              "classification": "negative_infinity",
+              "index": 0
+            }
+          ],
+          "shape": [
+            1
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "ieee_edges",
+      "id": "ieee_sub_negative_overflow",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "result": {
+          "classifications": [
+            "negative_infinity"
+          ],
+          "f32_bits": [
+            "ff800000"
+          ],
+          "nonfinite": [
+            {
+              "classification": "negative_infinity",
+              "index": 0
+            }
+          ],
+          "shape": [
+            1
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "ff7fffff"
+          ],
+          "shape": [
+            1
+          ]
+        },
+        "b": {
+          "classifications": [
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "7f7fffff"
+          ],
+          "shape": [
+            1
+          ]
+        }
+      },
+      "op": "sub",
+      "outputs": {
+        "result": {
+          "classifications": [
+            "negative_infinity"
+          ],
+          "f32_bits": [
+            "ff800000"
+          ],
+          "nonfinite": [
+            {
+              "classification": "negative_infinity",
+              "index": 0
+            }
+          ],
+          "shape": [
+            1
+          ]
+        }
+      }
+    },
+    {
+      "comparison_policy": "ieee_edges",
+      "id": "ieee_mul_negative_overflow",
+      "independent_reference": {
+        "authority": "independent raw-word/index/IEEE/rational model",
+        "result": {
+          "classifications": [
+            "negative_infinity"
+          ],
+          "f32_bits": [
+            "ff800000"
+          ],
+          "nonfinite": [
+            {
+              "classification": "negative_infinity",
+              "index": 0
+            }
+          ],
+          "shape": [
+            1
+          ]
+        }
+      },
+      "inputs": {
+        "a": {
+          "classifications": [
+            "positive_normal"
+          ],
+          "f32_bits": [
+            "7f7fffff"
+          ],
+          "shape": [
+            1
+          ]
+        },
+        "b": {
+          "classifications": [
+            "negative_normal"
+          ],
+          "f32_bits": [
+            "c0000000"
+          ],
+          "shape": [
+            1
+          ]
+        }
+      },
+      "op": "mul",
+      "outputs": {
+        "result": {
+          "classifications": [
+            "negative_infinity"
+          ],
+          "f32_bits": [
+            "ff800000"
+          ],
+          "nonfinite": [
+            {
+              "classification": "negative_infinity",
+              "index": 0
+            }
+          ],
+          "shape": [
+            1
+          ]
+        }
+      }
+    }
+  ],
+  "corpus_version": "s2-supplement-v1",
+  "device": "cpu",
+  "dtype": "float32",
+  "error_cases": [
+    {
+      "expected_error": "IncompatibleBroadcast",
+      "id": "matmul_add_incompatible_bias",
+      "op": "matmul_add",
+      "request": {
+        "b_shape": [
+          3,
+          2
+        ],
+        "bias_shape": [
+          3
+        ],
+        "shape": [
+          2,
+          3
+        ]
+      }
+    },
+    {
+      "expected_error": "MatmulInnerMismatch",
+      "id": "matmul_add_bias_inner_first",
+      "op": "matmul_add",
+      "request": {
+        "b_shape": [
+          4,
+          2
+        ],
+        "bias_shape": [
+          3
+        ],
+        "shape": [
+          2,
+          3
+        ]
+      }
+    }
+  ],
+  "oracle": {
+    "cuda_version": null,
+    "hip_version": null,
+    "torch_git_version": "5c4886908584029761b579af026dcfb627c84070",
+    "torch_version": "2.14.1+cpu"
+  },
+  "policy_sha256": "e3b1bd0807b1e6f686a57574c64f961fc9de6fedec97f0a74a3bc2142add001f",
+  "policy_version": 3,
+  "schema_version": 1
+}

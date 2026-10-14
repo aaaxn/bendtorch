@@ -1,0 +1,4 @@
+Checking every S0 and lock hash recorded before S2 work:
+awk: cmd. line:1: length($1)==64 && $1 ~ /^[0-9a-f]+$/ && $2 !~ /^oracle/s2// {print}
+awk: cmd. line:1:                                                            ^ unterminated regexp
+sha256sum: 'standard input': no properly formatted checksum lines found

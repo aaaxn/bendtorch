@@ -1,0 +1,6909 @@
+[
+  {
+    "id": "construct_shape_0",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "bfc00000"
+      ]
+    }
+  },
+  {
+    "id": "clone_shape_0",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "bfc00000"
+      ]
+    }
+  },
+  {
+    "id": "sum_shape_0",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "bfc00000"
+      ]
+    }
+  },
+  {
+    "id": "construct_shape_1",
+    "result": {
+      "shape": [
+        0
+      ],
+      "f32_bits": []
+    }
+  },
+  {
+    "id": "clone_shape_1",
+    "result": {
+      "shape": [
+        0
+      ],
+      "f32_bits": []
+    }
+  },
+  {
+    "id": "sum_shape_1",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "00000000"
+      ]
+    }
+  },
+  {
+    "id": "construct_shape_2",
+    "result": {
+      "shape": [
+        1
+      ],
+      "f32_bits": [
+        "bfc00000"
+      ]
+    }
+  },
+  {
+    "id": "clone_shape_2",
+    "result": {
+      "shape": [
+        1
+      ],
+      "f32_bits": [
+        "bfc00000"
+      ]
+    }
+  },
+  {
+    "id": "sum_shape_2",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "bfc00000"
+      ]
+    }
+  },
+  {
+    "id": "construct_shape_3",
+    "result": {
+      "shape": [
+        3
+      ],
+      "f32_bits": [
+        "bfc00000",
+        "bf800000",
+        "bf000000"
+      ]
+    }
+  },
+  {
+    "id": "clone_shape_3",
+    "result": {
+      "shape": [
+        3
+      ],
+      "f32_bits": [
+        "bfc00000",
+        "bf800000",
+        "bf000000"
+      ]
+    }
+  },
+  {
+    "id": "sum_shape_3",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "c0400000"
+      ]
+    }
+  },
+  {
+    "id": "construct_shape_4",
+    "result": {
+      "shape": [
+        2,
+        3
+      ],
+      "f32_bits": [
+        "bfc00000",
+        "bf800000",
+        "bf000000",
+        "00000000",
+        "3f000000",
+        "3f800000"
+      ]
+    }
+  },
+  {
+    "id": "clone_shape_4",
+    "result": {
+      "shape": [
+        2,
+        3
+      ],
+      "f32_bits": [
+        "bfc00000",
+        "bf800000",
+        "bf000000",
+        "00000000",
+        "3f000000",
+        "3f800000"
+      ]
+    }
+  },
+  {
+    "id": "sum_shape_4",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "bfc00000"
+      ]
+    }
+  },
+  {
+    "id": "construct_shape_5",
+    "result": {
+      "shape": [
+        0,
+        3
+      ],
+      "f32_bits": []
+    }
+  },
+  {
+    "id": "clone_shape_5",
+    "result": {
+      "shape": [
+        0,
+        3
+      ],
+      "f32_bits": []
+    }
+  },
+  {
+    "id": "sum_shape_5",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "00000000"
+      ]
+    }
+  },
+  {
+    "id": "construct_shape_6",
+    "result": {
+      "shape": [
+        3,
+        0
+      ],
+      "f32_bits": []
+    }
+  },
+  {
+    "id": "clone_shape_6",
+    "result": {
+      "shape": [
+        3,
+        0
+      ],
+      "f32_bits": []
+    }
+  },
+  {
+    "id": "sum_shape_6",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "00000000"
+      ]
+    }
+  },
+  {
+    "id": "construct_shape_7",
+    "result": {
+      "shape": [
+        1,
+        3,
+        1
+      ],
+      "f32_bits": [
+        "bfc00000",
+        "bf800000",
+        "bf000000"
+      ]
+    }
+  },
+  {
+    "id": "clone_shape_7",
+    "result": {
+      "shape": [
+        1,
+        3,
+        1
+      ],
+      "f32_bits": [
+        "bfc00000",
+        "bf800000",
+        "bf000000"
+      ]
+    }
+  },
+  {
+    "id": "sum_shape_7",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "c0400000"
+      ]
+    }
+  },
+  {
+    "id": "construct_shape_8",
+    "result": {
+      "shape": [
+        2,
+        1,
+        3,
+        1
+      ],
+      "f32_bits": [
+        "bfc00000",
+        "bf800000",
+        "bf000000",
+        "00000000",
+        "3f000000",
+        "3f800000"
+      ]
+    }
+  },
+  {
+    "id": "clone_shape_8",
+    "result": {
+      "shape": [
+        2,
+        1,
+        3,
+        1
+      ],
+      "f32_bits": [
+        "bfc00000",
+        "bf800000",
+        "bf000000",
+        "00000000",
+        "3f000000",
+        "3f800000"
+      ]
+    }
+  },
+  {
+    "id": "sum_shape_8",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "bfc00000"
+      ]
+    }
+  },
+  {
+    "id": "construct_shape_9",
+    "result": {
+      "shape": [
+        1,
+        0,
+        3,
+        1
+      ],
+      "f32_bits": []
+    }
+  },
+  {
+    "id": "clone_shape_9",
+    "result": {
+      "shape": [
+        1,
+        0,
+        3,
+        1
+      ],
+      "f32_bits": []
+    }
+  },
+  {
+    "id": "sum_shape_9",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "00000000"
+      ]
+    }
+  },
+  {
+    "id": "reshape_0",
+    "result": {
+      "shape": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "f32_bits": [
+        "3f800000"
+      ]
+    }
+  },
+  {
+    "id": "reshape_1",
+    "result": {
+      "shape": [
+        3,
+        2
+      ],
+      "f32_bits": [
+        "3f800000",
+        "40000000",
+        "40400000",
+        "40800000",
+        "40a00000",
+        "40c00000"
+      ]
+    }
+  },
+  {
+    "id": "reshape_2",
+    "result": {
+      "shape": [
+        6
+      ],
+      "f32_bits": [
+        "3f800000",
+        "40000000",
+        "40400000",
+        "40800000",
+        "40a00000",
+        "40c00000"
+      ]
+    }
+  },
+  {
+    "id": "reshape_3",
+    "result": {
+      "shape": [
+        1,
+        3,
+        2
+      ],
+      "f32_bits": [
+        "3f800000",
+        "40000000",
+        "40400000",
+        "40800000",
+        "40a00000",
+        "40c00000"
+      ]
+    }
+  },
+  {
+    "id": "reshape_4",
+    "result": {
+      "shape": [
+        1,
+        0,
+        1,
+        1
+      ],
+      "f32_bits": []
+    }
+  },
+  {
+    "id": "reshape_5",
+    "result": {
+      "shape": [
+        2,
+        3
+      ],
+      "f32_bits": [
+        "3f800000",
+        "40000000",
+        "40400000",
+        "40800000",
+        "40a00000",
+        "40c00000"
+      ]
+    }
+  },
+  {
+    "id": "transpose_0",
+    "result": {
+      "shape": [
+        3,
+        2
+      ],
+      "f32_bits": [
+        "3f800000",
+        "40800000",
+        "40000000",
+        "40a00000",
+        "40400000",
+        "40c00000"
+      ]
+    }
+  },
+  {
+    "id": "transpose_1",
+    "result": {
+      "shape": [
+        1,
+        3
+      ],
+      "f32_bits": [
+        "3f800000",
+        "40000000",
+        "40400000"
+      ]
+    }
+  },
+  {
+    "id": "transpose_2",
+    "result": {
+      "shape": [
+        3,
+        0
+      ],
+      "f32_bits": []
+    }
+  },
+  {
+    "id": "transpose_3",
+    "result": {
+      "shape": [
+        3,
+        1,
+        2,
+        1
+      ],
+      "f32_bits": [
+        "3f800000",
+        "40800000",
+        "40000000",
+        "40a00000",
+        "40400000",
+        "40c00000"
+      ]
+    }
+  },
+  {
+    "id": "transpose_4",
+    "result": {
+      "shape": [
+        1
+      ],
+      "f32_bits": [
+        "3f800000"
+      ]
+    }
+  },
+  {
+    "id": "permute_0",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "3f800000"
+      ]
+    }
+  },
+  {
+    "id": "permute_1",
+    "result": {
+      "shape": [
+        3
+      ],
+      "f32_bits": [
+        "3f800000",
+        "40000000",
+        "40400000"
+      ]
+    }
+  },
+  {
+    "id": "permute_2",
+    "result": {
+      "shape": [
+        3,
+        2
+      ],
+      "f32_bits": [
+        "3f800000",
+        "40800000",
+        "40000000",
+        "40a00000",
+        "40400000",
+        "40c00000"
+      ]
+    }
+  },
+  {
+    "id": "permute_3",
+    "result": {
+      "shape": [
+        3,
+        2,
+        1
+      ],
+      "f32_bits": [
+        "3f800000",
+        "40800000",
+        "40000000",
+        "40a00000",
+        "40400000",
+        "40c00000"
+      ]
+    }
+  },
+  {
+    "id": "permute_4",
+    "result": {
+      "shape": [
+        1,
+        3,
+        2,
+        1
+      ],
+      "f32_bits": [
+        "3f800000",
+        "40800000",
+        "40000000",
+        "40a00000",
+        "40400000",
+        "40c00000"
+      ]
+    }
+  },
+  {
+    "id": "permute_5",
+    "result": {
+      "shape": [
+        3,
+        2,
+        1,
+        0
+      ],
+      "f32_bits": []
+    }
+  },
+  {
+    "id": "get_0",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "3f800000"
+      ]
+    }
+  },
+  {
+    "id": "get_1",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "40400000"
+      ]
+    }
+  },
+  {
+    "id": "get_2",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "40c00000"
+      ]
+    }
+  },
+  {
+    "id": "get_3",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "40c00000"
+      ]
+    }
+  },
+  {
+    "id": "add_broadcast_0",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "404d45d6"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [],
+        "f32_bits": [
+          "3f839838"
+        ]
+      },
+      "right": {
+        "shape": [],
+        "f32_bits": [
+          "400b79ba"
+        ]
+      }
+    }
+  },
+  {
+    "id": "sub_broadcast_0",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "bf935b3c"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [],
+        "f32_bits": [
+          "3f839838"
+        ]
+      },
+      "right": {
+        "shape": [],
+        "f32_bits": [
+          "400b79ba"
+        ]
+      }
+    }
+  },
+  {
+    "id": "mul_broadcast_0",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "400f6472"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [],
+        "f32_bits": [
+          "3f839838"
+        ]
+      },
+      "right": {
+        "shape": [],
+        "f32_bits": [
+          "400b79ba"
+        ]
+      }
+    }
+  },
+  {
+    "id": "add_broadcast_1",
+    "result": {
+      "shape": [
+        3
+      ],
+      "f32_bits": [
+        "be610600",
+        "408620e4",
+        "3fcbcadc"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3
+        ],
+        "f32_bits": [
+          "c0bc3687",
+          "bfbc35ca",
+          "c0823ba0"
+        ]
+      },
+      "right": {
+        "shape": [],
+        "f32_bits": [
+          "40b52e57"
+        ]
+      }
+    }
+  },
+  {
+    "id": "sub_broadcast_1",
+    "result": {
+      "shape": [
+        3
+      ],
+      "f32_bits": [
+        "c138b26f",
+        "c0e43bca",
+        "c11bb4fc"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3
+        ],
+        "f32_bits": [
+          "c0bc3687",
+          "bfbc35ca",
+          "c0823ba0"
+        ]
+      },
+      "right": {
+        "shape": [],
+        "f32_bits": [
+          "40b52e57"
+        ]
+      }
+    }
+  },
+  {
+    "id": "mul_broadcast_1",
+    "result": {
+      "shape": [
+        3
+      ],
+      "f32_bits": [
+        "c205349f",
+        "c1053419",
+        "c1b85776"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3
+        ],
+        "f32_bits": [
+          "c0bc3687",
+          "bfbc35ca",
+          "c0823ba0"
+        ]
+      },
+      "right": {
+        "shape": [],
+        "f32_bits": [
+          "40b52e57"
+        ]
+      }
+    }
+  },
+  {
+    "id": "add_broadcast_2",
+    "result": {
+      "shape": [
+        2,
+        3
+      ],
+      "f32_bits": [
+        "c0b3a3f0",
+        "c069fb0e",
+        "c09730f4",
+        "408fbae4",
+        "40ce614d",
+        "40ac2de0"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          2,
+          1
+        ],
+        "f32_bits": [
+          "c0783bb0",
+          "40c740fc"
+        ]
+      },
+      "right": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "bfde1862",
+          "3e640a22",
+          "bf5898e4"
+        ]
+      }
+    }
+  },
+  {
+    "id": "sub_broadcast_2",
+    "result": {
+      "shape": [
+        2,
+        3
+      ],
+      "f32_bits": [
+        "c0092f7f",
+        "c0833e29",
+        "c0421577",
+        "40fec714",
+        "40c020ab",
+        "40e25418"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          2,
+          1
+        ],
+        "f32_bits": [
+          "c0783bb0",
+          "40c740fc"
+        ]
+      },
+      "right": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "bfde1862",
+          "3e640a22",
+          "bf5898e4"
+        ]
+      }
+    }
+  },
+  {
+    "id": "mul_broadcast_2",
+    "result": {
+      "shape": [
+        2,
+        3
+      ],
+      "f32_bits": [
+        "40d75b67",
+        "bf5d1efc",
+        "4052069d",
+        "c12cdd55",
+        "3fb17dc3",
+        "c0a895d5"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          2,
+          1
+        ],
+        "f32_bits": [
+          "c0783bb0",
+          "40c740fc"
+        ]
+      },
+      "right": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "bfde1862",
+          "3e640a22",
+          "bf5898e4"
+        ]
+      }
+    }
+  },
+  {
+    "id": "add_broadcast_3",
+    "result": {
+      "shape": [
+        2,
+        1,
+        3,
+        3
+      ],
+      "f32_bits": [
+        "c15dbf18",
+        "c01ddfa8",
+        "c0c3d485",
+        "c084bb1a",
+        "40e7d343",
+        "4065dd24",
+        "c13aa602",
+        "be8bda60",
+        "c07b44ae",
+        "c0853938",
+        "40e75524",
+        "4064e0e6",
+        "c007bd26",
+        "411457e5",
+        "40b3cb19",
+        "c0a07628",
+        "40cc1834",
+        "402e6706"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          2,
+          1,
+          3,
+          1
+        ],
+        "f32_bits": [
+          "c0d8e0d1",
+          "403bc48c",
+          "c092aea3",
+          "403ac84f",
+          "409ebecd",
+          "40044e6f"
+        ]
+      },
+      "right": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "c0e29d60",
+          "4089f0fd",
+          "3f28625e"
+        ]
+      }
+    }
+  },
+  {
+    "id": "sub_broadcast_3",
+    "result": {
+      "shape": [
+        2,
+        1,
+        3,
+        3
+      ],
+      "f32_bits": [
+        "3e9bc8f0",
+        "c13168e7",
+        "c0eded1d",
+        "41203fd3",
+        "bfb03adc",
+        "4011abf4",
+        "401fdd7a",
+        "c10e4fd0",
+        "c0a7baef",
+        "412000c4",
+        "bfb23356",
+        "4010afb8",
+        "4140ae16",
+        "3f266e80",
+        "4089b281",
+        "4112624c",
+        "c00f938b",
+        "3fb46baf"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          2,
+          1,
+          3,
+          1
+        ],
+        "f32_bits": [
+          "c0d8e0d1",
+          "403bc48c",
+          "c092aea3",
+          "403ac84f",
+          "409ebecd",
+          "40044e6f"
+        ]
+      },
+      "right": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "c0e29d60",
+          "4089f0fd",
+          "3f28625e"
+        ]
+      }
+    }
+  },
+  {
+    "id": "mul_broadcast_3",
+    "result": {
+      "shape": [
+        2,
+        1,
+        3,
+        3
+      ],
+      "f32_bits": [
+        "423ffbcc",
+        "c1e9b8f2",
+        "c08ea6df",
+        "c1a636f2",
+        "414a59e2",
+        "3ff70244",
+        "4201d858",
+        "c19e1314",
+        "c040f5ef",
+        "c1a557a9",
+        "41494a0d",
+        "3ff5b672",
+        "c20c8608",
+        "41ab1317",
+        "4050d46c",
+        "c16a3d27",
+        "410e950b",
+        "3fae0c9f"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          2,
+          1,
+          3,
+          1
+        ],
+        "f32_bits": [
+          "c0d8e0d1",
+          "403bc48c",
+          "c092aea3",
+          "403ac84f",
+          "409ebecd",
+          "40044e6f"
+        ]
+      },
+      "right": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "c0e29d60",
+          "4089f0fd",
+          "3f28625e"
+        ]
+      }
+    }
+  },
+  {
+    "id": "add_broadcast_4",
+    "result": {
+      "shape": [
+        0
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          0
+        ],
+        "f32_bits": []
+      },
+      "right": {
+        "shape": [
+          1
+        ],
+        "f32_bits": [
+          "40045d82"
+        ]
+      }
+    }
+  },
+  {
+    "id": "sub_broadcast_4",
+    "result": {
+      "shape": [
+        0
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          0
+        ],
+        "f32_bits": []
+      },
+      "right": {
+        "shape": [
+          1
+        ],
+        "f32_bits": [
+          "40045d82"
+        ]
+      }
+    }
+  },
+  {
+    "id": "mul_broadcast_4",
+    "result": {
+      "shape": [
+        0
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          0
+        ],
+        "f32_bits": []
+      },
+      "right": {
+        "shape": [
+          1
+        ],
+        "f32_bits": [
+          "40045d82"
+        ]
+      }
+    }
+  },
+  {
+    "id": "add_broadcast_5",
+    "result": {
+      "shape": [
+        0,
+        3
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      },
+      "right": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "bf2998aa",
+          "404dbe80",
+          "3d9a2a35"
+        ]
+      }
+    }
+  },
+  {
+    "id": "sub_broadcast_5",
+    "result": {
+      "shape": [
+        0,
+        3
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      },
+      "right": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "bf2998aa",
+          "404dbe80",
+          "3d9a2a35"
+        ]
+      }
+    }
+  },
+  {
+    "id": "mul_broadcast_5",
+    "result": {
+      "shape": [
+        0,
+        3
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      },
+      "right": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "bf2998aa",
+          "404dbe80",
+          "3d9a2a35"
+        ]
+      }
+    }
+  },
+  {
+    "id": "add_broadcast_6",
+    "result": {
+      "shape": [
+        3,
+        0
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3,
+          0
+        ],
+        "f32_bits": []
+      },
+      "right": {
+        "shape": [
+          3,
+          1
+        ],
+        "f32_bits": [
+          "3ffeb7c2",
+          "c057161c",
+          "409ff402"
+        ]
+      }
+    }
+  },
+  {
+    "id": "sub_broadcast_6",
+    "result": {
+      "shape": [
+        3,
+        0
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3,
+          0
+        ],
+        "f32_bits": []
+      },
+      "right": {
+        "shape": [
+          3,
+          1
+        ],
+        "f32_bits": [
+          "3ffeb7c2",
+          "c057161c",
+          "409ff402"
+        ]
+      }
+    }
+  },
+  {
+    "id": "mul_broadcast_6",
+    "result": {
+      "shape": [
+        3,
+        0
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3,
+          0
+        ],
+        "f32_bits": []
+      },
+      "right": {
+        "shape": [
+          3,
+          1
+        ],
+        "f32_bits": [
+          "3ffeb7c2",
+          "c057161c",
+          "409ff402"
+        ]
+      }
+    }
+  },
+  {
+    "id": "add_broadcast_7",
+    "result": {
+      "shape": [
+        1,
+        0,
+        3,
+        1
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1,
+          0,
+          3,
+          1
+        ],
+        "f32_bits": []
+      },
+      "right": {
+        "shape": [
+          3,
+          1
+        ],
+        "f32_bits": [
+          "40eb7ccf",
+          "c09b63d2",
+          "c096a3a4"
+        ]
+      }
+    }
+  },
+  {
+    "id": "sub_broadcast_7",
+    "result": {
+      "shape": [
+        1,
+        0,
+        3,
+        1
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1,
+          0,
+          3,
+          1
+        ],
+        "f32_bits": []
+      },
+      "right": {
+        "shape": [
+          3,
+          1
+        ],
+        "f32_bits": [
+          "40eb7ccf",
+          "c09b63d2",
+          "c096a3a4"
+        ]
+      }
+    }
+  },
+  {
+    "id": "mul_broadcast_7",
+    "result": {
+      "shape": [
+        1,
+        0,
+        3,
+        1
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1,
+          0,
+          3,
+          1
+        ],
+        "f32_bits": []
+      },
+      "right": {
+        "shape": [
+          3,
+          1
+        ],
+        "f32_bits": [
+          "40eb7ccf",
+          "c09b63d2",
+          "c096a3a4"
+        ]
+      }
+    }
+  },
+  {
+    "id": "add_broadcast_8",
+    "result": {
+      "shape": [
+        0,
+        3
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      },
+      "right": {
+        "shape": [
+          0,
+          1
+        ],
+        "f32_bits": []
+      }
+    }
+  },
+  {
+    "id": "sub_broadcast_8",
+    "result": {
+      "shape": [
+        0,
+        3
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      },
+      "right": {
+        "shape": [
+          0,
+          1
+        ],
+        "f32_bits": []
+      }
+    }
+  },
+  {
+    "id": "mul_broadcast_8",
+    "result": {
+      "shape": [
+        0,
+        3
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      },
+      "right": {
+        "shape": [
+          0,
+          1
+        ],
+        "f32_bits": []
+      }
+    }
+  },
+  {
+    "id": "add_broadcast_9",
+    "result": {
+      "shape": [
+        0
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1
+        ],
+        "f32_bits": [
+          "40997a22"
+        ]
+      },
+      "right": {
+        "shape": [
+          0
+        ],
+        "f32_bits": []
+      }
+    }
+  },
+  {
+    "id": "sub_broadcast_9",
+    "result": {
+      "shape": [
+        0
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1
+        ],
+        "f32_bits": [
+          "40997a22"
+        ]
+      },
+      "right": {
+        "shape": [
+          0
+        ],
+        "f32_bits": []
+      }
+    }
+  },
+  {
+    "id": "mul_broadcast_9",
+    "result": {
+      "shape": [
+        0
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1
+        ],
+        "f32_bits": [
+          "40997a22"
+        ]
+      },
+      "right": {
+        "shape": [
+          0
+        ],
+        "f32_bits": []
+      }
+    }
+  },
+  {
+    "id": "add_broadcast_10",
+    "result": {
+      "shape": [
+        0,
+        3
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "40f6cff9",
+          "3f7942f9",
+          "4097e272"
+        ]
+      },
+      "right": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      }
+    }
+  },
+  {
+    "id": "sub_broadcast_10",
+    "result": {
+      "shape": [
+        0,
+        3
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "40f6cff9",
+          "3f7942f9",
+          "4097e272"
+        ]
+      },
+      "right": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      }
+    }
+  },
+  {
+    "id": "mul_broadcast_10",
+    "result": {
+      "shape": [
+        0,
+        3
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "40f6cff9",
+          "3f7942f9",
+          "4097e272"
+        ]
+      },
+      "right": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      }
+    }
+  },
+  {
+    "id": "add_broadcast_11",
+    "result": {
+      "shape": [
+        3,
+        0
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3,
+          1
+        ],
+        "f32_bits": [
+          "40ca5a54",
+          "40178727",
+          "c007a4ff"
+        ]
+      },
+      "right": {
+        "shape": [
+          3,
+          0
+        ],
+        "f32_bits": []
+      }
+    }
+  },
+  {
+    "id": "sub_broadcast_11",
+    "result": {
+      "shape": [
+        3,
+        0
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3,
+          1
+        ],
+        "f32_bits": [
+          "40ca5a54",
+          "40178727",
+          "c007a4ff"
+        ]
+      },
+      "right": {
+        "shape": [
+          3,
+          0
+        ],
+        "f32_bits": []
+      }
+    }
+  },
+  {
+    "id": "mul_broadcast_11",
+    "result": {
+      "shape": [
+        3,
+        0
+      ],
+      "f32_bits": []
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3,
+          1
+        ],
+        "f32_bits": [
+          "40ca5a54",
+          "40178727",
+          "c007a4ff"
+        ]
+      },
+      "right": {
+        "shape": [
+          3,
+          0
+        ],
+        "f32_bits": []
+      }
+    }
+  },
+  {
+    "id": "random_sum_0",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "41c88bda"
+      ]
+    }
+  },
+  {
+    "id": "random_add_0",
+    "result": {
+      "shape": [
+        3,
+        5
+      ],
+      "f32_bits": [
+        "40fa2595",
+        "c069dcd4",
+        "412df14e",
+        "41034d6d",
+        "4179e3aa",
+        "c059bfd0",
+        "c1881d8c",
+        "3e1ce0e5",
+        "bfa52590",
+        "40f29018",
+        "40fea0e2",
+        "417bcdbb",
+        "c08e2b04",
+        "c0b13f5a",
+        "c0e305a3"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "3feffd6b",
+          "c0fa9f03",
+          "417f1af7",
+          "417566fe",
+          "4114cace",
+          "c15f3653",
+          "c11573ef",
+          "be1f28c1",
+          "4169a7a1",
+          "c0dea9ae",
+          "c0895ae0",
+          "415144a1",
+          "40215bfd",
+          "c12bb7ab",
+          "40b570b9"
+        ]
+      },
+      "right": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "40be263a",
+          "4085b099",
+          "c0a25352",
+          "c0e43322",
+          "40ca31b8",
+          "4128c65f",
+          "c0f58e51",
+          "3e9e04d3",
+          "c17e4c53",
+          "41689ce3",
+          "4143fde1",
+          "402a2467",
+          "c0ded902",
+          "40a62ffc",
+          "c14c3b2e"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_sub_0",
+    "result": {
+      "shape": [
+        3,
+        5
+      ],
+      "f32_bits": [
+        "c06a1296",
+        "c1b66b2a",
+        "41c63003",
+        "4158c9bf",
+        "400d97ee",
+        "c0ac4902",
+        "c19e439c",
+        "40f0fae3",
+        "41959d99",
+        "c110fe6c",
+        "40702b48",
+        "3dd98780",
+        "bf52f47c",
+        "c1901e5e",
+        "402345c7"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "3feffd6b",
+          "c0fa9f03",
+          "417f1af7",
+          "417566fe",
+          "4114cace",
+          "c15f3653",
+          "c11573ef",
+          "be1f28c1",
+          "4169a7a1",
+          "c0dea9ae",
+          "c0895ae0",
+          "415144a1",
+          "40215bfd",
+          "c12bb7ab",
+          "40b570b9"
+        ]
+      },
+      "right": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "40b108a6",
+          "416f86d2",
+          "c10d450f",
+          "3fe4e9fb",
+          "40e2c9a5",
+          "c10911d2",
+          "4127134a",
+          "c0f5f429",
+          "c0832723",
+          "4006a655",
+          "c100b842",
+          "414f9192",
+          "4056191c",
+          "40e90a21",
+          "40479bab"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_mul_0",
+    "result": {
+      "shape": [
+        3,
+        5
+      ],
+      "f32_bits": [
+        "41a47f0f",
+        "c0812da7",
+        "c32e6a62",
+        "43307595",
+        "c302dbc2",
+        "42e2bb96",
+        "41de8f6c",
+        "3ff0638c",
+        "434075f6",
+        "42bb6bcd",
+        "42333825",
+        "c20890fc",
+        "c1df354f",
+        "c314255c",
+        "c249ca2d"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "3feffd6b",
+          "c0fa9f03",
+          "417f1af7",
+          "417566fe",
+          "4114cace",
+          "c15f3653",
+          "c11573ef",
+          "be1f28c1",
+          "4169a7a1",
+          "c0dea9ae",
+          "c0895ae0",
+          "415144a1",
+          "40215bfd",
+          "c12bb7ab",
+          "40b570b9"
+        ]
+      },
+      "right": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "412f785a",
+          "3f03f366",
+          "c12f06f9",
+          "41381467",
+          "c1612502",
+          "c10204d3",
+          "c03e9d04",
+          "c14153b8",
+          "4152ddd0",
+          "c1577b5c",
+          "c1270356",
+          "c027102a",
+          "c1310ff3",
+          "415cdbed",
+          "c10e5b18"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_sum_1",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "c2210eb1"
+      ]
+    }
+  },
+  {
+    "id": "random_add_1",
+    "result": {
+      "shape": [
+        1,
+        3,
+        7
+      ],
+      "f32_bits": [
+        "c07147de",
+        "c1a80901",
+        "c154f870",
+        "bd370fc0",
+        "40d47c71",
+        "41c06070",
+        "4021edfa",
+        "3ef86240",
+        "c1292408",
+        "c13fc575",
+        "bf82acb8",
+        "c1902bf4",
+        "411b85cc",
+        "410165d3",
+        "c07d0739",
+        "c1c02206",
+        "3fbcf714",
+        "3ee3e0a0",
+        "c1272e95",
+        "413ad6ba",
+        "3f848c38"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c03c8626",
+          "c162f617",
+          "3ff32a75",
+          "402f5484",
+          "c0f51637",
+          "41754730",
+          "40355b31",
+          "417f2bf7",
+          "c0a87474",
+          "c134099e",
+          "416525e7",
+          "c179d5c7",
+          "c0a48841",
+          "c0d12d98",
+          "c07b339c",
+          "c10d5b44",
+          "c09a1e49",
+          "c0e3021c",
+          "c0c96574",
+          "41530ced",
+          "c0dedf3e"
+        ]
+      },
+      "right": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "bf5306e2",
+          "c0da37d7",
+          "c1735dbf",
+          "c03230c3",
+          "4164c954",
+          "410b79b1",
+          "be9b69bb",
+          "c17768e5",
+          "c0a9d39d",
+          "bf3bbd6a",
+          "c1757b7e",
+          "c01a0888",
+          "416dc9ed",
+          "4169fc9f",
+          "bce9ceaf",
+          "c172e8c8",
+          "40c95c0e",
+          "40f14026",
+          "c084f7b6",
+          "bfc1b197",
+          "41000126"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_sub_1",
+    "result": {
+      "shape": [
+        1,
+        3,
+        7
+      ],
+      "f32_bits": [
+        "c12760bc",
+        "c18cc1b6",
+        "410f1693",
+        "bfd41b5c",
+        "c0bc411a",
+        "41bc54ac",
+        "408a45de",
+        "41c59270",
+        "c150586f",
+        "c0f95018",
+        "419d44d5",
+        "bf5f6500",
+        "40aa189d",
+        "40daa144",
+        "412913c7",
+        "c182242f",
+        "c08a5726",
+        "c038b6ca",
+        "c0ef63cc",
+        "3faec058",
+        "c067c0ac"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c03c8626",
+          "c162f617",
+          "3ff32a75",
+          "402f5484",
+          "c0f51637",
+          "41754730",
+          "40355b31",
+          "417f2bf7",
+          "c0a87474",
+          "c134099e",
+          "416525e7",
+          "c179d5c7",
+          "c0a48841",
+          "c0d12d98",
+          "c07b339c",
+          "c10d5b44",
+          "c09a1e49",
+          "c0e3021c",
+          "c0c96574",
+          "41530ced",
+          "c0dedf3e"
+        ]
+      },
+      "right": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "40f07e66",
+          "405a3551",
+          "c0e16288",
+          "408cb119",
+          "bfe35475",
+          "c1036228",
+          "bfbe6115",
+          "c10bf8ea",
+          "40f83c6a",
+          "c05d8647",
+          "c0aac787",
+          "c16bdf77",
+          "c127506f",
+          "c155e76e",
+          "c167e0ae",
+          "40edda35",
+          "befc722a",
+          "c086a6b7",
+          "3f97f960",
+          "413d34e2",
+          "c055fdd0"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_mul_1",
+    "result": {
+      "shape": [
+        1,
+        3,
+        7
+      ],
+      "f32_bits": [
+        "c2314745",
+        "c204d83d",
+        "c18c345c",
+        "c0c43f49",
+        "c2546a7d",
+        "42d7e252",
+        "42062762",
+        "41c529bf",
+        "422416a4",
+        "c2c9267a",
+        "42a0f324",
+        "433fa670",
+        "421fad96",
+        "4226016c",
+        "4235b8bb",
+        "c303bd0b",
+        "404a0c48",
+        "428d98a8",
+        "c2ada9e9",
+        "c2b13bea",
+        "419d43af"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c03c8626",
+          "c162f617",
+          "3ff32a75",
+          "402f5484",
+          "c0f51637",
+          "41754730",
+          "40355b31",
+          "417f2bf7",
+          "c0a87474",
+          "c134099e",
+          "416525e7",
+          "c179d5c7",
+          "c0a48841",
+          "c0d12d98",
+          "c07b339c",
+          "c10d5b44",
+          "c09a1e49",
+          "c0e3021c",
+          "c0c96574",
+          "41530ced",
+          "c0dedf3e"
+        ]
+      },
+      "right": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "4170bab9",
+          "4015d772",
+          "c1139abd",
+          "c00f4542",
+          "40dddfdb",
+          "40e15232",
+          "413d5ea9",
+          "3fc5cd94",
+          "c0f95d44",
+          "410f02a7",
+          "40b3cf64",
+          "c144611a",
+          "c0f87280",
+          "c0cb29f0",
+          "c139315c",
+          "416e94db",
+          "bf27ce9c",
+          "c11fae0f",
+          "415cbf97",
+          "c0d6fb38",
+          "c034a3ee"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_sum_2",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "4221cfaf"
+      ]
+    }
+  },
+  {
+    "id": "random_add_2",
+    "result": {
+      "shape": [
+        3,
+        5
+      ],
+      "f32_bits": [
+        "c1c8a348",
+        "41cf5686",
+        "bf6dce38",
+        "4179329e",
+        "40ba6bbf",
+        "41abde64",
+        "3ff17030",
+        "41ab7e27",
+        "c071d20a",
+        "c17c60f5",
+        "c1696670",
+        "400c6070",
+        "40d26cc3",
+        "c0025830",
+        "41366180"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c171ab82",
+          "412092a0",
+          "40ba7d39",
+          "4115214a",
+          "bfb9517c",
+          "414fef0e",
+          "41796485",
+          "4118816f",
+          "408e2bdd",
+          "bd1f032a",
+          "c161069b",
+          "41212318",
+          "40b71421",
+          "c1400b96",
+          "bed89f9f"
+        ]
+      },
+      "right": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c11f9b0e",
+          "417e1a6d",
+          "c0d83700",
+          "40c822a7",
+          "40e8c01e",
+          "4107cdbb",
+          "c15b367f",
+          "413e7adf",
+          "c1038a71",
+          "c17bc1f2",
+          "bf05fd4c",
+          "c0fc15f8",
+          "3f5ac50f",
+          "411f758a",
+          "413d267d"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_sub_2",
+    "result": {
+      "shape": [
+        3,
+        5
+      ],
+      "f32_bits": [
+        "c1547562",
+        "40ab1257",
+        "4143f35d",
+        "41ad902f",
+        "414c9884",
+        "c02fe9b8",
+        "41e809b6",
+        "415cd5f8",
+        "4153c6c6",
+        "c0b2e62d",
+        "c1eb78da",
+        "4140af7e",
+        "c0707a92",
+        "beee49a0",
+        "3e4c0a9e"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c171ab82",
+          "412092a0",
+          "40ba7d39",
+          "4115214a",
+          "bfb9517c",
+          "414fef0e",
+          "41796485",
+          "4118816f",
+          "408e2bdd",
+          "bd1f032a",
+          "c161069b",
+          "41212318",
+          "40b71421",
+          "c1400b96",
+          "bed89f9f"
+        ]
+      },
+      "right": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "bfe9b0ff",
+          "409612e9",
+          "c0cd6981",
+          "c145ff14",
+          "c163c2b4",
+          "417be97c",
+          "c156aee8",
+          "c088a911",
+          "c10cb0d8",
+          "40b1a827",
+          "4175eb19",
+          "bffc6331",
+          "4117a8b5",
+          "c1389949",
+          "bf1f5277"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_mul_2",
+    "result": {
+      "shape": [
+        3,
+        5
+      ],
+      "f32_bits": [
+        "c3277e8f",
+        "42c8ae77",
+        "41fd10a7",
+        "414eadba",
+        "40713a5f",
+        "c2e0ff5f",
+        "c2fdd21d",
+        "c2c46ca4",
+        "c243cea7",
+        "be5a18d1",
+        "4353b1b1",
+        "c2109884",
+        "3ff9996b",
+        "43271e09",
+        "407ec31c"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c171ab82",
+          "412092a0",
+          "40ba7d39",
+          "4115214a",
+          "bfb9517c",
+          "414fef0e",
+          "41796485",
+          "4118816f",
+          "408e2bdd",
+          "bd1f032a",
+          "c161069b",
+          "41212318",
+          "40b71421",
+          "c1400b96",
+          "bed89f9f"
+        ]
+      },
+      "right": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "41316d15",
+          "411ff8f9",
+          "40adb20c",
+          "3fb16505",
+          "c0269df6",
+          "c10a810d",
+          "c10245d0",
+          "c124dc93",
+          "c1304a22",
+          "40af8fae",
+          "c170d54f",
+          "c065b87c",
+          "3eae8215",
+          "c15ec545",
+          "c116891e"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_sum_3",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "40023a88"
+      ]
+    }
+  },
+  {
+    "id": "random_add_3",
+    "result": {
+      "shape": [
+        1,
+        3,
+        7
+      ],
+      "f32_bits": [
+        "c1315590",
+        "41663261",
+        "4145f767",
+        "410d1422",
+        "400fe410",
+        "3fc78480",
+        "c14624dc",
+        "41ee18e4",
+        "40bae7e9",
+        "c17e7dea",
+        "407a2bf2",
+        "c094d3d2",
+        "c108cc6a",
+        "4135fb90",
+        "3ff7f36a",
+        "41893f27",
+        "40b6122e",
+        "4004b30f",
+        "4101ffda",
+        "40683f9a",
+        "3fef32cb"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c1076294",
+          "4125fe94",
+          "bec3fb4b",
+          "c0aa5cc3",
+          "c148d274",
+          "c13a0836",
+          "c0b451a8",
+          "417e65d3",
+          "4149dc5e",
+          "c0e55a99",
+          "4129ce7e",
+          "c1319073",
+          "c0f02009",
+          "407e9b71",
+          "c00b3cad",
+          "413072b9",
+          "40fa0da0",
+          "3e3bc134",
+          "c0488ca9",
+          "40ada29f",
+          "bf56cf4e"
+        ]
+      },
+      "right": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c027cbef",
+          "4080679a",
+          "414c1741",
+          "41624283",
+          "416ccb78",
+          "4152f8c6",
+          "c0d7f811",
+          "415dcbf4",
+          "c0d8d0d3",
+          "c10bd09d",
+          "c0d68703",
+          "40ce4d14",
+          "bf85e32a",
+          "40eca968",
+          "40839b31",
+          "40c4172b",
+          "c007f6e3",
+          "3ff1edf7",
+          "41342304",
+          "bfe60b47",
+          "402d4d39"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_sub_3",
+    "result": {
+      "shape": [
+        1,
+        3,
+        7
+      ],
+      "f32_bits": [
+        "c1afe0ee",
+        "41ac113e",
+        "41554abe",
+        "c186deae",
+        "c1e10784",
+        "c1c302b9",
+        "409fea80",
+        "4146bf42",
+        "41c1de51",
+        "410596c2",
+        "40b007d3",
+        "c15d7d0c",
+        "c14eefca",
+        "c078a403",
+        "c032e7e0",
+        "40a0fe78",
+        "4058b9ae",
+        "4126d4ff",
+        "40ea8f84",
+        "c1267ab8",
+        "4005405a"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c1076294",
+          "4125fe94",
+          "bec3fb4b",
+          "c0aa5cc3",
+          "c148d274",
+          "c13a0836",
+          "c0b451a8",
+          "417e65d3",
+          "4149dc5e",
+          "c0e55a99",
+          "4129ce7e",
+          "c1319073",
+          "c0f02009",
+          "407e9b71",
+          "c00b3cad",
+          "413072b9",
+          "40fa0da0",
+          "3e3bc134",
+          "c0488ca9",
+          "40ada29f",
+          "bf56cf4e"
+        ]
+      },
+      "right": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "41585f49",
+          "c13223e8",
+          "c15b6a98",
+          "41388efa",
+          "41793c94",
+          "414bfd3c",
+          "c12a1e14",
+          "405e9a46",
+          "c139e044",
+          "c178440f",
+          "40a39529",
+          "402fb264",
+          "40adbf8c",
+          "40fb9fba",
+          "3f1eacce",
+          "40bfe6fa",
+          "408db0c9",
+          "c123e5fa",
+          "c1276aec",
+          "417d4c07",
+          "c03af42e"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_mul_3",
+    "result": {
+      "shape": [
+        1,
+        3,
+        7
+      ],
+      "f32_bits": [
+        "c30099d3",
+        "4290685e",
+        "409bb906",
+        "c1a0b734",
+        "c2306f32",
+        "c22570d9",
+        "409bef23",
+        "c30e9833",
+        "432cacd5",
+        "42d8765b",
+        "c2ba2dba",
+        "c31427e4",
+        "40a9e983",
+        "42063518",
+        "40bb5b11",
+        "c0cd8730",
+        "42ed305a",
+        "bfc3a9dc",
+        "4219f900",
+        "427574e7",
+        "c1041b97"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c1076294",
+          "4125fe94",
+          "bec3fb4b",
+          "c0aa5cc3",
+          "c148d274",
+          "c13a0836",
+          "c0b451a8",
+          "417e65d3",
+          "4149dc5e",
+          "c0e55a99",
+          "4129ce7e",
+          "c1319073",
+          "c0f02009",
+          "407e9b71",
+          "c00b3cad",
+          "413072b9",
+          "40fa0da0",
+          "3e3bc134",
+          "c0488ca9",
+          "40ada29f",
+          "bf56cf4e"
+        ]
+      },
+      "right": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "41732bf7",
+          "40deb55e",
+          "c14b697d",
+          "4071810b",
+          "4060e958",
+          "4063aa0b",
+          "bf5d6175",
+          "c10f7e1c",
+          "415afc98",
+          "c1719c57",
+          "c10c5759",
+          "415599d7",
+          "bf35252b",
+          "4106f10b",
+          "c02c3c3f",
+          "bf151868",
+          "4172d468",
+          "c105644a",
+          "c1448b87",
+          "4134f1f4",
+          "411d7091"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_sum_4",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "4107c2bd"
+      ]
+    }
+  },
+  {
+    "id": "random_add_4",
+    "result": {
+      "shape": [
+        3,
+        5
+      ],
+      "f32_bits": [
+        "c0a14104",
+        "40a269d6",
+        "3e457300",
+        "4133729e",
+        "4043b280",
+        "412c0df4",
+        "3e764790",
+        "c0c428b2",
+        "415579e7",
+        "4087f6d2",
+        "4159890f",
+        "c11c5d6e",
+        "41bcea0b",
+        "418af5f4",
+        "c094efc2"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c16f587d",
+          "bfa300a2",
+          "c167a167",
+          "c00e63bb",
+          "409ebc1b",
+          "3fbc89bc",
+          "402003fc",
+          "c1038e68",
+          "4163b742",
+          "417b16be",
+          "40488a7b",
+          "c13b2f86",
+          "40f4e406",
+          "40a45b7c",
+          "40d1e5de"
+        ]
+      },
+      "right": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "411eb7fb",
+          "40cb29fe",
+          "416ab733",
+          "41570b8d",
+          "bff38b6b",
+          "41147cbd",
+          "c0109f83",
+          "4005e83b",
+          "bf63d5b1",
+          "c1371b55",
+          "41276670",
+          "3ff690bd",
+          "417f6213",
+          "4143be2a",
+          "c1336ad0"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_sub_4",
+    "result": {
+      "shape": [
+        3,
+        5
+      ],
+      "f32_bits": [
+        "c194bbcd",
+        "c09613e7",
+        "c012f35c",
+        "415b1265",
+        "411b275a",
+        "416ecb6a",
+        "c12985a3",
+        "c1819080",
+        "41c75c63",
+        "40da0fb8",
+        "407971c0",
+        "c00fe398",
+        "41618eed",
+        "4133cda9",
+        "3e8c4f60"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c16f587d",
+          "bfa300a2",
+          "c167a167",
+          "c00e63bb",
+          "409ebc1b",
+          "3fbc89bc",
+          "402003fc",
+          "c1038e68",
+          "4163b742",
+          "417b16be",
+          "40488a7b",
+          "c13b2f86",
+          "40f4e406",
+          "40a45b7c",
+          "40d1e5de"
+        ]
+      },
+      "right": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "40687c76",
+          "405aa77d",
+          "c142e490",
+          "c17eab54",
+          "c097929a",
+          "c1573a32",
+          "415186a2",
+          "40ff2532",
+          "c12b0184",
+          "410e0ee2",
+          "bf439d14",
+          "c11736a0",
+          "c0ce39d4",
+          "c0c33fd6",
+          "40c920e8"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_mul_4",
+    "result": {
+      "shape": [
+        3,
+        5
+      ],
+      "f32_bits": [
+        "4192e63f",
+        "c15ae139",
+        "41cb01df",
+        "419daaa4",
+        "c1cff9d1",
+        "c168f98e",
+        "c053909b",
+        "4285e124",
+        "4342ac2e",
+        "c2fa12e0",
+        "c19a7f5b",
+        "4247d83e",
+        "c0cbe533",
+        "c034e4d7",
+        "41031e79"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c16f587d",
+          "bfa300a2",
+          "c167a167",
+          "c00e63bb",
+          "409ebc1b",
+          "3fbc89bc",
+          "402003fc",
+          "c1038e68",
+          "4163b742",
+          "417b16be",
+          "40488a7b",
+          "c13b2f86",
+          "40f4e406",
+          "40a45b7c",
+          "40d1e5de"
+        ]
+      },
+      "right": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "bf9d1efe",
+          "412be0e2",
+          "bfe05d8d",
+          "c10dbbaf",
+          "c0a7b4f3",
+          "c11e2b23",
+          "bfa93c45",
+          "c10242a8",
+          "415ada3c",
+          "c0fef70d",
+          "c0c5392d",
+          "c088a80c",
+          "bf552516",
+          "bf0ce0e6",
+          "3f9feb08"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_sum_5",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "42942ab0"
+      ]
+    }
+  },
+  {
+    "id": "random_add_5",
+    "result": {
+      "shape": [
+        1,
+        3,
+        7
+      ],
+      "f32_bits": [
+        "411bbc47",
+        "c1ae1816",
+        "41a39e7d",
+        "c11b57c6",
+        "40b75b80",
+        "4110cae7",
+        "3fa4b000",
+        "c0468b3c",
+        "418a8af4",
+        "415bc436",
+        "41deb246",
+        "c11e00ea",
+        "bf8e1f3d",
+        "c019326d",
+        "414399f6",
+        "c1afefec",
+        "3dfca700",
+        "41547a24",
+        "419fdb96",
+        "c04da824",
+        "4095d04a"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "41301cf8",
+          "c17f5bd8",
+          "410bf597",
+          "40ad829b",
+          "c10b4ca1",
+          "4139395c",
+          "c11418b2",
+          "3f88bf80",
+          "414d54b7",
+          "41796890",
+          "4161c949",
+          "40155e0f",
+          "3fa7b737",
+          "c0a8e022",
+          "4099b55a",
+          "c0fa163c",
+          "416cd0b9",
+          "40d21aef",
+          "413581ca",
+          "c17b88ce",
+          "4174e5dc"
+        ]
+      },
+      "right": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "bfa3058a",
+          "c0b9a8a8",
+          "413b4763",
+          "c1721913",
+          "4166fa61",
+          "c021b9d4",
+          "4128aeb2",
+          "c085757e",
+          "408f8261",
+          "bfed22cf",
+          "415b9b42",
+          "c143586e",
+          "c01aeb3a",
+          "40388dd7",
+          "40ed7e91",
+          "c162d4b9",
+          "c16ad76b",
+          "40d6d958",
+          "410a3561",
+          "41481ec5",
+          "c129fdb7"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_sub_5",
+    "result": {
+      "shape": [
+        1,
+        3,
+        7
+      ],
+      "f32_bits": [
+        "409ff057",
+        "c1cfab30",
+        "40b429e3",
+        "3d122b00",
+        "c0af5d6c",
+        "416df38a",
+        "c0a16261",
+        "c055d490",
+        "c0430ed0",
+        "41ccfb77",
+        "41525455",
+        "bf147c98",
+        "418720ff",
+        "409c89d2",
+        "c0d92320",
+        "c01b3768",
+        "41930a52",
+        "c0e94949",
+        "4164b978",
+        "c1781def",
+        "41b92dc4"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "41301cf8",
+          "c17f5bd8",
+          "410bf597",
+          "40ad829b",
+          "c10b4ca1",
+          "4139395c",
+          "c11418b2",
+          "3f88bf80",
+          "414d54b7",
+          "41796890",
+          "4161c949",
+          "40155e0f",
+          "3fa7b737",
+          "c0a8e022",
+          "4099b55a",
+          "c0fa163c",
+          "416cd0b9",
+          "40d21aef",
+          "413581ca",
+          "c17b88ce",
+          "4174e5dc"
+        ]
+      },
+      "right": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "40c04999",
+          "411ffa88",
+          "40478296",
+          "40ac5e45",
+          "c04e77ac",
+          "c052e8b7",
+          "c086cf03",
+          "408d1a28",
+          "417e186b",
+          "c1208e5e",
+          "3f774f3c",
+          "403a7d35",
+          "c1794b17",
+          "c122b4fa",
+          "41396c3d",
+          "c0ac7a88",
+          "c0650fae",
+          "415db21c",
+          "c03cdeba",
+          "be5ab7d6",
+          "c0faeb56"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_mul_5",
+    "result": {
+      "shape": [
+        1,
+        3,
+        7
+      ],
+      "f32_bits": [
+        "c307e0c1",
+        "c2ef92eb",
+        "c2a53e0e",
+        "4252ef5c",
+        "4294f711",
+        "4286c06c",
+        "42c415d2",
+        "415663fa",
+        "c20a3daf",
+        "c1b9c0f4",
+        "4266e2e1",
+        "c18b5856",
+        "c13cf9af",
+        "3f8d0f64",
+        "412ced3a",
+        "42aaa190",
+        "423f908c",
+        "4268428e",
+        "c318ce9c",
+        "c2ebefd5",
+        "4145505c"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "41301cf8",
+          "c17f5bd8",
+          "410bf597",
+          "40ad829b",
+          "c10b4ca1",
+          "4139395c",
+          "c11418b2",
+          "3f88bf80",
+          "414d54b7",
+          "41796890",
+          "4161c949",
+          "40155e0f",
+          "3fa7b737",
+          "c0a8e022",
+          "4099b55a",
+          "c0fa163c",
+          "416cd0b9",
+          "40d21aef",
+          "413581ca",
+          "c17b88ce",
+          "4174e5dc"
+        ]
+      },
+      "right": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c145837f",
+          "40f02ced",
+          "c1171f67",
+          "411b9bcf",
+          "c108e1b9",
+          "40ba3dd8",
+          "c1297a0d",
+          "4148acf0",
+          "c02c5ab9",
+          "bfbea9b8",
+          "4082e427",
+          "c0eed29f",
+          "c11039ac",
+          "be55d599",
+          "40100101",
+          "c12eaa63",
+          "404f1560",
+          "410d7f42",
+          "c157856f",
+          "40f02023",
+          "3f4e4245"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_sum_6",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "c21c887a"
+      ]
+    }
+  },
+  {
+    "id": "random_add_6",
+    "result": {
+      "shape": [
+        3,
+        5
+      ],
+      "f32_bits": [
+        "c10e76c0",
+        "c0b5e9e2",
+        "402490d4",
+        "c1346523",
+        "41fc16d6",
+        "40f1ff20",
+        "c15d5e2e",
+        "40680970",
+        "410a238e",
+        "412fd4c6",
+        "40d22b85",
+        "409a8d01",
+        "bffcd9f8",
+        "403fe5d4",
+        "40dbc8d1"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c11c9228",
+          "c1060f8c",
+          "c1330faa",
+          "c16d1370",
+          "4178e3e0",
+          "4121904f",
+          "c15bdc72",
+          "c0271216",
+          "3f938adf",
+          "408c7997",
+          "c0b0e777",
+          "41386bb9",
+          "c15fa88c",
+          "bfdfdef9",
+          "bd9905fa"
+        ]
+      },
+      "right": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "3f61b680",
+          "402c6a6c",
+          "415c33df",
+          "4062b934",
+          "417f49cc",
+          "c02242fc",
+          "bdc0ddc3",
+          "40c78dc3",
+          "40ef6465",
+          "40d32ff5",
+          "4141897e",
+          "c0d64a71",
+          "41400d4d",
+          "4097eaa8",
+          "40de2ce9"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_sub_6",
+    "result": {
+      "shape": [
+        3,
+        5
+      ],
+      "f32_bits": [
+        "4034626c",
+        "bfa06ec4",
+        "c194c762",
+        "c1259874",
+        "41fac1f2",
+        "4195517a",
+        "c1cdaf1c",
+        "3ff36db4",
+        "c0c5a5d9",
+        "c0b34ed5",
+        "404fd34e",
+        "406eb94e",
+        "c1ab8425",
+        "c149ff16",
+        "41730cf1"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c11c9228",
+          "c1060f8c",
+          "c1330faa",
+          "c16d1370",
+          "4178e3e0",
+          "4121904f",
+          "c15bdc72",
+          "c0271216",
+          "3f938adf",
+          "408c7997",
+          "c0b0e777",
+          "41386bb9",
+          "c15fa88c",
+          "bfdfdef9",
+          "bd9905fa"
+        ]
+      },
+      "right": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c149aac3",
+          "c0e40367",
+          "40ecfe32",
+          "c08ef5f7",
+          "c17ca004",
+          "c10912a6",
+          "413f81c5",
+          "c0906478",
+          "40ea8891",
+          "411fe436",
+          "c10c688f",
+          "40f97acb",
+          "40eebf7b",
+          "412e0337",
+          "c1743efd"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_mul_6",
+    "result": {
+      "shape": [
+        3,
+        5
+      ],
+      "f32_bits": [
+        "4270a0f9",
+        "40f83947",
+        "c21fa3f2",
+        "4206e0f1",
+        "c28e8d04",
+        "415d2d5c",
+        "431f07f7",
+        "420aec74",
+        "c074bea4",
+        "c2586faf",
+        "be9776ae",
+        "4120611d",
+        "c2549a10",
+        "4142a479",
+        "bf04e9f6"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c11c9228",
+          "c1060f8c",
+          "c1330faa",
+          "c16d1370",
+          "4178e3e0",
+          "4121904f",
+          "c15bdc72",
+          "c0271216",
+          "3f938adf",
+          "408c7997",
+          "c0b0e777",
+          "41386bb9",
+          "c15fa88c",
+          "bfdfdef9",
+          "bd9905fa"
+        ]
+      },
+      "right": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c0c4b815",
+          "bf6d0078",
+          "40643c0a",
+          "c011a524",
+          "c0929f7c",
+          "3faf3aad",
+          "c1392bd9",
+          "c154dee9",
+          "c05453d6",
+          "c145372c",
+          "3d5b2f47",
+          "3f5ea09b",
+          "40735838",
+          "c0de93a5",
+          "40de5ba4"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_sum_7",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "c0c00589"
+      ]
+    }
+  },
+  {
+    "id": "random_add_7",
+    "result": {
+      "shape": [
+        1,
+        3,
+        7
+      ],
+      "f32_bits": [
+        "3f413320",
+        "c14723dc",
+        "c171dfc3",
+        "c06001c0",
+        "c1900ea3",
+        "c0c6ef72",
+        "4127a7a6",
+        "41bd8f88",
+        "3fc7feec",
+        "414fce16",
+        "3efa9720",
+        "41158bde",
+        "c181596f",
+        "418bae9c",
+        "41883313",
+        "bee27c30",
+        "416912b9",
+        "c1dabaa2",
+        "416a01f4",
+        "418583a9",
+        "40805f66"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "40ad6924",
+          "c14d237b",
+          "bcbb9867",
+          "c1353751",
+          "c171493e",
+          "41073139",
+          "408dab7b",
+          "415269ef",
+          "c0636b86",
+          "417141fd",
+          "c0479d6c",
+          "3f99d8d2",
+          "c0bc5d1d",
+          "40e68c25",
+          "404ba5bb",
+          "c053be63",
+          "40dd167b",
+          "c15b8813",
+          "408840d9",
+          "40a34386",
+          "c138b7f5"
+        ]
+      },
+      "right": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c09542c0",
+          "3ebff3d3",
+          "c17181f7",
+          "40fa6dc2",
+          "c03b501d",
+          "c16aa8f2",
+          "40c1a3d0",
+          "4128b522",
+          "40a3b57e",
+          "c005cf9b",
+          "4066f050",
+          "410250c4",
+          "c1248450",
+          "41241725",
+          "415d7cb7",
+          "40376edd",
+          "40f50ef7",
+          "c159ed31",
+          "4125e188",
+          "4139658f",
+          "4178e7a8"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_sub_7",
+    "result": {
+      "shape": [
+        1,
+        3,
+        7
+      ],
+      "f32_bits": [
+        "c0755158",
+        "c18131a6",
+        "4089bcf2",
+        "c117070e",
+        "c1e15eb6",
+        "40e2d3e9",
+        "c101b43e",
+        "c01618a8",
+        "c0829eca",
+        "4106a85c",
+        "c070cbee",
+        "c116581b",
+        "c15cfd2c",
+        "3f4fd858",
+        "c132260e",
+        "c127ff2e",
+        "40df376c",
+        "c0812294",
+        "c1076ef6",
+        "40cbf652",
+        "c195e26c"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "40ad6924",
+          "c14d237b",
+          "bcbb9867",
+          "c1353751",
+          "c171493e",
+          "41073139",
+          "408dab7b",
+          "415269ef",
+          "c0636b86",
+          "417141fd",
+          "c0479d6c",
+          "3f99d8d2",
+          "c0bc5d1d",
+          "40e68c25",
+          "404ba5bb",
+          "c053be63",
+          "40dd167b",
+          "c15b8813",
+          "408840d9",
+          "40a34386",
+          "c138b7f5"
+        ]
+      },
+      "right": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "411408e8",
+          "4054ff43",
+          "c08a788a",
+          "bff18215",
+          "4151742d",
+          "3fae3a23",
+          "414889fc",
+          "4177f019",
+          "3f074839",
+          "40d53343",
+          "3f24ba0a",
+          "41299335",
+          "40fd9d3c",
+          "40cc911a",
+          "41650f7d",
+          "40e61f2b",
+          "bd883c3f",
+          "c11af6c9",
+          "414b8f62",
+          "bfa2cb2e",
+          "40e619c5"
+        ]
+      }
+    }
+  },
+  {
+    "id": "random_mul_7",
+    "result": {
+      "shape": [
+        1,
+        3,
+        7
+      ],
+      "f32_bits": [
+        "c1981798",
+        "c07a56cc",
+        "3e9913f3",
+        "c2d27efa",
+        "4344bf73",
+        "4290abc2",
+        "428b2564",
+        "434eeab2",
+        "c1434da1",
+        "432d6ad7",
+        "422894ba",
+        "416b8edf",
+        "c201efd1",
+        "c0dabd4a",
+        "c1a37699",
+        "4228e412",
+        "c29e82c8",
+        "c2abf05c",
+        "42464584",
+        "42847b69",
+        "41d08edc"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "40ad6924",
+          "c14d237b",
+          "bcbb9867",
+          "c1353751",
+          "c171493e",
+          "41073139",
+          "408dab7b",
+          "415269ef",
+          "c0636b86",
+          "417141fd",
+          "c0479d6c",
+          "3f99d8d2",
+          "c0bc5d1d",
+          "40e68c25",
+          "404ba5bb",
+          "c053be63",
+          "40dd167b",
+          "c15b8813",
+          "408840d9",
+          "40a34386",
+          "c138b7f5"
+        ]
+      },
+      "right": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c0608738",
+          "3e9c3423",
+          "c150e56d",
+          "4114ae7a",
+          "c150beea",
+          "4108f971",
+          "417b7081",
+          "417bbecf",
+          "405bd8db",
+          "4138039f",
+          "c158332c",
+          "4143fbba",
+          "40b097f2",
+          "bf72e36b",
+          "c0cd7c4e",
+          "c14c30cb",
+          "c1378a9e",
+          "40c88055",
+          "413a42f7",
+          "414fbbdd",
+          "c01084fb"
+        ]
+      }
+    }
+  },
+  {
+    "id": "sum_cancellation_0",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "00000000"
+      ]
+    }
+  },
+  {
+    "id": "sum_cancellation_1",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "3f800000"
+      ]
+    }
+  },
+  {
+    "id": "sum_cancellation_2",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "bfe00000"
+      ]
+    }
+  },
+  {
+    "id": "sum_cancellation_3",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "00000000"
+      ]
+    }
+  },
+  {
+    "id": "sum_cancellation_4",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "00000001"
+      ]
+    }
+  },
+  {
+    "id": "sum_random_length_31",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "41ae8046"
+      ]
+    }
+  },
+  {
+    "id": "sum_random_length_127",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "40a47592"
+      ]
+    }
+  },
+  {
+    "id": "sum_random_length_257",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "41dc69fd"
+      ]
+    }
+  },
+  {
+    "id": "matmul_rectangular_0",
+    "result": {
+      "shape": [
+        1,
+        1
+      ],
+      "f32_bits": [
+        "3fc98c28"
+      ]
+    }
+  },
+  {
+    "id": "matmul_rectangular_1",
+    "result": {
+      "shape": [
+        2,
+        5
+      ],
+      "f32_bits": [
+        "c12657f2",
+        "c1186956",
+        "411b5e87",
+        "bfacdfc0",
+        "40241a6c",
+        "c03614dd",
+        "bee65cc8",
+        "409b92cb",
+        "c191e2cc",
+        "c145f478"
+      ]
+    }
+  },
+  {
+    "id": "matmul_rectangular_2",
+    "result": {
+      "shape": [
+        3,
+        2
+      ],
+      "f32_bits": [
+        "401318fb",
+        "c1233f77",
+        "40d07eed",
+        "c15bbff4",
+        "4196cf9f",
+        "409e77ac"
+      ]
+    }
+  },
+  {
+    "id": "matmul_rectangular_3",
+    "result": {
+      "shape": [
+        1,
+        3
+      ],
+      "f32_bits": [
+        "413daec0",
+        "c1b6fc1f",
+        "c15534d9"
+      ]
+    }
+  },
+  {
+    "id": "matmul_rectangular_4",
+    "result": {
+      "shape": [
+        0,
+        2
+      ],
+      "f32_bits": []
+    }
+  },
+  {
+    "id": "matmul_rectangular_5",
+    "result": {
+      "shape": [
+        2,
+        0
+      ],
+      "f32_bits": []
+    }
+  },
+  {
+    "id": "matmul_rectangular_6",
+    "result": {
+      "shape": [
+        2,
+        3
+      ],
+      "f32_bits": [
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000"
+      ]
+    }
+  },
+  {
+    "id": "matmul_rectangular_7",
+    "result": {
+      "shape": [
+        0,
+        3
+      ],
+      "f32_bits": []
+    }
+  },
+  {
+    "id": "matmul_rectangular_8",
+    "result": {
+      "shape": [
+        2,
+        3
+      ],
+      "f32_bits": [
+        "c18606fc",
+        "c132a8cf",
+        "410dad73",
+        "42307955",
+        "41df9e34",
+        "423abeda"
+      ]
+    }
+  },
+  {
+    "id": "golden_ab",
+    "result": {
+      "shape": [
+        2,
+        2
+      ],
+      "f32_bits": [
+        "42680000",
+        "42800000",
+        "430b0000",
+        "431a0000"
+      ]
+    }
+  },
+  {
+    "id": "golden_ab_plus_bias",
+    "result": {
+      "shape": [
+        2,
+        2
+      ],
+      "f32_bits": [
+        "426c0000",
+        "427c0000",
+        "430c0000",
+        "43190000"
+      ]
+    }
+  },
+  {
+    "id": "golden_sum_415",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "43cf8000"
+      ]
+    }
+  },
+  {
+    "id": "matmul_cancellation",
+    "result": {
+      "shape": [
+        2,
+        2
+      ],
+      "f32_bits": [
+        "00000000",
+        "bf800000",
+        "00000000",
+        "00000000"
+      ]
+    }
+  },
+  {
+    "id": "ieee_sum_5",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "00000000"
+      ]
+    }
+  },
+  {
+    "id": "ieee_sum_6",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "00000003"
+      ]
+    }
+  },
+  {
+    "id": "ieee_matmul_4",
+    "result": {
+      "shape": [
+        1,
+        1
+      ],
+      "f32_bits": [
+        "00000001"
+      ]
+    }
+  },
+  {
+    "id": "construct_all_classifications",
+    "result": {
+      "shape": [
+        13
+      ],
+      "f32_bits": [
+        "00000000",
+        "80000000",
+        "00000001",
+        "80000001",
+        "007fffff",
+        "00800000",
+        "7f7fffff",
+        "3eaaaaab",
+        "7fc01234",
+        "ffc05678",
+        "7f800001",
+        "7f800000",
+        "ff800000"
+      ]
+    }
+  },
+  {
+    "id": "clone_all_classifications",
+    "result": {
+      "shape": [
+        13
+      ],
+      "f32_bits": [
+        "00000000",
+        "80000000",
+        "00000001",
+        "80000001",
+        "007fffff",
+        "00800000",
+        "7f7fffff",
+        "3eaaaaab",
+        "7fc01234",
+        "ffc05678",
+        "7f800001",
+        "7f800000",
+        "ff800000"
+      ]
+    }
+  },
+  {
+    "id": "reshape_all_classifications",
+    "result": {
+      "shape": [
+        13,
+        1
+      ],
+      "f32_bits": [
+        "00000000",
+        "80000000",
+        "00000001",
+        "80000001",
+        "007fffff",
+        "00800000",
+        "7f7fffff",
+        "3eaaaaab",
+        "7fc01234",
+        "ffc05678",
+        "7f800001",
+        "7f800000",
+        "ff800000"
+      ]
+    }
+  },
+  {
+    "id": "transpose_all_classifications",
+    "result": {
+      "shape": [
+        13,
+        1
+      ],
+      "f32_bits": [
+        "00000000",
+        "80000000",
+        "00000001",
+        "80000001",
+        "007fffff",
+        "00800000",
+        "7f7fffff",
+        "3eaaaaab",
+        "7fc01234",
+        "ffc05678",
+        "7f800001",
+        "7f800000",
+        "ff800000"
+      ]
+    }
+  },
+  {
+    "id": "permute_all_classifications",
+    "result": {
+      "shape": [
+        13,
+        1
+      ],
+      "f32_bits": [
+        "00000000",
+        "80000000",
+        "00000001",
+        "80000001",
+        "007fffff",
+        "00800000",
+        "7f7fffff",
+        "3eaaaaab",
+        "7fc01234",
+        "ffc05678",
+        "7f800001",
+        "7f800000",
+        "ff800000"
+      ]
+    }
+  },
+  {
+    "id": "ieee_add",
+    "result": {
+      "shape": [
+        9
+      ],
+      "f32_bits": [
+        "00000000",
+        "80000000",
+        "00000002",
+        "80000002",
+        "00800000",
+        "007fffff",
+        "7f800000",
+        "7fc01234",
+        "ffc00000"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          9
+        ],
+        "f32_bits": [
+          "00000000",
+          "80000000",
+          "00000001",
+          "80000001",
+          "007fffff",
+          "00800000",
+          "7f7fffff",
+          "7fc01234",
+          "7f800000"
+        ]
+      },
+      "right": {
+        "shape": [
+          9
+        ],
+        "f32_bits": [
+          "80000000",
+          "80000000",
+          "00000001",
+          "80000001",
+          "00000001",
+          "80000001",
+          "7f7fffff",
+          "3f800000",
+          "ff800000"
+        ]
+      }
+    }
+  },
+  {
+    "id": "ieee_sub",
+    "result": {
+      "shape": [
+        9
+      ],
+      "f32_bits": [
+        "00000000",
+        "80000000",
+        "00000000",
+        "80000002",
+        "007ffffe",
+        "007fffff",
+        "7f800000",
+        "7fc01234",
+        "ffc00000"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          9
+        ],
+        "f32_bits": [
+          "00000000",
+          "80000000",
+          "00000001",
+          "80000001",
+          "007fffff",
+          "00800000",
+          "7f7fffff",
+          "7fc01234",
+          "7f800000"
+        ]
+      },
+      "right": {
+        "shape": [
+          9
+        ],
+        "f32_bits": [
+          "00000000",
+          "00000000",
+          "00000001",
+          "00000001",
+          "00000001",
+          "00000001",
+          "ff7fffff",
+          "3f800000",
+          "7f800000"
+        ]
+      }
+    }
+  },
+  {
+    "id": "ieee_mul",
+    "result": {
+      "shape": [
+        9
+      ],
+      "f32_bits": [
+        "80000000",
+        "00000000",
+        "00000000",
+        "80000000",
+        "00400000",
+        "00400000",
+        "7f800000",
+        "7fc01234",
+        "ffc00000"
+      ]
+    },
+    "retained": {
+      "left": {
+        "shape": [
+          9
+        ],
+        "f32_bits": [
+          "00000000",
+          "80000000",
+          "00000001",
+          "80000001",
+          "007fffff",
+          "00800000",
+          "7f7fffff",
+          "7fc01234",
+          "7f800000"
+        ]
+      },
+      "right": {
+        "shape": [
+          9
+        ],
+        "f32_bits": [
+          "bf800000",
+          "bf800000",
+          "3f000000",
+          "3f000000",
+          "3f000000",
+          "3f000000",
+          "40000000",
+          "3f800000",
+          "00000000"
+        ]
+      }
+    }
+  },
+  {
+    "id": "ieee_sum_0",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "7fc01234"
+      ]
+    }
+  },
+  {
+    "id": "ieee_sum_1",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "ffc00000"
+      ]
+    }
+  },
+  {
+    "id": "ieee_sum_2",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "7f800000"
+      ]
+    }
+  },
+  {
+    "id": "ieee_sum_3",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "ff800000"
+      ]
+    }
+  },
+  {
+    "id": "ieee_sum_4",
+    "result": {
+      "shape": [],
+      "f32_bits": [
+        "7f800000"
+      ]
+    }
+  },
+  {
+    "id": "ieee_matmul_0",
+    "result": {
+      "shape": [
+        1,
+        1
+      ],
+      "f32_bits": [
+        "7fc01234"
+      ]
+    }
+  },
+  {
+    "id": "ieee_matmul_1",
+    "result": {
+      "shape": [
+        1,
+        1
+      ],
+      "f32_bits": [
+        "ffc00000"
+      ]
+    }
+  },
+  {
+    "id": "ieee_matmul_2",
+    "result": {
+      "shape": [
+        1,
+        1
+      ],
+      "f32_bits": [
+        "ff800000"
+      ]
+    }
+  },
+  {
+    "id": "ieee_matmul_3",
+    "result": {
+      "shape": [
+        1,
+        1
+      ],
+      "f32_bits": [
+        "7f800000"
+      ]
+    }
+  },
+  {
+    "id": "rank5",
+    "error": "RankExceeded",
+    "raw_error": "core:1"
+  },
+  {
+    "id": "rank_before_capacity",
+    "error": "RankExceeded",
+    "raw_error": "core:1"
+  },
+  {
+    "id": "capacity_1d",
+    "error": "CapacityExceeded",
+    "raw_error": "core:2"
+  },
+  {
+    "id": "capacity_product",
+    "error": "CapacityExceeded",
+    "raw_error": "core:2"
+  },
+  {
+    "id": "capacity_u32_product",
+    "error": "CapacityExceeded",
+    "raw_error": "core:2"
+  },
+  {
+    "id": "data_too_short",
+    "error": "DataLengthMismatch",
+    "raw_error": "core:10"
+  },
+  {
+    "id": "data_too_long",
+    "error": "DataLengthMismatch",
+    "raw_error": "core:10"
+  },
+  {
+    "id": "coordinate_rank",
+    "error": "CoordinateRankMismatch",
+    "raw_error": "core:3"
+  },
+  {
+    "id": "coordinate_rank_before_bounds",
+    "error": "CoordinateRankMismatch",
+    "raw_error": "core:3"
+  },
+  {
+    "id": "coordinate_oob",
+    "error": "CoordinateOutOfBounds",
+    "raw_error": "core:4"
+  },
+  {
+    "id": "empty_coordinate",
+    "error": "CoordinateOutOfBounds",
+    "raw_error": "core:4"
+  },
+  {
+    "id": "flat_index_end",
+    "error": "FlatIndexOutOfBounds",
+    "raw_error": "core:8"
+  },
+  {
+    "id": "flat_index_empty",
+    "error": "FlatIndexOutOfBounds",
+    "raw_error": "core:8"
+  },
+  {
+    "id": "reshape_count",
+    "error": "ReshapeElementCountMismatch",
+    "raw_error": "transform:15"
+  },
+  {
+    "id": "reshape_rank",
+    "error": "RankExceeded",
+    "raw_error": "transform:1"
+  },
+  {
+    "id": "reshape_capacity",
+    "error": "CapacityExceeded",
+    "raw_error": "transform:2"
+  },
+  {
+    "id": "transpose_axis",
+    "error": "AxisOutOfBounds",
+    "raw_error": "transform:13"
+  },
+  {
+    "id": "transpose_scalar",
+    "error": "AxisOutOfBounds",
+    "raw_error": "transform:13"
+  },
+  {
+    "id": "permute_duplicate",
+    "error": "InvalidPermutation",
+    "raw_error": "transform:14"
+  },
+  {
+    "id": "permute_length",
+    "error": "InvalidPermutation",
+    "raw_error": "transform:12"
+  },
+  {
+    "id": "permute_axis",
+    "error": "AxisOutOfBounds",
+    "raw_error": "transform:13"
+  },
+  {
+    "id": "broadcast_mismatch",
+    "error": "IncompatibleBroadcast",
+    "raw_error": "core:6",
+    "retained": {
+      "left": {
+        "shape": [
+          2,
+          3
+        ],
+        "f32_bits": [
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000"
+        ]
+      },
+      "right": {
+        "shape": [
+          4,
+          3
+        ],
+        "f32_bits": [
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000"
+        ]
+      }
+    }
+  },
+  {
+    "id": "broadcast_zero_nonone",
+    "error": "IncompatibleBroadcast",
+    "raw_error": "core:6",
+    "retained": {
+      "left": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      },
+      "right": {
+        "shape": [
+          2,
+          3
+        ],
+        "f32_bits": [
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000"
+        ]
+      }
+    }
+  },
+  {
+    "id": "broadcast_mul_mismatch",
+    "error": "IncompatibleBroadcast",
+    "raw_error": "core:6",
+    "retained": {
+      "left": {
+        "shape": [
+          3
+        ],
+        "f32_bits": [
+          "00000000",
+          "00000000",
+          "00000000"
+        ]
+      },
+      "right": {
+        "shape": [
+          2
+        ],
+        "f32_bits": [
+          "00000000",
+          "00000000"
+        ]
+      }
+    }
+  },
+  {
+    "id": "broadcast_output_capacity",
+    "error": "CapacityExceeded",
+    "raw_error": "core:2",
+    "retained": {
+      "left": {
+        "shape": [
+          1024,
+          1
+        ],
+        "f32_bits": [
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000"
+        ]
+      },
+      "right": {
+        "shape": [
+          1,
+          1025
+        ],
+        "f32_bits": [
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000"
+        ]
+      }
+    }
+  },
+  {
+    "id": "matmul_rank_left",
+    "error": "MatmulRankMismatch",
+    "raw_error": "matrix:rank"
+  },
+  {
+    "id": "matmul_rank_right",
+    "error": "MatmulRankMismatch",
+    "raw_error": "matrix:rank"
+  },
+  {
+    "id": "matmul_batched_unsupported",
+    "error": "MatmulRankMismatch",
+    "raw_error": "matrix:rank"
+  },
+  {
+    "id": "matmul_inner",
+    "error": "MatmulInnerMismatch",
+    "raw_error": "matrix:inner"
+  },
+  {
+    "id": "matmul_output_capacity",
+    "error": "CapacityExceeded",
+    "raw_error": "shape:2"
+  },
+  {
+    "id": "shape_boundary_0",
+    "shape_result": {
+      "shape": [],
+      "rank": 0,
+      "numel": 1
+    }
+  },
+  {
+    "id": "shape_boundary_1",
+    "shape_result": {
+      "shape": [
+        0
+      ],
+      "rank": 1,
+      "numel": 0
+    }
+  },
+  {
+    "id": "shape_boundary_2",
+    "shape_result": {
+      "shape": [
+        1
+      ],
+      "rank": 1,
+      "numel": 1
+    }
+  },
+  {
+    "id": "shape_boundary_3",
+    "shape_result": {
+      "shape": [
+        1048576
+      ],
+      "rank": 1,
+      "numel": 1048576
+    }
+  },
+  {
+    "id": "shape_boundary_4",
+    "shape_result": {
+      "shape": [
+        1024,
+        1024
+      ],
+      "rank": 2,
+      "numel": 1048576
+    }
+  },
+  {
+    "id": "shape_boundary_5",
+    "shape_result": {
+      "shape": [
+        4294967295,
+        4294967295,
+        4294967295,
+        0
+      ],
+      "rank": 4,
+      "numel": 0
+    }
+  },
+  {
+    "id": "shape_boundary_6",
+    "shape_result": {
+      "shape": [
+        0,
+        4294967295,
+        4294967295,
+        4294967295
+      ],
+      "rank": 4,
+      "numel": 0
+    }
+  }
+]

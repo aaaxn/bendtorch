@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "stage": "S2",
+  "dtype": "F32",
+  "rank_limit": 4,
+  "logical_element_limit": 1048576,
+  "execution": "Eager Bend2 CPU; JavaScript is a separate conformance lane",
+  "ownership": "Inputs are consumed or explicitly returned as retained sole owners; no shared mutable aliases",
+  "operations": [
+    {"name": "construct", "shape": "Explicit validated dimensions; supplied value count equals logical numel", "order": "Flat row-major", "errors": ["invalid rank", "capacity exceeded", "value-count mismatch"], "laws": ["shape/storage consistency", "construction preserves supplied logical elements"]},
+    {"name": "clone", "shape": "Unchanged", "order": "Preserves logical elements", "errors": [], "laws": ["logical element preservation", "sole ownership of each returned buffer"]},
+    {"name": "add", "shape": "Checked right-aligned broadcast", "order": "Output row-major; one Base F32.add per element", "errors": ["incompatible broadcast", "output capacity exceeded"], "laws": ["output shape", "broadcast projection mapping"]},
+    {"name": "sub", "shape": "Checked right-aligned broadcast", "order": "Output row-major; one Base F32.sub per element", "errors": ["incompatible broadcast", "output capacity exceeded"], "laws": ["output shape", "broadcast projection mapping"]},
+    {"name": "mul", "shape": "Checked right-aligned broadcast", "order": "Output row-major; one Base F32.mul per element", "errors": ["incompatible broadcast", "output capacity exceeded"], "laws": ["output shape", "broadcast projection mapping"]},
+    {"name": "reshape", "shape": "Equal logical element count", "order": "Preserves flat row-major order", "errors": ["invalid shape", "different logical element count"], "laws": ["linear element preservation"]},
+    {"name": "permute_copy", "shape": "Checked bijective permutation of axes", "order": "Materialized contiguous output; coordinates are mapped by the inverse permutation", "errors": ["invalid axis", "duplicate axis", "wrong permutation length"], "laws": ["coordinate mapping", "inverse permutation restores observations"]},
+    {"name": "transpose_copy", "shape": "Swap two checked axes", "order": "Materialized contiguous output; no PyTorch view-alias promise", "errors": ["invalid axis"], "laws": ["coordinate mapping", "inverse transpose restores observations"]},
+    {"name": "sum", "shape": "Scalar []", "order": "Sequential logical row-major accumulation from positive F32 zero", "errors": [], "laws": ["empty identity", "specified accumulation interpretation", "padding exclusion"]},
+    {"name": "matmul", "shape": "Rank two [m,k] and [k,n] produce [m,n]", "order": "Output row-major; each dot accumulates increasing k from positive F32 zero", "errors": ["wrong rank", "inner dimension mismatch", "output capacity exceeded"], "laws": ["output shape", "specified dot-product interpretation", "zero-inner-dimension output"]}
+  ],
+  "exclusions": ["arbitrary strided views", "shared mutation", "in-place tensor methods", "out variants", "dtype promotion", "F64", "advanced indexing", "mean of an empty domain", "1-D and batched matmul promotion", "negative index and axis wrapping", "partial coordinate indexing", "reshape -1 inference", "per-axis sum and keepdim"],
+  "torch_differences": "docs/torch-differences.md",
+  "numerical_policy": "The separately frozen S2 oracle policy governs each operation/backend/domain. No F32 ring law or native IEEE proof is claimed."
+}

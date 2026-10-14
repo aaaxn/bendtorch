@@ -1,0 +1,7 @@
+Policy v2 frozen before any Bend comparison.
+Independent arithmetic review corrected v1 underflow allowance from n*eta to n*eta/(1-n*u), covering subsequent rounding amplification. No Bend result influenced this change; evidence/numerical-policy-v1.json and policy-freeze.txt preserve v1.
+<host>
+<worktree>
+2026-10-03T07:49:42+00:00
+0a0e28b2e4666aa9a859af9a091cf0a2cad93ac10f7bb4c68413f1250853d9a4  oracle/s2/numerical-policy.json
+907e42febaf51bf6a9e1ac8a96bb84093c2db161418d8ad9e14112bb2543eccc  oracle/s2/evidence/numerical-policy-v1.json

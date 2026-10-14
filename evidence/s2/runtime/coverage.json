@@ -1,0 +1,27 @@
+{
+  "execution_mode": "source_frozen_run",
+  "live_source_drift": [],
+  "success_cases": 160,
+  "observed_tensor_results": 160,
+  "native_error_cases": 30,
+  "decoder_error_cases": 4,
+  "compile_negative_cases": 7,
+  "shape_cases": 7,
+  "copy_audit": {
+    "live_splits": 0,
+    "live_reconstructions": 0
+  },
+  "numerical_acceptance": "not performed; root must call tools.s2_numerics.verify_case",
+  "freeze": {
+    "corpus_sha256": "e8999f9170f836b86dcfb8462b5f65fc14619a9d3305fa952302ad1dc25fd356",
+    "policy_sha256": "0a0e28b2e4666aa9a859af9a091cf0a2cad93ac10f7bb4c68413f1250853d9a4"
+  },
+  "javascript": {
+    "status": "completed",
+    "lane": "generated_bend_javascript_executable",
+    "observed_tensor_results": 160,
+    "observed_api_errors": 30,
+    "observed_shape_results": 7,
+    "abi_export": "not established by this executable lane"
+  }
+}

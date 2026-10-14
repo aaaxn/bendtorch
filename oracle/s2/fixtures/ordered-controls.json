@@ -1,0 +1,26 @@
+{
+  "authority": "hand-derived binary32 controls, independent of PyTorch observations",
+  "cases": [
+    {
+      "id": "ordered_cancellation_control",
+      "op": "sum",
+      "inputs": {
+        "a": {"shape": [3], "f32_bits": ["4b800000", "3f800000", "cb800000"]}
+      },
+      "ordered_result": {"shape": [], "f32_bits": ["00000000"], "classifications": ["positive_zero"]},
+      "alternative_result": {"shape": [], "f32_bits": ["3f800000"], "classifications": ["positive_normal"]},
+      "distinction": "left-to-right positive-zero start returns zero; reassociation can return one"
+    },
+    {
+      "id": "ordered_separate_product_control",
+      "op": "matmul",
+      "inputs": {
+        "a": {"shape": [1, 2], "f32_bits": ["bf800000", "3f800001"]},
+        "b": {"shape": [2, 1], "f32_bits": ["3f800000", "3f7ffffe"]}
+      },
+      "ordered_result": {"shape": [1, 1], "f32_bits": ["00000000"], "classifications": ["positive_zero"]},
+      "alternative_result": {"shape": [1, 1], "f32_bits": ["a8800000"], "classifications": ["negative_normal"]},
+      "distinction": "(1+2^-23)*(1-2^-23) rounds to one before addition; fusing its addition to minus one returns -2^-46"
+    }
+  ]
+}

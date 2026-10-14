@@ -1,0 +1,67 @@
+[
+  {
+    "probe": "1.5 + 2.25",
+    "native": "40700000",
+    "javascript": "40700000"
+  },
+  {
+    "probe": "1.5 - 2.25",
+    "native": "bf400000",
+    "javascript": "bf400000"
+  },
+  {
+    "probe": "1.5 * 2.25",
+    "native": "40580000",
+    "javascript": "40580000"
+  },
+  {
+    "probe": "1.5 / 2.25",
+    "native": "3f2aaaab",
+    "javascript": "3f2aaaab"
+  },
+  {
+    "probe": "word 0x80000000, negative zero",
+    "native": "80000000",
+    "javascript": "80000000"
+  },
+  {
+    "probe": "word 0x00000001, smallest subnormal",
+    "native": "00000001",
+    "javascript": "00000001"
+  },
+  {
+    "probe": "1 / 0",
+    "native": "7f800000",
+    "javascript": "7f800000"
+  },
+  {
+    "probe": "0 / 0",
+    "native": "ffc00000",
+    "javascript": "ffc00000"
+  },
+  {
+    "probe": "word 0x7f800001, signaling NaN",
+    "native": "7f800001",
+    "javascript": "7fc00000"
+  },
+  {
+    "probe": "U32 16777217 to F32",
+    "native": "4b800000",
+    "javascript": "4b800000"
+  },
+  {
+    "probe": "F32 3.75 to U32",
+    "native": "00000003",
+    "javascript": "00000003"
+  },
+  {
+    "probe": "largest finite * 2",
+    "native": "7f800000",
+    "javascript": "7f800000"
+  },
+  {
+    "probe": "-1 / 0",
+    "native": "ff800000",
+    "javascript": "ff800000"
+  }
+]

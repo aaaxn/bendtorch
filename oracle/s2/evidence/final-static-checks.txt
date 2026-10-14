@@ -1,0 +1,14 @@
+<host>
+<worktree>
+ruff 0.16.10
+ty 0.0.84
+$ uv run --frozen --no-sync ruff format --check --config pyproject.toml --cache-dir oracle/s2/.ruff_cache oracle/s2
+3 files already formatted
+$ uv run --frozen --no-sync ruff check --config pyproject.toml --cache-dir oracle/s2/.ruff_cache oracle/s2
+All checks passed!
+$ uv run --frozen --no-sync ty check --python oracle/.venv/bin/python --python-version 3.12 --extra-search-path oracle/s2 --config src.include=["oracle/s2"] --error-on-warning -v oracle/s2
+INFO Defaulting to python-platform `linux`
+INFO Python version: Python 3.12, platform: linux
+INFO Indexed 2 file(s) in 0.003s
+INFO Checking file `<worktree>/oracle/s2/generate.py` took more than 100ms (111.190883ms)
+All checks passed!

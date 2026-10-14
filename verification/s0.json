@@ -1,0 +1,3 @@
+{
+  "required_exports": ["LAWS.tree_is_seq", "add_zero", "add_assoc", "seq_add", "main.pow2", "main.sum", "main.seq"]
+}

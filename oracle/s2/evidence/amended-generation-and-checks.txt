@@ -1,0 +1,12 @@
+$ uv run --frozen --no-sync ruff format --config pyproject.toml oracle/s2
+2 files left unchanged
+$ uv run --frozen --no-sync ruff check --config pyproject.toml --cache-dir oracle/s2/.ruff_cache oracle/s2
+All checks passed!
+$ uv run --frozen --no-sync ty check --python oracle/.venv/bin/python --python-version 3.12 --extra-search-path oracle/s2 --config src.include=["oracle/s2"] oracle/s2
+All checks passed!
+$ PYTHONDONTWRITEBYTECODE=1 uv run --project oracle --frozen --no-sync python oracle/s2/generate.py
+<worktree>/oracle/.venv/lib/python3.12/site-packages/torch/_subclasses/functional_tensor.py:368: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+Wrote s2-v1.json: e8999f9170f836b86dcfb8462b5f65fc14619a9d3305fa952302ad1dc25fd356
+Wrote cpu-config-v1.json: 79c5e0088aa612e043497ca932f942e06ed1c27202dc1af2117b1bee4876fb26
+Wrote mathematical-goldens-v1.json: 57c71a28e04e58b77ac73debb2939887ca9468271be666093a6d931401f9c364

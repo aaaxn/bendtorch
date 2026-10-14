@@ -1,0 +1,27 @@
+{
+  "sources": {
+    "bend": {"url": "https://github.com/bendlang/bend.git", "commit": "32d23b434be1634b7e2858870b2f9d7da8f8912a"}
+  },
+  "tools": {"uv": "0.10.2", "bun": "1.3.14", "lean": "4.34.0", "clang": "19.1.1"},
+  "bend_files": {
+    "bend2/bend.ts": "6c1df3eb304fe085070aa4797928f70243b80d4635389e3d5d8a49fdfbb3051e",
+    "bend2/comp.ts": "22e25cc47c4a78d6ea814257641ff006e264dc2d5a9a0ab6ee8ded97fed40792",
+    "bend2/main.ts": "7cf750cba822a3cc75f69afce38cbc5b6e4475dfd416c02c542db480fcaef9ef",
+    "bend2/safe.ts": "4c26ab2f2e583153523141a40f3d054c53026ce6b77407f1c422c83af521d942",
+    "bend2/bendtt.lean": "83cdd36e66dcd2cabcc3d10556c9c874f8d823956feab88f8bb5a81473d51be3",
+    "bend2/base.bend": "67a00e4a0f971f7019211ef26300e586ed71378cb799c4e2e8f47df0b6c68d91",
+    "bend2/pack/bun.lock": "b4dba235c00883a8de46b8c6ba1b35da15a2a0fcf145cb36a15c3c2d56edaf71",
+    "demos/pure_par_sum/main.bend": "8d4e84a5994fb56dd9c97a3374eb5feb2b8a539973c98eb8a6ced3994ebcf796",
+    "demos/pure_par_sum/LAWS.bend": "2a92c96de697be42cd93299950baa566acd5cd64b9365120aad8f8fc2fd0da2c",
+    "demos/pure_par_sum/PROOF.bend": "be72eeeb67e2e6444e377ece66f8c3e68db310f550e37368fe1c1380e952617e"
+  },
+  "downloads": [
+    {"file": "lean-4.34.0-linux.tar.zst", "url": "https://github.com/leanprover/lean4/releases/download/v4.34.0/lean-4.34.0-linux.tar.zst", "sha256": "caaa98356098c85dc0fcbbd28e1ec66f39eb6551829972b752ff20e1286b646b"},
+    {"file": "clang-19_1%3a19.1.1-1ubuntu1~24.04.2_amd64.deb", "url": "https://archive.ubuntu.com/ubuntu/pool/universe/l/llvm-toolchain-19/clang-19_19.1.1-1ubuntu1~24.04.2_amd64.deb", "sha256": "1b5db5ca78b9a4fa965c8f43b13770224f5cc8f05f691bbde95622c5de667ffb"},
+    {"file": "libclang-common-19-dev_1%3a19.1.1-1ubuntu1~24.04.2_amd64.deb", "url": "https://archive.ubuntu.com/ubuntu/pool/universe/l/llvm-toolchain-19/libclang-common-19-dev_19.1.1-1ubuntu1~24.04.2_amd64.deb", "sha256": "951e803e3540e2d1513f44fad07d179a85dc82b8cbb060f09ae3c602e47a8695"},
+    {"file": "libclang-cpp19_1%3a19.1.1-1ubuntu1~24.04.2_amd64.deb", "url": "https://archive.ubuntu.com/ubuntu/pool/universe/l/llvm-toolchain-19/libclang-cpp19_19.1.1-1ubuntu1~24.04.2_amd64.deb", "sha256": "c0e5aba5eea37be41d0b46ddd96a2f582eae96b1f445bcf09eae44429f3effea"},
+    {"file": "libclang1-19_1%3a19.1.1-1ubuntu1~24.04.2_amd64.deb", "url": "https://archive.ubuntu.com/ubuntu/pool/universe/l/llvm-toolchain-19/libclang1-19_19.1.1-1ubuntu1~24.04.2_amd64.deb", "sha256": "ca0340e157ab40939d40b88eb17bb14532854df631bd6fa7c6fe538401d2080e"},
+    {"file": "libllvm19_1%3a19.1.1-1ubuntu1~24.04.2_amd64.deb", "url": "https://archive.ubuntu.com/ubuntu/pool/main/l/llvm-toolchain-19/libllvm19_19.1.1-1ubuntu1~24.04.2_amd64.deb", "sha256": "a62f1074eb7aecf10e00fed9c7c967dc6c801fae444a40b8007e246320f5ee15"},
+    {"file": "llvm-19-linker-tools_1%3a19.1.1-1ubuntu1~24.04.2_amd64.deb", "url": "https://archive.ubuntu.com/ubuntu/pool/universe/l/llvm-toolchain-19/llvm-19-linker-tools_19.1.1-1ubuntu1~24.04.2_amd64.deb", "sha256": "206e9d78735080e2604011f78ad7ae63fe74f18b34cd3c85ea1be0e2b0c86af1"}
+  ]
+}

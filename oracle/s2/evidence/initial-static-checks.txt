@@ -1,0 +1,39 @@
+$ uv run --frozen --no-sync ruff format --config pyproject.toml oracle/s2
+2 files reformatted
+$ uv run --frozen --no-sync ruff check --config pyproject.toml --cache-dir oracle/s2/.ruff_cache oracle/s2
+E501 Line too long (109 > 88)
+   --> oracle/s2/generate.py:985:89
+    |
+983 |             "request": {"shape": shape},
+984 |             "expected": {"shape": shape, "rank": len(shape), "numel": math.prod(shape)},
+985 |             "authority": "independent integer shape arithmetic; no tensor allocation or PyTorch requirement",
+    |                                                                                         ^^^^^^^^^^^^^^^^^^^^^
+986 |         }
+987 |         for index, shape in enumerate(shapes)
+    |
+
+E501 Line too long (121 > 88)
+    --> oracle/s2/generate.py:1105:89
+     |
+1103 |         if not accepted:
+1104 |             raise ValueError(
+1105 |                 f"{case['id']}: output index {index} violates {comparison}: {actual:08x} versus independent {target:08x}"
+     |                                                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1106 |             )
+     |
+
+E501 Line too long (114 > 88)
+    --> oracle/s2/generate.py:1138:89
+     |
+1136 |             "seed": SEED,
+1137 |             "algorithm": "CPython random.Random MT19937",
+1138 |             "input_generation": "uniform bounded real values rounded to binary32 before all reference arithmetic",
+     |                                                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+1139 |         },
+1140 |         "finite_cases": finite,
+     |
+
+Found 3 errors.
+$ uv run --frozen --no-sync ty check --python oracle/.venv/bin/python --extra-search-path oracle/s2 oracle/s2
+WARN No python files found under the given path(s)
+All checks passed!

@@ -1,0 +1,247 @@
+# bendtorch
+
+bendtorch is a PyTorch-like tensor library written in
+[Bend2](https://github.com/bendlang/bend). All tensor code is Bend. The rules
+the code must keep are written as laws in `LAWS.bend` files. The Bend checker
+proves each law, and the BendTT kernel, a separate checker built with Lean,
+checks the exported proofs again. A separate PyTorch project in `oracle/`
+produces frozen reference outputs. Python gates in `tools/` compile the Bend
+code, run it natively and as JavaScript, and compare the results with those
+references. PyTorch never computes a bendtorch result.
+
+bendtorch is early research code. It is used from Bend programs; it has no
+Python API and is not a drop-in replacement for PyTorch. It runs on the CPU,
+with F32 tensors only, and it cannot train a model yet.
+
+About 80% of the code was written by Claude Opus (Anthropic), with Artur Xavier
+directing, reviewing and verifying the work.
+
+## What works today
+
+| Capability | Code | What it does |
+| --- | --- | --- |
+| Shapes and indexing | `src/shape/` | Validated shapes of rank 0 to 4 with at most 2^20 elements, row-major flatten and unflatten, checked coordinates, and right-aligned broadcast plans. |
+| Owned storage | `src/storage/` | F32 storage with one owner: `new`, `get`, `set`, `clone` and `length`, with bounds checks before every access. |
+| Tensor core | `src/tensor/core.bend` | `Core.new`, `from_values`, `construct`, flat and coordinate reads and writes, `clone`, and the metadata queries `length`, `shape` and `count`. |
+| Elementwise ops | `src/tensor/elementwise.bend` | `add`, `sub` and `mul` with PyTorch-style broadcasting. Each output element is one F32 operation. Both inputs come back to the caller. |
+| Sum | `src/tensor/reduction.bend` | Sum of a whole tensor to a scalar, in row-major order, starting from `+0.0`. |
+| Matmul | `src/tensor/matmul.bend` | `[m,k] @ [k,n]`. Each dot product adds in increasing `k`, starting from `+0.0`. |
+| Reshape, permute, transpose | `src/tensor/transforms.bend` | `reshape` keeps the linear order. `permute_copy` and `transpose_copy` write a new contiguous tensor. |
+| Proved contracts | `src/tensor/*-contract-LAWS.bend` | Laws that later proofs can use as inputs, for construction, reads and writes, clone and metadata, and reshape, plus the error cases of permute and transpose. |
+| Autograd building blocks | `src/autograd/` | `broadcast_to` (copies a tensor to a larger shape), `reduce_to` (sums a gradient back to the shape of its input), `sum_to_size` (the PyTorch-facing form of `reduce_to`, which keeps the input unchanged when no axis is reduced) and gradient slots (`Gradient.accumulate`, `Gradient.grad`, `Gradient.reset`, `Gradient.gradient`) that add the contributions to a gradient in the order they arrive, read as `None` until they receive one, and reset to `None`. |
+| Experimental tape | `experiments/s3a/` | Three autograd prototypes: a reverse tape, pullback closures and forward dual numbers. The reverse tape was chosen as the base for the real engine. |
+
+Every operation either consumes its inputs or gives them back to the caller
+explicitly. No two tensors share mutable storage.
+
+The [tensor core](docs/s2-core.md), [construction and clone](docs/s2-construction.md),
+[elementwise ops](docs/s2-elementwise.md), [sum and matmul](docs/s2-math.md),
+[transforms](docs/s2-transforms.md), [broadcast](docs/s3-broadcast.md),
+[reduce to shape](docs/s3-reduce.md), [sum to size](docs/s3-sum-to-size.md)
+and [gradient slots](docs/s3-gradient.md)
+pages document each capability. The [shape](docs/s1-shapes.md) and
+[storage](docs/s1-storage.md) pages document the layers below them. The
+[autograd design comparison](docs/s3-architecture.md) explains why the reverse
+tape was chosen.
+
+## What is proved and what is tested
+
+**Proved.** The laws in `src/*/LAWS.bend` state what each public operation
+returns: the output shape, which input element each output element comes
+from, the order of each sum, the error code of many failures, and that a
+returned input is unchanged. Each law quantifies over every valid input, not
+a list of examples. The gates also change the code on purpose (for example,
+they add in the wrong order or write the wrong value) and check that the
+proofs then fail for the expected reason.
+
+The laws treat F32 arithmetic as opaque. A law can say "this element is
+`F32.add` of these two words in this order", but it does not say that the
+result is correctly rounded. No law proves an IEEE 754 fact. The trusted base
+also includes the Bend compiler, the native runtime, Clang, the BendTT
+translation, Lean and the hardware. The second check by the kernel does not
+verify how Bend compiles the code. The [guarantee ledger](docs/guarantees.md)
+lists the full boundary.
+
+**Live and erased proofs.** Bend has two kinds of proof evidence. Erased
+evidence is checked and then removed, so other code cannot take it as an
+input. Live evidence is an ordinary value that another proof or a later
+operation can receive as an argument. The contract laws make these facts live:
+construction, reads and writes, clone and metadata, reshape, and the failures
+of permute and transpose. These live contracts cover tensors built by
+`Core.new` with one fill value. The values written by a successful permute,
+transpose, elementwise op, sum or matmul are proved only with erased evidence
+today. The autograd laws are erased too. The
+[proof boundary](docs/r1-proof-boundary.md) page explains the difference.
+
+**Tested.** The numerical results are tested, not proved. The frozen corpus in
+`oracle/s2/fixtures/s2-v2.json` has 161 successful operation cases, 45
+expected errors and 7 shape-only cases, including empty and scalar tensors,
+signed zeros, subnormals, infinities and NaNs. The tensor gate runs every case
+in two lanes, native CPU and generated JavaScript. Data-moving operations must
+match bit for bit, except for NaN payloads. Finite `add`, `sub` and `mul`
+results must be the correctly rounded word, which is also PyTorch's word.
+IEEE edge cases must give the exact word, or the same class (NaN or signed
+infinity) when the result is not finite. `sum` and `matmul` must be within a
+published rounding-error bound, and a zero result must have PyTorch's sign.
+The [numerical policy](oracle/s2/README.md) defines these rules. Version 2 of
+the policy was frozen before any Bend result was compared with it; version 3
+only adds checks to it. A supplement of 29 cases and 2 errors extends the
+corpus with `matmul_add` bias, cancellation and signed-zero cases and `get` on
+special words. The cases were then used
+during development, so they are regression evidence, not held-out evidence.
+The autograd building blocks have their own native and JavaScript lanes, which
+compare each output word, bit for bit, with a Python reference that follows
+the same order. A frozen [PyTorch record](oracle/s3/README.md) of every one of
+those requests ties the references to PyTorch's `expand`, `sum_to_size` and
+`backward`: they agree word for word, apart from the listed rank, capacity,
+NaN-payload and `None`-gradient differences.
+
+## Limits
+
+- F32 only. There is no other dtype and no dtype promotion.
+- At most rank 4 and 2^20 elements per tensor.
+- No views. `reshape` moves the storage to the new shape, and `permute_copy`
+  and `transpose_copy` always copy. There are no strides, no in-place methods
+  and no `out=` variants.
+- Axes, dimensions and indices are unsigned 32-bit integers. There are no
+  negative axes or indices, no `-1` in `reshape`, no slicing and no advanced
+  indexing.
+- `sum` reduces the whole tensor. It has no `dim` or `keepdim` argument.
+- `matmul` takes two rank-2 tensors. It does not promote 1-D inputs and does
+  not batch.
+- `sum`, `matmul`, `reduce_to` and `sum_to_size` (when it reduces axes) add in
+  a fixed sequential order. PyTorch uses a different order, so the two agree
+  within the rounding bound, not word for word, on longer inputs.
+- `reduce_to` turns `-0.0` into `+0.0` when the input and target shapes are
+  equal, as its ordered-fold specification says. PyTorch's autograd returns the
+  input unchanged there; `sum_to_size` matches PyTorch word for word in that
+  case only, and within the rounding bound when it reduces axes.
+  `Gradient.grad` reads a slot that received nothing as `None`, like
+  PyTorch's `.grad`; `Gradient.gradient` is the separate read that gives zeros.
+- There is no backward pass in `src/` yet. The tape in `experiments/` is not
+  checked by any gate and has known bugs: the scalar tape seeds the newest
+  node instead of a selected output, and the tensor tape does not reject node
+  ids that are out of range.
+- CPU only. The gates run native code on one thread, and no performance work
+  has been done yet.
+
+The [differences from PyTorch](docs/torch-differences.md) page lists each
+request that PyTorch accepts and bendtorch rejects.
+
+## Next steps
+
+1. Live contracts for the values that transforms, sum and matmul compute, so
+   the autograd proofs can build on them.
+2. A reverse-mode engine, first for scalars and then for tensors, on top of
+   the gradient slots.
+3. PyTorch-conformance fixes: adopt a stricter numerical policy.
+4. Neural-network modules: `Linear`, activations and losses.
+5. A training loop and optimizers.
+6. Performance: parallel CPU code and GPU kernels.
+7. An API that is closer to PyTorch.
+
+Each step lands as one capability with its laws, proofs and a gate. No step
+weakens an existing law, removes a test case or widens a numerical tolerance.
+
+## Quickstart
+
+The supported host is Ubuntu 24.04 on x86_64. You need Git, GCC 13, the libc
+development headers, tar, zstd, dpkg-deb, [uv](https://docs.astral.sh/uv/)
+0.10.2 and [Bun](https://bun.sh/) 1.3.14.
+
+bendtorch uses one exact Bend2 commit, pinned in
+`verification/references.json`. Bootstrap fetches that commit, builds the
+BendTT kernel, and downloads checksum-pinned Lean 4.34.0 and Clang 19.1.1
+into `.tools/`. It changes nothing outside the repository. A `bend` already
+on your `PATH` can be a different version, and it can reject this code.
+
+```sh
+uv sync --locked
+uv run --locked python -m tools.bootstrap
+```
+
+To run the pinned Bend2 by hand:
+
+```sh
+export BEND_NO_TELEMETRY=1 BENDTT="$PWD/.tools/kernel/bendtt" LEAN_STACK_SIZE_KB=4194304
+alias bend="bun $PWD/.tools/bend/bend2/main.ts"
+bend guide
+```
+
+[Bumping the Bend pin](docs/bend-pin.md) describes how the pin follows
+upstream main.
+
+### Fast checks
+
+These finish in seconds:
+
+```sh
+uv run --locked python -m unittest discover -s tests -p test_s2_numerics.py -v
+uv run --locked ruff check tools tests
+uv run --locked ruff format --check tools tests
+uv run --locked ty check
+```
+
+To compile and run a small native program that builds two matrices, multiplies
+them, adds a bias and sums the result:
+
+```sh
+export CC="$PWD/.tools/llvm/usr/bin/clang-19"
+export LD_LIBRARY_PATH="$PWD/.tools/llvm/usr/lib/x86_64-linux-gnu"
+mkdir -p .evidence/demo
+bend src/tensor/matmul-demo.bend -o .evidence/demo/matmul-demo
+.evidence/demo/matmul-demo --threads 1 --gpu off
+```
+
+It prints 23 lines of F32 bit patterns as decimal integers. The first five,
+`1137672192`, `1114374144`, `1115422720`, `1124859904` and `1125711872`, are
+the sum 415 and the matrix `[[59, 63], [140, 153]]`.
+
+### Full verification
+
+These checks are slower and use several GB of memory. Each gate writes its
+evidence to a new directory and refuses to overwrite an existing one.
+
+```sh
+bend PROOF.bend --verdict
+uv run --locked python -m unittest discover -s tests -v
+uv run --locked python -m tools.s0 --output .evidence/<new directory>
+uv run --locked python -m tools.s1 --output .evidence/<new directory>
+uv run --locked python -m tools.s2 --output .evidence/<new directory>
+uv run --locked python -m tools.s3 --output .evidence/<new directory>
+uv run --locked python -m verification.r1-b.run --output <new directory>
+```
+
+`PROOF.bend` checks the shape, storage and tensor laws. The gates are numbered
+in the order the capabilities were added. `tools.s0` checks the toolchain
+itself, `tools.s1` shapes and storage, `tools.s2` tensors and the frozen
+corpus, and `tools.s3` the autograd building blocks and their laws. The last
+command checks the proved contracts and their negative controls. `evidence/`
+keeps one recorded run of each completed gate.
+
+The oracle has its own uv project with a CPU-only PyTorch, so PyTorch is
+never installed in the root environment. The [oracle](oracle/README.md) and
+[tensor oracle](oracle/s2/README.md) pages explain how to check and regenerate
+the references.
+
+## Repository layout
+
+| Path | Contents |
+| --- | --- |
+| `src/` | The Bend library: `shape`, `storage`, `tensor` and `autograd`, each with its `LAWS.bend` and `PROOF.bend`. |
+| `LAWS.bend`, `PROOF.bend` | The root law and proof files. |
+| `verification/` | Per-gate law roots, required proof exports, the Bend pin, and the contract consumers and controls. |
+| `tools/` | Python gates and the bootstrap. |
+| `tests/` | Python tests for the gates. |
+| `oracle/` | The isolated PyTorch reference project and its frozen fixtures. |
+| `experiments/` | Experimental code, outside `src/` until it is promoted. |
+| `probes/` | Small Bend programs used by the gates. |
+| `evidence/` | Recorded gate runs. |
+| `docs/` | Design notes and contracts for each capability. |
+
+## Contributing
+
+[AGENTS.md](AGENTS.md) has the working rules: use the pinned Bend2, add a law
+for each rule a later change must not break, never weaken an existing law, and
+run the checks above before a pull request. There is no CI. Each pull request
+lists the commands it ran, their exit codes and the Bend commit.

@@ -1,0 +1,17 @@
+[project]
+name = "bendtorch-oracle"
+version = "0.0.0"
+requires-python = "==3.12.*"
+dependencies = ["torch==2.14.1+cpu"]
+
+[tool.uv]
+package = false
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

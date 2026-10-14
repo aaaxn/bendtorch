@@ -1,0 +1,24 @@
+$ cd oracle/s2 && PYTHONDONTWRITEBYTECODE=1 uv run --project .. --frozen --no-sync python -m unittest discover -s tests -v
+<worktree>/oracle/.venv/lib/python3.12/site-packages/torch/_subclasses/functional_tensor.py:368: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+test_all_raw_words_and_classifications_are_present (test_oracle.S2OracleTests.test_all_raw_words_and_classifications_are_present) ... ok
+test_broadcast_including_zero_one_in_both_directions (test_oracle.S2OracleTests.test_broadcast_including_zero_one_in_both_directions) ... ok
+test_empty_reduction_and_matmul_k0_have_positive_zero_identity (test_oracle.S2OracleTests.test_empty_reduction_and_matmul_k0_have_positive_zero_identity) ... ok
+test_error_contract_and_shape_capacity_boundaries (test_oracle.S2OracleTests.test_error_contract_and_shape_capacity_boundaries) ... ok
+test_every_torch_output_satisfies_frozen_independent_policy (test_oracle.S2OracleTests.test_every_torch_output_satisfies_frozen_independent_policy) ... ok
+test_exact_runtime_identity_and_frozen_policy (test_oracle.S2OracleTests.test_exact_runtime_identity_and_frozen_policy) ... ok
+test_frozen_documents_match_live_generation (test_oracle.S2OracleTests.test_frozen_documents_match_live_generation) ... ok
+test_ieee_edges_independently_define_signed_zero_and_overflow (test_oracle.S2OracleTests.test_ieee_edges_independently_define_signed_zero_and_overflow) ... ok
+test_independent_exact_binary32_rounding (test_oracle.S2OracleTests.test_independent_exact_binary32_rounding) ... ok
+test_mathematical_goldens_are_separate_and_independent (test_oracle.S2OracleTests.test_mathematical_goldens_are_separate_and_independent) ... ok
+test_no_tolerance_filtering_or_missing_output_is_accepted (test_oracle.S2OracleTests.test_no_tolerance_filtering_or_missing_output_is_accepted) ... ok
+test_reduction_envelope_depends_on_length_and_cancellation (test_oracle.S2OracleTests.test_reduction_envelope_depends_on_length_and_cancellation) ... ok
+test_row_major_reshape_transpose_and_permutation_are_materialized (test_oracle.S2OracleTests.test_row_major_reshape_transpose_and_permutation_are_materialized) ... ok
+test_schema_and_full_case_coverage (test_oracle.S2OracleTests.test_schema_and_full_case_coverage) ... ok
+test_snapshot_rejects_non_f32_and_cpu_config_is_actual (test_oracle.S2OracleTests.test_snapshot_rejects_non_f32_and_cpu_config_is_actual) ... ok
+test_two_actual_regenerations_and_read_only_stale_detection (test_oracle.S2OracleTests.test_two_actual_regenerations_and_read_only_stale_detection) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 4.923s
+
+OK

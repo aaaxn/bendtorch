@@ -1,0 +1,66 @@
+{
+  "status": "proposed source-backed expectation, not an observed PyTorch run",
+  "base_corpus_sha256": "e8999f9170f836b86dcfb8462b5f65fc14619a9d3305fa952302ad1dc25fd356",
+  "policy_sha256": "0a0e28b2e4666aa9a859af9a091cf0a2cad93ac10f7bb4c68413f1250853d9a4",
+  "authority": {
+    "pytorch_commit": "5c4886908584029761b579af026dcfb627c84070",
+    "source_locations": [
+      "aten/src/ATen/native/TensorShape.cpp:3752-3776",
+      "c10/core/WrapDimMinimal.h:19-38",
+      "c10/core/WrapDimMinimal.cpp:11-31"
+    ]
+  },
+  "replaced_id": "transpose_scalar",
+  "historical_request": {
+    "shape": [],
+    "dims": [0, 0]
+  },
+  "historical_expected_error": "AxisOutOfBounds",
+  "replacement": {
+    "id": "transpose_scalar",
+    "op": "transpose_copy",
+    "inputs": {
+      "a": {
+        "shape": [],
+        "f32_bits": ["40e00000"],
+        "classifications": ["positive_normal"]
+      }
+    },
+    "parameters": {"dims": [0, 0]},
+    "comparison_policy": "exact_words",
+    "outputs": {
+      "result": {
+        "shape": [],
+        "f32_bits": ["40e00000"],
+        "classifications": ["positive_normal"]
+      }
+    },
+    "independent_reference": {
+      "result": {
+        "shape": [],
+        "f32_bits": ["40e00000"],
+        "classifications": ["positive_normal"]
+      }
+    }
+  },
+  "scalar_invalid_axes": [[1, 0], [0, 1], [1, 1], [4294967295, 0], [0, 4294967295]],
+  "preserved_scalar_words": ["40e00000", "80000000", "00000001"],
+  "ownership_write": {
+    "flat_index": 0,
+    "value_word": "42c60000",
+    "retained_input_word": "40e00000",
+    "output_word": "42c60000"
+  },
+  "proposed_inventory_without_extra_cases": {
+    "successes": 161,
+    "finite_cases": 141,
+    "edge_cases": 3,
+    "nonfinite_cases": 17,
+    "expected_errors": 40,
+    "executable_api_errors": 29,
+    "decoder_controls": 4,
+    "compile_negative_controls": 7,
+    "shape_cases": 7,
+    "retained_binary": 67
+  }
+}

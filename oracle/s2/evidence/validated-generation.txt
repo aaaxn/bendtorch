@@ -1,0 +1,6 @@
+$ PYTHONDONTWRITEBYTECODE=1 uv run --project oracle --frozen --no-sync python oracle/s2/generate.py
+<worktree>/oracle/.venv/lib/python3.12/site-packages/torch/_subclasses/functional_tensor.py:368: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:84.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+Wrote s2-v1.json: 0abfe6faeeab270c4ec9f508d45e198c9fe34da6f3d680035205747dcd92fdba
+Wrote cpu-config-v1.json: 85006f994dc5f191cabd697aba122bbc43f7931a1f0eb15823bae527f0e5c172
+Wrote mathematical-goldens-v1.json: 57c71a28e04e58b77ac73debb2939887ca9468271be666093a6d931401f9c364

@@ -1,0 +1,85 @@
+{
+  "policy_version": 1,
+  "status": "frozen_before_any_Bend_comparison",
+  "scope": {
+    "dtype": "float32",
+    "backend": "native_cpu",
+    "rank_min": 0,
+    "rank_max": 4,
+    "logical_capacity": 1048576,
+    "dimension_transport": "U32; negatives and values above 4294967295 are rejected, never wrapped",
+    "layout": "materialized logical row-major; no alias or stride contract",
+    "operations": ["construct", "clone", "get", "add", "sub", "mul", "sum", "reshape", "transpose_copy", "permute_copy", "matmul", "matmul_add"],
+    "excluded": ["mean", "loss", "autograd", "CUDA", "HIP", "dtype promotion", "batched matmul", "transpose aliasing"]
+  },
+  "reference_identity": {
+    "torch_version": "2.14.1+cpu",
+    "torch_git_version": "5c4886908584029761b579af026dcfb627c84070",
+    "cuda_version": null,
+    "hip_version": null
+  },
+  "reference_configuration": {
+    "num_threads": 1,
+    "num_interop_threads": 1,
+    "deterministic_algorithms": true,
+    "default_dtype": "torch.float32",
+    "float32_matmul_precision": "highest",
+    "flush_denormal": false
+  },
+  "policies": {
+    "exact_words": {
+      "operations": ["construct", "clone", "get", "reshape", "transpose_copy", "permute_copy"],
+      "finite": "exact 32-bit words, including signed zero and subnormals",
+      "infinity": "exact sign and classification",
+      "nan": "require NaN classification; record payload/sign/quiet bit as observation, not portable equality",
+      "independent_reference": "raw input words and independent row-major coordinate mapping"
+    },
+    "bounded_elementwise": {
+      "operations": ["add", "sub", "mul"],
+      "domain": "finite normal or zero inputs with abs(value) <= 16; finite outputs; no intermediate overflow",
+      "atol": "1e-6",
+      "rtol": "1e-5",
+      "acceptance": "abs(observed - exact mathematical result) <= atol + rtol * abs(exact mathematical result)",
+      "independent_reference": "exact binary32 input rationals; exact rational arithmetic; separately rounded binary32 RN-even words",
+      "pytorch_comparison": "also require the same disclosed tolerance against the frozen PyTorch value"
+    },
+    "reduction_envelope": {
+      "operations": ["sum", "matmul", "matmul_add"],
+      "domain": "finite inputs, finite exact result, no overflow in any permitted accumulation; individual terms and sum(abs(terms)) < 2^120; n*u < 1",
+      "u": "1/16777216",
+      "eta": "1/1427247692705959881058285969449495136382746624",
+      "gamma": "gamma(n) = n*u / (1 - n*u)",
+      "sum_n": "input element count (conservative count includes initial +0 addition)",
+      "matmul_n": "2*K (permits separate product rounding and any binary addition tree; FMA is covered)",
+      "matmul_add_n": "2*K + 1; append bias as one additional exact term",
+      "bound": "gamma(n) * sum(abs(exact terms)) + n*eta; eta = 2^-150 covers gradual-underflow absolute rounding",
+      "acceptance": "each output's exact rational error <= its serialized exact rational bound; no universal atol/rtol",
+      "cancellation": "serialize abs_sum, exact result, accumulation length, and condition number; exact zero has condition infinite when abs_sum > 0",
+      "pytorch_comparison": "require both implementations independently within the mathematical envelope and abs(Bend - PyTorch) <= 2*bound; an exact-zero bound requires exact real value",
+      "empty_identity": "sum of empty input and matmul K=0 are positive-zero words; no tolerance",
+      "limitations": "not a correctness proof or an accuracy guarantee beyond this declared domain; a large cancellation bound is visible evidence, never a reason to drop a case"
+    },
+    "ieee_edges": {
+      "operations": ["add", "sub", "mul", "sum", "matmul"],
+      "domain": "separate named cases outside the bounded domain: NaN, infinity, signed zero, subnormal, overflow",
+      "finite": "single elementwise results require exact RN-even binary32 words; deterministic identity reductions require explicit words",
+      "nonfinite": "require NaN or signed-infinity classification independently of any numerical tolerance",
+      "nan_payload": "retain observed words; do not equate payloads or silently filter them",
+      "overflow": "only cases with an independently unambiguous overflow classification; no order-dependent overflow reduction acceptance",
+      "underflow": "gradual underflow required; flushing subnormals is not an accepted alternate backend"
+    },
+    "exact_golden": {
+      "operations": ["matmul", "matmul_add", "sum"],
+      "acceptance": "exact words as well as exact rational mathematical result",
+      "values": {"AB": [[58, 64], [139, 154]], "AB_plus_b": [[59, 63], [140, 153]], "sum_AB_plus_b": 415}
+    },
+    "expected_errors": {
+      "acceptance": "explicit semantic category; no allocation or arithmetic before rejected rank/capacity; no silent coercion",
+      "categories": ["RankExceeded", "CapacityExceeded", "U32Range", "DataLengthMismatch", "CoordinateRankMismatch", "CoordinateOutOfBounds", "FlatIndexOutOfBounds", "AxisOutOfBounds", "InvalidPermutation", "ReshapeElementCountMismatch", "IncompatibleBroadcast", "MatmulRankMismatch", "MatmulInnerMismatch", "UnsupportedDtype"],
+      "dtype_boundary": "unsupported dtype errors apply to a dynamic tagged interface if it exists; an F32-only typed API must instead be tested by the root's compile-negative runner",
+      "precedence": "rank before capacity; coordinate rank before coordinate bounds; matmul rank before inner dimensions"
+    }
+  },
+  "authority": "PyTorch is observed reference evidence, not the sole specification; exact rational arithmetic, row-major maps, IEEE classifications, and mathematical goldens are independent.",
+  "change_control": "Any change to domain, tolerance, classification, operation scope or backend requires a new policy version and reviewed corpus regeneration; never tune after Bend results."
+}

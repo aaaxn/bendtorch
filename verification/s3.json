@@ -1,0 +1,29 @@
+{
+  "required_exports": [
+    "_2e_._2f_.._2f_src_2f_autograd_2f_broadcast_2d_LAWS.keep_left_scalar",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_broadcast_2d_LAWS.broadcast_retains_input",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_broadcast_2d_LAWS.broadcast_mapping",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_broadcast_2d_LAWS.broadcast_valid_success",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_broadcast_2d_LAWS.broadcast_shape_error",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_broadcast_2d_LAWS.broadcast_not_target",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_reduce_2d_LAWS.reduce_retains_input",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_reduce_2d_LAWS.reduce_mapping",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_reduce_2d_LAWS.reduce_valid_success",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_reduce_2d_LAWS.reduce_empty_zeros",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_reduce_2d_LAWS.reduce_shape_error",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_reduce_2d_LAWS.reduce_not_reducible",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_sum_2d_to_2d_size_2d_LAWS.sum_to_size_retains_input",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_sum_2d_to_2d_size_2d_LAWS.sum_to_size_identity",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_sum_2d_to_2d_size_2d_LAWS.sum_to_size_reduces",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_gradient_2d_LAWS.gradient_unset_zeros",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_gradient_2d_LAWS.gradient_held",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_gradient_2d_LAWS.accumulate_mapping",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_gradient_2d_LAWS.accumulate_refusal_keeps",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_gradient_2d_LAWS.accumulate_valid_success",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_gradient_2d_LAWS.grad_unset_none",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_gradient_2d_LAWS.grad_held_some",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_gradient_2d_LAWS.reset_unset",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_gradient_2d_LAWS.reset_then_accumulate_moves_in",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_gradient_2d_LAWS.accumulate_wrong_shape_refused"
+  ]
+}

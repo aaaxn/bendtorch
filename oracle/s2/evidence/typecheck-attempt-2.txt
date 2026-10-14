@@ -1,0 +1,15 @@
+$ uv run --frozen --no-sync ty check --python oracle/.venv/bin/python --python-version 3.12 --extra-search-path oracle/s2 --config src.include=["oracle/s2"] oracle/s2
+error[invalid-argument-type]: Argument to function `from_values` is incorrect
+   --> oracle/s2/generate.py:615:50
+    |
+615 |                 {"a": from_values([len(values)], values)},
+    |                                                  ^^^^^^ Expected `list[float]`, found `list[int] | list[float]`
+info: element `list[int]` of union `list[int] | list[int | float*]` is not assignable to `list[float]`
+info: └── element `float*` of union `int | float*` is not assignable to `int`
+info: Function defined here
+   --> oracle/s2/generate.py:107:5
+    |
+107 | def from_values(shape: list[int], values: list[float]) -> Json:
+    |     ^^^^^^^^^^^                   ------------------- Parameter declared here
+
+Found 1 diagnostic

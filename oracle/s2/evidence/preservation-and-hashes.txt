@@ -1,0 +1,26 @@
+Checking every S0 and lock hash recorded before S2 work:
+oracle/generate.py: OK
+oracle/README.md: OK
+oracle/pyproject.toml: OK
+oracle/uv.lock: OK
+oracle/tests/test_oracle.py: OK
+oracle/fixtures/cpu_config.json: OK
+oracle/fixtures/s0.json: OK
+pyproject.toml: OK
+uv.lock: OK
+
+Final S2 source and fixture hashes:
+8679133837bd160be1aed84549f00e822f8f09759625beb4fc0bf67f7672f9f8  oracle/s2/.gitignore
+5d047e5a4a90fdfc891777086332452e1ccd3ef3bc2db60becdb7bd6d26a9803  oracle/s2/README.md
+0a0e28b2e4666aa9a859af9a091cf0a2cad93ac10f7bb4c68413f1250853d9a4  oracle/s2/numerical-policy.json
+fd996e72d1633cbe89d21b4f575189fbd81a2dfb5433f2d93549f049ca73e31b  oracle/s2/generate.py
+7fee106a95648ac6a35daf0c24ef60efc9bbb336d0000f3890b54a6fad926f31  oracle/s2/tests/test_oracle.py
+79c5e0088aa612e043497ca932f942e06ed1c27202dc1af2117b1bee4876fb26  oracle/s2/fixtures/cpu-config-v1.json
+57c71a28e04e58b77ac73debb2939887ca9468271be666093a6d931401f9c364  oracle/s2/fixtures/mathematical-goldens-v1.json
+e8999f9170f836b86dcfb8462b5f65fc14619a9d3305fa952302ad1dc25fd356  oracle/s2/fixtures/s2-v1.json
+
+Reference-only artifact sizes:
+  3553 oracle/s2/fixtures/cpu-config-v1.json
+   578 oracle/s2/fixtures/mathematical-goldens-v1.json
+480104 oracle/s2/fixtures/s2-v1.json
+484235 total

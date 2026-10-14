@@ -1,0 +1,780 @@
+{
+  "arithmetic": "integer dyadics, nearest-even rounding after every primitive, gradual underflow",
+  "cases": [
+    {
+      "id": "sum_shape_0",
+      "input_sha256": "10ec7668d80ddbaab51e9f50db290487961ca8e8f79513a1d79517626eaf938e",
+      "result": {
+        "classifications": [
+          "negative_normal"
+        ],
+        "f32_bits": [
+          "bfc00000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "sum_shape_1",
+      "input_sha256": "12435c76eeb64b69593d09f5d5c6cea07549ca20536fa8649ba1086a58879149",
+      "result": {
+        "classifications": [
+          "positive_zero"
+        ],
+        "f32_bits": [
+          "00000000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "sum_shape_2",
+      "input_sha256": "17679ed97b32114f28491507dcd6f41c8fb3c367f5dd5585a1a12b597ae31e9f",
+      "result": {
+        "classifications": [
+          "negative_normal"
+        ],
+        "f32_bits": [
+          "bfc00000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "sum_shape_3",
+      "input_sha256": "b0c249557110e6d192e93b470c937d914c5e22eb2ee41b1425a7aa9f77669ac4",
+      "result": {
+        "classifications": [
+          "negative_normal"
+        ],
+        "f32_bits": [
+          "c0400000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "sum_shape_4",
+      "input_sha256": "fd067371801866bb94f35ae93d49bcd640b05ff42602610356f1a23694bf124a",
+      "result": {
+        "classifications": [
+          "negative_normal"
+        ],
+        "f32_bits": [
+          "bfc00000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "sum_shape_5",
+      "input_sha256": "4bf78bbb997f51ea3932c5814483cb012561187e72a5b3476b6246b4b355cdd5",
+      "result": {
+        "classifications": [
+          "positive_zero"
+        ],
+        "f32_bits": [
+          "00000000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "sum_shape_6",
+      "input_sha256": "cd40d60198480d3232166dafc275f244e8803749e0d465c19a4c05e30f0af591",
+      "result": {
+        "classifications": [
+          "positive_zero"
+        ],
+        "f32_bits": [
+          "00000000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "sum_shape_7",
+      "input_sha256": "5b0a46930db7a77075322a4ffe4da2ff830696f4d97edbbf49b33cf568b5828c",
+      "result": {
+        "classifications": [
+          "negative_normal"
+        ],
+        "f32_bits": [
+          "c0400000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "sum_shape_8",
+      "input_sha256": "959da2aaff2eefcf4942f58957c3a908674eb73dbd58cb1fa8ff6010627fbfa4",
+      "result": {
+        "classifications": [
+          "negative_normal"
+        ],
+        "f32_bits": [
+          "bfc00000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "sum_shape_9",
+      "input_sha256": "e8fd7d43b7883ba479cf78839d71c1e7ba70a4e832aeed1403e685fc9e8cdd22",
+      "result": {
+        "classifications": [
+          "positive_zero"
+        ],
+        "f32_bits": [
+          "00000000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "random_sum_0",
+      "input_sha256": "fa915bdcbc48444ec44cf2cd60265b4412b17e44b4993441f252273f393b9db3",
+      "result": {
+        "classifications": [
+          "positive_normal"
+        ],
+        "f32_bits": [
+          "41c88bda"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "random_sum_1",
+      "input_sha256": "c91bcf36c331f39369f7fc1cbad745e5cb86e08d648f3c76f4df7cc758241f36",
+      "result": {
+        "classifications": [
+          "negative_normal"
+        ],
+        "f32_bits": [
+          "c2210eb1"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "random_sum_2",
+      "input_sha256": "dc93d6cc2bad40c680e4a01cfc367b30a7f7ffc94bfa1f1bd6e65d7802c59224",
+      "result": {
+        "classifications": [
+          "positive_normal"
+        ],
+        "f32_bits": [
+          "4221cfaf"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "random_sum_3",
+      "input_sha256": "67fde3b6fb0478f3c702cb121614b1cc396c0f5ae174ec7e6b0426fd6243fd71",
+      "result": {
+        "classifications": [
+          "positive_normal"
+        ],
+        "f32_bits": [
+          "40023a88"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "random_sum_4",
+      "input_sha256": "12212e5baf66a872fd9b8bda183f75fd94b5c721d3b73929c41c1215bbbbcdad",
+      "result": {
+        "classifications": [
+          "positive_normal"
+        ],
+        "f32_bits": [
+          "4107c2bd"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "random_sum_5",
+      "input_sha256": "9bd24438f0a0436a5e7998f82f49103781babb217218e094317bd86feec37ca0",
+      "result": {
+        "classifications": [
+          "positive_normal"
+        ],
+        "f32_bits": [
+          "42942ab0"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "random_sum_6",
+      "input_sha256": "82f08d8d1a7a9bcdc87aff7cca225258f8319e8a86e97ca528e58de0c9a6526f",
+      "result": {
+        "classifications": [
+          "negative_normal"
+        ],
+        "f32_bits": [
+          "c21c887a"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "random_sum_7",
+      "input_sha256": "9e1e213856268aaac24dbf706be67f98ef4df0825ec3ebaa8a29fabe827470d8",
+      "result": {
+        "classifications": [
+          "negative_normal"
+        ],
+        "f32_bits": [
+          "c0c00589"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "sum_cancellation_0",
+      "input_sha256": "2dd555e88eab97419fa32ee83f3be7bc4614b886c52e60ec79016144cc7bf51b",
+      "result": {
+        "classifications": [
+          "positive_zero"
+        ],
+        "f32_bits": [
+          "00000000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "sum_cancellation_1",
+      "input_sha256": "32cdf8d1d09186bcd6e985ad933a8d081e7aa7f37c13edba03ebdd1ab1ecb3ad",
+      "result": {
+        "classifications": [
+          "positive_normal"
+        ],
+        "f32_bits": [
+          "3f800000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "sum_cancellation_2",
+      "input_sha256": "ae85d84e1053b99880e6b53730d4bc00b781a3c2f00c0c89a4c0a7fd69be9e25",
+      "result": {
+        "classifications": [
+          "negative_normal"
+        ],
+        "f32_bits": [
+          "bfe00000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "sum_cancellation_3",
+      "input_sha256": "514e40de04af8e66d9841e63be70ad197a51c4c6cc5cec8012beb51a498ebd75",
+      "result": {
+        "classifications": [
+          "positive_zero"
+        ],
+        "f32_bits": [
+          "00000000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "sum_cancellation_4",
+      "input_sha256": "b64c4b03187f2031de3a619cd1d401d389bf2299f935b803f2367ef204891ac5",
+      "result": {
+        "classifications": [
+          "positive_subnormal"
+        ],
+        "f32_bits": [
+          "00000001"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "sum_random_length_31",
+      "input_sha256": "f4fc21def9b3967e541d69be4a8cbeea3609b83c663363763f382fe1f8dcb51f",
+      "result": {
+        "classifications": [
+          "positive_normal"
+        ],
+        "f32_bits": [
+          "41ae8046"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "sum_random_length_127",
+      "input_sha256": "19b9c8797d40fd12b9869097f67443f2b330b9a12800245959b03c9bacb05705",
+      "result": {
+        "classifications": [
+          "positive_normal"
+        ],
+        "f32_bits": [
+          "40a47592"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "sum_random_length_257",
+      "input_sha256": "791d45a3bde195557d018c7f27a5f5e1791bbac4756a7446066ae598bf1123fd",
+      "result": {
+        "classifications": [
+          "positive_normal"
+        ],
+        "f32_bits": [
+          "41dc69fd"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "matmul_rectangular_0",
+      "input_sha256": "39b8e498df92facff819adaeb70d532cf1dba06b64fa1dc06c395c2518bee504",
+      "result": {
+        "classifications": [
+          "positive_normal"
+        ],
+        "f32_bits": [
+          "3fc98c28"
+        ],
+        "shape": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "matmul_rectangular_1",
+      "input_sha256": "271123a261c5a4a0f293d372e132e27f4bc9dfe1f34b39cd6e8f7453ade3020e",
+      "result": {
+        "classifications": [
+          "negative_normal",
+          "negative_normal",
+          "positive_normal",
+          "negative_normal",
+          "positive_normal",
+          "negative_normal",
+          "negative_normal",
+          "positive_normal",
+          "negative_normal",
+          "negative_normal"
+        ],
+        "f32_bits": [
+          "c12657f2",
+          "c1186956",
+          "411b5e87",
+          "bfacdfc0",
+          "40241a6c",
+          "c03614dd",
+          "bee65cc8",
+          "409b92cb",
+          "c191e2cc",
+          "c145f478"
+        ],
+        "shape": [
+          2,
+          5
+        ]
+      }
+    },
+    {
+      "id": "matmul_rectangular_2",
+      "input_sha256": "e01914bdea3d3885f007a5efc0a91cc2ff533721b1c0990d034e43e729df1c1e",
+      "result": {
+        "classifications": [
+          "positive_normal",
+          "negative_normal",
+          "positive_normal",
+          "negative_normal",
+          "positive_normal",
+          "positive_normal"
+        ],
+        "f32_bits": [
+          "401318fb",
+          "c1233f77",
+          "40d07eed",
+          "c15bbff4",
+          "4196cf9f",
+          "409e77ac"
+        ],
+        "shape": [
+          3,
+          2
+        ]
+      }
+    },
+    {
+      "id": "matmul_rectangular_3",
+      "input_sha256": "d137246e24d6b389402d6578042d5401b3fb5202e64a20c4e46629f6206c648b",
+      "result": {
+        "classifications": [
+          "positive_normal",
+          "negative_normal",
+          "negative_normal"
+        ],
+        "f32_bits": [
+          "413daec0",
+          "c1b6fc1f",
+          "c15534d9"
+        ],
+        "shape": [
+          1,
+          3
+        ]
+      }
+    },
+    {
+      "id": "matmul_rectangular_4",
+      "input_sha256": "74bc6cff5769ef2fa4495ccf5edaf125e601016d0c52baf76dfc6b1385e29fb5",
+      "result": {
+        "classifications": [],
+        "f32_bits": [],
+        "shape": [
+          0,
+          2
+        ]
+      }
+    },
+    {
+      "id": "matmul_rectangular_5",
+      "input_sha256": "6eb20386bcd0a8418b609962e3e5def547f73207d4ddb9f3e98dd0ae93c3000a",
+      "result": {
+        "classifications": [],
+        "f32_bits": [],
+        "shape": [
+          2,
+          0
+        ]
+      }
+    },
+    {
+      "id": "matmul_rectangular_6",
+      "input_sha256": "620d2092173314efc44d74c099a94c7826177b6f2cec9217a41bda31478cc3cf",
+      "result": {
+        "classifications": [
+          "positive_zero",
+          "positive_zero",
+          "positive_zero",
+          "positive_zero",
+          "positive_zero",
+          "positive_zero"
+        ],
+        "f32_bits": [
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000",
+          "00000000"
+        ],
+        "shape": [
+          2,
+          3
+        ]
+      }
+    },
+    {
+      "id": "matmul_rectangular_7",
+      "input_sha256": "08b4a726f6aac06109bdc32b58b4e9953046356131f77a03081d6bb1644c3984",
+      "result": {
+        "classifications": [],
+        "f32_bits": [],
+        "shape": [
+          0,
+          3
+        ]
+      }
+    },
+    {
+      "id": "matmul_rectangular_8",
+      "input_sha256": "7f488fdec8bcc356e7f26aa33ba98799a0f857ae8f97e51ec53dd8bb71949c61",
+      "result": {
+        "classifications": [
+          "negative_normal",
+          "negative_normal",
+          "positive_normal",
+          "positive_normal",
+          "positive_normal",
+          "positive_normal"
+        ],
+        "f32_bits": [
+          "c18606fc",
+          "c132a8cf",
+          "410dad73",
+          "42307955",
+          "41df9e34",
+          "423abeda"
+        ],
+        "shape": [
+          2,
+          3
+        ]
+      }
+    },
+    {
+      "id": "golden_ab",
+      "input_sha256": "03cdcac6a23d154c0f29770a9958afac3888cbabb6fd547cd39fd7ee9efc8267",
+      "result": {
+        "classifications": [
+          "positive_normal",
+          "positive_normal",
+          "positive_normal",
+          "positive_normal"
+        ],
+        "f32_bits": [
+          "42680000",
+          "42800000",
+          "430b0000",
+          "431a0000"
+        ],
+        "shape": [
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "id": "golden_ab_plus_bias",
+      "input_sha256": "f46f8cc56cc11d36e50a9af82c8c17bc3f37d661fb750f6a4cba9cef70231dc9",
+      "result": {
+        "classifications": [
+          "positive_normal",
+          "positive_normal",
+          "positive_normal",
+          "positive_normal"
+        ],
+        "f32_bits": [
+          "426c0000",
+          "427c0000",
+          "430c0000",
+          "43190000"
+        ],
+        "shape": [
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "id": "golden_sum_415",
+      "input_sha256": "f3556220c1fc0ee1eb574624c67bf3b74457b7f53bbace095f508f69ac4c1b3e",
+      "result": {
+        "classifications": [
+          "positive_normal"
+        ],
+        "f32_bits": [
+          "43cf8000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "matmul_cancellation",
+      "input_sha256": "5d239a7919df4ee4fe87518adb5fc3a7aa321626ef482680c07483220da109e3",
+      "result": {
+        "classifications": [
+          "positive_zero",
+          "negative_normal",
+          "positive_zero",
+          "positive_zero"
+        ],
+        "f32_bits": [
+          "00000000",
+          "bf800000",
+          "00000000",
+          "00000000"
+        ],
+        "shape": [
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "id": "ieee_sum_5",
+      "input_sha256": "33e9df06e225d72dabb4334afe8971244f4330c16bb0ab746f7c237d28af6571",
+      "result": {
+        "classifications": [
+          "positive_zero"
+        ],
+        "f32_bits": [
+          "00000000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "ieee_sum_6",
+      "input_sha256": "1f9c491124f734a873f019e303f771ab3957a9706a25d41725dbaa763b011871",
+      "result": {
+        "classifications": [
+          "positive_subnormal"
+        ],
+        "f32_bits": [
+          "00000003"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "ieee_matmul_4",
+      "input_sha256": "ef14ae6f9461c00baab9d001f126a019cee25c2f6f7df11949b4f170ee464a0d",
+      "result": {
+        "classifications": [
+          "positive_subnormal"
+        ],
+        "f32_bits": [
+          "00000001"
+        ],
+        "shape": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "ieee_sum_0",
+      "input_sha256": "30c81af741a6a35fcbbfd345aef27db9c2597f9333b399f5f394a3db570a50d9",
+      "result": {
+        "classifications": [
+          "nan"
+        ],
+        "f32_bits": [
+          "7fc00000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "ieee_sum_1",
+      "input_sha256": "1b4cfef18847737b4279ab182490613a0873f90dc738b77c61b9f3135fac1a2e",
+      "result": {
+        "classifications": [
+          "nan"
+        ],
+        "f32_bits": [
+          "7fc00000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "ieee_sum_2",
+      "input_sha256": "22ac5dc8df5df22becea8d57b72026ab9ff2d6a745eda8cf121a028c16bed5ad",
+      "result": {
+        "classifications": [
+          "positive_infinity"
+        ],
+        "f32_bits": [
+          "7f800000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "ieee_sum_3",
+      "input_sha256": "8ae9931f3b29ab9d69880fc68d1b4f8cd7785199dd9940a3092d59cc07eff206",
+      "result": {
+        "classifications": [
+          "negative_infinity"
+        ],
+        "f32_bits": [
+          "ff800000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "ieee_sum_4",
+      "input_sha256": "3a4a2fc28e270917cbd7b345a835851e54c9c7063ee52ca71ee564c155cc8fd9",
+      "result": {
+        "classifications": [
+          "positive_infinity"
+        ],
+        "f32_bits": [
+          "7f800000"
+        ],
+        "shape": []
+      }
+    },
+    {
+      "id": "ieee_matmul_0",
+      "input_sha256": "f79903123415e9318c8b32e51adb37fba1378a6cc6cf6d39a6d7563d712657f8",
+      "result": {
+        "classifications": [
+          "nan"
+        ],
+        "f32_bits": [
+          "7fc00000"
+        ],
+        "shape": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "ieee_matmul_1",
+      "input_sha256": "3a3adbd84a7eeee0ce4ef5b6f064f3d7332c1a78b2a6bf9ed3e85fb0bab68870",
+      "result": {
+        "classifications": [
+          "nan"
+        ],
+        "f32_bits": [
+          "7fc00000"
+        ],
+        "shape": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "ieee_matmul_2",
+      "input_sha256": "44c3edbb40a4f6c4d5a52a46a1f226001fdcfb3de3e7ca31d38864998f4a7f31",
+      "result": {
+        "classifications": [
+          "negative_infinity"
+        ],
+        "f32_bits": [
+          "ff800000"
+        ],
+        "shape": [
+          1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "ieee_matmul_3",
+      "input_sha256": "feda43e77c9e806dca766c9947361b004fc7bf61edda594d43835ea6a6ebc3a9",
+      "result": {
+        "classifications": [
+          "positive_infinity"
+        ],
+        "f32_bits": [
+          "7f800000"
+        ],
+        "shape": [
+          1,
+          1
+        ]
+      }
+    }
+  ],
+  "contract": "s2_ordered_f32_rne",
+  "nan": "classification only; canonical model word is not a required payload or sign",
+  "sequence": "positive-zero start, logical-order sum, increasing-inner-index separate multiply/add, then bias add"
+}

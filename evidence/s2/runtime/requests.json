@@ -1,0 +1,5813 @@
+[
+  {
+    "id": "construct_shape_0",
+    "op": "construct",
+    "inputs": {
+      "a": {
+        "shape": [],
+        "f32_bits": [
+          "bfc00000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "clone_shape_0",
+    "op": "clone",
+    "inputs": {
+      "a": {
+        "shape": [],
+        "f32_bits": [
+          "bfc00000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sum_shape_0",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [],
+        "f32_bits": [
+          "bfc00000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "construct_shape_1",
+    "op": "construct",
+    "inputs": {
+      "a": {
+        "shape": [
+          0
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "clone_shape_1",
+    "op": "clone",
+    "inputs": {
+      "a": {
+        "shape": [
+          0
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sum_shape_1",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          0
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "construct_shape_2",
+    "op": "construct",
+    "inputs": {
+      "a": {
+        "shape": [
+          1
+        ],
+        "f32_bits": [
+          "bfc00000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "clone_shape_2",
+    "op": "clone",
+    "inputs": {
+      "a": {
+        "shape": [
+          1
+        ],
+        "f32_bits": [
+          "bfc00000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sum_shape_2",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          1
+        ],
+        "f32_bits": [
+          "bfc00000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "construct_shape_3",
+    "op": "construct",
+    "inputs": {
+      "a": {
+        "shape": [
+          3
+        ],
+        "f32_bits": [
+          "bfc00000",
+          "bf800000",
+          "bf000000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "clone_shape_3",
+    "op": "clone",
+    "inputs": {
+      "a": {
+        "shape": [
+          3
+        ],
+        "f32_bits": [
+          "bfc00000",
+          "bf800000",
+          "bf000000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sum_shape_3",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          3
+        ],
+        "f32_bits": [
+          "bfc00000",
+          "bf800000",
+          "bf000000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "construct_shape_4",
+    "op": "construct",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "f32_bits": [
+          "bfc00000",
+          "bf800000",
+          "bf000000",
+          "00000000",
+          "3f000000",
+          "3f800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "clone_shape_4",
+    "op": "clone",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "f32_bits": [
+          "bfc00000",
+          "bf800000",
+          "bf000000",
+          "00000000",
+          "3f000000",
+          "3f800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sum_shape_4",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "f32_bits": [
+          "bfc00000",
+          "bf800000",
+          "bf000000",
+          "00000000",
+          "3f000000",
+          "3f800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "construct_shape_5",
+    "op": "construct",
+    "inputs": {
+      "a": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "clone_shape_5",
+    "op": "clone",
+    "inputs": {
+      "a": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sum_shape_5",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "construct_shape_6",
+    "op": "construct",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          0
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "clone_shape_6",
+    "op": "clone",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          0
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sum_shape_6",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          0
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "construct_shape_7",
+    "op": "construct",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3,
+          1
+        ],
+        "f32_bits": [
+          "bfc00000",
+          "bf800000",
+          "bf000000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "clone_shape_7",
+    "op": "clone",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3,
+          1
+        ],
+        "f32_bits": [
+          "bfc00000",
+          "bf800000",
+          "bf000000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sum_shape_7",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3,
+          1
+        ],
+        "f32_bits": [
+          "bfc00000",
+          "bf800000",
+          "bf000000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "construct_shape_8",
+    "op": "construct",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          1,
+          3,
+          1
+        ],
+        "f32_bits": [
+          "bfc00000",
+          "bf800000",
+          "bf000000",
+          "00000000",
+          "3f000000",
+          "3f800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "clone_shape_8",
+    "op": "clone",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          1,
+          3,
+          1
+        ],
+        "f32_bits": [
+          "bfc00000",
+          "bf800000",
+          "bf000000",
+          "00000000",
+          "3f000000",
+          "3f800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sum_shape_8",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          1,
+          3,
+          1
+        ],
+        "f32_bits": [
+          "bfc00000",
+          "bf800000",
+          "bf000000",
+          "00000000",
+          "3f000000",
+          "3f800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "construct_shape_9",
+    "op": "construct",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          0,
+          3,
+          1
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "clone_shape_9",
+    "op": "clone",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          0,
+          3,
+          1
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sum_shape_9",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          0,
+          3,
+          1
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "reshape_0",
+    "op": "reshape",
+    "inputs": {
+      "a": {
+        "shape": [],
+        "f32_bits": [
+          "3f800000"
+        ]
+      }
+    },
+    "parameters": {
+      "shape": [
+        1,
+        1,
+        1,
+        1
+      ]
+    }
+  },
+  {
+    "id": "reshape_1",
+    "op": "reshape",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "f32_bits": [
+          "3f800000",
+          "40000000",
+          "40400000",
+          "40800000",
+          "40a00000",
+          "40c00000"
+        ]
+      }
+    },
+    "parameters": {
+      "shape": [
+        3,
+        2
+      ]
+    }
+  },
+  {
+    "id": "reshape_2",
+    "op": "reshape",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          2
+        ],
+        "f32_bits": [
+          "3f800000",
+          "40000000",
+          "40400000",
+          "40800000",
+          "40a00000",
+          "40c00000"
+        ]
+      }
+    },
+    "parameters": {
+      "shape": [
+        6
+      ]
+    }
+  },
+  {
+    "id": "reshape_3",
+    "op": "reshape",
+    "inputs": {
+      "a": {
+        "shape": [
+          6
+        ],
+        "f32_bits": [
+          "3f800000",
+          "40000000",
+          "40400000",
+          "40800000",
+          "40a00000",
+          "40c00000"
+        ]
+      }
+    },
+    "parameters": {
+      "shape": [
+        1,
+        3,
+        2
+      ]
+    }
+  },
+  {
+    "id": "reshape_4",
+    "op": "reshape",
+    "inputs": {
+      "a": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {
+      "shape": [
+        1,
+        0,
+        1,
+        1
+      ]
+    }
+  },
+  {
+    "id": "reshape_5",
+    "op": "reshape",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3,
+          1,
+          2
+        ],
+        "f32_bits": [
+          "3f800000",
+          "40000000",
+          "40400000",
+          "40800000",
+          "40a00000",
+          "40c00000"
+        ]
+      }
+    },
+    "parameters": {
+      "shape": [
+        2,
+        3
+      ]
+    }
+  },
+  {
+    "id": "transpose_0",
+    "op": "transpose_copy",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "f32_bits": [
+          "3f800000",
+          "40000000",
+          "40400000",
+          "40800000",
+          "40a00000",
+          "40c00000"
+        ]
+      }
+    },
+    "parameters": {
+      "dims": [
+        0,
+        1
+      ]
+    }
+  },
+  {
+    "id": "transpose_1",
+    "op": "transpose_copy",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          1
+        ],
+        "f32_bits": [
+          "3f800000",
+          "40000000",
+          "40400000"
+        ]
+      }
+    },
+    "parameters": {
+      "dims": [
+        0,
+        1
+      ]
+    }
+  },
+  {
+    "id": "transpose_2",
+    "op": "transpose_copy",
+    "inputs": {
+      "a": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {
+      "dims": [
+        0,
+        1
+      ]
+    }
+  },
+  {
+    "id": "transpose_3",
+    "op": "transpose_copy",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          1,
+          3,
+          1
+        ],
+        "f32_bits": [
+          "3f800000",
+          "40000000",
+          "40400000",
+          "40800000",
+          "40a00000",
+          "40c00000"
+        ]
+      }
+    },
+    "parameters": {
+      "dims": [
+        0,
+        2
+      ]
+    }
+  },
+  {
+    "id": "transpose_4",
+    "op": "transpose_copy",
+    "inputs": {
+      "a": {
+        "shape": [
+          1
+        ],
+        "f32_bits": [
+          "3f800000"
+        ]
+      }
+    },
+    "parameters": {
+      "dims": [
+        0,
+        0
+      ]
+    }
+  },
+  {
+    "id": "permute_0",
+    "op": "permute_copy",
+    "inputs": {
+      "a": {
+        "shape": [],
+        "f32_bits": [
+          "3f800000"
+        ]
+      }
+    },
+    "parameters": {
+      "axes": []
+    }
+  },
+  {
+    "id": "permute_1",
+    "op": "permute_copy",
+    "inputs": {
+      "a": {
+        "shape": [
+          3
+        ],
+        "f32_bits": [
+          "3f800000",
+          "40000000",
+          "40400000"
+        ]
+      }
+    },
+    "parameters": {
+      "axes": [
+        0
+      ]
+    }
+  },
+  {
+    "id": "permute_2",
+    "op": "permute_copy",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "f32_bits": [
+          "3f800000",
+          "40000000",
+          "40400000",
+          "40800000",
+          "40a00000",
+          "40c00000"
+        ]
+      }
+    },
+    "parameters": {
+      "axes": [
+        1,
+        0
+      ]
+    }
+  },
+  {
+    "id": "permute_3",
+    "op": "permute_copy",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          1,
+          3
+        ],
+        "f32_bits": [
+          "3f800000",
+          "40000000",
+          "40400000",
+          "40800000",
+          "40a00000",
+          "40c00000"
+        ]
+      }
+    },
+    "parameters": {
+      "axes": [
+        2,
+        0,
+        1
+      ]
+    }
+  },
+  {
+    "id": "permute_4",
+    "op": "permute_copy",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          1,
+          3,
+          1
+        ],
+        "f32_bits": [
+          "3f800000",
+          "40000000",
+          "40400000",
+          "40800000",
+          "40a00000",
+          "40c00000"
+        ]
+      }
+    },
+    "parameters": {
+      "axes": [
+        3,
+        2,
+        0,
+        1
+      ]
+    }
+  },
+  {
+    "id": "permute_5",
+    "op": "permute_copy",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          0,
+          3,
+          1
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {
+      "axes": [
+        2,
+        0,
+        3,
+        1
+      ]
+    }
+  },
+  {
+    "id": "get_0",
+    "op": "get",
+    "inputs": {
+      "a": {
+        "shape": [],
+        "f32_bits": [
+          "3f800000"
+        ]
+      }
+    },
+    "parameters": {
+      "coordinate": []
+    }
+  },
+  {
+    "id": "get_1",
+    "op": "get",
+    "inputs": {
+      "a": {
+        "shape": [
+          3
+        ],
+        "f32_bits": [
+          "3f800000",
+          "40000000",
+          "40400000"
+        ]
+      }
+    },
+    "parameters": {
+      "coordinate": [
+        2
+      ]
+    }
+  },
+  {
+    "id": "get_2",
+    "op": "get",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "f32_bits": [
+          "3f800000",
+          "40000000",
+          "40400000",
+          "40800000",
+          "40a00000",
+          "40c00000"
+        ]
+      }
+    },
+    "parameters": {
+      "coordinate": [
+        1,
+        2
+      ]
+    }
+  },
+  {
+    "id": "get_3",
+    "op": "get",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          1,
+          3,
+          1
+        ],
+        "f32_bits": [
+          "3f800000",
+          "40000000",
+          "40400000",
+          "40800000",
+          "40a00000",
+          "40c00000"
+        ]
+      }
+    },
+    "parameters": {
+      "coordinate": [
+        1,
+        0,
+        2,
+        0
+      ]
+    }
+  },
+  {
+    "id": "add_broadcast_0",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [],
+        "f32_bits": [
+          "3f839838"
+        ]
+      },
+      "b": {
+        "shape": [],
+        "f32_bits": [
+          "400b79ba"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sub_broadcast_0",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [],
+        "f32_bits": [
+          "3f839838"
+        ]
+      },
+      "b": {
+        "shape": [],
+        "f32_bits": [
+          "400b79ba"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "mul_broadcast_0",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [],
+        "f32_bits": [
+          "3f839838"
+        ]
+      },
+      "b": {
+        "shape": [],
+        "f32_bits": [
+          "400b79ba"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "add_broadcast_1",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          3
+        ],
+        "f32_bits": [
+          "c0bc3687",
+          "bfbc35ca",
+          "c0823ba0"
+        ]
+      },
+      "b": {
+        "shape": [],
+        "f32_bits": [
+          "40b52e57"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sub_broadcast_1",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          3
+        ],
+        "f32_bits": [
+          "c0bc3687",
+          "bfbc35ca",
+          "c0823ba0"
+        ]
+      },
+      "b": {
+        "shape": [],
+        "f32_bits": [
+          "40b52e57"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "mul_broadcast_1",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          3
+        ],
+        "f32_bits": [
+          "c0bc3687",
+          "bfbc35ca",
+          "c0823ba0"
+        ]
+      },
+      "b": {
+        "shape": [],
+        "f32_bits": [
+          "40b52e57"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "add_broadcast_2",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          1
+        ],
+        "f32_bits": [
+          "c0783bb0",
+          "40c740fc"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "bfde1862",
+          "3e640a22",
+          "bf5898e4"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sub_broadcast_2",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          1
+        ],
+        "f32_bits": [
+          "c0783bb0",
+          "40c740fc"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "bfde1862",
+          "3e640a22",
+          "bf5898e4"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "mul_broadcast_2",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          1
+        ],
+        "f32_bits": [
+          "c0783bb0",
+          "40c740fc"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "bfde1862",
+          "3e640a22",
+          "bf5898e4"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "add_broadcast_3",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          1,
+          3,
+          1
+        ],
+        "f32_bits": [
+          "c0d8e0d1",
+          "403bc48c",
+          "c092aea3",
+          "403ac84f",
+          "409ebecd",
+          "40044e6f"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "c0e29d60",
+          "4089f0fd",
+          "3f28625e"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sub_broadcast_3",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          1,
+          3,
+          1
+        ],
+        "f32_bits": [
+          "c0d8e0d1",
+          "403bc48c",
+          "c092aea3",
+          "403ac84f",
+          "409ebecd",
+          "40044e6f"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "c0e29d60",
+          "4089f0fd",
+          "3f28625e"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "mul_broadcast_3",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          1,
+          3,
+          1
+        ],
+        "f32_bits": [
+          "c0d8e0d1",
+          "403bc48c",
+          "c092aea3",
+          "403ac84f",
+          "409ebecd",
+          "40044e6f"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "c0e29d60",
+          "4089f0fd",
+          "3f28625e"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "add_broadcast_4",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          0
+        ],
+        "f32_bits": []
+      },
+      "b": {
+        "shape": [
+          1
+        ],
+        "f32_bits": [
+          "40045d82"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sub_broadcast_4",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          0
+        ],
+        "f32_bits": []
+      },
+      "b": {
+        "shape": [
+          1
+        ],
+        "f32_bits": [
+          "40045d82"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "mul_broadcast_4",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          0
+        ],
+        "f32_bits": []
+      },
+      "b": {
+        "shape": [
+          1
+        ],
+        "f32_bits": [
+          "40045d82"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "add_broadcast_5",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      },
+      "b": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "bf2998aa",
+          "404dbe80",
+          "3d9a2a35"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sub_broadcast_5",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      },
+      "b": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "bf2998aa",
+          "404dbe80",
+          "3d9a2a35"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "mul_broadcast_5",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      },
+      "b": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "bf2998aa",
+          "404dbe80",
+          "3d9a2a35"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "add_broadcast_6",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          0
+        ],
+        "f32_bits": []
+      },
+      "b": {
+        "shape": [
+          3,
+          1
+        ],
+        "f32_bits": [
+          "3ffeb7c2",
+          "c057161c",
+          "409ff402"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sub_broadcast_6",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          0
+        ],
+        "f32_bits": []
+      },
+      "b": {
+        "shape": [
+          3,
+          1
+        ],
+        "f32_bits": [
+          "3ffeb7c2",
+          "c057161c",
+          "409ff402"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "mul_broadcast_6",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          0
+        ],
+        "f32_bits": []
+      },
+      "b": {
+        "shape": [
+          3,
+          1
+        ],
+        "f32_bits": [
+          "3ffeb7c2",
+          "c057161c",
+          "409ff402"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "add_broadcast_7",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          0,
+          3,
+          1
+        ],
+        "f32_bits": []
+      },
+      "b": {
+        "shape": [
+          3,
+          1
+        ],
+        "f32_bits": [
+          "40eb7ccf",
+          "c09b63d2",
+          "c096a3a4"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sub_broadcast_7",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          0,
+          3,
+          1
+        ],
+        "f32_bits": []
+      },
+      "b": {
+        "shape": [
+          3,
+          1
+        ],
+        "f32_bits": [
+          "40eb7ccf",
+          "c09b63d2",
+          "c096a3a4"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "mul_broadcast_7",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          0,
+          3,
+          1
+        ],
+        "f32_bits": []
+      },
+      "b": {
+        "shape": [
+          3,
+          1
+        ],
+        "f32_bits": [
+          "40eb7ccf",
+          "c09b63d2",
+          "c096a3a4"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "add_broadcast_8",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      },
+      "b": {
+        "shape": [
+          0,
+          1
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sub_broadcast_8",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      },
+      "b": {
+        "shape": [
+          0,
+          1
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "mul_broadcast_8",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      },
+      "b": {
+        "shape": [
+          0,
+          1
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "add_broadcast_9",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          1
+        ],
+        "f32_bits": [
+          "40997a22"
+        ]
+      },
+      "b": {
+        "shape": [
+          0
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sub_broadcast_9",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          1
+        ],
+        "f32_bits": [
+          "40997a22"
+        ]
+      },
+      "b": {
+        "shape": [
+          0
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "mul_broadcast_9",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          1
+        ],
+        "f32_bits": [
+          "40997a22"
+        ]
+      },
+      "b": {
+        "shape": [
+          0
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "add_broadcast_10",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "40f6cff9",
+          "3f7942f9",
+          "4097e272"
+        ]
+      },
+      "b": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sub_broadcast_10",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "40f6cff9",
+          "3f7942f9",
+          "4097e272"
+        ]
+      },
+      "b": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "mul_broadcast_10",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3
+        ],
+        "f32_bits": [
+          "40f6cff9",
+          "3f7942f9",
+          "4097e272"
+        ]
+      },
+      "b": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "add_broadcast_11",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          1
+        ],
+        "f32_bits": [
+          "40ca5a54",
+          "40178727",
+          "c007a4ff"
+        ]
+      },
+      "b": {
+        "shape": [
+          3,
+          0
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sub_broadcast_11",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          1
+        ],
+        "f32_bits": [
+          "40ca5a54",
+          "40178727",
+          "c007a4ff"
+        ]
+      },
+      "b": {
+        "shape": [
+          3,
+          0
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "mul_broadcast_11",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          1
+        ],
+        "f32_bits": [
+          "40ca5a54",
+          "40178727",
+          "c007a4ff"
+        ]
+      },
+      "b": {
+        "shape": [
+          3,
+          0
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_sum_0",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "3feffd6b",
+          "c0fa9f03",
+          "417f1af7",
+          "417566fe",
+          "4114cace",
+          "c15f3653",
+          "c11573ef",
+          "be1f28c1",
+          "4169a7a1",
+          "c0dea9ae",
+          "c0895ae0",
+          "415144a1",
+          "40215bfd",
+          "c12bb7ab",
+          "40b570b9"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_add_0",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "3feffd6b",
+          "c0fa9f03",
+          "417f1af7",
+          "417566fe",
+          "4114cace",
+          "c15f3653",
+          "c11573ef",
+          "be1f28c1",
+          "4169a7a1",
+          "c0dea9ae",
+          "c0895ae0",
+          "415144a1",
+          "40215bfd",
+          "c12bb7ab",
+          "40b570b9"
+        ]
+      },
+      "b": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "40be263a",
+          "4085b099",
+          "c0a25352",
+          "c0e43322",
+          "40ca31b8",
+          "4128c65f",
+          "c0f58e51",
+          "3e9e04d3",
+          "c17e4c53",
+          "41689ce3",
+          "4143fde1",
+          "402a2467",
+          "c0ded902",
+          "40a62ffc",
+          "c14c3b2e"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_sub_0",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "3feffd6b",
+          "c0fa9f03",
+          "417f1af7",
+          "417566fe",
+          "4114cace",
+          "c15f3653",
+          "c11573ef",
+          "be1f28c1",
+          "4169a7a1",
+          "c0dea9ae",
+          "c0895ae0",
+          "415144a1",
+          "40215bfd",
+          "c12bb7ab",
+          "40b570b9"
+        ]
+      },
+      "b": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "40b108a6",
+          "416f86d2",
+          "c10d450f",
+          "3fe4e9fb",
+          "40e2c9a5",
+          "c10911d2",
+          "4127134a",
+          "c0f5f429",
+          "c0832723",
+          "4006a655",
+          "c100b842",
+          "414f9192",
+          "4056191c",
+          "40e90a21",
+          "40479bab"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_mul_0",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "3feffd6b",
+          "c0fa9f03",
+          "417f1af7",
+          "417566fe",
+          "4114cace",
+          "c15f3653",
+          "c11573ef",
+          "be1f28c1",
+          "4169a7a1",
+          "c0dea9ae",
+          "c0895ae0",
+          "415144a1",
+          "40215bfd",
+          "c12bb7ab",
+          "40b570b9"
+        ]
+      },
+      "b": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "412f785a",
+          "3f03f366",
+          "c12f06f9",
+          "41381467",
+          "c1612502",
+          "c10204d3",
+          "c03e9d04",
+          "c14153b8",
+          "4152ddd0",
+          "c1577b5c",
+          "c1270356",
+          "c027102a",
+          "c1310ff3",
+          "415cdbed",
+          "c10e5b18"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_sum_1",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c03c8626",
+          "c162f617",
+          "3ff32a75",
+          "402f5484",
+          "c0f51637",
+          "41754730",
+          "40355b31",
+          "417f2bf7",
+          "c0a87474",
+          "c134099e",
+          "416525e7",
+          "c179d5c7",
+          "c0a48841",
+          "c0d12d98",
+          "c07b339c",
+          "c10d5b44",
+          "c09a1e49",
+          "c0e3021c",
+          "c0c96574",
+          "41530ced",
+          "c0dedf3e"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_add_1",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c03c8626",
+          "c162f617",
+          "3ff32a75",
+          "402f5484",
+          "c0f51637",
+          "41754730",
+          "40355b31",
+          "417f2bf7",
+          "c0a87474",
+          "c134099e",
+          "416525e7",
+          "c179d5c7",
+          "c0a48841",
+          "c0d12d98",
+          "c07b339c",
+          "c10d5b44",
+          "c09a1e49",
+          "c0e3021c",
+          "c0c96574",
+          "41530ced",
+          "c0dedf3e"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "bf5306e2",
+          "c0da37d7",
+          "c1735dbf",
+          "c03230c3",
+          "4164c954",
+          "410b79b1",
+          "be9b69bb",
+          "c17768e5",
+          "c0a9d39d",
+          "bf3bbd6a",
+          "c1757b7e",
+          "c01a0888",
+          "416dc9ed",
+          "4169fc9f",
+          "bce9ceaf",
+          "c172e8c8",
+          "40c95c0e",
+          "40f14026",
+          "c084f7b6",
+          "bfc1b197",
+          "41000126"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_sub_1",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c03c8626",
+          "c162f617",
+          "3ff32a75",
+          "402f5484",
+          "c0f51637",
+          "41754730",
+          "40355b31",
+          "417f2bf7",
+          "c0a87474",
+          "c134099e",
+          "416525e7",
+          "c179d5c7",
+          "c0a48841",
+          "c0d12d98",
+          "c07b339c",
+          "c10d5b44",
+          "c09a1e49",
+          "c0e3021c",
+          "c0c96574",
+          "41530ced",
+          "c0dedf3e"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "40f07e66",
+          "405a3551",
+          "c0e16288",
+          "408cb119",
+          "bfe35475",
+          "c1036228",
+          "bfbe6115",
+          "c10bf8ea",
+          "40f83c6a",
+          "c05d8647",
+          "c0aac787",
+          "c16bdf77",
+          "c127506f",
+          "c155e76e",
+          "c167e0ae",
+          "40edda35",
+          "befc722a",
+          "c086a6b7",
+          "3f97f960",
+          "413d34e2",
+          "c055fdd0"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_mul_1",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c03c8626",
+          "c162f617",
+          "3ff32a75",
+          "402f5484",
+          "c0f51637",
+          "41754730",
+          "40355b31",
+          "417f2bf7",
+          "c0a87474",
+          "c134099e",
+          "416525e7",
+          "c179d5c7",
+          "c0a48841",
+          "c0d12d98",
+          "c07b339c",
+          "c10d5b44",
+          "c09a1e49",
+          "c0e3021c",
+          "c0c96574",
+          "41530ced",
+          "c0dedf3e"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "4170bab9",
+          "4015d772",
+          "c1139abd",
+          "c00f4542",
+          "40dddfdb",
+          "40e15232",
+          "413d5ea9",
+          "3fc5cd94",
+          "c0f95d44",
+          "410f02a7",
+          "40b3cf64",
+          "c144611a",
+          "c0f87280",
+          "c0cb29f0",
+          "c139315c",
+          "416e94db",
+          "bf27ce9c",
+          "c11fae0f",
+          "415cbf97",
+          "c0d6fb38",
+          "c034a3ee"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_sum_2",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c171ab82",
+          "412092a0",
+          "40ba7d39",
+          "4115214a",
+          "bfb9517c",
+          "414fef0e",
+          "41796485",
+          "4118816f",
+          "408e2bdd",
+          "bd1f032a",
+          "c161069b",
+          "41212318",
+          "40b71421",
+          "c1400b96",
+          "bed89f9f"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_add_2",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c171ab82",
+          "412092a0",
+          "40ba7d39",
+          "4115214a",
+          "bfb9517c",
+          "414fef0e",
+          "41796485",
+          "4118816f",
+          "408e2bdd",
+          "bd1f032a",
+          "c161069b",
+          "41212318",
+          "40b71421",
+          "c1400b96",
+          "bed89f9f"
+        ]
+      },
+      "b": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c11f9b0e",
+          "417e1a6d",
+          "c0d83700",
+          "40c822a7",
+          "40e8c01e",
+          "4107cdbb",
+          "c15b367f",
+          "413e7adf",
+          "c1038a71",
+          "c17bc1f2",
+          "bf05fd4c",
+          "c0fc15f8",
+          "3f5ac50f",
+          "411f758a",
+          "413d267d"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_sub_2",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c171ab82",
+          "412092a0",
+          "40ba7d39",
+          "4115214a",
+          "bfb9517c",
+          "414fef0e",
+          "41796485",
+          "4118816f",
+          "408e2bdd",
+          "bd1f032a",
+          "c161069b",
+          "41212318",
+          "40b71421",
+          "c1400b96",
+          "bed89f9f"
+        ]
+      },
+      "b": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "bfe9b0ff",
+          "409612e9",
+          "c0cd6981",
+          "c145ff14",
+          "c163c2b4",
+          "417be97c",
+          "c156aee8",
+          "c088a911",
+          "c10cb0d8",
+          "40b1a827",
+          "4175eb19",
+          "bffc6331",
+          "4117a8b5",
+          "c1389949",
+          "bf1f5277"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_mul_2",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c171ab82",
+          "412092a0",
+          "40ba7d39",
+          "4115214a",
+          "bfb9517c",
+          "414fef0e",
+          "41796485",
+          "4118816f",
+          "408e2bdd",
+          "bd1f032a",
+          "c161069b",
+          "41212318",
+          "40b71421",
+          "c1400b96",
+          "bed89f9f"
+        ]
+      },
+      "b": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "41316d15",
+          "411ff8f9",
+          "40adb20c",
+          "3fb16505",
+          "c0269df6",
+          "c10a810d",
+          "c10245d0",
+          "c124dc93",
+          "c1304a22",
+          "40af8fae",
+          "c170d54f",
+          "c065b87c",
+          "3eae8215",
+          "c15ec545",
+          "c116891e"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_sum_3",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c1076294",
+          "4125fe94",
+          "bec3fb4b",
+          "c0aa5cc3",
+          "c148d274",
+          "c13a0836",
+          "c0b451a8",
+          "417e65d3",
+          "4149dc5e",
+          "c0e55a99",
+          "4129ce7e",
+          "c1319073",
+          "c0f02009",
+          "407e9b71",
+          "c00b3cad",
+          "413072b9",
+          "40fa0da0",
+          "3e3bc134",
+          "c0488ca9",
+          "40ada29f",
+          "bf56cf4e"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_add_3",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c1076294",
+          "4125fe94",
+          "bec3fb4b",
+          "c0aa5cc3",
+          "c148d274",
+          "c13a0836",
+          "c0b451a8",
+          "417e65d3",
+          "4149dc5e",
+          "c0e55a99",
+          "4129ce7e",
+          "c1319073",
+          "c0f02009",
+          "407e9b71",
+          "c00b3cad",
+          "413072b9",
+          "40fa0da0",
+          "3e3bc134",
+          "c0488ca9",
+          "40ada29f",
+          "bf56cf4e"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c027cbef",
+          "4080679a",
+          "414c1741",
+          "41624283",
+          "416ccb78",
+          "4152f8c6",
+          "c0d7f811",
+          "415dcbf4",
+          "c0d8d0d3",
+          "c10bd09d",
+          "c0d68703",
+          "40ce4d14",
+          "bf85e32a",
+          "40eca968",
+          "40839b31",
+          "40c4172b",
+          "c007f6e3",
+          "3ff1edf7",
+          "41342304",
+          "bfe60b47",
+          "402d4d39"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_sub_3",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c1076294",
+          "4125fe94",
+          "bec3fb4b",
+          "c0aa5cc3",
+          "c148d274",
+          "c13a0836",
+          "c0b451a8",
+          "417e65d3",
+          "4149dc5e",
+          "c0e55a99",
+          "4129ce7e",
+          "c1319073",
+          "c0f02009",
+          "407e9b71",
+          "c00b3cad",
+          "413072b9",
+          "40fa0da0",
+          "3e3bc134",
+          "c0488ca9",
+          "40ada29f",
+          "bf56cf4e"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "41585f49",
+          "c13223e8",
+          "c15b6a98",
+          "41388efa",
+          "41793c94",
+          "414bfd3c",
+          "c12a1e14",
+          "405e9a46",
+          "c139e044",
+          "c178440f",
+          "40a39529",
+          "402fb264",
+          "40adbf8c",
+          "40fb9fba",
+          "3f1eacce",
+          "40bfe6fa",
+          "408db0c9",
+          "c123e5fa",
+          "c1276aec",
+          "417d4c07",
+          "c03af42e"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_mul_3",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c1076294",
+          "4125fe94",
+          "bec3fb4b",
+          "c0aa5cc3",
+          "c148d274",
+          "c13a0836",
+          "c0b451a8",
+          "417e65d3",
+          "4149dc5e",
+          "c0e55a99",
+          "4129ce7e",
+          "c1319073",
+          "c0f02009",
+          "407e9b71",
+          "c00b3cad",
+          "413072b9",
+          "40fa0da0",
+          "3e3bc134",
+          "c0488ca9",
+          "40ada29f",
+          "bf56cf4e"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "41732bf7",
+          "40deb55e",
+          "c14b697d",
+          "4071810b",
+          "4060e958",
+          "4063aa0b",
+          "bf5d6175",
+          "c10f7e1c",
+          "415afc98",
+          "c1719c57",
+          "c10c5759",
+          "415599d7",
+          "bf35252b",
+          "4106f10b",
+          "c02c3c3f",
+          "bf151868",
+          "4172d468",
+          "c105644a",
+          "c1448b87",
+          "4134f1f4",
+          "411d7091"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_sum_4",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c16f587d",
+          "bfa300a2",
+          "c167a167",
+          "c00e63bb",
+          "409ebc1b",
+          "3fbc89bc",
+          "402003fc",
+          "c1038e68",
+          "4163b742",
+          "417b16be",
+          "40488a7b",
+          "c13b2f86",
+          "40f4e406",
+          "40a45b7c",
+          "40d1e5de"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_add_4",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c16f587d",
+          "bfa300a2",
+          "c167a167",
+          "c00e63bb",
+          "409ebc1b",
+          "3fbc89bc",
+          "402003fc",
+          "c1038e68",
+          "4163b742",
+          "417b16be",
+          "40488a7b",
+          "c13b2f86",
+          "40f4e406",
+          "40a45b7c",
+          "40d1e5de"
+        ]
+      },
+      "b": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "411eb7fb",
+          "40cb29fe",
+          "416ab733",
+          "41570b8d",
+          "bff38b6b",
+          "41147cbd",
+          "c0109f83",
+          "4005e83b",
+          "bf63d5b1",
+          "c1371b55",
+          "41276670",
+          "3ff690bd",
+          "417f6213",
+          "4143be2a",
+          "c1336ad0"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_sub_4",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c16f587d",
+          "bfa300a2",
+          "c167a167",
+          "c00e63bb",
+          "409ebc1b",
+          "3fbc89bc",
+          "402003fc",
+          "c1038e68",
+          "4163b742",
+          "417b16be",
+          "40488a7b",
+          "c13b2f86",
+          "40f4e406",
+          "40a45b7c",
+          "40d1e5de"
+        ]
+      },
+      "b": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "40687c76",
+          "405aa77d",
+          "c142e490",
+          "c17eab54",
+          "c097929a",
+          "c1573a32",
+          "415186a2",
+          "40ff2532",
+          "c12b0184",
+          "410e0ee2",
+          "bf439d14",
+          "c11736a0",
+          "c0ce39d4",
+          "c0c33fd6",
+          "40c920e8"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_mul_4",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c16f587d",
+          "bfa300a2",
+          "c167a167",
+          "c00e63bb",
+          "409ebc1b",
+          "3fbc89bc",
+          "402003fc",
+          "c1038e68",
+          "4163b742",
+          "417b16be",
+          "40488a7b",
+          "c13b2f86",
+          "40f4e406",
+          "40a45b7c",
+          "40d1e5de"
+        ]
+      },
+      "b": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "bf9d1efe",
+          "412be0e2",
+          "bfe05d8d",
+          "c10dbbaf",
+          "c0a7b4f3",
+          "c11e2b23",
+          "bfa93c45",
+          "c10242a8",
+          "415ada3c",
+          "c0fef70d",
+          "c0c5392d",
+          "c088a80c",
+          "bf552516",
+          "bf0ce0e6",
+          "3f9feb08"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_sum_5",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "41301cf8",
+          "c17f5bd8",
+          "410bf597",
+          "40ad829b",
+          "c10b4ca1",
+          "4139395c",
+          "c11418b2",
+          "3f88bf80",
+          "414d54b7",
+          "41796890",
+          "4161c949",
+          "40155e0f",
+          "3fa7b737",
+          "c0a8e022",
+          "4099b55a",
+          "c0fa163c",
+          "416cd0b9",
+          "40d21aef",
+          "413581ca",
+          "c17b88ce",
+          "4174e5dc"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_add_5",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "41301cf8",
+          "c17f5bd8",
+          "410bf597",
+          "40ad829b",
+          "c10b4ca1",
+          "4139395c",
+          "c11418b2",
+          "3f88bf80",
+          "414d54b7",
+          "41796890",
+          "4161c949",
+          "40155e0f",
+          "3fa7b737",
+          "c0a8e022",
+          "4099b55a",
+          "c0fa163c",
+          "416cd0b9",
+          "40d21aef",
+          "413581ca",
+          "c17b88ce",
+          "4174e5dc"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "bfa3058a",
+          "c0b9a8a8",
+          "413b4763",
+          "c1721913",
+          "4166fa61",
+          "c021b9d4",
+          "4128aeb2",
+          "c085757e",
+          "408f8261",
+          "bfed22cf",
+          "415b9b42",
+          "c143586e",
+          "c01aeb3a",
+          "40388dd7",
+          "40ed7e91",
+          "c162d4b9",
+          "c16ad76b",
+          "40d6d958",
+          "410a3561",
+          "41481ec5",
+          "c129fdb7"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_sub_5",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "41301cf8",
+          "c17f5bd8",
+          "410bf597",
+          "40ad829b",
+          "c10b4ca1",
+          "4139395c",
+          "c11418b2",
+          "3f88bf80",
+          "414d54b7",
+          "41796890",
+          "4161c949",
+          "40155e0f",
+          "3fa7b737",
+          "c0a8e022",
+          "4099b55a",
+          "c0fa163c",
+          "416cd0b9",
+          "40d21aef",
+          "413581ca",
+          "c17b88ce",
+          "4174e5dc"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "40c04999",
+          "411ffa88",
+          "40478296",
+          "40ac5e45",
+          "c04e77ac",
+          "c052e8b7",
+          "c086cf03",
+          "408d1a28",
+          "417e186b",
+          "c1208e5e",
+          "3f774f3c",
+          "403a7d35",
+          "c1794b17",
+          "c122b4fa",
+          "41396c3d",
+          "c0ac7a88",
+          "c0650fae",
+          "415db21c",
+          "c03cdeba",
+          "be5ab7d6",
+          "c0faeb56"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_mul_5",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "41301cf8",
+          "c17f5bd8",
+          "410bf597",
+          "40ad829b",
+          "c10b4ca1",
+          "4139395c",
+          "c11418b2",
+          "3f88bf80",
+          "414d54b7",
+          "41796890",
+          "4161c949",
+          "40155e0f",
+          "3fa7b737",
+          "c0a8e022",
+          "4099b55a",
+          "c0fa163c",
+          "416cd0b9",
+          "40d21aef",
+          "413581ca",
+          "c17b88ce",
+          "4174e5dc"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c145837f",
+          "40f02ced",
+          "c1171f67",
+          "411b9bcf",
+          "c108e1b9",
+          "40ba3dd8",
+          "c1297a0d",
+          "4148acf0",
+          "c02c5ab9",
+          "bfbea9b8",
+          "4082e427",
+          "c0eed29f",
+          "c11039ac",
+          "be55d599",
+          "40100101",
+          "c12eaa63",
+          "404f1560",
+          "410d7f42",
+          "c157856f",
+          "40f02023",
+          "3f4e4245"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_sum_6",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c11c9228",
+          "c1060f8c",
+          "c1330faa",
+          "c16d1370",
+          "4178e3e0",
+          "4121904f",
+          "c15bdc72",
+          "c0271216",
+          "3f938adf",
+          "408c7997",
+          "c0b0e777",
+          "41386bb9",
+          "c15fa88c",
+          "bfdfdef9",
+          "bd9905fa"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_add_6",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c11c9228",
+          "c1060f8c",
+          "c1330faa",
+          "c16d1370",
+          "4178e3e0",
+          "4121904f",
+          "c15bdc72",
+          "c0271216",
+          "3f938adf",
+          "408c7997",
+          "c0b0e777",
+          "41386bb9",
+          "c15fa88c",
+          "bfdfdef9",
+          "bd9905fa"
+        ]
+      },
+      "b": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "3f61b680",
+          "402c6a6c",
+          "415c33df",
+          "4062b934",
+          "417f49cc",
+          "c02242fc",
+          "bdc0ddc3",
+          "40c78dc3",
+          "40ef6465",
+          "40d32ff5",
+          "4141897e",
+          "c0d64a71",
+          "41400d4d",
+          "4097eaa8",
+          "40de2ce9"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_sub_6",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c11c9228",
+          "c1060f8c",
+          "c1330faa",
+          "c16d1370",
+          "4178e3e0",
+          "4121904f",
+          "c15bdc72",
+          "c0271216",
+          "3f938adf",
+          "408c7997",
+          "c0b0e777",
+          "41386bb9",
+          "c15fa88c",
+          "bfdfdef9",
+          "bd9905fa"
+        ]
+      },
+      "b": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c149aac3",
+          "c0e40367",
+          "40ecfe32",
+          "c08ef5f7",
+          "c17ca004",
+          "c10912a6",
+          "413f81c5",
+          "c0906478",
+          "40ea8891",
+          "411fe436",
+          "c10c688f",
+          "40f97acb",
+          "40eebf7b",
+          "412e0337",
+          "c1743efd"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_mul_6",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c11c9228",
+          "c1060f8c",
+          "c1330faa",
+          "c16d1370",
+          "4178e3e0",
+          "4121904f",
+          "c15bdc72",
+          "c0271216",
+          "3f938adf",
+          "408c7997",
+          "c0b0e777",
+          "41386bb9",
+          "c15fa88c",
+          "bfdfdef9",
+          "bd9905fa"
+        ]
+      },
+      "b": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "c0c4b815",
+          "bf6d0078",
+          "40643c0a",
+          "c011a524",
+          "c0929f7c",
+          "3faf3aad",
+          "c1392bd9",
+          "c154dee9",
+          "c05453d6",
+          "c145372c",
+          "3d5b2f47",
+          "3f5ea09b",
+          "40735838",
+          "c0de93a5",
+          "40de5ba4"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_sum_7",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "40ad6924",
+          "c14d237b",
+          "bcbb9867",
+          "c1353751",
+          "c171493e",
+          "41073139",
+          "408dab7b",
+          "415269ef",
+          "c0636b86",
+          "417141fd",
+          "c0479d6c",
+          "3f99d8d2",
+          "c0bc5d1d",
+          "40e68c25",
+          "404ba5bb",
+          "c053be63",
+          "40dd167b",
+          "c15b8813",
+          "408840d9",
+          "40a34386",
+          "c138b7f5"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_add_7",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "40ad6924",
+          "c14d237b",
+          "bcbb9867",
+          "c1353751",
+          "c171493e",
+          "41073139",
+          "408dab7b",
+          "415269ef",
+          "c0636b86",
+          "417141fd",
+          "c0479d6c",
+          "3f99d8d2",
+          "c0bc5d1d",
+          "40e68c25",
+          "404ba5bb",
+          "c053be63",
+          "40dd167b",
+          "c15b8813",
+          "408840d9",
+          "40a34386",
+          "c138b7f5"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c09542c0",
+          "3ebff3d3",
+          "c17181f7",
+          "40fa6dc2",
+          "c03b501d",
+          "c16aa8f2",
+          "40c1a3d0",
+          "4128b522",
+          "40a3b57e",
+          "c005cf9b",
+          "4066f050",
+          "410250c4",
+          "c1248450",
+          "41241725",
+          "415d7cb7",
+          "40376edd",
+          "40f50ef7",
+          "c159ed31",
+          "4125e188",
+          "4139658f",
+          "4178e7a8"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_sub_7",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "40ad6924",
+          "c14d237b",
+          "bcbb9867",
+          "c1353751",
+          "c171493e",
+          "41073139",
+          "408dab7b",
+          "415269ef",
+          "c0636b86",
+          "417141fd",
+          "c0479d6c",
+          "3f99d8d2",
+          "c0bc5d1d",
+          "40e68c25",
+          "404ba5bb",
+          "c053be63",
+          "40dd167b",
+          "c15b8813",
+          "408840d9",
+          "40a34386",
+          "c138b7f5"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "411408e8",
+          "4054ff43",
+          "c08a788a",
+          "bff18215",
+          "4151742d",
+          "3fae3a23",
+          "414889fc",
+          "4177f019",
+          "3f074839",
+          "40d53343",
+          "3f24ba0a",
+          "41299335",
+          "40fd9d3c",
+          "40cc911a",
+          "41650f7d",
+          "40e61f2b",
+          "bd883c3f",
+          "c11af6c9",
+          "414b8f62",
+          "bfa2cb2e",
+          "40e619c5"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "random_mul_7",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "40ad6924",
+          "c14d237b",
+          "bcbb9867",
+          "c1353751",
+          "c171493e",
+          "41073139",
+          "408dab7b",
+          "415269ef",
+          "c0636b86",
+          "417141fd",
+          "c0479d6c",
+          "3f99d8d2",
+          "c0bc5d1d",
+          "40e68c25",
+          "404ba5bb",
+          "c053be63",
+          "40dd167b",
+          "c15b8813",
+          "408840d9",
+          "40a34386",
+          "c138b7f5"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          3,
+          7
+        ],
+        "f32_bits": [
+          "c0608738",
+          "3e9c3423",
+          "c150e56d",
+          "4114ae7a",
+          "c150beea",
+          "4108f971",
+          "417b7081",
+          "417bbecf",
+          "405bd8db",
+          "4138039f",
+          "c158332c",
+          "4143fbba",
+          "40b097f2",
+          "bf72e36b",
+          "c0cd7c4e",
+          "c14c30cb",
+          "c1378a9e",
+          "40c88055",
+          "413a42f7",
+          "414fbbdd",
+          "c01084fb"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sum_cancellation_0",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          3
+        ],
+        "f32_bits": [
+          "4b800000",
+          "3f800000",
+          "cb800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sum_cancellation_1",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          3
+        ],
+        "f32_bits": [
+          "4b800000",
+          "cb800000",
+          "3f800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sum_cancellation_2",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          5
+        ],
+        "f32_bits": [
+          "501502f9",
+          "40400000",
+          "d01502f9",
+          "c0000000",
+          "3e800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sum_cancellation_3",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          5
+        ],
+        "f32_bits": [
+          "41800000",
+          "c1800000",
+          "41000000",
+          "c1000000",
+          "00000000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sum_cancellation_4",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          3
+        ],
+        "f32_bits": [
+          "03800000",
+          "83800000",
+          "00000001"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sum_random_length_31",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          31
+        ],
+        "f32_bits": [
+          "3faa4b9d",
+          "409e0571",
+          "c0f5e33d",
+          "4075edf3",
+          "4053320d",
+          "c092c485",
+          "4087ccaa",
+          "c0fb8b7c",
+          "3ed2320f",
+          "3febd783",
+          "3f812689",
+          "40f25bca",
+          "c0c4b66f",
+          "c007f402",
+          "c09fefa4",
+          "3fc0bab0",
+          "3e600b4a",
+          "3ff087ee",
+          "40fdb524",
+          "c05da8fd",
+          "404f7255",
+          "4092181a",
+          "bed57cfc",
+          "4035d780",
+          "3fa07b98",
+          "40bb99d6",
+          "c031efa4",
+          "4053521d",
+          "3fa812e8",
+          "c05fbab8",
+          "403df18b"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sum_random_length_127",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          127
+        ],
+        "f32_bits": [
+          "4041f7dd",
+          "404f3136",
+          "3f2c577e",
+          "c09d6ab4",
+          "40838b3b",
+          "c0307bdd",
+          "c068cd54",
+          "c080cf46",
+          "3fbfd9d8",
+          "c0a3efa5",
+          "4004b818",
+          "c0834889",
+          "3fba6a2e",
+          "c015d23a",
+          "403bc10e",
+          "3ee0a640",
+          "bec28401",
+          "c0d0ef39",
+          "c0726cec",
+          "c0832342",
+          "40cff8f1",
+          "3fed8ce1",
+          "40daa282",
+          "407ee11a",
+          "c0104188",
+          "3fc2da73",
+          "bfadc570",
+          "c0233b46",
+          "c0fe1b83",
+          "c097225c",
+          "40de8c9e",
+          "c0ea2f14",
+          "40f2f665",
+          "c0db0f78",
+          "bf7a0ab0",
+          "bf946ca2",
+          "c0c32841",
+          "c0f00bbe",
+          "bf97a542",
+          "40997aec",
+          "40ca9fa6",
+          "bffebfc7",
+          "c07a6133",
+          "3d42376f",
+          "c005d86b",
+          "40f426d8",
+          "bed1c61f",
+          "405ca0f5",
+          "40f175ff",
+          "bf68fd45",
+          "40e18797",
+          "c0f03ea1",
+          "c0b24d4a",
+          "3fc2d19c",
+          "4005483e",
+          "40501816",
+          "40bb9b8f",
+          "3f54a95f",
+          "bfe76d56",
+          "bf81a3f1",
+          "c0be216d",
+          "3faea361",
+          "c0f5b8cc",
+          "c0c66be0",
+          "3ec5bb95",
+          "bf5f2a79",
+          "403fdbcf",
+          "c004c089",
+          "4086d93d",
+          "40a46933",
+          "401a88ce",
+          "3fd9af5e",
+          "3e5eaeda",
+          "c0c1a191",
+          "c0f84715",
+          "3facf20e",
+          "40253c94",
+          "c024f44f",
+          "c033ae8f",
+          "408d571a",
+          "c0e2e549",
+          "400dd005",
+          "403220dc",
+          "c0f5ee6b",
+          "bff3b9b6",
+          "40ad8c69",
+          "40fa8579",
+          "401d1f66",
+          "c0f7d3aa",
+          "c08f36d1",
+          "bfdf868d",
+          "40d25716",
+          "c00d5c0c",
+          "408f08c6",
+          "c02926d4",
+          "3ed39252",
+          "40324ab0",
+          "40fd95dd",
+          "3fd99e62",
+          "c052e30d",
+          "40d8fb8f",
+          "4030a8e0",
+          "beac5b9b",
+          "c0d7d249",
+          "c0065544",
+          "3ec2cd55",
+          "c0b92b34",
+          "40d9250d",
+          "40fbfd66",
+          "40d27cf9",
+          "c0a9b25a",
+          "40f02e90",
+          "403eced5",
+          "3e12dd59",
+          "c0371cf0",
+          "4078ffc8",
+          "3f0d7722",
+          "bf34da97",
+          "408bb0fb",
+          "bfd9be3e",
+          "c0876f41",
+          "c08d5a63",
+          "3e86c2a5",
+          "40f49852",
+          "c08cfe59",
+          "40feeff3",
+          "bfcd1918"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "sum_random_length_257",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          257
+        ],
+        "f32_bits": [
+          "c03d1e2b",
+          "c08341b1",
+          "40fd4b38",
+          "c0957512",
+          "40d46e6c",
+          "3f05ddd6",
+          "bf052096",
+          "c0b2ec38",
+          "c0f31c65",
+          "40bffcbe",
+          "40193721",
+          "c03352e2",
+          "40e525dd",
+          "40b4c942",
+          "c07fcefc",
+          "c099695b",
+          "c0f65963",
+          "c0cd64b5",
+          "3f176e9a",
+          "409e7f65",
+          "c0a512eb",
+          "40be6fa3",
+          "3fed82a0",
+          "c0a95e09",
+          "c0c9f891",
+          "c0ee1855",
+          "3f38d491",
+          "c083dc44",
+          "3fa9cc67",
+          "3fd6e2f8",
+          "3fa0b0ce",
+          "40bc7416",
+          "40592e79",
+          "3fb871c1",
+          "c0f8e2a9",
+          "408b4e22",
+          "c00b8ac8",
+          "409e8754",
+          "c0ea7bfd",
+          "4077cf1a",
+          "40a085cd",
+          "c0671f0a",
+          "4036c135",
+          "bf45748c",
+          "40859b8c",
+          "c0f1c44b",
+          "406484a5",
+          "c09a733f",
+          "c0b054fe",
+          "c0ae47b9",
+          "c0c21145",
+          "3fce3c38",
+          "3f3e43f6",
+          "3fdf5614",
+          "40d9b5e0",
+          "405a1ac0",
+          "c0aaaaf6",
+          "4082ab8e",
+          "c0fa0a27",
+          "40ca616c",
+          "3fadfb27",
+          "40196e82",
+          "c08c3f29",
+          "40774c45",
+          "bed107aa",
+          "3fbb7358",
+          "409fcc73",
+          "409b5f06",
+          "403e539b",
+          "40c89c9b",
+          "c0792107",
+          "40e46972",
+          "c02602c5",
+          "c0d04360",
+          "bf3d127c",
+          "40a95f8b",
+          "c06a4287",
+          "3fa31442",
+          "40ff7397",
+          "40ec9e2c",
+          "c03d7834",
+          "40abb57e",
+          "bfc1debd",
+          "40ce6523",
+          "404f5435",
+          "4080e510",
+          "40ebfdbe",
+          "406c18f3",
+          "c0b16456",
+          "bfd1eb83",
+          "40229625",
+          "40f77f60",
+          "3fafabff",
+          "40ded7b7",
+          "40fe8d7c",
+          "3f89f55c",
+          "bfed4966",
+          "c0f7eae9",
+          "bf8b9cfb",
+          "4089c19d",
+          "403c6928",
+          "c042d62d",
+          "c09d5241",
+          "bda00ed7",
+          "c0d58156",
+          "c0b9acbc",
+          "c081c1ad",
+          "c0e13e51",
+          "400e7bb5",
+          "c0d7721c",
+          "bda49fc1",
+          "c0dc4710",
+          "40a9a5dc",
+          "40bcab46",
+          "40361dff",
+          "402f847f",
+          "c0830388",
+          "4037a680",
+          "40c17334",
+          "c0b1b365",
+          "40a82f2a",
+          "c0d18ed6",
+          "c08743e7",
+          "3f1ef315",
+          "408aaa4b",
+          "c0caefa5",
+          "bff0a4b5",
+          "40e8dcb1",
+          "407b46f2",
+          "40bc8b8b",
+          "c03b7749",
+          "40da88fd",
+          "405d3a02",
+          "c0ff38e7",
+          "c0e129b0",
+          "405cfbe3",
+          "c025ffa3",
+          "40df1ff0",
+          "40e36559",
+          "c0d9805a",
+          "c0fd06d5",
+          "40ad7b30",
+          "408e830b",
+          "40d6922f",
+          "c07427bd",
+          "40ad2bd5",
+          "c0db2d61",
+          "c0beca2f",
+          "bfcb78a4",
+          "c007695f",
+          "c0f6d26c",
+          "40974fb6",
+          "c01e328d",
+          "4089b795",
+          "be00d78d",
+          "c0fddeb3",
+          "c09e2361",
+          "40549f7e",
+          "402c0790",
+          "40cf3c43",
+          "3ec8d5bc",
+          "401f57db",
+          "40a4aeb6",
+          "bfb538e1",
+          "40fbc2a6",
+          "c0c70327",
+          "c08eabd1",
+          "4052a52e",
+          "408ff5db",
+          "c0e6abcb",
+          "c0caa976",
+          "409d9169",
+          "40dfb5dd",
+          "c0987cc4",
+          "40fa0d27",
+          "c0368ace",
+          "c0de8267",
+          "bff6f102",
+          "c03ec535",
+          "403bff4e",
+          "40d9b421",
+          "c03f4016",
+          "40e77129",
+          "c088d778",
+          "c005c315",
+          "404be520",
+          "c095624d",
+          "c0e6c903",
+          "c0c41e38",
+          "40e292dd",
+          "3f94b912",
+          "bf370918",
+          "c051c588",
+          "40876660",
+          "bf039974",
+          "3fcbc58c",
+          "3e070f97",
+          "401bffee",
+          "c0e2a4bf",
+          "bf0e1898",
+          "c09ec022",
+          "404318a5",
+          "bf9d5604",
+          "c0fe5dca",
+          "40ff25a6",
+          "40dabcf3",
+          "c02e98d5",
+          "3fc2ab34",
+          "c0d6b83c",
+          "40385167",
+          "be3df81d",
+          "3ec963dc",
+          "404f9d24",
+          "c0e76fe7",
+          "40a90471",
+          "c02390ea",
+          "40ad4bf7",
+          "40c5da51",
+          "40cac2b4",
+          "3fac2d12",
+          "40842dd2",
+          "40af3d7a",
+          "bea17b31",
+          "c0aee5e4",
+          "c040299b",
+          "40e83352",
+          "40d1d522",
+          "c0fe768c",
+          "40bbda35",
+          "400c33ea",
+          "c0586240",
+          "bcd5fd44",
+          "3f19b6d3",
+          "409526f5",
+          "c0371eca",
+          "c0159971",
+          "c04989d6",
+          "bf459470",
+          "4005b79b",
+          "c031184f",
+          "bf03018d",
+          "bfd47229",
+          "40a29308",
+          "c0fb7c33",
+          "40bec577",
+          "bffd51ae",
+          "c0970042",
+          "40760525",
+          "c0503aad",
+          "c0a5c39b",
+          "c0cad2e3",
+          "bed8f829",
+          "401ab7ff",
+          "40080c0b",
+          "c0c32b9d",
+          "3f3a9a64",
+          "bf292e6a"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "matmul_rectangular_0",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          1
+        ],
+        "f32_bits": [
+          "3f8a83b7"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          1
+        ],
+        "f32_bits": [
+          "3fba3f8a"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "matmul_rectangular_1",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "f32_bits": [
+          "bffc5bd1",
+          "3f90a333",
+          "bf768899",
+          "bfe91705",
+          "bfb5b41f",
+          "c0585b5a"
+        ]
+      },
+      "b": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "403d939c",
+          "401c1e42",
+          "c06461be",
+          "3fba55bf",
+          "bf8d97f2",
+          "c05c57d6",
+          "c074296a",
+          "4003078a",
+          "40788f91",
+          "403aed40",
+          "3f3111f8",
+          "3ed797ff",
+          "bec04efd",
+          "403eac0a",
+          "4041de6a"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "matmul_rectangular_2",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          3,
+          5
+        ],
+        "f32_bits": [
+          "bf2a8a27",
+          "40070d6d",
+          "3f34d840",
+          "bcc9bf14",
+          "4004d35f",
+          "c023a20a",
+          "403d278a",
+          "3fc38be9",
+          "3e25aa5a",
+          "406837b5",
+          "c01fb7ea",
+          "bfe9db8b",
+          "bfb03d21",
+          "c0591570",
+          "c058021e"
+        ]
+      },
+      "b": {
+        "shape": [
+          5,
+          2
+        ],
+        "f32_bits": [
+          "c05c8b56",
+          "bf906c77",
+          "4000d38c",
+          "c0132a35",
+          "bfb934c3",
+          "3eee9a7a",
+          "bff9bbec",
+          "405d9633",
+          "bfc9b961",
+          "c043b40d"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "matmul_rectangular_3",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          7
+        ],
+        "f32_bits": [
+          "4033c09f",
+          "c072807d",
+          "4069efbc",
+          "40238da5",
+          "bfb52725",
+          "bf55de33",
+          "3f817f3b"
+        ]
+      },
+      "b": {
+        "shape": [
+          7,
+          3
+        ],
+        "f32_bits": [
+          "4018eab0",
+          "c0289816",
+          "406774ed",
+          "c0751ca5",
+          "402bdf2b",
+          "405f4fc9",
+          "3ffb7681",
+          "3f6ac71b",
+          "c070193c",
+          "c0566334",
+          "c01fbae3",
+          "40604ef9",
+          "4069484e",
+          "bf88bea9",
+          "4045d4af",
+          "3f40f973",
+          "407fefd1",
+          "4073dc9f",
+          "c00b21a5",
+          "bee0be64",
+          "4001d56b"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "matmul_rectangular_4",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      },
+      "b": {
+        "shape": [
+          3,
+          2
+        ],
+        "f32_bits": [
+          "401cadc3",
+          "3ffaf5e8",
+          "c070b2ab",
+          "c04c01e4",
+          "c0219d62",
+          "c070a5c0"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "matmul_rectangular_5",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "f32_bits": [
+          "be12f6a7",
+          "3db4650c",
+          "c0695426",
+          "c063180c",
+          "3fe0af7c",
+          "bfea5338"
+        ]
+      },
+      "b": {
+        "shape": [
+          3,
+          0
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "matmul_rectangular_6",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          0
+        ],
+        "f32_bits": []
+      },
+      "b": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "matmul_rectangular_7",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          0,
+          0
+        ],
+        "f32_bits": []
+      },
+      "b": {
+        "shape": [
+          0,
+          3
+        ],
+        "f32_bits": []
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "matmul_rectangular_8",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          31
+        ],
+        "f32_bits": [
+          "3e3965ad",
+          "c07b4884",
+          "3d7a49c4",
+          "40517eb4",
+          "40561433",
+          "bfce108f",
+          "bff9bd28",
+          "3f35e4a6",
+          "3f9ad6fb",
+          "3f01235a",
+          "3fe64c35",
+          "3fbb78c7",
+          "bf80b6fd",
+          "400861bd",
+          "3f575af9",
+          "be0c3e7d",
+          "c036e3cb",
+          "be8590bf",
+          "3f65740c",
+          "c04d2391",
+          "bf430a06",
+          "40754596",
+          "bfe0d63c",
+          "3fd1e4a8",
+          "bf1ef0cc",
+          "c01d53bf",
+          "406a7212",
+          "c033e36d",
+          "40061598",
+          "c00f4df2",
+          "c0380b94",
+          "40432e4a",
+          "c0223b6e",
+          "bfbb8948",
+          "c02709ce",
+          "bf9b26de",
+          "c000adb6",
+          "bf433e80",
+          "c0282545",
+          "c0217dbe",
+          "4028204b",
+          "c078d700",
+          "bfb20b01",
+          "406fde24",
+          "bea306b2",
+          "c026a854",
+          "3f0450dd",
+          "bfa7c5fb",
+          "3f36981d",
+          "c0407dab",
+          "bebaf0d7",
+          "bf1c7f68",
+          "bf7bf631",
+          "3f6930f1",
+          "c02d3c7d",
+          "3ff48e0f",
+          "c061d88e",
+          "c04b3ac5",
+          "bf9dfa3d",
+          "3fce31c8",
+          "3f984259",
+          "40504bdc"
+        ]
+      },
+      "b": {
+        "shape": [
+          31,
+          3
+        ],
+        "f32_bits": [
+          "40245dfd",
+          "3fe022dd",
+          "3e023c3b",
+          "3ef04b8d",
+          "3f47886d",
+          "c006e90d",
+          "403ebd46",
+          "3fa43b84",
+          "bf070beb",
+          "c04c27e3",
+          "be12483e",
+          "3fd7f7bb",
+          "c06cb04a",
+          "405350b3",
+          "403138e6",
+          "c0109a11",
+          "c03201e9",
+          "bf2abc2a",
+          "3f90e48a",
+          "3ee1d3a6",
+          "c06b5834",
+          "c026c58a",
+          "c04d67ea",
+          "404846dd",
+          "c06b100a",
+          "bf717002",
+          "3fc5493f",
+          "bfe6fc29",
+          "be469234",
+          "3f633c18",
+          "3f81b34a",
+          "bf736717",
+          "c067f0f7",
+          "3fd68f70",
+          "bff3aa32",
+          "3f2725cc",
+          "c078c4d3",
+          "3f96c6df",
+          "3f849187",
+          "bfce90e4",
+          "c031c8dd",
+          "bf8f793a",
+          "c01124c8",
+          "bef7f7a3",
+          "bfe616cf",
+          "40433cc2",
+          "beb4079c",
+          "bed38148",
+          "bf45a157",
+          "c07545b8",
+          "4071e1d7",
+          "beab8410",
+          "4014b8b4",
+          "c021718f",
+          "c070e157",
+          "be3d4937",
+          "c023e783",
+          "c012de3a",
+          "3f818dac",
+          "c05bde6a",
+          "c0080790",
+          "3f8b124e",
+          "4015c078",
+          "3f17f110",
+          "c052dc5a",
+          "be94ea04",
+          "3fc5c87a",
+          "3fa98ab0",
+          "3fd3a367",
+          "c05699c4",
+          "390c1572",
+          "c02c51c2",
+          "bfb9028d",
+          "c0430a2e",
+          "c066fc88",
+          "c03f0a24",
+          "be4f62a2",
+          "c04b9a14",
+          "c01effab",
+          "3f99bb95",
+          "bfd1f41e",
+          "3e3bb7b9",
+          "3f8bcd1c",
+          "3f25b32a",
+          "bfb107f3",
+          "3f8db1bb",
+          "3fa3bec2",
+          "c0442916",
+          "407e1be1",
+          "3d3ea653",
+          "c00704c8",
+          "bfc784c6",
+          "4057d8d3"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "golden_ab",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "f32_bits": [
+          "3f800000",
+          "40000000",
+          "40400000",
+          "40800000",
+          "40a00000",
+          "40c00000"
+        ]
+      },
+      "b": {
+        "shape": [
+          3,
+          2
+        ],
+        "f32_bits": [
+          "40e00000",
+          "41000000",
+          "41100000",
+          "41200000",
+          "41300000",
+          "41400000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "golden_ab_plus_bias",
+    "op": "matmul_add",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "f32_bits": [
+          "3f800000",
+          "40000000",
+          "40400000",
+          "40800000",
+          "40a00000",
+          "40c00000"
+        ]
+      },
+      "b": {
+        "shape": [
+          3,
+          2
+        ],
+        "f32_bits": [
+          "40e00000",
+          "41000000",
+          "41100000",
+          "41200000",
+          "41300000",
+          "41400000"
+        ]
+      },
+      "bias": {
+        "shape": [
+          2
+        ],
+        "f32_bits": [
+          "3f800000",
+          "bf800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "golden_sum_415",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          2
+        ],
+        "f32_bits": [
+          "426c0000",
+          "427c0000",
+          "430c0000",
+          "43190000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "matmul_cancellation",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "f32_bits": [
+          "4b800000",
+          "3f800000",
+          "cb800000",
+          "501502f9",
+          "40400000",
+          "d01502f9"
+        ]
+      },
+      "b": {
+        "shape": [
+          3,
+          2
+        ],
+        "f32_bits": [
+          "3f800000",
+          "3f800000",
+          "3f800000",
+          "bf800000",
+          "3f800000",
+          "3f800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "ieee_sum_5",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          2
+        ],
+        "f32_bits": [
+          "80000000",
+          "80000000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "ieee_sum_6",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          3
+        ],
+        "f32_bits": [
+          "00000001",
+          "00000001",
+          "00000001"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "ieee_matmul_4",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          1
+        ],
+        "f32_bits": [
+          "00000001"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          1
+        ],
+        "f32_bits": [
+          "3f800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "construct_all_classifications",
+    "op": "construct",
+    "inputs": {
+      "a": {
+        "shape": [
+          13
+        ],
+        "f32_bits": [
+          "00000000",
+          "80000000",
+          "00000001",
+          "80000001",
+          "007fffff",
+          "00800000",
+          "7f7fffff",
+          "3eaaaaab",
+          "7fc01234",
+          "ffc05678",
+          "7f800001",
+          "7f800000",
+          "ff800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "clone_all_classifications",
+    "op": "clone",
+    "inputs": {
+      "a": {
+        "shape": [
+          13
+        ],
+        "f32_bits": [
+          "00000000",
+          "80000000",
+          "00000001",
+          "80000001",
+          "007fffff",
+          "00800000",
+          "7f7fffff",
+          "3eaaaaab",
+          "7fc01234",
+          "ffc05678",
+          "7f800001",
+          "7f800000",
+          "ff800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "reshape_all_classifications",
+    "op": "reshape",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          13
+        ],
+        "f32_bits": [
+          "00000000",
+          "80000000",
+          "00000001",
+          "80000001",
+          "007fffff",
+          "00800000",
+          "7f7fffff",
+          "3eaaaaab",
+          "7fc01234",
+          "ffc05678",
+          "7f800001",
+          "7f800000",
+          "ff800000"
+        ]
+      }
+    },
+    "parameters": {
+      "shape": [
+        13,
+        1
+      ]
+    }
+  },
+  {
+    "id": "transpose_all_classifications",
+    "op": "transpose_copy",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          13
+        ],
+        "f32_bits": [
+          "00000000",
+          "80000000",
+          "00000001",
+          "80000001",
+          "007fffff",
+          "00800000",
+          "7f7fffff",
+          "3eaaaaab",
+          "7fc01234",
+          "ffc05678",
+          "7f800001",
+          "7f800000",
+          "ff800000"
+        ]
+      }
+    },
+    "parameters": {
+      "dims": [
+        0,
+        1
+      ]
+    }
+  },
+  {
+    "id": "permute_all_classifications",
+    "op": "permute_copy",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          13
+        ],
+        "f32_bits": [
+          "00000000",
+          "80000000",
+          "00000001",
+          "80000001",
+          "007fffff",
+          "00800000",
+          "7f7fffff",
+          "3eaaaaab",
+          "7fc01234",
+          "ffc05678",
+          "7f800001",
+          "7f800000",
+          "ff800000"
+        ]
+      }
+    },
+    "parameters": {
+      "axes": [
+        1,
+        0
+      ]
+    }
+  },
+  {
+    "id": "ieee_add",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          9
+        ],
+        "f32_bits": [
+          "00000000",
+          "80000000",
+          "00000001",
+          "80000001",
+          "007fffff",
+          "00800000",
+          "7f7fffff",
+          "7fc01234",
+          "7f800000"
+        ]
+      },
+      "b": {
+        "shape": [
+          9
+        ],
+        "f32_bits": [
+          "80000000",
+          "80000000",
+          "00000001",
+          "80000001",
+          "00000001",
+          "80000001",
+          "7f7fffff",
+          "3f800000",
+          "ff800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "ieee_sub",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          9
+        ],
+        "f32_bits": [
+          "00000000",
+          "80000000",
+          "00000001",
+          "80000001",
+          "007fffff",
+          "00800000",
+          "7f7fffff",
+          "7fc01234",
+          "7f800000"
+        ]
+      },
+      "b": {
+        "shape": [
+          9
+        ],
+        "f32_bits": [
+          "00000000",
+          "00000000",
+          "00000001",
+          "00000001",
+          "00000001",
+          "00000001",
+          "ff7fffff",
+          "3f800000",
+          "7f800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "ieee_mul",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          9
+        ],
+        "f32_bits": [
+          "00000000",
+          "80000000",
+          "00000001",
+          "80000001",
+          "007fffff",
+          "00800000",
+          "7f7fffff",
+          "7fc01234",
+          "7f800000"
+        ]
+      },
+      "b": {
+        "shape": [
+          9
+        ],
+        "f32_bits": [
+          "bf800000",
+          "bf800000",
+          "3f000000",
+          "3f000000",
+          "3f000000",
+          "3f000000",
+          "40000000",
+          "3f800000",
+          "00000000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "ieee_sum_0",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          2
+        ],
+        "f32_bits": [
+          "7fc01234",
+          "3f800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "ieee_sum_1",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          2
+        ],
+        "f32_bits": [
+          "7f800000",
+          "ff800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "ieee_sum_2",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          2
+        ],
+        "f32_bits": [
+          "7f800000",
+          "3f800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "ieee_sum_3",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          2
+        ],
+        "f32_bits": [
+          "ff800000",
+          "bf800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "ieee_sum_4",
+    "op": "sum",
+    "inputs": {
+      "a": {
+        "shape": [
+          2
+        ],
+        "f32_bits": [
+          "7f7fffff",
+          "7f7fffff"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "ieee_matmul_0",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          1
+        ],
+        "f32_bits": [
+          "7fc01234"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          1
+        ],
+        "f32_bits": [
+          "3f800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "ieee_matmul_1",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          1
+        ],
+        "f32_bits": [
+          "7f800000"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          1
+        ],
+        "f32_bits": [
+          "00000000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "ieee_matmul_2",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          1
+        ],
+        "f32_bits": [
+          "7f800000"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          1
+        ],
+        "f32_bits": [
+          "bf800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "ieee_matmul_3",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          1
+        ],
+        "f32_bits": [
+          "7f7fffff"
+        ]
+      },
+      "b": {
+        "shape": [
+          1,
+          1
+        ],
+        "f32_bits": [
+          "40000000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "rank5",
+    "op": "construct",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "rank_before_capacity",
+    "op": "construct",
+    "inputs": {
+      "a": {
+        "shape": [
+          1048577,
+          1,
+          1,
+          1,
+          1
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "capacity_1d",
+    "op": "construct",
+    "inputs": {
+      "a": {
+        "shape": [
+          1048577
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "capacity_product",
+    "op": "construct",
+    "inputs": {
+      "a": {
+        "shape": [
+          1025,
+          1024
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "capacity_u32_product",
+    "op": "construct",
+    "inputs": {
+      "a": {
+        "shape": [
+          4294967295,
+          4294967295
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "data_too_short",
+    "op": "construct",
+    "inputs": {
+      "a": {
+        "shape": [
+          3
+        ],
+        "f32_bits": [
+          "3f800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "data_too_long",
+    "op": "construct",
+    "inputs": {
+      "a": {
+        "shape": [
+          0
+        ],
+        "f32_bits": [
+          "3f800000"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "coordinate_rank",
+    "op": "get",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {
+      "coordinate": [
+        0
+      ]
+    }
+  },
+  {
+    "id": "coordinate_rank_before_bounds",
+    "op": "get",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {
+      "coordinate": [
+        9
+      ]
+    }
+  },
+  {
+    "id": "coordinate_oob",
+    "op": "get",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {
+      "coordinate": [
+        2,
+        0
+      ]
+    }
+  },
+  {
+    "id": "empty_coordinate",
+    "op": "get",
+    "inputs": {
+      "a": {
+        "shape": [
+          0,
+          3
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {
+      "coordinate": [
+        0,
+        0
+      ]
+    }
+  },
+  {
+    "id": "flat_index_end",
+    "op": "get_flat",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {
+      "index": 6
+    }
+  },
+  {
+    "id": "flat_index_empty",
+    "op": "get_flat",
+    "inputs": {
+      "a": {
+        "shape": [
+          0
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {
+      "index": 0
+    }
+  },
+  {
+    "id": "reshape_count",
+    "op": "reshape",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {
+      "shape": [
+        5
+      ]
+    }
+  },
+  {
+    "id": "reshape_rank",
+    "op": "reshape",
+    "inputs": {
+      "a": {
+        "shape": [
+          1
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {
+      "shape": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    }
+  },
+  {
+    "id": "reshape_capacity",
+    "op": "reshape",
+    "inputs": {
+      "a": {
+        "shape": [
+          1
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {
+      "shape": [
+        1048577
+      ]
+    }
+  },
+  {
+    "id": "transpose_axis",
+    "op": "transpose_copy",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {
+      "dims": [
+        0,
+        2
+      ]
+    }
+  },
+  {
+    "id": "transpose_scalar",
+    "op": "transpose_copy",
+    "inputs": {
+      "a": {
+        "shape": [],
+        "fill_zero": true
+      }
+    },
+    "parameters": {
+      "dims": [
+        0,
+        0
+      ]
+    }
+  },
+  {
+    "id": "permute_duplicate",
+    "op": "permute_copy",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {
+      "axes": [
+        0,
+        0
+      ]
+    }
+  },
+  {
+    "id": "permute_length",
+    "op": "permute_copy",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {
+      "axes": [
+        0
+      ]
+    }
+  },
+  {
+    "id": "permute_axis",
+    "op": "permute_copy",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {
+      "axes": [
+        0,
+        2
+      ]
+    }
+  },
+  {
+    "id": "broadcast_mismatch",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "fill_zero": true
+      },
+      "b": {
+        "shape": [
+          4,
+          3
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "broadcast_zero_nonone",
+    "op": "sub",
+    "inputs": {
+      "a": {
+        "shape": [
+          0,
+          3
+        ],
+        "fill_zero": true
+      },
+      "b": {
+        "shape": [
+          2,
+          3
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "broadcast_mul_mismatch",
+    "op": "mul",
+    "inputs": {
+      "a": {
+        "shape": [
+          3
+        ],
+        "fill_zero": true
+      },
+      "b": {
+        "shape": [
+          2
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "broadcast_output_capacity",
+    "op": "add",
+    "inputs": {
+      "a": {
+        "shape": [
+          1024,
+          1
+        ],
+        "fill_zero": true
+      },
+      "b": {
+        "shape": [
+          1,
+          1025
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "matmul_rank_left",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          3
+        ],
+        "fill_zero": true
+      },
+      "b": {
+        "shape": [
+          3,
+          2
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "matmul_rank_right",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "fill_zero": true
+      },
+      "b": {
+        "shape": [
+          3
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "matmul_batched_unsupported",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          1,
+          2,
+          3
+        ],
+        "fill_zero": true
+      },
+      "b": {
+        "shape": [
+          1,
+          3,
+          2
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "matmul_inner",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          2,
+          3
+        ],
+        "fill_zero": true
+      },
+      "b": {
+        "shape": [
+          4,
+          2
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "matmul_output_capacity",
+    "op": "matmul",
+    "inputs": {
+      "a": {
+        "shape": [
+          1024,
+          0
+        ],
+        "fill_zero": true
+      },
+      "b": {
+        "shape": [
+          0,
+          1025
+        ],
+        "fill_zero": true
+      }
+    },
+    "parameters": {}
+  },
+  {
+    "id": "shape_boundary_0",
+    "op": "shape_construct",
+    "shape": []
+  },
+  {
+    "id": "shape_boundary_1",
+    "op": "shape_construct",
+    "shape": [
+      0
+    ]
+  },
+  {
+    "id": "shape_boundary_2",
+    "op": "shape_construct",
+    "shape": [
+      1
+    ]
+  },
+  {
+    "id": "shape_boundary_3",
+    "op": "shape_construct",
+    "shape": [
+      1048576
+    ]
+  },
+  {
+    "id": "shape_boundary_4",
+    "op": "shape_construct",
+    "shape": [
+      1024,
+      1024
+    ]
+  },
+  {
+    "id": "shape_boundary_5",
+    "op": "shape_construct",
+    "shape": [
+      4294967295,
+      4294967295,
+      4294967295,
+      0
+    ]
+  },
+  {
+    "id": "shape_boundary_6",
+    "op": "shape_construct",
+    "shape": [
+      0,
+      4294967295,
+      4294967295,
+      4294967295
+    ]
+  }
+]

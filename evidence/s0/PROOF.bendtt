@@ -1,0 +1,125 @@
+Nat.add : ∀x0 : Nat -> ∀x1 : Nat -> Nat =
+  λ{(,): λ{.Zero: λ{(): λx0 => x0; λ{}}; λ{.Succ: λ{(,): λx0 => λ{(): λx1 => (.Succ, ((Nat.add x0 x1), ())); λ{}}}; λ{}}}}
+
+main.pow2 : ∀x0 : Nat -> Nat =
+  λ{(,): λ{.Zero: λ{(): (.Succ, ((.Zero, ()), ())); λ{}}; λ{.Succ: λ{(,): λx0 => λ{(): !+x1 = (main.pow2 x0); (Nat.add x1 x1); λ{}}}; λ{}}}}
+
+main.sum : ∀x0 : Nat -> ∀+x1 : Nat -> Nat =
+  λ{(,): λ{.Zero: λ{(): λ+x0 => x0; λ{}}; λ{.Succ: λ{(,): λ+x0 => λ{(): λ+x1 => !x2 = (main.sum x0 +x1); !x3 = (main.sum x0 +(Nat.add (main.pow2 x0) x1)); (Nat.add x2 x3); λ{}}}; λ{}}}}
+
+main.seq : ∀x0 : Nat -> ∀+x1 : Nat -> Nat =
+  λ{(,): λ{.Zero: λ{(): λ+x0 => (.Zero, ()); λ{}}; λ{.Succ: λ{(,): λ+x0 => λ{(): λ+x1 => (Nat.add (main.seq x0 +x1) (Nat.add x0 x1)); λ{}}}; λ{}}}}
+
+U32.lit0 : U32 =
+  (.U32, ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WCon, ((.False, ()), ((.WNil, ()), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))), ()))
+
+opaque IO.print : ∀x0 : String -> (IO -Unit) =
+  λx0 => λ-x1 => λx2 => (.Halt, (U32.lit0, ((.SNil, ()), ())))
+
+Word.inc : ∀x0 : Nat -> ∀x1 : (Word x0) -> (Word x0) =
+  λ{(,): λ{.Zero: λ{(): λx0 => (.WNil, ()); λ{}}; λ{.Succ: λ{(,): λx0 => λ{(): λ{(,): λ{.WCon: λ{(,): λ{(,): λ{.False: λ{(): λ{(,): λx1 => λ{(): (.WCon, ((.True, ()), (x1, ()))); λ{}}}; λ{}}; λ{.True: λ{(): λ{(,): λx1 => λ{(): (.WCon, ((.False, ()), ((Word.inc x0 x1), ()))); λ{}}}; λ{}}; λ{}}}}}; λ{}}}; λ{}}}; λ{}}}}
+
+U32.inc : ∀x0 : U32 -> U32 =
+  λ{(,): λ{.U32: λ{(,): λx0 => λ{(): (.U32, ((Word.inc (.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Zero, ()), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())) x0), ())); λ{}}}; λ{}}}
+
+U32.from_nat : ∀x0 : Nat -> U32 =
+  λ{(,): λ{.Zero: λ{(): U32.lit0; λ{}}; λ{.Succ: λ{(,): λx0 => λ{(): (U32.inc (U32.from_nat x0)); λ{}}}; λ{}}}}
+
+Nat.show.put : ∀x0 : (Pair -Nat -Nat) -> (Pair -Char -Nat) =
+  λ{(,): λ{.Tuple: λ{(,): λx0 => λ{(,): λx1 => λ{(): (.Tuple, ((.Chr, ((U32.from_nat (Nat.add (.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Zero, ()), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())) x1)), ())), (x0, ()))); λ{}}}}; λ{}}}
+
+Nat.divmod.go : ∀x0 : Nat -> ∀x1 : Nat -> ∀x2 : Nat -> ∀x3 : Nat -> (Pair -Nat -Nat) =
+  λ{(,): λ{.Zero: λ{(): λx0 => λx1 => λx2 => (.Tuple, (x1, (x2, ()))); λ{}}; λ{.Succ: λ{(,): λ+x0 => λ{(): λ{(,): λ{.Zero: λ{(): λx1 => λx2 => (Nat.divmod.go x0 x2 (.Succ, (x1, ())) (.Zero, ())); λ{}}; λ{.Succ: λ{(,): λx1 => λ{(): λx2 => λx3 => (Nat.divmod.go x0 x1 x2 (.Succ, (x3, ()))); λ{}}}; λ{}}}}; λ{}}}; λ{}}}}
+
+Nat.divmod : ∀x0 : Nat -> ∀x1 : Nat -> (Pair -Nat -Nat) =
+  λ+x0 => λ{(,): λ{.Zero: λ{(): (.Tuple, ((.Zero, ()), (x0, ()))); λ{}}; λ{.Succ: λ{(,): λx1 => λ{(): (Nat.divmod.go x0 x1 (.Zero, ()) (.Zero, ())); λ{}}}; λ{}}}}
+
+Nat.show.go.group : ∀x0 : Nat -> ∀x1 : Σx1 : <Nat.show.go, Nat.show.fin> -> (λ{.Nat.show.go: <()>; λ{.Nat.show.fin: Σx2 : <Nat.show.go> -> <()>; λ{}}} x1) -> (λ{(,): λ{.Nat.show.go: λ{(): ∀x2 : Nat -> ∀x3 : String -> String; λ{}}; λ{.Nat.show.fin: λ{(,): λ{.Nat.show.go: λ{(): ∀x2 : String -> ∀x3 : (Pair -Char -Nat) -> String; λ{}}; λ{}}}; λ{}}}} x1) =
+  λx0 => λx1 => (λ{(,): λ{.Nat.show.go: λ{(): λx2 => λx3 => λx4 => (λ{(,): λ{.Zero: λ{(): λx5 => λx6 => x6; λ{}}; λ{.Succ: λ{(,): λx5 => λ{(): λx6 => λx7 => {(Nat.show.go.group x5 (.Nat.show.fin, (.Nat.show.go, ())) x7 (Nat.show.put (Nat.divmod x6 (.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Zero, ()), ())), ())), ())), ())), ())), ())), ())), ())), ())), ()))))) : String}; λ{}}}; λ{}}}} x2 x3 x4); λ{}}; λ{.Nat.show.fin: λ{(,): λ{.Nat.show.go: λ{(): λx2 => λ+x3 => λx4 => (λ{(,): λ{.Tuple: λ{(,): λ+x5 => λ{(,): λ{(,): λ{.Zero: λ{(): λ{(): (.SCon, (x5, (x3, ()))); λ{}}; λ{}}; λ{.Succ: λ{(,): λx6 => λ{(): λ{(): {(Nat.show.go.group x2 (.Nat.show.go, ()) (.Succ, (x6, ())) (.SCon, (x5, (x3, ())))) : String}; λ{}}; λ{}}}; λ{}}}}}}; λ{}}} x4); λ{}}; λ{}}}; λ{}}}} x1 x0)
+
+Nat.show : ∀x0 : Nat -> String =
+  λ+x0 => {(Nat.show.go.group x0 (.Nat.show.fin, (.Nat.show.go, ())) (.SNil, ()) (Nat.show.put (Nat.divmod x0 (.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Zero, ()), ())), ())), ())), ())), ())), ())), ())), ())), ())), ()))))) : String}
+
+main.main : (IO -Unit) =
+  λ-x0 => λx1 => (IO.print (Nat.show (main.sum (.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Zero, ()), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())) +(.Zero, ()))) -x0 λx2 => (x1 x2))
+
+add_zero : ∀x0 : Nat -> {(Nat.add x0 (.Zero, ())) == x0 : Nat} =
+  λ{(,): λ{.Zero: λ{(): {==}; λ{}}; λ{.Succ: λ{(,): λx0 => λ{(): %(add_zero x0) : x1, x2 => {(.Succ, ((Nat.add x0 (.Zero, ())), ())) == (.Succ, (x1, ())) : Nat}; {==}; λ{}}}; λ{}}}}
+
+add_assoc : ∀x0 : Nat -> ∀-x1 : Nat -> ∀-x2 : Nat -> {(Nat.add x0 (Nat.add x1 x2)) == (Nat.add (Nat.add x0 x1) x2) : Nat} =
+  λ{(,): λ{.Zero: λ{(): λ-x0 => λ-x1 => {==}; λ{}}; λ{.Succ: λ{(,): λx0 => λ{(): λ-x1 => λ-x2 => %(add_assoc x0 -x1 -x2) : x3, x4 => {(.Succ, ((Nat.add x0 (Nat.add x1 x2)), ())) == (.Succ, (x3, ())) : Nat}; {==}; λ{}}}; λ{}}}}
+
+seq_add : ∀x0 : Nat -> ∀+x1 : Nat -> ∀+x2 : Nat -> {(Nat.add (main.seq x1 +x2) (main.seq x0 +(Nat.add x1 x2))) == (main.seq (Nat.add x0 x1) +x2) : Nat} =
+  λ{(,): λ{.Zero: λ{(): λ+x0 => λ+x1 => (add_zero (main.seq x0 +x1)); λ{}}; λ{.Succ: λ{(,): λ+x0 => λ{(): λ+x1 => λ+x2 => %(seq_add x0 +x1 +x2) : x3, x4 => {(Nat.add (main.seq x1 +x2) (Nat.add (main.seq x0 +(Nat.add x1 x2)) (Nat.add x0 (Nat.add x1 x2)))) == (Nat.add x3 (Nat.add (Nat.add x0 x1) x2)) : Nat}; %(add_assoc x0 -x1 -x2) : x3, x4 => {(Nat.add (main.seq x1 +x2) (Nat.add (main.seq x0 +(Nat.add x1 x2)) (Nat.add x0 (Nat.add x1 x2)))) == (Nat.add (Nat.add (main.seq x1 +x2) (main.seq x0 +(Nat.add x1 x2))) x3) : Nat}; (add_assoc (main.seq x1 +x2) -(main.seq x0 +(Nat.add x1 x2)) -(Nat.add x0 (Nat.add x1 x2))); λ{}}}; λ{}}}}
+
+LAWS.tree_is_seq : ∀+x0 : Nat -> ∀+x1 : Nat -> {(main.sum x0 +x1) == (main.seq (main.pow2 x0) +x1) : Nat} =
+  λ{(,): λ{.Zero: λ{(): λ+x0 => {==}; λ{}}; λ{.Succ: λ{(,): λ+x0 => λ{(): λ+x1 => %(seq_add (main.pow2 x0) +(main.pow2 x0) +x1) : x2, x3 => {(Nat.add (main.sum x0 +x1) (main.sum x0 +(Nat.add (main.pow2 x0) x1))) == x2 : Nat}; %(LAWS.tree_is_seq +x0 +x1) : x2, x3 => {(Nat.add (main.sum x0 +x1) (main.sum x0 +(Nat.add (main.pow2 x0) x1))) == (Nat.add x2 (main.seq (main.pow2 x0) +(Nat.add (main.pow2 x0) x1))) : Nat}; %(LAWS.tree_is_seq +x0 +(Nat.add (main.pow2 x0) x1)) : x2, x3 => {(Nat.add (main.sum x0 +x1) (main.sum x0 +(Nat.add (main.pow2 x0) x1))) == (Nat.add (main.sum x0 +x1) x2) : Nat}; {==}; λ{}}}; λ{}}}}
+
+Word.Nil.arms : ∀x0 : <WNil> -> *2 =
+  λ{.WNil: <()>; λ{}}
+
+Word.Nil : *2 =
+  Σx0 : <WNil> -> (Word.Nil.arms x0)
+
+Word.Con.arms : ∀-x0 : Nat -> ∀x1 : <WCon> -> *2 =
+  λ-x0 => λ{.WCon: Σx1 : Bool -> Σx2 : (Word x0) -> <()>; λ{}}
+
+Word.Con : ∀-x0 : Nat -> *2 =
+  λ-x0 => Σx1 : <WCon> -> (Word.Con.arms -x0 x1)
+
+Word : ∀x0 : Nat -> *2 =
+  λ{(,): λ{.Zero: λ{(): Word.Nil; λ{}}; λ{.Succ: λ{(,): λx0 => λ{(): (Word.Con -x0); λ{}}}; λ{}}}}
+
+Bool.arms : ∀x0 : <False, True> -> *2 =
+  λ{.False: <()>; λ{.True: <()>; λ{}}}
+
+Bool : *2 =
+  Σx0 : <False, True> -> (Bool.arms x0)
+
+Char.arms : ∀x0 : <Chr> -> *2 =
+  λ{.Chr: Σx0 : U32 -> <()>; λ{}}
+
+Char : *2 =
+  Σx0 : <Chr> -> (Char.arms x0)
+
+Sigma.q11.arms : ∀-x0 : *1 -> ∀-x1 : ∀-x1 : x0 -> *1 -> ∀x2 : <Tuple> -> *1 =
+  λ-x0 => λ-x1 => λ{.Tuple: Σx2 : x0 -> Σx3 : (x1 -x2) -> <()>; λ{}}
+
+Sigma.q11 : ∀-x0 : *1 -> ∀-x1 : ∀-x1 : x0 -> *1 -> *1 =
+  λ-x0 => λ-x1 => Σx2 : <Tuple> -> (Sigma.q11.arms -x0 -x1 x2)
+
+Pair : ∀-x0 : *1 -> ∀-x1 : *1 -> *1 =
+  λ-x0 => λ-x1 => (Sigma.q11 -x0 -λ-x2 => x1)
+
+U32.arms : ∀x0 : <U32> -> *2 =
+  λ{.U32: Σx0 : (Word (.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Succ, ((.Zero, ()), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ())), ()))) -> <()>; λ{}}
+
+U32 : *2 =
+  Σx0 : <U32> -> (U32.arms x0)
+
+String.arms : ∀x0 : <SNil, SCon> -> *2 =
+  λ{.SNil: <()>; λ{.SCon: Σx0 : Char -> Σx1 : String -> <()>; λ{}}}
+
+String : *2 =
+  Σx0 : <SNil, SCon> -> (String.arms x0)
+
+Unit.arms : ∀x0 : <Unit> -> *2 =
+  λ{.Unit: <()>; λ{}}
+
+Unit : *2 =
+  Σx0 : <Unit> -> (Unit.arms x0)
+
+IO : ∀-x0 : *1 -> *1 =
+  λ-x0 => ∀-x1 : *1 -> ∀x2 : ∀x2 : x0 -> (IO.OP -x1) -> (IO.OP -x1)
+
+IO.OP.arms : ∀-x0 : *1 -> ∀x1 : <Emit, Halt> -> *1 =
+  λ-x0 => λ{.Emit: Σx1 : x0 -> <()>; λ{.Halt: Σx1 : U32 -> Σx2 : String -> <()>; λ{}}}
+
+IO.OP : ∀-x0 : *1 -> *1 =
+  λ-x0 => Σx1 : <Emit, Halt> -> (IO.OP.arms -x0 x1)
+
+Nat.arms : ∀x0 : <Zero, Succ> -> *2 =
+  λ{.Zero: <()>; λ{.Succ: Σx0 : Nat -> <()>; λ{}}}
+
+Nat : *2 =
+  Σx0 : <Zero, Succ> -> (Nat.arms x0)

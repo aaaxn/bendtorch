@@ -1,0 +1,17 @@
+<host>
+<worktree>
+ruff 0.16.10
+ty 0.0.84
+$ uv run --frozen --no-sync ruff format --check --config pyproject.toml --cache-dir oracle/s2/.ruff_cache oracle/s2
+unformatted: File would be reformatted
+  --> oracle/s2/tests/test_oracle.py:52:41
+   |
+51 |         with patch.object(generate, "POLICY_SHA256", "0" * 64):
+   -             with self.assertRaisesRegex(RuntimeError, "Frozen numerical policy changed"):
+52 +             with self.assertRaisesRegex(
+53 +                 RuntimeError, "Frozen numerical policy changed"
+54 +             ):
+55 |                 generate.policy()
+   |
+
+1 file would be reformatted, 2 files already formatted
