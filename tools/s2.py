@@ -15,6 +15,7 @@ from tools.common import (
     check_sources,
     digest,
 )
+from tools.s2_families import run_stage as pointwise_family
 from tools.s2_numerics import special, verify_case_v3
 from tools.s2_ordered import verify_ordered_case, verify_ordered_lane
 from tools.s2_runtime import (
@@ -395,6 +396,7 @@ def run_stage(tool_root: Path, output: Path) -> None:
         ROOT / "verification/references.json",
         ROOT / "tools/s2.py",
         ROOT / "tools/s2_runtime.py",
+        ROOT / "tools/s2_families.py",
         ROOT / "tools/s2_numerics.py",
         ROOT / "tools/s2_ordered.py",
         ROOT / "tools/common.py",
@@ -487,6 +489,9 @@ def run_stage(tool_root: Path, output: Path) -> None:
         acceptance[lane]["supplement"] = verify_supplement(
             supplement["supplement"], observations
         )
+    acceptance["pointwise_family"] = pointwise_family(
+        tool_root, output / "pointwise-family"
+    )
     (output / "acceptance.json").write_text(json.dumps(acceptance, indent=2) + "\n")
     links = evidence.run("native-dependencies", ["ldd", str(output / "runtime/corpus")])
     libraries = [
