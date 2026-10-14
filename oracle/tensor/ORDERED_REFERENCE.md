@@ -7,7 +7,7 @@ if its separately declared contract permits that and the unchanged compatibility
 envelope accepts the result. Neither contract implies the other.
 
 For `sum_cancellation_0`, both positive zero and `1.0` pass the existing
-`tools.tensor_numerics.verify_case`. Only positive zero satisfies the ordered
+`tools.tensor_numerics.verify_envelope`. Only positive zero satisfies the ordered
 reference. Accepting `1.0` in the compatibility check is intentional, not a
 tolerance defect. Do not tighten that check to make it assert sequence equality.
 

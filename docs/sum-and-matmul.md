@@ -353,7 +353,7 @@ The pre-integration native corpus executed all 160 successful cases, including 3
 16 matrix products, and the matrix-plus-bias case, plus 30 native API errors,
 4 decoder errors, 7 compile-negative cases, and 7 shape cases. All 160 outputs
 passed the frozen independent-reference comparison through
-`tools.tensor_numerics.verify_case`; no tolerance or reference was changed.
+`tools.tensor_numerics.verify_envelope`; no tolerance or reference was changed.
 The pre-integration packed-array audit reported zero live splits and zero live reconstructions.
 These are executed conformance facts, not universal native/backend theorems
 or performance measurements.

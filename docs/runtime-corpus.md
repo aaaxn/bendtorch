@@ -193,8 +193,8 @@ results. The historical corpus remains available for explicit oracle replay:
 | `oracle/tensor/numerical-policy-v3.json` | `e3b1bd0807b1e6f686a57574c64f961fc9de6fedec97f0a74a3bc2142add001f` |
 | `oracle/tensor/fixtures/s2-supplement-v1.json` | `64069566511462006eb67044099170ab8db24f73880e13cd362b9e2994fd9460` |
 
-The gate applies policy version 3 (`tools.tensor_numerics.verify_case_v3`), which
-runs every version 2 check and adds the exact-word lane for bounded
+The gate applies policy version 3 (`tools.tensor_numerics.verify_case`), which
+runs every version 2 check (`tools.tensor_numerics.verify_envelope`) and adds the exact-word lane for bounded
 add/sub/mul and the zero-sign check for sum and matmul; see
 [oracle/tensor/README.md](../oracle/tensor/README.md). Version 2 and its retained
 evidence are unchanged. Each lane also runs the 29 supplement cases and 2
@@ -208,8 +208,8 @@ all native result shapes/counts, all error semantics, static certificates, and
 the copy audit. It also checks exact retained input words for public binary
 successes and errors in each lane, with raw NaNs compared to the same lane's
 matching frozen construction observation, and
-applies the unchanged `tools.tensor_numerics.verify_case` policy to every public
-binary success. Complete numerical acceptance remains the root gate's job:
+applies the unchanged version 2 policy, `tools.tensor_numerics.verify_envelope`,
+to every public binary success. Complete numerical acceptance remains the root gate's job:
 
 ```python
 import json

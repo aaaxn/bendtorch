@@ -7,7 +7,7 @@ from pathlib import Path
 
 from tools.common import ROOT, Evidence, GateError, bend, digest
 from tools.storage import instrument_copy_audit
-from tools.tensor_numerics import special, verify_case
+from tools.tensor_numerics import special, verify_envelope
 from tools.tensor_runtime import (
     CORPUS,
     CORPUS_SHA256,
@@ -478,7 +478,7 @@ class NativeCorpusTests(unittest.TestCase):
                     if case["op"] not in ("add", "sub", "mul"):
                         continue
                     with self.subTest(lane=lane, case=case["id"]):
-                        verify_case(case, observed[case["id"]]["result"])
+                        verify_envelope(case, observed[case["id"]]["result"])
 
     def test_public_binary_calls_retain_corresponding_inputs_even_on_error(self):
         for lane, observed in (
