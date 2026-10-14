@@ -7,7 +7,8 @@ theorem over `f`, `ia` and `ib`, and each operation gets its contract by
 instantiating it. Reductions share a second loop: `sum`, the matmul dot
 product and one cell of `reduce_to` fold words into an accumulator in a fixed
 order. The code is in `src/tensor/contracts/`, and the `reduce_to` instance is
-in `src/autograd/reduce-fold.bend`.
+in `src/autograd/reduce-fold.bend`. The law `reduce_to_fiber` states that
+`reduce_to` itself computes every cell with the same total.
 
 ## Replayed tensors are the input class
 
@@ -156,6 +157,43 @@ at step `k`, `Projection.offset_spec(plan, k)` is
 `project_left_index_refines` and `project_right_index_refines`, and the word
 the fold reads is the `k`-th entry of `words`.
 
+### `reduce_to` meets the same specification
+
+`reduce_fold_fiber` states one cell of `ReduceFold.cell`, a separate function.
+`Reduce.reduce_to` in `src/autograd/reduce.bend`, the function that autograd
+calls, runs its own loop. It visits contribution positions in increasing
+order, reads the target cell that each position lands on, and writes back that
+cell plus the word. The law `reduce_to_fiber` in
+`src/autograd/reduce-fold-LAWS.bend` states what that loop computes. It takes:
+
+- a target and a contribution shape;
+- the plan with `Shape.broadcast_checked(target, shape) == Done{plan}`, and
+  `Shape.dimensions(Shape.output_shape(plan)) == Shape.dimensions(shape)`,
+  the case where `reduce_to` succeeds;
+- any replayed contribution of that shape.
+
+Its conclusion is a `ReduceToContract`, with live fields:
+
+- `successful`: `reduce_to` succeeds.
+- `dimensions`: the output has the target's dimensions.
+- `value`: every in-bounds target cell holds
+  `ReduceLaws.fiber(plan, words(..., numel), index, numel)`, the value that
+  `reduce_fold_fiber` states for `ReduceFold.cell`.
+- `kept`: the returned contribution still holds every word.
+
+The proof in `src/autograd/reduce-to-fold-PROOF.bend` walks the `reduce_to`
+loop with live code, without changing it. After `k` steps the contribution is
+the replayed tensor with history `ops ++ reads(k)`, and the output is the
+replayed tensor over `+0.0` with history `history(k)`: step `k` reads the cell
+that position `k` lands on and writes back that cell plus word `k`.
+`history_value` shows that cell `index` of that output is the family total
+`Fold.total` with the read map `ReduceFold.source` and the mask
+`ReduceFold.lands` for `index`, after `k` steps. `fiber_total` then turns that
+total into `ReduceLaws.fiber`. A wrong landing map or another addition order
+in `reduce.bend` fails `step_lift`, the step of the walk. A wrong landing map or
+an inverted mask in `reduce-fold.bend` fails `fiber_total`, which both laws
+use.
+
 `words` and `factors` are in `src/tensor/contracts/LAWS.bend`. `words` lists
 the first `count` words of a replayed input in index order. `factors` lists
 the pairs `left[row, k]` and `right[k, column]` of two row-major matrices in
@@ -187,17 +225,15 @@ from `lt_mul_add`: `a * n + b < m * n` when `a < m` and `b < n`.
   `verification/families/fold/`.
 - F32 operations are opaque. A value is stated as the term
   `F32.sub(5.0, 20.0)`, not as `-15.0`.
-- `Reduce.reduce_to` in `src/autograd/reduce.bend` runs its own loop.
-  `ReduceFold.cell` meets the same specification, `ReduceLaws.fiber`, but no
-  law yet says that `reduce_to` computes its cells with it.
 
 ## Controls
 
 `verification/families/` holds literal consumers of `broadcast_pointwise`,
 two of them on the actual `Core.from_values` and `Core.new` results, of
-`sum_ordered` and `dot_ordered`, of failed folds, and of `reduce_fold_fiber`,
-false twins of thirteen value statements, and twenty-five mutants of the
-family loops and of their instances. Its [README](../verification/families/README.md) lists each
+`sum_ordered` and `dot_ordered`, of failed folds, and of `reduce_fold_fiber`
+and `reduce_to_fiber`, false twins of fourteen value statements, and
+twenty-eight mutants of the family loops, of their instances and of the
+`reduce_to` loop. Its [README](../verification/families/README.md) lists each
 control and the rejection it expects.
 
 The proofs and controls check what the laws state, not the compiled code.

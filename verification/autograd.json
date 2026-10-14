@@ -14,6 +14,7 @@
     "reduce_2d_LAWS.reduce_shape_error",
     "reduce_2d_LAWS.reduce_not_reducible",
     "reduce_2d_fold_2d_LAWS.reduce_fold_fiber",
+    "reduce_2d_fold_2d_LAWS.reduce_to_fiber",
     "sum_2d_to_2d_size_2d_LAWS.sum_to_size_retains_input",
     "sum_2d_to_2d_size_2d_LAWS.sum_to_size_identity",
     "sum_2d_to_2d_size_2d_LAWS.sum_to_size_reduces",

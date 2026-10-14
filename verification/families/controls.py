@@ -28,13 +28,16 @@ class Value(NamedTuple):
 class Site(NamedTuple):
     """Where the checkers reject a mutant. A `consumer` site is a declaration
     of the family's `consumers.bend`, which then is the module the source
-    check runs, for behavior that no law states."""
+    check runs, for behavior that no law states. A `module` site names the
+    proof module the source check runs instead of the family proof, when an
+    earlier proof of the same operation would report the mutant first."""
 
     source_def: str
     source_mark: str
     kernel_declaration: str
     replaced: tuple[str, ...]
     consumer: bool = False
+    module: str | None = None
 
 
 class Law(NamedTuple):
@@ -79,9 +82,10 @@ class Family:
         return f"{self.experiment}/entry.bend"
 
     def rejecting_module(self, label: str) -> str:
-        if self.sites[label].consumer:
+        site = self.sites[label]
+        if site.consumer:
             return f"{self.experiment}/consumers.bend"
-        return self.proof
+        return site.module or self.proof
 
     def mutant_copy(self, snapshot: Path, target: Path, label: str) -> None:
         path, old, new = self.mutants[label]

@@ -8,6 +8,7 @@ import ../../../src/tensor/from-values-contract.bend as FromValues
 import ../../../src/tensor/contracts/LAWS.bend as Contracts
 import ../../../src/tensor/contracts/replayed.bend as Replayed
 import ../../../src/tensor/contracts/fold.bend as Fold
+import ../../../src/autograd/reduce.bend as Reduce
 import ../../../src/autograd/reduce-LAWS.bend as ReduceLaws
 import ../../../src/autograd/reduce-fold.bend as ReduceFold
 import ../../../src/autograd/reduce-fold-LAWS.bend as Laws
@@ -134,3 +135,45 @@ def reduce_same() -> ReduceCase<result(grid_grid(), 4, grid_values(), {==}),
 
 def reduce_empty() -> {Fold.value(result(empty_plan(), 0, [], {==})) == Some{0.0} : Maybe<&2, F32>}:
   open_empty(empty_plan(), 0, [], {==}, Laws.reduce_fold_fiber(empty_plan(), {==}, 0, 0.0, writes([]), {==}))
+
+def reduced(+target: Shape.Shape, +shape: Shape.Shape, +values: List<&2, F32>,
+  -fits: {Lifecycle.logical_length(Replayed.storage(shape, 0.0, writes(values))) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}) ->
+  Core.Dynamic & Result<&2, &1, Reduce.Error, Core.Dynamic>:
+  Reduce.reduce_to(input(shape, values, fits), target)
+
+type ReduceToCase<-result: Core.Dynamic & Result<&2, &1, Reduce.Error, Core.Dynamic>, -dimensions: List<&2, U32>, -cell: U32,
+  -total: Maybe<&2, F32>, -index: U32, -word: F32> is Data:
+  ReduceToCase{
+    dimensions_exact: {Laws.output_dimensions(result) == Some{dimensions} : Maybe<&2, List<&2, U32>>},
+    value_exact: {Laws.output_point(result, cell) == total : Maybe<&2, F32>},
+    kept_exact: {Laws.input_point(result, index) == Some{word} : Maybe<&2, F32>}}
+
+def reduce_to_total(+plan: Shape.BroadcastPlan, +shape: Shape.Shape, +values: List<&2, F32>, +cell: U32) ->
+  Maybe<&2, F32>:
+  ReduceLaws.fiber(plan, Contracts.words(shape, 0.0, writes(values), Shape.logical_numel(Shape.dimensions(shape))),
+    cell, Shape.logical_numel(Shape.dimensions(shape)))
+
+def ReduceToValues(+target: Shape.Shape, +shape: Shape.Shape, +plan: Shape.BroadcastPlan, +values: List<&2, F32>,
+  -fits: {Lifecycle.logical_length(Replayed.storage(shape, 0.0, writes(values))) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}) -> Type:
+  Laws.ReduceToContract<target, shape, cell => reduce_to_total(plan, shape, values, cell),
+    other => Replayed.value(shape, 0.0, writes(values), other), reduced(target, shape, values, fits)>
+
+def open_reduce_to(+target: Shape.Shape, +shape: Shape.Shape, +plan: Shape.BroadcastPlan, +values: List<&2, F32>,
+  -fits: {Lifecycle.logical_length(Replayed.storage(shape, 0.0, writes(values))) == Shape.logical_numel(Shape.dimensions(shape)) : Nat},
+  evidence: ReduceToValues(target, shape, plan, values, fits),
+  +cell: U32, cell_inside: {Nat.is_lt(U32.to_nat(cell), Shape.logical_numel(Shape.dimensions(target))) == True{} : Bool},
+  +other: U32, other_inside: {Nat.is_lt(U32.to_nat(other), Shape.logical_numel(Shape.dimensions(shape))) == True{} : Bool}) ->
+  ReduceToCase<reduced(target, shape, values, fits), Shape.dimensions(target), cell, reduce_to_total(plan, shape, values, cell),
+    other, Replayed.value(shape, 0.0, writes(values), other)>:
+  Laws.ReduceToContract{successful, dimensions, value, kept} = evidence
+  ReduceToCase{dimensions, value(cell, cell_inside), kept(other, other_inside)}
+
+def reduce_to_columns() -> ReduceToCase<reduced(three_shape(), grid_shape(), grid_values(), {==}), [3],
+  1, Some{F32.add(F32.add(0.0, 2.0), 5.0)}, 4, 5.0>:
+  open_reduce_to(three_shape(), grid_shape(), three_grid(), grid_values(), {==},
+    Laws.reduce_to_fiber(three_shape(), grid_shape(), three_grid(), {==}, {==}, 0.0, writes(grid_values()), {==}), 1, {==}, 4, {==})
+
+def reduce_to_rows() -> ReduceToCase<reduced(column_shape(), grid_shape(), grid_values(), {==}), [2, 1],
+  1, Some{F32.add(F32.add(F32.add(0.0, 4.0), 5.0), 6.0)}, 0, 1.0>:
+  open_reduce_to(column_shape(), grid_shape(), column_grid(), grid_values(), {==},
+    Laws.reduce_to_fiber(column_shape(), grid_shape(), column_grid(), {==}, {==}, 0.0, writes(grid_values()), {==}), 1, {==}, 0, {==})
