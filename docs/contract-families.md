@@ -195,9 +195,9 @@ from `lt_mul_add`: `a * n + b < m * n` when `a < m` and `b < n`.
 
 `verification/families/` holds literal consumers of `broadcast_pointwise`,
 two of them on the actual `Core.from_values` and `Core.new` results, of
-`sum_ordered` and `dot_ordered`, and of failed folds, false twins of nine
-value statements, and twenty mutants of the family loops and of their
-instances. Its [README](../verification/families/README.md) lists each
+`sum_ordered` and `dot_ordered`, of failed folds, and of `reduce_fold_fiber`,
+false twins of thirteen value statements, and twenty-five mutants of the
+family loops and of their instances. Its [README](../verification/families/README.md) lists each
 control and the rejection it expects.
 
 The proofs and controls check what the laws state, not the compiled code.
