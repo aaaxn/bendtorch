@@ -160,10 +160,9 @@ parallel call reads costs one atomic per read.
 
 Stages S0 to S7 stay as milestones, but the unit of a PR is one independently
 verifiable capability. Each stage keeps a cumulative gate `tools/sN.py` that
-dispatches over all of the stage's registered subgates, and one gate run in
-`evidence/sN/` when the stage completes. Stage gates are the files matching
-`tools/s[0-9].py`, so a helper gate such as `tools/s3_graph.py` must be
-registered in `tools/s3.py`.
+dispatches over all of the stage's registered subgates. Stage gates are the
+files matching `tools/s[0-9].py`, so a helper gate such as
+`tools/s3_graph.py` must be registered in `tools/s3.py`.
 
 The R1 track (R1.A, R1.B) is the proof-interface work that precedes S3.
 Experimental work, such as S3.A, is labeled experimental and stays outside

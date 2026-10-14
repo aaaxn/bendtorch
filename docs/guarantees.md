@@ -28,10 +28,9 @@ someone with permission from editing the gate itself. GitHub branch protection
 and restricted reviewer permissions must enforce that organizational boundary.
 No claim that those repository settings are already enabled is made here.
 
-Outputs of one S0 gate run are in `evidence/s0/`; clean-directory
-reconstruction is a documented command, not recorded evidence. S1's checked
-shape/index core, general Base representation proofs, and owned F32 adapter
-are recorded in `evidence/s1/`. The executable shape API is proved against
+Clean-directory reconstruction is a documented command, not recorded
+evidence. S1 checks the shape/index core, general Base representation proofs,
+and owned F32 adapter. The executable shape API is proved against
 the Nat/Fin core: construction and broadcasting are complete, flatten,
 unflatten, the checked projections and the flat-index projections refine the
 core functions, and every broadcast plan carries the unique right-aligned
