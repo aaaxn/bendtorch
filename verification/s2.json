@@ -24,6 +24,8 @@
     "_2e_._2f_.._2f_src_2f_tensor_2f_transform_2d_contract_2d_LAWS.permute_duplicate_axis",
     "_2e_._2f_.._2f_src_2f_tensor_2f_transform_2d_contract_2d_LAWS.transpose_out_of_bounds",
     "_2e_._2f_.._2f_src_2f_tensor_2f_from_2d_values_2d_contract_2d_LAWS.from_values_contract",
+    "_2e_._2f_.._2f_src_2f_tensor_2f_permute_2d_values_2d_contract_2d_LAWS.permute_contract",
+    "_2e_._2f_.._2f_src_2f_tensor_2f_permute_2d_values_2d_contract_2d_LAWS.transpose_contract",
     "_2e_._2f_.._2f_src_2f_tensor_2f_contracts_2f_LAWS.new_replayed",
     "_2e_._2f_.._2f_src_2f_tensor_2f_contracts_2f_LAWS.from_values_replayed",
     "_2e_._2f_.._2f_src_2f_tensor_2f_contracts_2f_LAWS.replayed_read",

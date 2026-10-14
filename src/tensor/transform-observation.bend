@@ -157,3 +157,47 @@ def reshape_written(+input: Shape.Shape, +index: U32, +value: F32, +dimensions: 
       None{}
     case Done{tensor}:
       reshape_written_pair(input, dimensions, other, Core.write_flat(input, tensor, index, value))
+
+def applied_dimensions_pair(-input: Shape.Shape, pair: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Dynamic>) -> Maybe<&2, List<&2, U32>>:
+  (source, result) = pair
+  output_dimensions(result)
+
+def applied_dimensions(+input: Shape.Shape, +request: Request, result: Result<&2, &1, Core.Error, Core.Tensor<input>>) -> Maybe<&2, List<&2, U32>>:
+  match result:
+    case Fail{error}:
+      None{}
+    case Done{tensor}:
+      applied_dimensions_pair(input, apply(input, tensor, request))
+
+def applied_length_pair(-input: Shape.Shape, pair: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Dynamic>) -> Maybe<&2, Nat>:
+  (source, result) = pair
+  output_length(result)
+
+def applied_length(+input: Shape.Shape, +request: Request, result: Result<&2, &1, Core.Error, Core.Tensor<input>>) -> Maybe<&2, Nat>:
+  match result:
+    case Fail{error}:
+      None{}
+    case Done{tensor}:
+      applied_length_pair(input, apply(input, tensor, request))
+
+def applied_count_pair(-input: Shape.Shape, pair: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Dynamic>) -> Maybe<&2, U32>:
+  (source, result) = pair
+  output_count(result)
+
+def applied_count(+input: Shape.Shape, +request: Request, result: Result<&2, &1, Core.Error, Core.Tensor<input>>) -> Maybe<&2, U32>:
+  match result:
+    case Fail{error}:
+      None{}
+    case Done{tensor}:
+      applied_count_pair(input, apply(input, tensor, request))
+
+def applied_value_pair(-input: Shape.Shape, +other: U32, pair: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Dynamic>) -> Maybe<&2, F32>:
+  (source, result) = pair
+  output_value(other, result)
+
+def applied_value(+input: Shape.Shape, +request: Request, +other: U32, result: Result<&2, &1, Core.Error, Core.Tensor<input>>) -> Maybe<&2, F32>:
+  match result:
+    case Fail{error}:
+      None{}
+    case Done{tensor}:
+      applied_value_pair(input, other, apply(input, tensor, request))

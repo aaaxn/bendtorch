@@ -206,5 +206,13 @@ R1.B.6a adds the LIVE distinct-values producer:
 `from_values_contract` (`src/tensor/from-values-contract-LAWS.bend`) states,
 with LIVE fields, that `Core.from_values(shape, values)` with
 `length(values) == numel(shape)` succeeds with the shape's metadata and reads
-`values[i]` at every in-bounds `i`. The copy-loop re-proof and the LIVE
-permute/transpose value contracts over this producer follow in R1.B.6b.
+`values[i]` at every in-bounds `i`.
+
+R1.B.6b adds the LIVE permute and transpose value contracts over this
+producer: `permute_contract` and `transpose_contract`
+(`src/tensor/permute-values-contract-LAWS.bend`) state that output index `i`
+holds `values[permute_source(input, axes, i)]` and that the returned source
+keeps every value. The proof re-walks the copy loop with live code, as an
+instance of a generic index-map copy built on the pointwise contract family.
+The nine existing permute/transpose statements are unchanged and still hold
+erased evidence.

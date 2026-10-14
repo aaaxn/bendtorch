@@ -237,6 +237,65 @@ on each mutated copy: the `Core.new` laws do not depend on the fill loop. The
 kernel lane exports the mutated `core.bend` alone and transplants its changed
 declarations into the positive export.
 
+## Permute and transpose values (R1.B.6b)
+
+Laws in `src/tensor/permute-values-contract-LAWS.bend`, aggregated by
+`src/tensor/LAWS.bend` and required by `verification/s2.json`. The record
+types are in `src/tensor/permute-values-records.bend` and the proof in
+`src/tensor/permute-values.bend`.
+
+- `permute_contract(input, values, counted, axes, valid) : PermuteContract`:
+  for `Core.from_values(input, values)` with `length(values) == numel(input)`
+  and a valid permutation `axes`, `permute_copy` succeeds (code 0), the output
+  has dimensions `Axis.order(dims, axes)`, the input's length and word count,
+  output index `i` holds `values[permute_source(input, axes, i)]` for every
+  in-bounds `i`, and the returned source still holds `values[j]` at every
+  in-bounds `j`.
+- `transpose_contract(input, values, counted, a, b, inside) : TransposeContract`:
+  the same fields for `transpose_copy(a, b)` with both axes in range, with the
+  axes `Transpose.requested_axes(rank, a, b)` that swap `a` and `b`.
+
+`Values.permute_source(input, axes, i)` in `src/tensor/observation.bend` is
+the reference map: decode `i` against the output dimensions, scatter the
+output coordinate back through `axes`, and flatten it against the input
+dimensions. Every field is LIVE.
+
+The proof is generic over the index map. `src/tensor/index-map.bend` states
+the copy `out[i] = input[map(plan, i)]` as the pointwise family of
+`src/tensor/contracts/` with a scalar function that keeps its first operand,
+so the read history, the write history and the final-value theorem
+(`PointwiseProof.writes_value`) are the family's. Permute supplies the map
+`permute_source` and discharges its bound from the `Layout.Mapping` the loop
+computes; transpose reuses the permute proof with the swapped axes. The
+proof walks `Transforms.copy_loop` itself with live code: each step reads the
+mapped word and writes it at the cursor, and `IndexMap.shift` turns the
+storages that step leaves into the next step's histories.
+
+`permute-values/` holds:
+
+- `consumers.bend`: a scalar permute by `[]`; `[2,3]` from `[1..6]` permuted
+  by `[1,0]` at output indices 0, 1 and 4; `[2,2,2]` from `[1..8]` rotated by
+  `[1,2,0]` at output indices 1, 2 and 6; transposes of `[2,3]` by `(0,1)` and
+  `(1,0)`, of `[2,2,2]` by `(0,2)` and of a scalar by `(0,0)`. Each restates
+  the code, dimensions, one output value and one retained source value.
+- `controls.bend`: three witnesses (rotated value 5.0, transposed value 4.0,
+  retained source value 3.0) and `wrong_value` (8.0).
+- `mutants.txt`: before/after text of each `transforms.bend` mutation.
+
+| Control | Change in `transforms.bend` | Expected rejection |
+| --- | --- | --- |
+| False twins (3) | one witness statement says `wrong_value` | `Some(v) == Some(8.0)` at that witness, source and kernel |
+| Forward map (WI) | `copy_mapped` reads the source at the output index and writes at the mapped index | `read_step`, source and kernel; the released transform contract passes |
+| Swap ignored (WI) | `transpose_decided` permutes by `transpose_axes(dims, a, a)` | `transpose_route`, source and kernel; the released transform contract passes |
+
+Both WI mutants keep every existing law: the erased value laws do not reach
+the kernel, and `transform-contract-PROOF.bend`, which states failures and
+reshape values only, still checks on each mutated copy. The rotation consumer
+uses a 3-cycle because a swap of two axes is its own inverse, so a forward map
+would read the same words for it. The kernel lane exports the mutated
+`transforms.bend` alone and transplants its changed declarations into the
+positive export.
+
 ## Run
 
 ```sh
@@ -244,7 +303,7 @@ uv run --locked python -m verification.r1-b.run --output <fresh directory> --wor
 uv run --locked python -m unittest verification/r1-b/test_run.py -v
 ```
 
-The runner snapshots `src/`, `construction/`, `reads/`, `clone/`, `transforms/` and `from-values/`, builds the controls and
+The runner snapshots `src/`, `construction/`, `reads/`, `clone/`, `transforms/`, `from-values/` and `permute-values/`, builds the controls and
 mutant copies, runs source checks, `--verdict`, exports and checks the exported
 statements, then runs BendTT on the positive and mutated exports. It writes
 `summary.json` with the repository and Bend commits, every command, exit code

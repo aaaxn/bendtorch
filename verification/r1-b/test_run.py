@@ -9,6 +9,7 @@ reads = importlib.import_module("verification.r1-b.reads_controls")
 clones = importlib.import_module("verification.r1-b.clone_controls")
 transforms = importlib.import_module("verification.r1-b.transform_controls")
 values = importlib.import_module("verification.r1-b.from_values_controls")
+permutes = importlib.import_module("verification.r1-b.permute_values_controls")
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -394,6 +395,81 @@ class ExperimentRunnerTests(unittest.TestCase):
             values.kernel_reason(
                 witness.replace("wrong_value", "other"), "grid_last_witness"
             )
+
+    def test_permute_mutants_edit_only_transforms(self):
+        source = (ROOT / "src/tensor/transforms.bend").read_text()
+        for label, (path, old, new) in permutes.MUTANTS.items():
+            self.assertEqual(path, "src/tensor/transforms.bend", label)
+            self.assertEqual(source.count(old), 1, label)
+            self.assertNotEqual(old, new, label)
+        with tempfile.TemporaryDirectory() as directory:
+            snapshot = Path(directory) / "snapshot"
+            shutil.copytree(ROOT / "src", snapshot / "src")
+            for label, (path, old, new) in permutes.MUTANTS.items():
+                target = Path(directory) / label
+                permutes.mutant_copy(snapshot, target, label)
+                changed = (target / path).read_text()
+                self.assertEqual(changed.replace(new, old, 1), source, label)
+                self.assertTrue(
+                    (target / permutes.EXPERIMENT / "module-entry.bend").exists()
+                )
+
+    def test_permute_false_twin_changes_only_the_statement(self):
+        controls = (ROOT / permutes.EXPERIMENT / "controls.bend").read_text()
+        for witness, (target, *_) in permutes.WITNESSES.items():
+            twin = permutes.false_twin(controls, witness)
+            start = twin.index(f"def {witness}()")
+            end = twin.index("}:\n", start)
+            header = twin[start:end]
+            self.assertIn("==\n    wrong_value()", header)
+            restored = twin[:start] + header.replace("wrong_value", target) + twin[end:]
+            self.assertEqual(restored, controls)
+
+    def test_permute_source_reason_requires_the_named_site(self):
+        good = (
+            "- expected : {Some{5.0} == Some{8.0} : Maybe<&2, F32>}\n"
+            "- observed : {Some{5.0} == Some{5.0} : Maybe<&2, F32>}\n"
+            "Location: cube_rotate_witness\n"
+        )
+        self.assertIn("Some{8.0}", permutes.source_reason(good, "cube_rotate_witness"))
+        with self.assertRaises(runner.GateError):
+            permutes.source_reason(good, "grid_transpose_witness")
+        mark = "Layout.transpose_axes(Shape.dimensions(input), a, a, 0)"
+        site = (
+            "- expected : P(Layout.transpose_axes(Shape.dimensions(input), a, b, 0))\n"
+            f"- observed : P({mark})\n"
+            "Location: transpose_route\n"
+        )
+        self.assertIn(
+            "transpose_route", permutes.source_reason(site, "transpose-swap-ignored")
+        )
+        with self.assertRaises(runner.GateError):
+            permutes.source_reason(site, "permute-forward-map")
+        with self.assertRaises(runner.GateError):
+            permutes.source_reason(
+                "- expected : *2\n- observed : *1\nLocation: transpose_route\n",
+                "transpose-swap-ignored",
+            )
+
+    def test_permute_kernel_reason_refuses_other_locations(self):
+        site = f"{permutes.SRC}permute_2d_values.read_step"
+        good = f"In {site}:\nexpected: a\nobserved: b\n"
+        self.assertIn(site, permutes.kernel_reason(good, "permute-forward-map"))
+        with self.assertRaises(runner.GateError):
+            permutes.kernel_reason(good, "transpose-swap-ignored")
+        value = f"({permutes.SRC}transform_2d_observation.applied_value x)"
+        left = f"({value} ({permutes.CORE}from_values y))"
+        witness = (
+            "In cube_rotate_witness:\n"
+            f"expected: {{{left} == wrong_value : M}}\n"
+            f"observed: {{{left} == ({permutes.SRC}observation.listed z) : M}}\n"
+        )
+        self.assertIn(
+            "cube_rotate_witness",
+            permutes.kernel_reason(witness, "cube_rotate_witness"),
+        )
+        with self.assertRaises(runner.GateError):
+            permutes.kernel_reason(witness, "grid_kept_witness")
 
 
 if __name__ == "__main__":

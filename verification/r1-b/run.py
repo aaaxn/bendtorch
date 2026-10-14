@@ -15,6 +15,7 @@ reads = importlib.import_module("verification.r1-b.reads_controls")
 clones = importlib.import_module("verification.r1-b.clone_controls")
 transforms = importlib.import_module("verification.r1-b.transform_controls")
 values = importlib.import_module("verification.r1-b.from_values_controls")
+permutes = importlib.import_module("verification.r1-b.permute_values_controls")
 
 ROOT = Path(__file__).resolve().parents[2]
 CASE_NAMES = (
@@ -769,6 +770,135 @@ def from_values(snapshot, output, bend, kernel, run, parallel, reasons) -> None:
         )
 
 
+def permute_values(snapshot, output, bend, kernel, run, parallel, reasons) -> None:
+    experiment = snapshot / permutes.EXPERIMENT
+    controls = (experiment / "controls.bend").read_text()
+    for witness in permutes.WITNESSES:
+        (experiment / f"false-{witness}.bend").write_text(
+            permutes.false_twin(controls, witness)
+        )
+    copies = {}
+    for label in permutes.MUTANTS:
+        copies[label] = output / f"permute-{label}"
+        permutes.mutant_copy(snapshot, copies[label], label)
+    texts = parallel(
+        [
+            (
+                "permute-source-consumers",
+                [*bend, experiment / "consumers.bend", "--check-only"],
+                0,
+            ),
+            (
+                "permute-source-controls",
+                [*bend, experiment / "controls.bend", "--check-only"],
+                0,
+            ),
+            *(
+                (
+                    f"permute-source-false-{witness}",
+                    [*bend, experiment / f"false-{witness}.bend", "--check-only"],
+                    1,
+                )
+                for witness in permutes.WITNESSES
+            ),
+            *(
+                (
+                    f"permute-source-{label}",
+                    [*bend, copies[label] / permutes.PROOF, "--check-only"],
+                    1,
+                )
+                for label in permutes.MUTANTS
+            ),
+            *(
+                (
+                    f"permute-source-{label}-other-contract",
+                    [*bend, copies[label] / permutes.OTHER, "--check-only"],
+                    0,
+                )
+                for label in permutes.MUTANTS
+            ),
+        ]
+    )
+    for label in (*permutes.WITNESSES, *permutes.MUTANTS):
+        name = (
+            f"permute-source-false-{label}"
+            if label in permutes.WITNESSES
+            else f"permute-source-{label}"
+        )
+        reasons[name] = permutes.source_reason(texts[name], label)
+
+    positive = output / "permute-controls.bendtt"
+    exports = {
+        label: output / f"permute-{label}-module.bendtt" for label in permutes.MUTANTS
+    }
+    parallel(
+        [
+            (
+                "permute-verdict-consumers",
+                [*bend, experiment / "consumers.bend", "--verdict"],
+                0,
+            ),
+            (
+                "permute-verdict-controls",
+                [*bend, experiment / "controls.bend", "--verdict"],
+                0,
+            ),
+            (
+                "permute-export-controls",
+                [*bend, experiment / "controls.bend", "-o", positive],
+                0,
+            ),
+            *(
+                (
+                    f"permute-export-{label}-module",
+                    [
+                        *bend,
+                        copies[label] / permutes.EXPERIMENT / "module-entry.bend",
+                        "-o",
+                        exports[label],
+                    ],
+                    0,
+                )
+                for label in permutes.MUTANTS
+            ),
+        ]
+    )
+    text = positive.read_text()
+    (output / "permute-export-statements.txt").write_text(
+        "\n\n".join(permutes.check_export(text, catalog).values()) + "\n"
+    )
+    declarations = catalog(text)
+    artifacts = {}
+    for witness, (target, *_) in permutes.WITNESSES.items():
+        header, body = declarations[witness]
+        artifacts[witness] = replace_declaration(
+            text, witness, header.replace(f"== {target}", "== wrong_value"), body
+        )
+    for label in permutes.MUTANTS:
+        artifacts[label] = reads.transplant(
+            text, exports[label].read_text(), catalog, permutes.module(label)
+        )
+    for label, artifact in artifacts.items():
+        (output / f"permute-false-{label}.bendtt").write_text(artifact)
+    texts = parallel(
+        [
+            ("permute-kernel-controls", [kernel, positive], 0),
+            *(
+                (
+                    f"permute-kernel-false-{label}",
+                    [kernel, output / f"permute-false-{label}.bendtt"],
+                    1,
+                )
+                for label in artifacts
+            ),
+        ]
+    )
+    for label in artifacts:
+        reasons[f"permute-kernel-false-{label}"] = permutes.kernel_reason(
+            texts[f"permute-kernel-false-{label}"], label
+        )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
@@ -857,6 +987,7 @@ def main() -> None:
     shutil.copytree(ROOT / clones.EXPERIMENT, snapshot / clones.EXPERIMENT)
     shutil.copytree(ROOT / transforms.EXPERIMENT, snapshot / transforms.EXPERIMENT)
     shutil.copytree(ROOT / values.EXPERIMENT, snapshot / values.EXPERIMENT)
+    shutil.copytree(ROOT / permutes.EXPERIMENT, snapshot / permutes.EXPERIMENT)
     experiment = snapshot / EXPERIMENT
     controls = (experiment / "controls.bend").read_text()
     for witness in CASE_NAMES:
@@ -1022,6 +1153,7 @@ def main() -> None:
         clone_metadata(snapshot, output, bend, kernel, run, parallel, reasons)
         transform(snapshot, output, bend, kernel, run, parallel, reasons)
         from_values(snapshot, output, bend, kernel, run, parallel, reasons)
+        permute_values(snapshot, output, bend, kernel, run, parallel, reasons)
         summary["passed"] = True
     except (GateError, subprocess.TimeoutExpired) as error:
         summary["passed"] = False

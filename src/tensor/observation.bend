@@ -1,6 +1,8 @@
 import Base
 import ../shape/core.bend as Shape
 import ./core.bend as Core
+import ./layout.bend as Layout
+import ./axis-spec.bend as Axis
 
 def dimensions_pair(pair: Core.Dynamic & Shape.Shape) -> Maybe<&2, List<&2, U32>>:
   (dynamic, shape) = pair
@@ -426,3 +428,15 @@ def count_owner_value(+shape: Shape.Shape, +other: U32, result: Result<&2, &1, C
       None{}
     case Done{tensor}:
       count_owner_pair(other, Core.count(Core.pack(shape, tensor)))
+
+def listed(values: List<&2, F32>, found: Maybe<&2, U32>) -> Maybe<&2, F32>:
+  match found:
+    case None{}:
+      None{}
+    case Some{index}:
+      List.get(&2, F32, values, U32.to_nat(index))
+
+def permute_source(+input: Shape.Shape, +axes: List<&2, U32>, +index: U32) -> Maybe<&2, U32>:
+  Layout.reference_source_coordinates(Shape.dimensions(input),
+    Axis.scatter(U32, Shape.rank_dimensions(Shape.dimensions(input)), Shape.naturals(axes),
+      Shape.words(Shape.digits(Shape.naturals(Axis.order(U32, Shape.dimensions(input), Shape.naturals(axes))), U32.to_nat(index))), 0n))
