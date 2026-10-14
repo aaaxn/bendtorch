@@ -115,8 +115,8 @@ def sum_to_size(input: Result<&2, &1, Core.Error, Core.Dynamic>, +target: List<&
 def snapshot_kept(pair: Core.Dynamic & Shape.Shape) -> IO(Core.Dynamic):
   (tensor, +shape) = pair
   do IO<Core.Dynamic>:
-    IO.print("S2:shape:" ++ List.show(~&2, ~U32, ~U32.show, Shape.dimensions(shape)))
-    IO.print("S2:count:" ++ U32.show(Shape.count(shape)))
+    IO.print("tensor:shape:" ++ List.show(~&2, ~U32, ~U32.show, Shape.dimensions(shape)))
+    IO.print("tensor:count:" ++ U32.show(Shape.count(shape)))
     Tensor.words(U32.to_nat(Shape.count(shape)), 0, tensor)
 
 def print_grad(read: Maybe<&1, Core.Dynamic>) -> IO(Gradient.Slot):

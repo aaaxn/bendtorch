@@ -4,7 +4,7 @@ import unittest
 
 from tools.common import ROOT, GateError, digest
 from tools.tensor import verify_supplement
-from tools.tensor_numerics import verify_case, verify_case_v3
+from tools.tensor_numerics import verify_case, verify_envelope
 from tools.tensor_runtime import (
     CORPUS,
     POLICY,
@@ -47,17 +47,17 @@ class PolicyV3Tests(unittest.TestCase):
     def test_every_frozen_pytorch_result_satisfies_version_three(self):
         for case in self.cases.values():
             with self.subTest(case=case["id"]):
-                verify_case_v3(case, case["outputs"]["result"])
+                verify_case(case, case["outputs"]["result"])
         for case in self.supplement["cases"]:
             with self.subTest(case=case["id"]):
-                verify_case_v3(case, case["outputs"]["result"])
+                verify_case(case, case["outputs"]["result"])
 
     def test_exact_word_lane_rejects_one_ulp_that_version_two_accepts(self):
         case = self.cases["random_add_1"]
         actual = shifted(case, 3, 1)
-        verify_case(case, actual)
+        verify_envelope(case, actual)
         with self.assertRaisesRegex(GateError, "not the round-to-nearest word"):
-            verify_case_v3(case, actual)
+            verify_case(case, actual)
 
     def test_reduction_zero_sign_must_match_pytorch(self):
         for identifier, index in (
@@ -69,18 +69,18 @@ class PolicyV3Tests(unittest.TestCase):
             actual = copy.deepcopy(case["outputs"]["result"])
             self.assertEqual(actual["f32_bits"][index], "00000000")
             actual["f32_bits"][index] = "80000000"
-            verify_case(case, actual)
+            verify_envelope(case, actual)
             with (
                 self.subTest(case=identifier),
                 self.assertRaisesRegex(GateError, "zero sign differs"),
             ):
-                verify_case_v3(case, actual)
+                verify_case(case, actual)
 
     def test_reduction_envelope_is_otherwise_unchanged(self):
         case = self.cases["random_sum_0"]
-        verify_case_v3(case, shifted(case, 0, 60))
+        verify_case(case, shifted(case, 0, 60))
         with self.assertRaisesRegex(GateError, "exceeds registered reduction"):
-            verify_case_v3(case, shifted(case, 0, 61))
+            verify_case(case, shifted(case, 0, 61))
 
 
 class SupplementTests(unittest.TestCase):

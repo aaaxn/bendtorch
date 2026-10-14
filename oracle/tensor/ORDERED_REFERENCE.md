@@ -7,7 +7,7 @@ if its separately declared contract permits that and the unchanged compatibility
 envelope accepts the result. Neither contract implies the other.
 
 For `sum_cancellation_0`, both positive zero and `1.0` pass the existing
-`tools.tensor_numerics.verify_case`. Only positive zero satisfies the ordered
+`tools.tensor_numerics.verify_envelope`. Only positive zero satisfies the ordered
 reference. Accepting `1.0` in the compatibility check is intentional, not a
 tolerance defect. Do not tighten that check to make it assert sequence equality.
 
@@ -91,8 +91,8 @@ acceptance evidence retains `numerical_cases` and adds `ordered_reference` and
 optimized backend while claiming that only the compatibility envelope is its
 contract. Keep the reference backend available for sequence conformance.
 
-The stage and runtime snapshots bind these records, the root comparator, the
-independent model and its focused tests. The existing protected hash checks
+The tensor gate and runtime snapshots bind these records, the root comparator,
+the independent model and its focused tests. The existing protected hash checks
 also cover the new records and controls. The runtime runs the two controls
 separately through `decode_case`, `bend_program` and the existing output parser
 in native and generated JavaScript executables. They are not inserted into the

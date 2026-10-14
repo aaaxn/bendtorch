@@ -207,21 +207,21 @@ def error_name(raw: str) -> str:
 
 
 def parse_native_payload(payload: list[str], identifier: str) -> dict:
-    if len(payload) == 1 and payload[0].startswith("S2:error:"):
-        raw = payload[0].removeprefix("S2:error:")
+    if len(payload) == 1 and payload[0].startswith("tensor:error:"):
+        raw = payload[0].removeprefix("tensor:error:")
         return {"error": error_name(raw), "raw_error": raw}
-    if len(payload) < 2 or not payload[0].startswith("S2:shape:"):
+    if len(payload) < 2 or not payload[0].startswith("tensor:shape:"):
         raise GateError(f"Missing native shape: {identifier}")
     try:
-        dimensions = json.loads(payload[0].removeprefix("S2:shape:"))
+        dimensions = json.loads(payload[0].removeprefix("tensor:shape:"))
         if not isinstance(dimensions, list):
             raise GateError("Native shape is not a list")
         dimensions = u32_list(dimensions)
         if len(dimensions) > 4:
             raise GateError("Native output rank exceeds the API bound")
         count_row = payload[1]
-        shape_only = count_row.startswith("S2:numel:")
-        prefix = "S2:numel:" if shape_only else "S2:count:"
+        shape_only = count_row.startswith("tensor:numel:")
+        prefix = "tensor:numel:" if shape_only else "tensor:count:"
         if not count_row.startswith(prefix):
             raise GateError("Missing native element count")
         count = u32(int(count_row.removeprefix(prefix)))
@@ -242,9 +242,9 @@ def parse_native_payload(payload: list[str], identifier: str) -> dict:
             }
         words = []
         for row in payload[2:]:
-            if not row.startswith("S2:word:"):
+            if not row.startswith("tensor:word:"):
                 raise GateError("Invalid native word record")
-            words.append(f"{u32(int(row.removeprefix('S2:word:'))):08x}")
+            words.append(f"{u32(int(row.removeprefix('tensor:word:'))):08x}")
         if len(words) != count:
             raise GateError("Missing or extra logical words, including padding")
     except (ValueError, TypeError) as error:
@@ -260,25 +260,25 @@ def parse_native_output(text: str, case_ids: list[str] | None = None) -> list[di
     while index < len(rows):
         begin = rows[index]
         index += 1
-        if not begin.startswith("S2:begin:"):
+        if not begin.startswith("tensor:begin:"):
             raise GateError(f"Unframed native output: {begin!r}")
-        identifier = begin.removeprefix("S2:begin:")
+        identifier = begin.removeprefix("tensor:begin:")
         if not identifier or identifier in seen:
             raise GateError("Empty or duplicate native case identifier")
         seen.add(identifier)
         payload = []
-        while index < len(rows) and rows[index] != "S2:end":
+        while index < len(rows) and rows[index] != "tensor:end":
             payload.append(rows[index])
             index += 1
         if index == len(rows):
             raise GateError(f"Truncated native case: {identifier}")
         index += 1
         retained = None
-        construction = payload[:1] == ["S2:boundary:construction"]
+        construction = payload[:1] == ["tensor:boundary:construction"]
         if construction:
             payload = payload[1:]
-        elif payload[:1] == ["S2:binary:called"]:
-            markers = ("S2:retained:left", "S2:retained:right", "S2:output")
+        elif payload[:1] == ["tensor:binary:called"]:
+            markers = ("tensor:retained:left", "tensor:retained:right", "tensor:output")
             if any(payload.count(marker) != 1 for marker in markers):
                 raise GateError(f"Missing or duplicate retained section: {identifier}")
             left, right, output = (payload.index(marker) for marker in markers)
@@ -373,9 +373,9 @@ def bend_program(cases: list[dict], directory: Path, source_root: Path = ROOT) -
                 "",
                 f"def run_case_{index}() -> IO(Unit):",
                 "  do IO<Unit>:",
-                f'    IO.print("S2:begin:{case["id"]}")',
+                f'    IO.print("tensor:begin:{case["id"]}")',
                 "    " + case_source(case),
-                '    IO.print("S2:end")',
+                '    IO.print("tensor:end")',
             ]
         )
     batches = list(range(0, len(cases), 16))

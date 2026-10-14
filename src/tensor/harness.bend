@@ -38,7 +38,7 @@ def zeroes(+dimensions: List<&2, U32>) -> Result<&2, &1, Core.Error, Core.Dynami
   zero_shape(dimensions, Shape.construct(dimensions))
 
 def core_error(error: Core.Error) -> IO(Unit):
-  IO.print("S2:error:core:" ++ U32.show(Core.error_code(error)))
+  IO.print("tensor:error:core:" ++ U32.show(Core.error_code(error)))
 
 def word_step(rec: Core.Dynamic -> IO(Core.Dynamic), pair: Core.Dynamic & Result<&2, &2, Core.Error, F32>) -> IO(Core.Dynamic):
   (tensor, result) = pair
@@ -49,7 +49,7 @@ def word_step(rec: Core.Dynamic -> IO(Core.Dynamic), pair: Core.Dynamic & Result
         return tensor
     case Done{value}:
       do IO<Core.Dynamic>:
-        IO.print("S2:word:" ++ U32.show(F32.bits(value)))
+        IO.print("tensor:word:" ++ U32.show(F32.bits(value)))
         rec(tensor)
 
 def words(fuel: Nat, +index: U32, tensor: Core.Dynamic) -> IO(Core.Dynamic):
@@ -62,8 +62,8 @@ def words(fuel: Nat, +index: U32, tensor: Core.Dynamic) -> IO(Core.Dynamic):
 def snapshot_shape(pair: Core.Dynamic & Shape.Shape) -> IO(Unit):
   (tensor, +shape) = pair
   do IO<Unit>:
-    IO.print("S2:shape:" ++ List.show(~&2, ~U32, ~U32.show, Shape.dimensions(shape)))
-    IO.print("S2:count:" ++ U32.show(Shape.count(shape)))
+    IO.print("tensor:shape:" ++ List.show(~&2, ~U32, ~U32.show, Shape.dimensions(shape)))
+    IO.print("tensor:count:" ++ U32.show(Shape.count(shape)))
     tensor : Core.Dynamic <- words(U32.to_nat(Shape.count(shape)), 0, tensor)
     return Unit{}
 
@@ -73,7 +73,7 @@ def snapshot(tensor: Core.Dynamic) -> IO(Unit):
 def transform_result(result: Result<&2, &1, Transforms.Error, Core.Dynamic>) -> IO(Unit):
   match result:
     case Fail{error}:
-      IO.print("S2:error:transform:" ++ U32.show(Transforms.error_code(error)))
+      IO.print("tensor:error:transform:" ++ U32.show(Transforms.error_code(error)))
     case Done{tensor}:
       snapshot(tensor)
 
@@ -90,9 +90,9 @@ def scalar_result(result: Result<&2, &2, Core.Error, F32>) -> IO(Unit):
       core_error(error)
     case Done{value}:
       do IO<Unit>:
-        IO.print("S2:shape:[]")
-        IO.print("S2:count:1")
-        IO.print("S2:word:" ++ U32.show(F32.bits(value)))
+        IO.print("tensor:shape:[]")
+        IO.print("tensor:count:1")
+        IO.print("tensor:word:" ++ U32.show(F32.bits(value)))
 
 def coordinate_result(-shape: Shape.Shape, pair: Core.Tensor<shape> & Result<&2, &2, Core.Error, F32>) -> IO(Unit):
   (value, result) = pair
@@ -122,12 +122,12 @@ def retained_binary_result(pair: (Core.Dynamic & Core.Dynamic) & Result<&2, &1, 
   (inputs, output) = pair
   (left, right) = inputs
   do IO<Unit>:
-    IO.print("S2:binary:called")
-    IO.print("S2:retained:left")
+    IO.print("tensor:binary:called")
+    IO.print("tensor:retained:left")
     snapshot(left)
-    IO.print("S2:retained:right")
+    IO.print("tensor:retained:right")
     snapshot(right)
-    IO.print("S2:output")
+    IO.print("tensor:output")
     core_result(output)
 
 def sum_result(result: Result<&2, &1, Core.Error, Core.Dynamic & Core.Dynamic>) -> IO(Unit):
@@ -177,7 +177,7 @@ def binary_value(operation: Binary, left: Core.Dynamic, right: Core.Dynamic) -> 
 
 def construction_error(error: Core.Error) -> IO(Unit):
   do IO<Unit>:
-    IO.print("S2:boundary:construction")
+    IO.print("tensor:boundary:construction")
     core_error(error)
 
 def binary_right(operation: Binary, left: Core.Dynamic,
@@ -201,11 +201,11 @@ def matrix_error(error: Matrix.Error) -> IO(Unit):
     case Matrix.TensorError{error}:
       core_error(error)
     case Matrix.ShapeError{error}:
-      IO.print("S2:error:shape:" ++ U32.show(Shape.error_code(error)))
+      IO.print("tensor:error:shape:" ++ U32.show(Shape.error_code(error)))
     case Matrix.RankMismatch{}:
-      IO.print("S2:error:matrix:rank")
+      IO.print("tensor:error:matrix:rank")
     case Matrix.InnerDimensionMismatch{}:
-      IO.print("S2:error:matrix:inner")
+      IO.print("tensor:error:matrix:inner")
 
 def matrix_output(bias: Maybe<&1, Core.Dynamic>, output: Core.Dynamic) -> IO(Unit):
   match bias:
@@ -249,11 +249,11 @@ def biased(bias: Result<&2, &1, Core.Error, Core.Dynamic>, left: Result<&2, &1, 
 def shape_result(-dimensions: List<&2, U32>, result: Shape.ConstructResult<dimensions>) -> IO(Unit):
   match result:
     case Shape.SError{error}:
-      IO.print("S2:error:shape:" ++ U32.show(Shape.error_code(error)))
+      IO.print("tensor:error:shape:" ++ U32.show(Shape.error_code(error)))
     case Shape.SBuilt{+shape, preserved}:
       do IO<Unit>:
-        IO.print("S2:shape:" ++ List.show(~&2, ~U32, ~U32.show, Shape.dimensions(shape)))
-        IO.print("S2:numel:" ++ U32.show(Shape.count(shape)))
+        IO.print("tensor:shape:" ++ List.show(~&2, ~U32, ~U32.show, Shape.dimensions(shape)))
+        IO.print("tensor:numel:" ++ U32.show(Shape.count(shape)))
 
 def shape(+dimensions: List<&2, U32>) -> IO(Unit):
   shape_result(dimensions, Shape.construct(dimensions))

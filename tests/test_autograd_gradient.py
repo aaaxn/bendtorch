@@ -92,9 +92,9 @@ class GradientVerificationTests(unittest.TestCase):
     def gradient(self, words: list[int]) -> list[str]:
         return [
             "S3:gradient",
-            "S2:shape:[]",
-            "S2:count:1",
-            *[f"S2:word:{item}" for item in words],
+            "tensor:shape:[]",
+            "tensor:count:1",
+            *[f"tensor:word:{item}" for item in words],
         ]
 
     def test_ordered_sum_is_accepted(self):
@@ -120,12 +120,12 @@ class GradientVerificationTests(unittest.TestCase):
 
     def test_refusal_must_return_the_contribution(self):
         row = case([], [contribution([1], [word(4)])])
-        returned = ["S2:shape:[1]", "S2:count:1"]
+        returned = ["tensor:shape:[1]", "tensor:count:1"]
         accepted = self.output(
             [
                 "S3:refused:102",
                 *returned,
-                f"S2:word:{word(4)}",
+                f"tensor:word:{word(4)}",
                 *self.gradient([0]),
             ]
         )
@@ -136,7 +136,7 @@ class GradientVerificationTests(unittest.TestCase):
             [
                 "S3:refused:102",
                 *returned,
-                f"S2:word:{word(5)}",
+                f"tensor:word:{word(5)}",
                 *self.gradient([0]),
             ]
         )
@@ -150,8 +150,8 @@ class GradientVerificationTests(unittest.TestCase):
             verify([row], parse(text, ["case"]), "native")
 
 
-class StageRegistrationTests(unittest.TestCase):
-    def test_s3_gate_registers_gradient_and_its_laws(self):
+class GateRegistrationTests(unittest.TestCase):
+    def test_autograd_gate_registers_gradient_and_its_laws(self):
         self.assertEqual(
             list(SUBGATES),
             ["broadcast", "reduce", "sum_to_size", "gradient", "lifecycle", "backward"],

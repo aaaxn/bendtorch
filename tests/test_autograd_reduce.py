@@ -107,10 +107,10 @@ class ReduceVerificationTests(unittest.TestCase):
     def retained(self) -> list[str]:
         return [
             "S3:retained",
-            "S2:shape:[2]",
-            "S2:count:2",
-            f"S2:word:{word(1)}",
-            f"S2:word:{word(2)}",
+            "tensor:shape:[2]",
+            "tensor:count:2",
+            f"tensor:word:{word(1)}",
+            f"tensor:word:{word(2)}",
         ]
 
     def test_ordered_sum_is_accepted(self):
@@ -119,9 +119,9 @@ class ReduceVerificationTests(unittest.TestCase):
             [
                 *self.retained(),
                 "S3:output",
-                "S2:shape:[]",
-                "S2:count:1",
-                f"S2:word:{word(3)}",
+                "tensor:shape:[]",
+                "tensor:count:1",
+                f"tensor:word:{word(3)}",
             ]
         )
         observed = parse(text, ["case"])
@@ -135,17 +135,17 @@ class ReduceVerificationTests(unittest.TestCase):
                 [
                     *self.retained(),
                     "S3:output",
-                    "S2:shape:[]",
-                    "S2:count:1",
-                    f"S2:word:{result}",
+                    "tensor:shape:[]",
+                    "tensor:count:1",
+                    f"tensor:word:{result}",
                 ]
             )
             with self.subTest(result=result), self.assertRaises(GateError):
                 verify([row], parse(text, ["case"]), "native", reference, same_sums)
 
 
-class StageRegistrationTests(unittest.TestCase):
-    def test_s3_gate_registers_reduce_and_its_laws(self):
+class GateRegistrationTests(unittest.TestCase):
+    def test_autograd_gate_registers_reduce_and_its_laws(self):
         self.assertIn("reduce", SUBGATES)
         required = json.loads((ROOT / "verification/autograd.json").read_text())[
             "required_exports"

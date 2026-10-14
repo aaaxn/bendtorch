@@ -6,7 +6,7 @@ import shutil
 from pathlib import Path
 
 from tools.common import ROOT, Evidence, GateError, bend, check_sources
-from tools.tensor_numerics import special, verify_case_v3
+from tools.tensor_numerics import special, verify_case
 from tools.tensor_runtime import (
     CORPUS,
     U32Range,
@@ -54,10 +54,10 @@ def program(selected: list[dict], directory: Path, source_root: Path = ROOT) -> 
             "",
             f"def run_case_{index}() -> IO(Unit):",
             "  do IO<Unit>:",
-            f'    IO.print("S2:begin:{request["id"]}")',
+            f'    IO.print("tensor:begin:{request["id"]}")',
             f"    Family.binary(Elementwise.{BINARY[request['op']]}{{}}, "
             f"{input_source(inputs['a'])}, {input_source(inputs['b'])})",
-            '    IO.print("S2:end")',
+            '    IO.print("tensor:end")',
         ]
     batches = range(0, len(selected), 16)
     for batch, start in enumerate(batches):
@@ -114,7 +114,7 @@ def verify(selected: list[tuple[dict, dict]], observations: list[dict]) -> dict:
             continue
         if "result" not in row:
             raise GateError(f"{identifier}: missing output tensor")
-        tensors.append(verify_case_v3(case, row["result"]))
+        tensors.append(verify_case(case, row["result"]))
     return {"cases": len(selected), "tensors": tensors, "errors": errors}
 
 

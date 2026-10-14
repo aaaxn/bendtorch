@@ -17,7 +17,7 @@ from tools.tensor_runtime import (
 )
 
 
-class StageAcceptanceTests(unittest.TestCase):
+class GateAcceptanceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.corpus = load_corpus()

@@ -19,5 +19,5 @@
   ],
   "exclusions": ["arbitrary strided views", "shared mutation", "in-place tensor methods", "out variants", "dtype promotion", "F64", "advanced indexing", "mean of an empty domain", "1-D and batched matmul promotion", "negative index and axis wrapping", "partial coordinate indexing", "reshape -1 inference", "per-axis sum and keepdim"],
   "torch_differences": "docs/torch-differences.md",
-  "numerical_policy": "The separately frozen S2 oracle policy governs each operation/backend/domain. No F32 ring law or native IEEE proof is claimed."
+  "numerical_policy": "The separately frozen tensor oracle policy governs each operation/backend/domain. No F32 ring law or native IEEE proof is claimed."
 }

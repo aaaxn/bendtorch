@@ -5,7 +5,7 @@ import unittest
 
 from oracle.tensor.transpose_reference import requested_axes, valid_axes
 from tools.common import ROOT, GateError
-from tools.tensor_numerics import verify_case
+from tools.tensor_numerics import verify_envelope
 from tools.tensor_runtime import decode_case, load_corpus
 
 
@@ -52,7 +52,7 @@ class ScalarTransposeProposalTests(unittest.TestCase):
         self.assertEqual(decoded["parameters"], {"dims": [0, 0]})
         self.assertEqual(decoded["inputs"]["a"]["shape"], [])
         self.assertEqual(case["outputs"]["result"]["f32_bits"], ["40e00000"])
-        verify_case(case, case["outputs"]["result"])
+        verify_envelope(case, case["outputs"]["result"])
         for shape, word, classification in (
             ([], "00000000", "positive_zero"),
             ([1], "40e00000", "positive_normal"),
@@ -64,7 +64,7 @@ class ScalarTransposeProposalTests(unittest.TestCase):
             }
             with self.subTest(shape=shape, word=word):
                 with self.assertRaises(GateError):
-                    verify_case(case, actual)
+                    verify_envelope(case, actual)
 
     def test_one_old_id_moves_without_changing_frozen_inputs_or_policy(self):
         self.assertEqual(
