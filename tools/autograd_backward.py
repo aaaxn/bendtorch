@@ -503,7 +503,7 @@ def step_source(step: dict) -> str:
     if name == "read":
         return f"Harness.Read{{{step['id']}n}}"
     if name == "forge":
-        return f"Harness.Forge{{{node_source(step['node'])}, {step['word']}}}"
+        return f"Harness.PushUnchecked{{{node_source(step['node'])}, {step['word']}}}"
     fields = ", ".join(f"{identifier}n" for identifier in operands(step))
     return f"Harness.{name.capitalize()}{{{fields}}}"
 

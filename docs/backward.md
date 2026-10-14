@@ -143,8 +143,8 @@ the slot, and each error code reported as the other.
 leaves and operations, runs `backward` on chosen outputs, calls `zero_grad`,
 and reads the value and `grad` of every node. The harness
 (`src/autograd/backward-harness.bend`) calls the public functions and prints
-every id, error and word. A `Forge` step pushes an entry without checks, so
-the gate can build tapes with dangling operands.
+every id, error and word. A `PushUnchecked` step pushes an entry without
+checks, so the gate can build tapes with dangling operands.
 
 - 43 handwritten scripts: the unused-node graph with each output selected, the
   four ops and their VJPs, `x*x`, `x-x` and `x+x`, the fan-out program with

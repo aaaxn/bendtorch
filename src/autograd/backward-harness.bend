@@ -3,8 +3,7 @@ import Base
 import ./backward.bend as Backward
 
 # Runs a script of tape operations through the public API of backward.bend and
-# prints one line for each step. Forge pushes an entry without any check, so
-# the gate can build the malformed tapes that backward must refuse.
+# prints one line for each step.
 
 type Step is Data:
   Leaf{word: U32}
@@ -15,7 +14,7 @@ type Step is Data:
   Run{output: Nat}
   ZeroGrad{}
   Read{id: Nat}
-  Forge{node: Backward.Node, word: U32}
+  PushUnchecked{node: Backward.Node, word: U32}
 
 def from_bits(word: U32) -> F32:
   U32{bits} = word
@@ -69,7 +68,7 @@ def print_grad(result: Result<&2, &2, Backward.Error, Maybe<&2, F32>>) -> IO(Uni
     case Done{Some{value}}:
       IO.print("S3:grad:" ++ U32.show(F32.bits(value)))
 
-def forged(tape: Backward.Tape, node: Backward.Node, word: U32) -> Backward.Tape:
+def push_unchecked(tape: Backward.Tape, node: Backward.Node, word: U32) -> Backward.Tape:
   Backward.Tape{entries} = tape
   Backward.Tape{Backward.Entry{node, from_bits(word), None{}} <> entries}
 
@@ -96,10 +95,10 @@ def step(instruction: Step, +tape: Backward.Tape, rec: Backward.Tape -> IO(Unit)
         print_value(Backward.value(tape, id))
         print_grad(Backward.grad(tape, id))
         rec(tape)
-    case Forge{node, word}:
+    case PushUnchecked{node, word}:
       do IO<Unit>:
         IO.print("S3:forged")
-        rec(forged(tape, node, word))
+        rec(push_unchecked(tape, node, word))
 
 def script(steps: List<&2, Step>, tape: Backward.Tape) -> IO(Unit):
   match steps:
