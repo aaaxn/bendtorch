@@ -12,95 +12,102 @@ from tools.common import GateError, check_sources
 
 r1b = importlib.import_module("verification.r1-b.run")
 reads = importlib.import_module("verification.r1-b.reads_controls")
-pointwise = importlib.import_module("verification.families.pointwise_controls")
+controls = importlib.import_module("verification.families.controls")
+FAMILIES = tuple(
+    importlib.import_module(f"verification.families.{name}_controls").FAMILY
+    for name in ("pointwise", "fold")
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def pointwise_controls(snapshot, output, bend, kernel, parallel, reasons) -> None:
-    family = pointwise
-    experiment = snapshot / family.EXPERIMENT
-    controls = (experiment / "controls.bend").read_text()
-    for witness in family.WITNESSES:
+def family_controls(family, snapshot, output, bend, kernel, parallel, reasons) -> None:
+    name = family.name
+    output = output / name
+    output.mkdir()
+    experiment = snapshot / family.experiment
+    source = (experiment / "controls.bend").read_text()
+    for witness in family.witnesses:
         (experiment / f"false-{witness}.bend").write_text(
-            family.false_twin(controls, witness)
+            family.false_twin(source, witness)
         )
     copies = {}
-    for label in family.MUTANTS:
+    for label in family.mutants:
         copies[label] = output / label
         family.mutant_copy(snapshot, copies[label], label)
     texts = parallel(
         [
             (
-                "source-consumers",
+                f"{name}/source-consumers",
                 [*bend, experiment / "consumers.bend", "--check-only"],
                 0,
             ),
             (
-                "source-controls",
+                f"{name}/source-controls",
                 [*bend, experiment / "controls.bend", "--check-only"],
                 0,
             ),
             *(
                 (
-                    f"source-false-{witness}",
+                    f"{name}/source-false-{witness}",
                     [*bend, experiment / f"false-{witness}.bend", "--check-only"],
                     1,
                 )
-                for witness in family.WITNESSES
+                for witness in family.witnesses
             ),
             *(
                 (
-                    f"source-{label}",
-                    [*bend, copies[label] / family.PROOF, "--check-only"],
+                    f"{name}/source-{label}",
+                    [*bend, copies[label] / controls.PROOF, "--check-only"],
                     1,
                 )
-                for label in family.MUTANTS
+                for label in family.mutants
             ),
             *(
                 (
-                    f"source-{label}-operation",
-                    [*bend, copies[label] / family.ENTRY, "--check-only"],
+                    f"{name}/source-{label}-operation",
+                    [*bend, copies[label] / family.entry_path, "--check-only"],
                     0,
                 )
-                for label in family.MUTANTS
+                for label in family.mutants
             ),
         ]
     )
-    for witness in family.WITNESSES:
-        name = f"source-false-{witness}"
-        reasons[name] = family.source_reason(texts[name], witness)
-    for label in family.MUTANTS:
-        reasons[f"source-{label}"] = family.source_reason(
-            texts[f"source-{label}"], label
+    for witness in family.witnesses:
+        reasons[f"{name}/source-false-{witness}"] = family.source_reason(
+            texts[f"{name}/source-false-{witness}"], witness
+        )
+    for label in family.mutants:
+        reasons[f"{name}/source-{label}"] = family.source_reason(
+            texts[f"{name}/source-{label}"], label
         )
 
     positive = output / "controls.bendtt"
-    exports = {label: output / f"{label}-operation.bendtt" for label in family.MUTANTS}
+    exports = {label: output / f"{label}-operation.bendtt" for label in family.mutants}
     parallel(
         [
             (
-                "verdict-consumers",
+                f"{name}/verdict-consumers",
                 [*bend, experiment / "consumers.bend", "--verdict"],
                 0,
             ),
             (
-                "verdict-controls",
+                f"{name}/verdict-controls",
                 [*bend, experiment / "controls.bend", "--verdict"],
                 0,
             ),
             (
-                "export-controls",
+                f"{name}/export-controls",
                 [*bend, experiment / "controls.bend", "-o", positive],
                 0,
             ),
             *(
                 (
-                    f"export-{label}-operation",
-                    [*bend, copies[label] / family.ENTRY, "-o", exports[label]],
+                    f"{name}/export-{label}-operation",
+                    [*bend, copies[label] / family.entry_path, "-o", exports[label]],
                     0,
                 )
-                for label in family.MUTANTS
+                for label in family.mutants
             ),
         ]
     )
@@ -110,29 +117,33 @@ def pointwise_controls(snapshot, output, bend, kernel, parallel, reasons) -> Non
     )
     artifacts = {
         witness: family.kernel_twin(text, witness, r1b.catalog, r1b.replace_declaration)
-        for witness in family.WITNESSES
+        for witness in family.witnesses
     }
-    for label in family.MUTANTS:
+    for label in family.mutants:
         artifacts[label] = reads.transplant(
-            text, exports[label].read_text(), r1b.catalog, family.SRC
+            text, exports[label].read_text(), r1b.catalog, controls.SRC
         )
-        reasons[f"kernel-replaced-{label}"] = family.replaced(
+        reasons[f"{name}/kernel-replaced-{label}"] = family.replaced(
             text, artifacts[label], r1b.catalog, label
         )
     for label, artifact in artifacts.items():
         (output / f"false-{label}.bendtt").write_text(artifact)
     texts = parallel(
         [
-            ("kernel-controls", [kernel, positive], 0),
+            (f"{name}/kernel-controls", [kernel, positive], 0),
             *(
-                (f"kernel-false-{label}", [kernel, output / f"false-{label}.bendtt"], 1)
+                (
+                    f"{name}/kernel-false-{label}",
+                    [kernel, output / f"false-{label}.bendtt"],
+                    1,
+                )
                 for label in artifacts
             ),
         ]
     )
     for label in artifacts:
-        reasons[f"kernel-false-{label}"] = family.kernel_reason(
-            texts[f"kernel-false-{label}"], label
+        reasons[f"{name}/kernel-false-{label}"] = family.kernel_reason(
+            texts[f"{name}/kernel-false-{label}"], label
         )
 
 
@@ -225,13 +236,15 @@ def main() -> None:
     bend = ["bun", str(bend_root / "bend2/main.ts")]
     snapshot = output / "snapshot"
     shutil.copytree(ROOT / "src", snapshot / "src")
-    shutil.copytree(
-        ROOT / pointwise.EXPERIMENT,
-        snapshot / pointwise.EXPERIMENT,
-        ignore=shutil.ignore_patterns("false-*", "entry.bend"),
-    )
+    for family in FAMILIES:
+        shutil.copytree(
+            ROOT / family.experiment,
+            snapshot / family.experiment,
+            ignore=shutil.ignore_patterns("false-*", "entry.bend"),
+        )
     try:
-        pointwise_controls(snapshot, output, bend, kernel, parallel, reasons)
+        for family in FAMILIES:
+            family_controls(family, snapshot, output, bend, kernel, parallel, reasons)
         summary["passed"] = True
     except (GateError, subprocess.TimeoutExpired) as error:
         summary["passed"] = False

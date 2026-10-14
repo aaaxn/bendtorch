@@ -1,0 +1,39 @@
+### negative-zero-start before src/tensor/contracts/fold.bend
+  loop(~O, ~g, ~P, ~ia, count, operation, plan, 0n, input, 0.0)
+### negative-zero-start after src/tensor/contracts/fold.bend
+  loop(~O, ~g, ~P, ~ia, count, operation, plan, 0n, input, F32.neg(0.0))
+
+### swapped-accumulator before src/tensor/contracts/fold.bend
+      rec(input, g(operation, accumulator, x))
+### swapped-accumulator after src/tensor/contracts/fold.bend
+      rec(input, g(operation, x, accumulator))
+
+### dropped-word before src/tensor/contracts/fold.bend
+      rec(input, g(operation, accumulator, x))
+### dropped-word after src/tensor/contracts/fold.bend
+      rec(input, accumulator)
+
+### cursor-off-by-one before src/tensor/contracts/fold.bend
+  loop(~O, ~g, ~P, ~ia, count, operation, plan, 0n, input, 0.0)
+### cursor-off-by-one after src/tensor/contracts/fold.bend
+  loop(~O, ~g, ~P, ~ia, count, operation, plan, 1n, input, 0.0)
+
+### pair-swapped-operands before src/tensor/contracts/fold.bend
+      rec(left, right, g(operation, accumulator, x, y))
+### pair-swapped-operands after src/tensor/contracts/fold.bend
+      rec(left, right, g(operation, accumulator, y, x))
+
+### pair-wrong-map before src/tensor/contracts/fold.bend
+        right, accumulator, Core.read_dynamic(left, U32.from_nat(ia(plan, cursor))))
+### pair-wrong-map after src/tensor/contracts/fold.bend
+        right, accumulator, Core.read_dynamic(left, U32.from_nat(ib(plan, cursor))))
+
+### sum-swapped-add before src/tensor/contracts/sum.bend
+  F32.add(accumulator, word)
+### sum-swapped-add after src/tensor/contracts/sum.bend
+  F32.add(word, accumulator)
+
+### dot-untransposed-right before src/tensor/contracts/dot.bend
+  Nat.add(Nat.mul(k, columns), column)
+### dot-untransposed-right after src/tensor/contracts/dot.bend
+  Nat.add(Nat.mul(column, inner), k)

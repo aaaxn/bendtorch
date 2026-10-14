@@ -5,9 +5,14 @@ import ../core.bend as Core
 import ../lifecycle.bend as Lifecycle
 import ../elementwise.bend as Elementwise
 import ../from-values-contract.bend as FromValues
+import ../reduction.bend as Reduction
+import ../matmul-LAWS.bend as MatmulLaws
 import ./replayed.bend as Replayed
 import ./broadcast.bend as Broadcast
 import ./pointwise-records.bend as Records
+import ./sum.bend as Sum
+import ./dot.bend as Dot
+import ./fold-records.bend as FoldRecords
 
 # Replayed tensors. `Core.new(shape, fill)` is the replayed tensor with an
 # empty history, `Core.from_values` the one that writes each value once in
@@ -62,3 +67,68 @@ law broadcast_pointwise:
     Broadcast.binary(operation, plan,
       Core.Packed{Shape.left_shape(plan), Core.TTensor{Replayed.storage(Shape.left_shape(plan), left_fill, left_ops), left_fits}},
       Core.Packed{Shape.right_shape(plan), Core.TTensor{Replayed.storage(Shape.right_shape(plan), right_fill, right_ops), right_fits}})>
+
+# The first `count` words of a replayed input, in index order.
+def words(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +count: Nat) -> List<&2, F32>:
+  match count:
+    case 0n:
+      Nil{}
+    case 1n+previous:
+      List.append(&2, F32, words(shape, fill, ops, previous), [Replayed.value(shape, fill, ops, U32.from_nat(previous))])
+
+# Ordered-fold family, sum instance: the sum of a replayed input succeeds with
+# `Reduction.sequential_sum` of all its words in index order, starting at
+# +0.0, and the returned input keeps every word.
+law sum_ordered:
+  for +shape: Shape.Shape
+  for +fill: F32
+  for +ops: List<&2, StorageLaws.Op>
+  for -fits: {Lifecycle.logical_length(Replayed.storage(shape, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}
+  FoldRecords.FoldContract<shape, Reduction.sequential_sum(words(shape, fill, ops, Shape.logical_numel(Shape.dimensions(shape))), 0.0),
+    other => Replayed.value(shape, fill, ops, other),
+    Sum.sum(Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}})>
+
+# The first `count` factor pairs of output cell (row, column) of a row-major
+# product of a rows x inner and an inner x columns matrix, in increasing k:
+# left[row, k] and right[k, column].
+def factors(+row: Nat, +column: Nat, +inner: Nat, +columns: Nat,
+  +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
+  +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +count: Nat) -> List<&2, MatmulLaws.Factors>:
+  match count:
+    case 0n:
+      Nil{}
+    case 1n+previous:
+      List.append(&2, MatmulLaws.Factors,
+        factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, previous),
+        [MatmulLaws.Factors{Replayed.value(left, left_fill, left_ops, U32.from_nat(Nat.add(Nat.mul(row, inner), previous))),
+          Replayed.value(right, right_fill, right_ops, U32.from_nat(Nat.add(Nat.mul(previous, columns), column)))}])
+
+# Ordered-fold family, dot instance: for every in-bounds output cell of a
+# product of a rows x inner and an inner x columns replayed matrix, the dot
+# product succeeds with `MatmulLaws.dot_fold` of the cell's factor pairs in
+# increasing k, starting at +0.0, and both returned inputs keep every word.
+law dot_ordered:
+  for +rows: Nat
+  for +inner: Nat
+  for +columns: Nat
+  for +row: Nat
+  for row_below: {Nat.is_lt(row, rows) == True{} : Bool}
+  for +column: Nat
+  for column_below: {Nat.is_lt(column, columns) == True{} : Bool}
+  for +left: Shape.Shape
+  for left_extents: {Shape.extents(left) == [rows, inner] : List<&2, Nat>}
+  for +left_fill: F32
+  for +left_ops: List<&2, StorageLaws.Op>
+  for -left_fits: {Lifecycle.logical_length(Replayed.storage(left, left_fill, left_ops)) == Shape.logical_numel(Shape.dimensions(left)) : Nat}
+  for +right: Shape.Shape
+  for right_extents: {Shape.extents(right) == [inner, columns] : List<&2, Nat>}
+  for +right_fill: F32
+  for +right_ops: List<&2, StorageLaws.Op>
+  for -right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_ops)) == Shape.logical_numel(Shape.dimensions(right)) : Nat}
+  FoldRecords.PairFoldContract<left, right,
+    MatmulLaws.dot_fold(factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, inner), 0.0),
+    other => Replayed.value(left, left_fill, left_ops, other),
+    other => Replayed.value(right, right_fill, right_ops, other),
+    Dot.dot(Dot.Cell{row, column, inner, columns},
+      Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
+      Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}})>

@@ -4,7 +4,9 @@ Many tensor operations share one loop. `add`, `sub` and `mul`, with or
 without broadcasting, all write `out[i] = f(a[ia(i)], b[ib(i)])` for every
 output index `i`. A contract family proves that loop once, as a generic
 theorem over `f`, `ia` and `ib`, and each operation gets its contract by
-instantiating it. The code is in `src/tensor/contracts/`.
+instantiating it. Reductions share a second loop: `sum` and the matmul dot
+product fold words into an accumulator in a fixed order. The code is in
+`src/tensor/contracts/`.
 
 ## Replayed tensors are the input class
 
@@ -92,24 +94,84 @@ broadcast plan and every pair of replayed inputs of the plan's shapes:
 output cell `i` holds
 `Elementwise.scalar(operation, left[left_map(plan, i)], right[right_map(plan, i)])`.
 
-## What the family does not cover yet
+## The ordered-fold family
+
+`Fold.run` in `fold.bend` takes four templates: an operation type `O`, the
+step function `g: O -> F32 -> F32 -> F32`, a plan type `P`, and an index map
+`ia: P -> Nat -> Nat`. It starts at `+0.0` and, for `k` from 0 to `count - 1`
+in increasing order, reads `input[ia(plan, k)]` and sets
+`acc = g(operation, acc, word)`. `Fold.pair_run` reads `left[ia(plan, k)]` and
+`right[ib(plan, k)]` and takes `g: O -> F32 -> F32 -> F32 -> F32`. The inputs
+come back to the caller, on success and on failure.
+
+The order is part of the contract. F32 addition is not associative, so the
+same words summed in another order can round to another value. The checker and
+the kernel keep F32 operations symbolic, so the stated total is the exact term
+that the loop builds. For the words `[1, 2, 3]` it is
+`F32.add(F32.add(F32.add(0.0, 1.0), 2.0), 3.0)`, and a fold in another order,
+or from another start, states a different term.
+
+`FoldProof.contract` and `FoldProof.pair_contract` in `fold-proof.bend` are the
+family theorems. Their hypotheses match the pointwise ones: replayed inputs,
+and `Pointwise.inside(ia, plan, count, numel(input)) == True` for each index
+map. The conclusion is a `FoldContract` (in `fold-records.bend`), whose fields
+are live:
+
+- `value`: the result is `Done` with `Fold.total(..., count)`. `Fold.total` is
+  the specification of the loop: `+0.0` at `count = 0`, and
+  `g(operation, total(k), input[ia(plan, k)])` at `count = k + 1`.
+- `kept`: the returned input still holds every word it held before.
+
+`PairFoldContract` has `value`, `left_kept` and `right_kept`. The proof
+follows the loop: after `k` steps the input is the replayed tensor with
+history `ops ++ reads(ia, k)`, and the accumulator is `Fold.total(..., k)`.
+
+### Each instance meets an existing specification
+
+Each instance states its law against a specification that the repository
+already uses, not against `Fold.total`:
+
+| Law | Instance | Total |
+| --- | --- | --- |
+| `sum_ordered` | `Sum.sum(input)` in `sum.bend` folds all `numel` words with `F32.add(acc, word)`, reading word `k` at step `k`. | `Reduction.sequential_sum(words(..., numel), 0.0)` |
+| `dot_ordered` | `Dot.dot(Cell{row, column, inner, columns}, left, right)` in `dot.bend` folds `inner` pairs with `F32.add(acc, F32.mul(x, y))`, reading `left[row * inner + k]` and `right[k * columns + column]`. | `MatmulLaws.dot_fold(factors(..., inner), 0.0)` |
+
+`words` and `factors` are in `src/tensor/contracts/LAWS.bend`. `words` lists
+the first `count` words of a replayed input in index order. `factors` lists
+the pairs `left[row, k]` and `right[k, column]` of two row-major matrices in
+increasing `k`. Both compute their indices themselves, so a wrong index map in
+an instance fails the proof instead of changing what the law means.
+
+`dot_ordered` states the matrix shapes as hypotheses:
+`Shape.extents(left) == [rows, inner]`, `Shape.extents(right) == [inner, columns]`,
+`row < rows` and `column < columns`. `dot-proof.bend` derives the index bounds
+from `lt_mul_add`: `a * n + b < m * n` when `a < m` and `b < n`.
+
+## What the families do not cover yet
 
 - `Elementwise.binary`, the public operation in `src/tensor/elementwise.bend`,
   runs its own loop. `Broadcast.binary` is a separate function that runs the
   family loop, and no law yet relates the two. Routing `Elementwise.binary`
   through the family, or proving the two equal, comes after the open work on
   `elementwise.bend` lands.
+- `Reduction.sum` in `src/tensor/reduction.bend` and `Matrix.dot` in
+  `src/tensor/matmul.bend` run their own loops too. `Sum.sum` and `Dot.dot`
+  are separate functions, and no law yet relates them to the public
+  operations. That work also waits for the open work on `matmul.bend`.
 - The family output is itself a replayed tensor, with history `writes(n)` over
   `+0.0`. The proof uses that fact, but no law exports it, so a consumer cannot
   yet chain two family operations through laws alone.
 - F32 operations are opaque. A value is stated as the term
   `F32.sub(5.0, 20.0)`, not as `-15.0`.
-- The ordered-fold family (sum, the matmul dot product and `reduce_to`) comes
-  next.
+- `reduce_to` is not an instance yet. Its specification, `Laws.fiber` in
+  `src/autograd/reduce-LAWS.bend`, adds a word only when its position
+  projects onto the target index. `Fold.run` adds every word it reads, and its
+  step function does not see the position, so `reduce_to` needs a masked fold.
 
 ## Controls
 
 `verification/families/` holds literal consumers of `broadcast_pointwise`,
-false twins of four value statements and six mutants of the family loop and
-of the broadcast instance. Its [README](../verification/families/README.md)
-lists each control and the rejection it expects.
+`sum_ordered` and `dot_ordered`, false twins of eight value statements, and
+fourteen mutants of the family loops and of their instances. Its
+[README](../verification/families/README.md) lists each control and the
+rejection it expects.

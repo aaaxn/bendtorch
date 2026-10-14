@@ -53,6 +53,52 @@ proofs against the mutated operation. The runner checks that each transplant
 replaces exactly the mutated declarations: the generic copy and the broadcast
 instance copy, or only the instance copy for the swapped maps.
 
+## Fold
+
+`fold/` holds:
+
+- `consumers.bend`: seven consumers of `sum_ordered` and `dot_ordered`. Each
+  one takes its inputs as the replayed tensors that `Core.from_values`
+  returns, and restates literal values:
+  - The sums of `[1, 2, 3]`, of a `[2, 3]` grid and of a rank-0 `[7]`.
+  - The sum of the empty `[2, 0]`, which is `0.0`.
+  - Cells `(1, 0)` and `(0, 1)` of the product of a `[2, 3]` and a `[3, 2]`
+    matrix.
+  - Cell `(1, 2)` of the product of a `[2, 0]` and a `[0, 3]` matrix, which is
+    `0.0`.
+
+  Each non-empty consumer also states one word of each returned input. A total
+  is stated as the term the fold builds: the sum of `[1, 2, 3]` is
+  `F32.add(F32.add(F32.add(0.0, 1.0), 2.0), 3.0)`.
+- `controls.bend`: four value witnesses, each paired with one wrong value.
+- `mutants.txt`: the before and after text of each mutation.
+
+| Control | Change | Source rejection | BendTT rejection |
+| --- | --- | --- | --- |
+| False twin `sum_witness` | the words added in reverse order | the witness | the witness |
+| False twin `start_witness` | `7.0` for `F32.add(0.0, 7.0)`, the fold starts at the first word | the witness | the witness |
+| False twin `dot_witness` | `F32.mul(5.0, 20.0)`, the right matrix read along a row | the witness | the witness |
+| False twin `kept_witness` | left word 5 reads the right input | the witness | the witness |
+| Negative zero start | `run` starts at `F32.neg(0.0)` | `contract` | `contract.qvvvv` |
+| Swapped accumulator | `step` folds `g(operation, x, accumulator)` | `step_lift` | `step_lift.qvvvv` |
+| Dropped word | `step` keeps the accumulator | `step_lift` | `step_lift.qvvvv` |
+| Cursor off by one | `run` starts the loop at 1 | `contract` | `contract.qvvvv` |
+| Pair swapped operands | `pair_right` folds `g(operation, accumulator, y, x)` | `pair_step_lift` | `pair_step_lift.qvvvvv` |
+| Pair wrong map | `pair_loop` reads the left input at `ib` | `pair_step_lift` | `pair_step_lift.qvvvvv` |
+| Sum swapped add | `Sum.add` returns `F32.add(word, accumulator)` | `total_words` | `total_words` |
+| Dot untransposed right | `Dot.right_index` reads `column * inner + k` | `total_factors` | `total_factors` |
+
+The first six mutants change the generic loops in `fold.bend`, and the generic
+proofs reject them. The last two change one instance each. The proof that
+relates the instance's `Fold.total` to its specification rejects them.
+
+`fold/entry.bend` imports `broadcast.bend` before `sum.bend` and `dot.bend`.
+The BendTT export names each opaque template constant after the first module
+that declares one of its type, and the positive export reaches `pointwise.bend`
+before `fold.bend`. With the same import order, the mutant export names the
+constants the same way, and each transplant replaces only the mutated
+declarations.
+
 ## Run
 
 ```sh
@@ -60,9 +106,9 @@ uv run --locked python -m verification.families.run --output <fresh directory> -
 uv run --locked python -m unittest verification/families/test_run.py -v
 ```
 
-The runner snapshots `src/` and `pointwise/`, builds the false twins and the
-mutant copies, and runs the source checks, `--verdict` on the consumers and
-the controls, the exports, and BendTT on the positive and mutated exports. It
-writes `summary.json` with the repository and Bend commits, every command,
-its exit code and time, and the rejection reason of every control. It takes
-about four minutes with 24 workers and peaks near 4 GB per job.
+The runner snapshots `src/`, `pointwise/` and `fold/`. For each family it
+builds the false twins and the mutant copies, and runs the source checks,
+`--verdict` on the consumers and the controls, the exports, and BendTT on the
+positive and mutated exports. Each family writes its outputs to its own
+subdirectory. `summary.json` records the repository and Bend commits, every
+command, its exit code and time, and the rejection reason of every control.
