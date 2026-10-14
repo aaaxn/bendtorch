@@ -3,7 +3,7 @@
 /tests/ @aaaxn
 /src/tensor/ @aaaxn
 /oracle/fixtures/ @aaaxn
-/oracle/s2/ @aaaxn
+/oracle/tensor/ @aaaxn
 /oracle/uv.lock @aaaxn
 /uv.lock @aaaxn
 /pyproject.toml @aaaxn

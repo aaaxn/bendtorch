@@ -6,8 +6,8 @@ from typing import NamedTuple
 
 from tools.common import GateError
 
-reads = importlib.import_module("verification.r1-b.reads_controls")
-transforms = importlib.import_module("verification.r1-b.transform_controls")
+reads = importlib.import_module("verification.contracts.reads_controls")
+transforms = importlib.import_module("verification.contracts.transform_controls")
 HERE = Path(__file__).resolve().parent
 
 PROOF = "src/tensor/contracts/PROOF.bend"

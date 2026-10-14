@@ -5,7 +5,7 @@ from pathlib import Path
 
 from tools.common import GateError
 
-r1b = importlib.import_module("verification.r1-b.run")
+contracts = importlib.import_module("verification.contracts.run")
 controls = importlib.import_module("verification.families.controls")
 pointwise = importlib.import_module("verification.families.pointwise_controls").FAMILY
 fold = importlib.import_module("verification.families.fold_controls").FAMILY
@@ -86,14 +86,16 @@ class PointwiseControlTests(unittest.TestCase):
             "sub_witness : {(f x) == expected_sub : (Maybe -.Q2 -F32)} =\n  proof\n"
         )
         twin = pointwise.kernel_twin(
-            text, "sub_witness", r1b.catalog, r1b.replace_declaration
+            text, "sub_witness", contracts.catalog, contracts.replace_declaration
         )
-        header, body = r1b.catalog(twin)["sub_witness"]
+        header, body = contracts.catalog(twin)["sub_witness"]
         self.assertEqual(
             header, "sub_witness : {(f x) == swapped_sub : (Maybe -.Q2 -F32)}"
         )
         self.assertEqual(body, "  proof\n")
-        self.assertEqual(r1b.catalog(twin)["expected_sub"], ("expected_sub : T", "  a"))
+        self.assertEqual(
+            contracts.catalog(twin)["expected_sub"], ("expected_sub : T", "  a")
+        )
 
     def test_source_reason_requires_the_paired_wrong_value(self):
         value = "Some{F32.sub(5.0, 20.0)}"
@@ -161,13 +163,13 @@ class PointwiseControlTests(unittest.TestCase):
         )
         instance = positive.replace("  b\n", "  c\n")
         self.assertEqual(
-            pointwise.replaced(positive, instance, r1b.catalog, "swapped-maps"),
+            pointwise.replaced(positive, instance, contracts.catalog, "swapped-maps"),
             "pointwise.step.qvvvvv_1",
         )
         with self.assertRaises(GateError):
-            pointwise.replaced(positive, instance, r1b.catalog, "wrong-input-map")
+            pointwise.replaced(positive, instance, contracts.catalog, "wrong-input-map")
         with self.assertRaises(GateError):
-            pointwise.replaced(positive, positive, r1b.catalog, "swapped-maps")
+            pointwise.replaced(positive, positive, contracts.catalog, "swapped-maps")
 
 
 if __name__ == "__main__":

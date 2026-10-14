@@ -60,12 +60,11 @@ cd .worktrees/<task> && ln -s ../../.tools .tools && uv sync --locked
 
 ## Keep rules in LAWS.bend
 
-Each stage keeps its laws in the modules it adds: `src/<module>/LAWS.bend`
-states the laws and `src/<module>/PROOF.bend` proves each `law name` with a
-`def Laws.name`. `verification/sN/LAWS.bend` and `verification/sN/PROOF.bend`
-import a stage's modules. The root `LAWS.bend` and `PROOF.bend` import the
-released stages. `verification/sN.json` lists the declarations the stage gate
-requires in the exported proof.
+Each module keeps its own laws: `src/<module>/LAWS.bend` states the laws and
+`src/<module>/PROOF.bend` proves each `law name` with a `def Laws.name`. The
+root `LAWS.bend` and `PROOF.bend` import every module.
+`verification/<module>.json` lists the declarations that the module's gate
+requires in the exported proof of `src/<module>/PROOF.bend`.
 
 - Add a law for each rule a later change must not break.
 - Never delete, weaken or narrow an existing law to make a proof pass. Adding a
@@ -82,21 +81,21 @@ requires in the exported proof.
 
 `bend PROOF.bend --verdict` checks the laws with the Bend checker, then
 rechecks them with the BendTT kernel. It checks only what a law states.
-Behavior that no law states is checked only by the stage gate's native and JS
-corpus, so run the stage gate too:
+Behavior that no law states is checked only by the gates' native and JS
+corpora, so run the gate of each module you touched too:
 
 ```sh
 bend PROOF.bend --verdict
 uv run --locked python -m unittest discover -s tests -v
-uv run --locked ruff check tools tests
-uv run --locked ruff format --check tools tests
+uv run --locked ruff check tools tests verification experiments
+uv run --locked ruff format --check tools tests verification experiments
 uv run --locked ty check
-uv run --locked python -m tools.sN --output .evidence/<new directory>
+uv run --locked python -m tools.check <suite> --output .evidence/<new directory>
 ```
 
 Gate runs refuse to overwrite an output directory. There is no CI: run the
 checks above locally, with the pinned Bend2, before you open a PR. Run the
-PyTorch oracle recipes from `oracle/README.md` and `oracle/s2/README.md` in
+PyTorch oracle recipes from `oracle/README.md` and `oracle/tensor/README.md` in
 their own environment, so PyTorch never enters the gate. Every PR description
 lists the commands you ran, their exit codes and the Bend commit.
 
@@ -156,17 +155,16 @@ never moves a task after it starts, so an unbalanced split loses the speedup.
 A `!` call, `f!(x)`, runs on the GPU in a native build. A `+` value that every
 parallel call reads costs one atomic per read.
 
-## Stages
+## Gates
 
-Stages S0 to S7 stay as milestones, but the unit of a PR is one independently
-verifiable capability. Each stage keeps a cumulative gate `tools/sN.py` that
-dispatches over all of the stage's registered subgates. Stage gates are the
-files matching `tools/s[0-9].py`, so a helper gate such as
-`tools/s3_graph.py` must be registered in `tools/s3.py`.
+`python -m tools.check` runs the gate of each named suite: `toolchain`,
+`shape`, `storage`, `tensor` and `autograd`, or `all` of them. Each suite's
+gate is `tools/<suite>.py`. A helper gate, such as `tools/autograd_backward.py`,
+runs only if its suite's gate calls it.
 
-The R1 track (R1.A, R1.B) is the proof-interface work that precedes S3.
-Experimental work, such as S3.A, is labeled experimental and stays outside
-`src/` until it is promoted.
+The unit of a PR is one independently verifiable capability. Name files,
+modules, gates and docs after what they check, not after a roadmap phase.
+Experimental work stays in `experiments/`, outside `src/`, until it is
+promoted.
 
-No stage advances by weakening laws, excluding cases or widening numerical
-tolerances.
+No PR weakens a law, excludes a case or widens a numerical tolerance.

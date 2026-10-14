@@ -6,7 +6,7 @@ import ../harness.bend as Harness
 import ./broadcast.bend as Broadcast
 
 # Runs `Broadcast.binary`, the pointwise family's broadcast instance, on the
-# S2 binary requests and prints what `Harness.binary` prints for
+# tensor corpus's binary requests and prints what `Harness.binary` prints for
 # `Elementwise.binary`. A shape that does not broadcast fails before the
 # family loop, as in `Elementwise.planned`.
 

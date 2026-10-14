@@ -3,11 +3,11 @@ import unittest
 from pathlib import Path
 
 from tools.common import ROOT, GateError
-from tools.s1_storage import (
+from tools.storage import (
     cases,
     expected,
     instrument_copy_audit,
-    run_stage,
+    run_gate,
     verify_output,
 )
 
@@ -56,7 +56,7 @@ class StorageRuntimeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="storage-unit-") as directory:
             output = Path(directory) / "run"
             self.assertFalse(output.is_relative_to(ROOT))
-            run_stage(ROOT / ".tools", output)
+            run_gate(ROOT / ".tools", output)
 
 
 if __name__ == "__main__":

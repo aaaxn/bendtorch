@@ -1,10 +1,11 @@
 # Guarantee ledger
 
-The S0 gate establishes a reproducible checking path, not tensor correctness.
-Its authoritative inventory is `verification/s0.json`; immutable source and
-artifact pins are in `verification/references.json`. Each run records the
-manifest hash, the hash of every file it wrote, each command's exit code,
-stdout, stderr and elapsed time, the host, and tool binary fingerprints.
+The toolchain gate establishes a reproducible checking path, not tensor
+correctness. Its authoritative inventory is `verification/toolchain.json`;
+immutable source and artifact pins are in `verification/references.json`. Each
+run records the manifest hash, the hash of every file it wrote, each command's
+exit code, stdout, stderr and elapsed time, the host, and tool binary
+fingerprints.
 
 The upstream `LAWS.tree_is_seq` theorem concerns natural-number arithmetic.
 The unchanged source is copied byte-for-byte from the pinned Bend checkout.
@@ -28,15 +29,14 @@ someone with permission from editing the gate itself. GitHub branch protection
 and restricted reviewer permissions must enforce that organizational boundary.
 No claim that those repository settings are already enabled is made here.
 
-Clean-directory reconstruction is a documented command, not recorded
-evidence. S1 checks the shape/index core, general Base representation proofs,
-and owned F32 adapter. The executable shape API is proved against
-the Nat/Fin core: construction and broadcasting are complete, flatten,
-unflatten, the checked projections and the flat-index projections refine the
-core functions, and every broadcast plan carries the unique right-aligned
-certificate. Error codes, and
-the Base `U32.to_nat` and `U32.from_nat` conversions at the boundary, are
-checked by the runtime corpus, not proved. S2 through S7 remain gated, not
-completed. Performance, functional
-coverage, numerical conformance, formal guarantees, and compatibility are
-separate claims.
+Clean-directory reconstruction is a documented command, not recorded evidence.
+The shape and storage gates check the shape/index core, general Base
+representation proofs, and owned F32 adapter. The executable shape API is
+proved against the Nat/Fin core: construction and broadcasting are complete,
+flatten, unflatten, the checked projections and the flat-index projections
+refine the core functions, and every broadcast plan carries the unique
+right-aligned certificate. Error codes, and the Base `U32.to_nat` and
+`U32.from_nat` conversions at the boundary, are checked by the runtime corpus,
+not proved. Tensors, autograd and later work remain gated, not completed.
+Performance, functional coverage, numerical conformance, formal guarantees, and
+compatibility are separate claims.

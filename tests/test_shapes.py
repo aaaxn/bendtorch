@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from tools.common import ROOT, GateError, bend, environment
-from tools.s1_shapes import (
+from tools.shape import (
     CAPACITY,
     MAX_U32,
     TRANSPORT_REJECTIONS,
@@ -15,7 +15,7 @@ from tools.s1_shapes import (
     exhaustive_requests,
     expected_lines,
     flatten_oracle,
-    run_stage,
+    run_gate,
     shape_oracle,
     stream,
     unflatten_oracle,
@@ -87,7 +87,7 @@ class ShapeRuntimeTests(unittest.TestCase):
         cls.temporary = tempfile.TemporaryDirectory(prefix="unit-", dir=scratch)
         cls.addClassCleanup(cls.temporary.cleanup)
         cls.output = Path(cls.temporary.name) / "evidence"
-        run_stage(ROOT / ".tools", cls.output)
+        run_gate(ROOT / ".tools", cls.output)
         cls.coverage = json.loads((cls.output / "coverage.json").read_text())
         cls.requests, _ = exhaustive_requests()
 
@@ -307,6 +307,8 @@ class ShapeRuntimeTests(unittest.TestCase):
                 "shape-source-check",
                 "shape-kernel-check",
                 "shape-export",
+                "shape-direct-kernel",
+                "pytorch-absent",
                 "shape-native-build",
                 "shape-native-run",
                 "shape-javascript-build",
