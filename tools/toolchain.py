@@ -2,7 +2,15 @@ import json
 import shutil
 from pathlib import Path
 
-from tools.common import ROOT, Evidence, GateError, bend, check_inventory, check_sources
+from tools.common import (
+    ROOT,
+    Evidence,
+    GateError,
+    bend,
+    check_inventory,
+    check_omissions,
+    check_sources,
+)
 
 # 0 / 0 is the x86 default NaN. JavaScript numbers are doubles, so loading the
 # signaling NaN word quiets it; native passes the word through unchanged.
@@ -98,15 +106,7 @@ def run_gate(tool_root: Path, output: Path) -> None:
             expected_code=1,
             contains=("SOME PROOFS FAIL", reason),
         )
-    try:
-        check_inventory(
-            exported.read_text().replace("LAWS.tree_is_seq :", "omitted :"),
-            gate["required_exports"],
-        )
-    except GateError as error:
-        (output / "omitted-inventory.txt").write_text(str(error) + "\n")
-    else:
-        raise GateError("The omitted-inventory negative control was accepted")
+    check_omissions(exported.read_text(), gate["required_exports"])
     binary = output / "parallel-sum"
     emitted = output / "parallel-sum.c"
     evidence.run("native-c-export", bend(tool_root, clean / "main.bend", "-o", emitted))
