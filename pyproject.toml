@@ -13,7 +13,7 @@ extend-exclude = [".tools", "oracle"]
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.ty.src]
-include = ["tools", "tests"]
+include = ["tools", "tests", "verification", "experiments"]
 
 [dependency-groups]
 dev = [
