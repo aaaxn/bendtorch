@@ -1,31 +1,37 @@
-### wrong-index before
+[wrong-index]
+file = "src/tensor/core.bend"
+before = '''
 def write_flat(-shape: Shape.Shape, tensor: Tensor<shape>, +i: U32, +value: F32) ->
   Tensor<shape> & Result<&2, &2, Error, Unit>:
   TTensor{storage, valid} = tensor
-  write_result(shape, storage, valid, i, value, Storage.set(storage, i, value), {==})
-### wrong-index after
+  write_result(shape, storage, valid, i, value, Storage.set(storage, i, value), {==})'''
+after = '''
 def write_flat(-shape: Shape.Shape, tensor: Tensor<shape>, +i: U32, +value: F32) ->
   Tensor<shape> & Result<&2, &2, Error, Unit>:
   TTensor{storage, valid} = tensor
-  write_result(shape, storage, valid, U32.add(i, 1), value, Storage.set(storage, U32.add(i, 1), value), {==})
+  write_result(shape, storage, valid, U32.add(i, 1), value, Storage.set(storage, U32.add(i, 1), value), {==})'''
 
-### missing-write before
+[missing-write]
+file = "src/tensor/core.bend"
+before = '''
 def write_flat(-shape: Shape.Shape, tensor: Tensor<shape>, +i: U32, +value: F32) ->
   Tensor<shape> & Result<&2, &2, Error, Unit>:
   TTensor{storage, valid} = tensor
-  write_result(shape, storage, valid, i, value, Storage.set(storage, i, value), {==})
-### missing-write after
+  write_result(shape, storage, valid, i, value, Storage.set(storage, i, value), {==})'''
+after = '''
 def write_flat(-shape: Shape.Shape, tensor: Tensor<shape>, +i: U32, +value: F32) ->
   Tensor<shape> & Result<&2, &2, Error, Unit>:
   TTensor{storage, valid} = tensor
-  (TTensor{storage, valid}, Done{Unit{}})
+  (TTensor{storage, valid}, Done{Unit{}})'''
 
-### corrupted-neighbour before
+[corrupted-neighbour]
+file = "src/tensor/core.bend"
+before = '''
 def write_flat(-shape: Shape.Shape, tensor: Tensor<shape>, +i: U32, +value: F32) ->
   Tensor<shape> & Result<&2, &2, Error, Unit>:
   TTensor{storage, valid} = tensor
-  write_result(shape, storage, valid, i, value, Storage.set(storage, i, value), {==})
-### corrupted-neighbour after
+  write_result(shape, storage, valid, i, value, Storage.set(storage, i, value), {==})'''
+after = '''
 def write_once(-shape: Shape.Shape, storage: Storage.Storage,
   -valid: {Lifecycle.logical_length(storage) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}, +i: U32, +value: F32) ->
   Tensor<shape> & Result<&2, &2, Error, Unit>:
@@ -45,34 +51,38 @@ def corrupt_neighbour(-shape: Shape.Shape, +i: U32, pair: Tensor<shape> & Result
 def write_flat(-shape: Shape.Shape, tensor: Tensor<shape>, +i: U32, +value: F32) ->
   Tensor<shape> & Result<&2, &2, Error, Unit>:
   TTensor{storage, valid} = tensor
-  corrupt_neighbour(shape, i, write_once(shape, storage, valid, i, value))
+  corrupt_neighbour(shape, i, write_once(shape, storage, valid, i, value))'''
 
-### write-unjustified-failure before
+[write-unjustified-failure]
+file = "src/tensor/core.bend"
+before = '''
 def storage_write_error(result: Result<&2, &2, Storage.Error, Unit>) -> Result<&2, &2, Error, Unit>:
   match result:
     case Fail{error}:
       Fail{StorageError{error}}
     case Done{value}:
-      Done{value}
-### write-unjustified-failure after
+      Done{value}'''
+after = '''
 def storage_write_error(result: Result<&2, &2, Storage.Error, Unit>) -> Result<&2, &2, Error, Unit>:
   match result:
     case Fail{error}:
       Fail{StorageError{error}}
     case Done{value}:
-      Fail{StorageError{Storage.OutOfBounds{}}}
+      Fail{StorageError{Storage.OutOfBounds{}}}'''
 
-### read-unjustified-failure before
+[read-unjustified-failure]
+file = "src/tensor/core.bend"
+before = '''
 def storage_read_error(result: Result<&2, &2, Storage.Error, F32>) -> Result<&2, &2, Error, F32>:
   match result:
     case Fail{error}:
       Fail{StorageError{error}}
     case Done{value}:
-      Done{value}
-### read-unjustified-failure after
+      Done{value}'''
+after = '''
 def storage_read_error(result: Result<&2, &2, Storage.Error, F32>) -> Result<&2, &2, Error, F32>:
   match result:
     case Fail{error}:
       Fail{StorageError{error}}
     case Done{value}:
-      Fail{StorageError{Storage.OutOfBounds{}}}
+      Fail{StorageError{Storage.OutOfBounds{}}}'''

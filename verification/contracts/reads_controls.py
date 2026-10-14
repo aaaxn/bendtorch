@@ -1,9 +1,19 @@
+import importlib
 import re
 import shutil
 from collections.abc import Callable
 from pathlib import Path
+from typing import NamedTuple
 
 from tools.common import GateError
+
+mutants = importlib.import_module("verification.contracts.mutants")
+
+
+class Witness(NamedTuple):
+    target: str
+    diagnostic_value: str
+
 
 EXPERIMENT = "verification/contracts/reads"
 CORE = "_2e_._2f_.._2f_.._2f_src_2f_tensor_2f_core."
@@ -56,32 +66,16 @@ CONSUMERS = tuple(
     )
 )
 WITNESSES = {
-    "read_one_witness": ("expected_fill", "Some{7.0}"),
-    "written_one_witness": ("expected_written", "Some{9.0}"),
-    "neighbour_two_witness": ("expected_fill", "Some{7.0}"),
-    "neighbour_zero_witness": ("expected_fill", "Some{7.0}"),
+    "read_one_witness": Witness("expected_fill", "Some{7.0}"),
+    "written_one_witness": Witness("expected_written", "Some{9.0}"),
+    "neighbour_two_witness": Witness("expected_fill", "Some{7.0}"),
+    "neighbour_zero_witness": Witness("expected_fill", "Some{7.0}"),
 }
 SEVEN = "(.Some, (F32.lit1088421888, ()))"
 NINE = "(.Some, (F32.lit1091567616, ()))"
 EIGHT = "(.Some, (F32.lit1090519040, ()))"
 
-MUTANTS_FILE = Path(__file__).resolve().parent / "reads/mutants.txt"
-
-
-def load_mutants(text: str) -> dict[str, tuple[str, str]]:
-    """Parse `### <label> before` / `### <label> after` blocks of Bend source."""
-    sections = re.split(r"^### (\S+) (before|after)\n", text, flags=re.M)
-    pairs: dict[str, dict[str, str]] = {}
-    for label, side, body in zip(
-        sections[1::3], sections[2::3], sections[3::3], strict=True
-    ):
-        pairs.setdefault(label, {})[side] = body.rstrip("\n")
-    if any(set(sides) != {"before", "after"} for sides in pairs.values()):
-        raise GateError("Each mutant needs one before and one after block")
-    return {label: (sides["before"], sides["after"]) for label, sides in pairs.items()}
-
-
-MUTANTS = load_mutants(MUTANTS_FILE.read_text())
+MUTANTS = mutants.load(Path(__file__).resolve().parent / "reads/mutants.toml")
 WRITE_MUTANTS = (
     "wrong-index",
     "missing-write",
@@ -91,17 +85,17 @@ WRITE_MUTANTS = (
 
 
 def mutant_copy(snapshot: Path, target: Path, label: str) -> None:
+    path, old, new = MUTANTS[label]
     shutil.copytree(snapshot, target)
-    core = target / "src/tensor/core.bend"
-    text = core.read_text()
-    old, new = MUTANTS[label]
+    edited = target / path
+    text = edited.read_text()
     if text.count(old) != 1:
-        raise GateError(f"{label}: mutation target in core.bend is not unique")
-    core.write_text(text.replace(old, new))
+        raise GateError(f"{label}: mutation target in {path} is not unique")
+    edited.write_text(text.replace(old, new))
 
 
 def false_twin(controls: str, witness: str) -> str:
-    expected = WITNESSES[witness][0]
+    expected = WITNESSES[witness].target
     start = controls.index(f"def {witness}()")
     end = controls.index("}:\n", start) + 2
     header = controls[start:end]
@@ -127,7 +121,7 @@ def source_reason(output: str, label: str) -> str:
     if "*1" in expected + observed or "*2" in expected + observed:
         raise GateError(f"{label}: quantity/kind mismatch is not value sensitivity")
     if label in WITNESSES:
-        value = WITNESSES[label][1]
+        value = WITNESSES[label].diagnostic_value
         if (
             expected != f"{{{value} == Some{{8.0}} : Maybe<&2, F32>}}"
             or observed != f"{{{value} == {value} : Maybe<&2, F32>}}"
@@ -179,7 +173,7 @@ def kernel_reason(output: str, label: str) -> str:
     expected = next((x[10:] for x in lines if x.startswith("expected: ")), "")
     observed = next((x[10:] for x in lines if x.startswith("observed: ")), "")
     if label in WITNESSES:
-        target = WITNESSES[label][0]
+        target = WITNESSES[label].target
         if (
             location != label
             or "== wrong_value : " not in expected
@@ -313,8 +307,9 @@ def check_export(
     for name, value in values.items():
         if declarations[name][1].strip() != value:
             raise GateError(f"{name} is not {value}")
-    for witness, (target, _) in WITNESSES.items():
+    for witness in WITNESSES:
         header = declarations[witness][0]
+        target = WITNESSES[witness].target
         if not header.endswith(
             f"== {target} : (Maybe -.Q2 -F32)}}"
         ) and not header.endswith(f"== {target} : (Maybe.q2 -F32)}}"):

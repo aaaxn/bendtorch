@@ -1,0 +1,32 @@
+[from-values-wrong-fill]
+file = "src/tensor/core.bend"
+before = '''
+    case Shape.BTrue{equal}:
+      fill_values_step(shape, rec, write_flat(shape, tensor, index, value))'''
+after = '''
+    case Shape.BTrue{equal}:
+      fill_values_step(shape, rec, write_flat(shape, tensor, index, 0.0))'''
+
+[from-values-cursor-off-by-one]
+file = "src/tensor/core.bend"
+before = '''
+    case Done{tensor}:
+      fill_values(values, shape, tensor, 0n)'''
+after = '''
+    case Done{tensor}:
+      fill_values(values, shape, tensor, 1n)'''
+
+[from-values-missing-last-write]
+file = "src/tensor/core.bend"
+before = '''
+    case Nil{}:
+      Done{tensor}
+    case value <> rest:
+      +index = U32.from_nat(cursor)'''
+after = '''
+    case Nil{}:
+      Done{tensor}
+    case value <> Nil{}:
+      Done{tensor}
+    case value <> rest:
+      +index = U32.from_nat(cursor)'''

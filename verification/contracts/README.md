@@ -84,7 +84,7 @@ operand back on failure.
   1, neighbours 0 and 2 after a write at 1), `expected_fill` (7.0),
   `expected_written` (9.0) and `wrong_value` (8.0).
 - `read-control.bend`: read-only consumer used on the write mutants.
-- `mutants.txt`: the before/after text of each `core.bend` mutation.
+- `mutants.toml`: the before/after text of each `core.bend` mutation.
 
 | Control | Change in `core.bend` | Expected rejection |
 | --- | --- | --- |
@@ -133,7 +133,7 @@ Each law is generic over a `Core.new(shape, fill)` producer:
   at 1 on the first owner, second owner at 1 after that write, length owner at
   0), with `expected_fill` (7.0), `expected_written` (9.0) and `wrong_value`
   (8.0).
-- `mutants.txt`: the before/after text of each `core.bend` mutation.
+- `mutants.toml`: the before/after text of each `core.bend` mutation.
 
 | Control | Change in `core.bend` | Expected rejection |
 | --- | --- | --- |
@@ -182,7 +182,7 @@ The values a successful permute or transpose writes are not covered here; see
 - `controls.bend`: four witnesses (reshaped value, written value after a
   reshape, retained value after a duplicate-axis permute and after an
   out-of-bounds transpose).
-- `mutants.txt`: before/after text of each mutation, with the file it edits.
+- `mutants.toml`: before/after text of each mutation, with the file it edits.
 
 | Control | Change | Expected rejection |
 | --- | --- | --- |
@@ -224,7 +224,7 @@ each index. The existing `public_from_values_elements` and
 - `controls.bend`: three value witnesses (`[3]` at 0 and 1, `[2,3]` at 5),
   with `expected_first` (1.0), `expected_second` (2.0), `expected_last` (6.0)
   and `wrong_value` (8.0).
-- `mutants.txt`: before/after text of each `core.bend` mutation.
+- `mutants.toml`: before/after text of each `core.bend` mutation.
 
 | Control | Change in `core.bend` | Expected rejection |
 | --- | --- | --- |
@@ -281,7 +281,7 @@ storages that step leaves into the next step's histories.
   the code, dimensions, one output value and one retained source value.
 - `controls.bend`: three witnesses (rotated value 5.0, transposed value 4.0,
   retained source value 3.0) and `wrong_value` (8.0).
-- `mutants.txt`: before/after text of each `transforms.bend` mutation.
+- `mutants.toml`: before/after text of each `transforms.bend` mutation.
 
 | Control | Change in `transforms.bend` | Expected rejection |
 | --- | --- | --- |

@@ -1,11 +1,25 @@
 import importlib
 import shutil
 from pathlib import Path
+from typing import NamedTuple
 
 from tools.common import GateError
 
+mutants = importlib.import_module("verification.contracts.mutants")
 reads = importlib.import_module("verification.contracts.reads_controls")
-transforms = importlib.import_module("verification.contracts.transform_controls")
+
+
+class Witness(NamedTuple):
+    target: str
+    diagnostic_value: str
+    observation: str
+    claim: str
+
+
+class Site(NamedTuple):
+    definition: str
+    mark: str
+
 
 EXPERIMENT = "verification/contracts/permute-values"
 SRC = reads.SRC
@@ -33,22 +47,20 @@ CONSUMERS = tuple(
         "scalar_transpose",
     )
 )
-# witness -> (statement target, concrete value in the source diagnostic,
-# observation the kernel must find on the left, the law's claim on the right)
 WITNESSES = {
-    "cube_rotate_witness": (
+    "cube_rotate_witness": Witness(
         "expected_rotated",
         "Some{5.0}",
         "transform_2d_observation.applied_value",
         "observation.listed",
     ),
-    "grid_transpose_witness": (
+    "grid_transpose_witness": Witness(
         "expected_transposed",
         "Some{4.0}",
         "transform_2d_observation.applied_value",
         "observation.listed",
     ),
-    "grid_kept_witness": (
+    "grid_kept_witness": Witness(
         "expected_kept",
         "Some{3.0}",
         "transform_2d_observation.kept_value",
@@ -61,20 +73,17 @@ VALUES = {
     "expected_kept": "(.Some, (F32.lit1077936128, ()))",
     "wrong_value": reads.EIGHT,
 }
-MUTANTS = transforms.load_mutants(
-    (Path(__file__).resolve().parent / "permute-values/mutants.txt").read_text()
-)
+MUTANTS = mutants.load(Path(__file__).resolve().parent / "permute-values/mutants.toml")
 PROOF = "src/tensor/permute-values.bend"
 # The released permute and transpose contracts, which state failures and
 # metadata only; each WI mutant still passes them.
 OTHER = "src/tensor/transform-contract-PROOF.bend"
-# label -> (rejecting def, text of the mutation on one side of the diagnostic only)
 SITES = {
-    "permute-forward-map": (
+    "permute-forward-map": Site(
         "read_step",
         "Transforms.copy_read(input, axes, plan, U32.from_nat(cursor),",
     ),
-    "transpose-swap-ignored": (
+    "transpose-swap-ignored": Site(
         "transpose_route",
         "Layout.transpose_axes(Shape.dimensions(input), a, a, 0)",
     ),
@@ -95,14 +104,13 @@ def mutant_copy(snapshot: Path, target: Path, label: str) -> None:
     )
 
 
-def module(label: str) -> str:
-    """Export prefix of the module a mutant edits."""
-    stem = Path(MUTANTS[label][0]).stem.replace("-", "_2d_")
+def export_prefix(label: str) -> str:
+    stem = Path(MUTANTS[label].file).stem.replace("-", "_2d_")
     return f"{SRC}{stem}."
 
 
 def false_twin(controls: str, witness: str) -> str:
-    target = WITNESSES[witness][0]
+    target = WITNESSES[witness].target
     start = controls.index(f"def {witness}()")
     end = controls.index("}:\n", start) + 2
     header = controls[start:end]
@@ -120,7 +128,7 @@ def source_reason(output: str, label: str) -> str:
     if "*1" in expected + observed or "*2" in expected + observed:
         raise GateError(f"{label}: quantity/kind mismatch is not value sensitivity")
     if label in WITNESSES:
-        value = WITNESSES[label][1]
+        value = WITNESSES[label].diagnostic_value
         if (
             expected != f"{{{value} == Some{{8.0}} : Maybe<&2, F32>}}"
             or observed != f"{{{value} == {value} : Maybe<&2, F32>}}"
@@ -128,7 +136,7 @@ def source_reason(output: str, label: str) -> str:
         ):
             raise GateError(f"{label}: wrong concrete public value equation")
     elif label in SITES:
-        site, mark = SITES[label]
+        site, mark = SITES[label].definition, SITES[label].mark
         if (
             location != site
             or expected == observed
@@ -146,7 +154,7 @@ def kernel_reason(output: str, label: str) -> str:
     expected = next((x[10:] for x in lines if x.startswith("expected: ")), "")
     observed = next((x[10:] for x in lines if x.startswith("observed: ")), "")
     if label in WITNESSES:
-        _, _, observation, claim = WITNESSES[label]
+        witness = WITNESSES[label]
         left, _, wrong = expected.partition(" == ")
         observed_left, _, observed_claim = observed.partition(" == ")
         if (
@@ -154,12 +162,12 @@ def kernel_reason(output: str, label: str) -> str:
             or not wrong.startswith("wrong_value : ")
             or left != observed_left
             or f"{CORE}from_values" not in left
-            or f"{SRC}{observation}" not in left
-            or claim not in observed_claim
+            or f"{SRC}{witness.observation}" not in left
+            or witness.claim not in observed_claim
         ):
             raise GateError(f"{label}: kernel rejection is not the value statement")
     elif label in SITES:
-        qualified = f"{SRC}permute_2d_values.{SITES[label][0]}"
+        qualified = f"{SRC}permute_2d_values.{SITES[label].definition}"
         if location != qualified or not expected or expected == observed:
             raise GateError(f"{label}: kernel rejection is not at {qualified}")
     else:
@@ -185,8 +193,9 @@ def check_export(text: str, catalog) -> dict[str, str]:
     for name, value in VALUES.items():
         if declarations[name][1].strip() != value:
             raise GateError(f"{name} is not {value}")
-    for witness, (target, _, observation, _) in WITNESSES.items():
+    for witness in WITNESSES:
         header = declarations[witness][0]
+        target, observation = WITNESSES[witness].target, WITNESSES[witness].observation
         if not header.endswith(
             f"== {target} : (Maybe -.Q2 -F32)}}"
         ) and not header.endswith(f"== {target} : (Maybe.q2 -F32)}}"):

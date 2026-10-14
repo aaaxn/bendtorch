@@ -27,9 +27,7 @@ from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/s3-backward-torch-v1.json"
 FIXTURE_SHA256 = "8c5692d6fef448459e75293f5f7ef562671630c9aa017ff79c2d09bbc0c5622a"
-# Requests that PyTorch cannot express or reports differently; the autograd backward
-# page lists each one.
-UNKNOWN_IDS = {"unknown_operand", "unknown_output_empty", "unknown_output"}
+UNKNOWN_NODE_IDS = {"unknown_operand", "unknown_output_empty", "unknown_output"}
 FORGED = {"dangling_self", "dangling_newer", "dangling_mul", "forged_sound"}
 # Native sub keeps the first NaN operand's payload; PyTorch keeps the second's.
 SUB_PAYLOAD = {"nan_payloads_sub"}
@@ -191,7 +189,7 @@ class BackwardTorchOracleTests(unittest.TestCase):
                         ],
                     )
                     continue
-                if identifier in UNKNOWN_IDS:
+                if identifier in UNKNOWN_NODE_IDS:
                     self.assertEqual(len(observed["lines"]), len(expected))
                     for seen, wanted in zip(observed["lines"], expected, strict=True):
                         if seen != wanted:
@@ -201,7 +199,7 @@ class BackwardTorchOracleTests(unittest.TestCase):
                 self.assertEqual(observed["lines"], expected)
                 exact += 1
         self.assertEqual(
-            exact, len(cases()) - len(UNKNOWN_IDS) - len(FORGED) - len(SUB_PAYLOAD)
+            exact, len(cases()) - len(UNKNOWN_NODE_IDS) - len(FORGED) - len(SUB_PAYLOAD)
         )
 
     def test_nonfinite_cases_are_compared_with_pytorch_not_duals(self):

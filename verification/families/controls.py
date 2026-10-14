@@ -7,7 +7,7 @@ from typing import NamedTuple
 from tools.common import GateError
 
 reads = importlib.import_module("verification.contracts.reads_controls")
-transforms = importlib.import_module("verification.contracts.transform_controls")
+mutants = importlib.import_module("verification.contracts.mutants")
 HERE = Path(__file__).resolve().parent
 
 PROOF = "src/tensor/contracts/PROOF.bend"
@@ -42,8 +42,8 @@ class Law(NamedTuple):
     call: str
 
 
-def load_mutants(family: str) -> dict[str, tuple[str, str, str]]:
-    return transforms.load_mutants((HERE / family / "mutants.txt").read_text())
+def load_mutants(family: str) -> dict[str, mutants.Mutant]:
+    return mutants.load(HERE / family / "mutants.toml")
 
 
 @dataclass(frozen=True)
@@ -65,7 +65,7 @@ class Family:
     witnesses: dict[str, Witness]
     values: dict[str, Value]
     subjects: tuple[str, ...]
-    mutants: dict[str, tuple[str, str, str]]
+    mutants: dict[str, mutants.Mutant]
     sites: dict[str, Site]
     proof: str = PROOF
     prefix: str = SRC
@@ -78,8 +78,7 @@ class Family:
     def entry_path(self) -> str:
         return f"{self.experiment}/entry.bend"
 
-    def checked(self, label: str) -> str:
-        """The module whose source check must reject the mutant."""
+    def rejecting_module(self, label: str) -> str:
         if self.sites[label].consumer:
             return f"{self.experiment}/consumers.bend"
         return self.proof

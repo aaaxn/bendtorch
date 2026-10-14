@@ -37,7 +37,7 @@ beside the runner that checks them.
   while it checks these two, and on the `[2, 3]` grid it runs out of fuel, so
   they use `[3]`.
 - `controls.bend`: five value witnesses, each paired with one wrong value.
-- `mutants.txt`: the before and after text of each mutation.
+- `mutants.toml`: the before and after text of each mutation.
 
 | Control | Change | Source rejection | BendTT rejection |
 | --- | --- | --- | --- |
@@ -92,15 +92,15 @@ instance copy, only the instance copy for the swapped maps, or only
   The family laws require every index in bounds, so no law says what a failed
   fold returns. The last three consumers run `Fold.run`, with the mask
   `Sum.every` that keeps every word, and `Fold.pair_run` directly with the
-  index map `doubled(k) = 2k`, which reads index 4 of a
-  three-word input at step 2, after two successful steps. `sum_fails` folds
-  `[1, 2, 3]` that way, `pair_fails_left` reads the left input with `doubled`
+  index map `reads_past_input(k) = 2k`, which reads index 4 of a three-word
+  input at step 2, after two successful steps. `sum_fails` folds `[1, 2, 3]`
+  that way, `pair_fails_left` reads the left input with `reads_past_input`
   and `pair_fails_right` reads the right input with it, after the left read
   of the same step succeeds. Each states the error,
   `StorageError{OutOfBounds}`, and the first and last word of each returned
   input.
 - `controls.bend`: four value witnesses, each paired with one wrong value.
-- `mutants.txt`: the before and after text of each mutation.
+- `mutants.toml`: the before and after text of each mutation.
 
 | Control | Change | Source rejection | BendTT rejection |
 | --- | --- | --- | --- |
@@ -159,7 +159,7 @@ declarations.
   The kernel reports a mismatch against the type of the witness body, where
   the law's total is still an unevaluated fiber, so `stated` restates each
   total as the literal it evaluates to.
-- `mutants.txt`: the before and after text of each mutation.
+- `mutants.toml`: the before and after text of each mutation.
 
 | Control | Change | Source rejection | BendTT rejection |
 | --- | --- | --- | --- |

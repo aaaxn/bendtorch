@@ -1,11 +1,25 @@
 import importlib
-import re
 import shutil
 from pathlib import Path
+from typing import NamedTuple
 
 from tools.common import GateError
 
+mutants = importlib.import_module("verification.contracts.mutants")
 reads = importlib.import_module("verification.contracts.reads_controls")
+
+
+class Witness(NamedTuple):
+    target: str
+    replacement: str
+    diagnostic_value: str
+
+
+class Site(NamedTuple):
+    proof: str
+    definition: str
+    mark: str
+
 
 EXPERIMENT = "verification/contracts/transforms"
 SRC = reads.SRC
@@ -48,68 +62,47 @@ CONSUMERS = tuple(
     )
 )
 WITNESSES = {
-    "reshape_first_witness": ("expected_fill", "wrong_value", "Some{7.0}"),
-    "reshape_written_witness": ("expected_written", "wrong_value", "Some{9.0}"),
-    "permute_kept_witness": ("expected_fill", "wrong_value", "Some{7.0}"),
-    "transpose_kept_witness": ("expected_fill", "wrong_value", "Some{7.0}"),
+    "reshape_first_witness": Witness("expected_fill", "wrong_value", "Some{7.0}"),
+    "reshape_written_witness": Witness("expected_written", "wrong_value", "Some{9.0}"),
+    "permute_kept_witness": Witness("expected_fill", "wrong_value", "Some{7.0}"),
+    "transpose_kept_witness": Witness("expected_fill", "wrong_value", "Some{7.0}"),
 }
 
 
-def load_mutants(text: str) -> dict[str, tuple[str, str, str]]:
-    """Parse `### <label> before|after <file>` blocks of Bend source."""
-    sections = re.split(r"^### (\S+) (before|after) (\S+)\n", text, flags=re.M)
-    pairs: dict[str, dict[str, str]] = {}
-    for label, side, path, body in zip(
-        sections[1::4], sections[2::4], sections[3::4], sections[4::4], strict=True
-    ):
-        entry = pairs.setdefault(label, {"file": path})
-        if entry["file"] != path:
-            raise GateError(f"{label}: before and after name different files")
-        entry[side] = body.rstrip("\n")
-    if any(set(entry) != {"file", "before", "after"} for entry in pairs.values()):
-        raise GateError("Each mutant needs one before and one after block")
-    return {
-        label: (entry["file"], entry["before"], entry["after"])
-        for label, entry in pairs.items()
-    }
-
-
-MUTANTS = load_mutants(
-    (Path(__file__).resolve().parent / "transforms/mutants.txt").read_text()
-)
+MUTANTS = mutants.load(Path(__file__).resolve().parent / "transforms/mutants.toml")
 RESHAPE = "src/tensor/reshape-contract.bend"
 PERMUTE = "src/tensor/permute-contract.bend"
-# label -> (rejecting proof file, rejecting def, text of the mutation in the diagnostic)
 SITES = {
-    "reshape-zeroed": (RESHAPE, "decided_lift", "Transforms.drop_status(output,"),
-    "reshape-unjustified-failure": (
+    "reshape-zeroed": Site(RESHAPE, "decided_lift", "Transforms.drop_status(output,"),
+    "reshape-unjustified-failure": Site(
         RESHAPE,
         "decided_lift",
         "P(Fail{Transforms.LayoutError{Layout.ElementCountMismatch{}}})",
     ),
-    "reshape-input-dimensions": (
+    "reshape-input-dimensions": Site(
         RESHAPE,
         "built_lift",
         "Transforms.reshape_decided(input, input,",
     ),
-    "permute-failure-changes-source": (
+    "permute-failure-changes-source": Site(
         PERMUTE,
         "planned_failure",
         "Transforms.drop_status(input, Core.write_flat(input, tensor, 0, 0.0))",
     ),
-    "transpose-failure-changes-source": (
+    "transpose-failure-changes-source": Site(
         PERMUTE,
         "transpose_failure",
         "Transforms.drop_status(input, Core.write_flat(input, tensor, 0, 0.0))",
     ),
-    "permute-wrong-error": (PERMUTE, "bounded_failure", "Fail{Layout.DuplicateAxis{}}"),
+    "permute-wrong-error": Site(
+        PERMUTE, "bounded_failure", "Fail{Layout.DuplicateAxis{}}"
+    ),
 }
 OTHER = {RESHAPE: PERMUTE, PERMUTE: RESHAPE}
 
 
-def module(label: str) -> str:
-    """Export prefix of the module a mutant edits."""
-    stem = Path(MUTANTS[label][0]).stem.replace("-", "_2d_")
+def export_prefix(label: str) -> str:
+    stem = Path(MUTANTS[label].file).stem.replace("-", "_2d_")
     return f"{SRC}{stem}."
 
 
@@ -128,7 +121,8 @@ def mutant_copy(snapshot: Path, target: Path, label: str) -> None:
 
 
 def false_twin(controls: str, witness: str) -> str:
-    target, replacement, _ = WITNESSES[witness]
+    target = WITNESSES[witness].target
+    replacement = WITNESSES[witness].replacement
     start = controls.index(f"def {witness}()")
     end = controls.index("}:\n", start) + 2
     header = controls[start:end]
@@ -146,7 +140,7 @@ def source_reason(output: str, label: str) -> str:
     if "*1" in expected + observed or "*2" in expected + observed:
         raise GateError(f"{label}: quantity/kind mismatch is not value sensitivity")
     if label in WITNESSES:
-        value = WITNESSES[label][2]
+        value = WITNESSES[label].diagnostic_value
         if (
             expected != f"{{{value} == Some{{8.0}} : Maybe<&2, F32>}}"
             or observed != f"{{{value} == {value} : Maybe<&2, F32>}}"
@@ -154,7 +148,7 @@ def source_reason(output: str, label: str) -> str:
         ):
             raise GateError(f"{label}: wrong concrete public value equation")
     elif label in SITES:
-        _, site, mark = SITES[label]
+        site, mark = SITES[label].definition, SITES[label].mark
         if (
             location != site
             or expected == observed
@@ -172,16 +166,18 @@ def kernel_reason(output: str, label: str) -> str:
     expected = next((x[10:] for x in lines if x.startswith("expected: ")), "")
     observed = next((x[10:] for x in lines if x.startswith("observed: ")), "")
     if label in WITNESSES:
-        target, replacement, _ = WITNESSES[label]
+        witness = WITNESSES[label]
         if (
             location != label
-            or f"== {replacement} : " not in expected
-            or expected.replace(f"== {replacement}", f"== {target}") != observed
+            or f"== {witness.replacement} : " not in expected
+            or expected.replace(f"== {witness.replacement}", f"== {witness.target}")
+            != observed
         ):
             raise GateError(f"{label}: kernel rejection is not the value statement")
     elif label in SITES:
-        path, site, _ = SITES[label]
-        qualified = f"{SRC}{Path(path).stem.replace('-', '_2d_')}.{site}"
+        site = SITES[label]
+        stem = Path(site.proof).stem.replace("-", "_2d_")
+        qualified = f"{SRC}{stem}.{site.definition}"
         if location != qualified or not expected or expected == observed:
             raise GateError(f"{label}: kernel rejection is not at {qualified}")
     else:
@@ -220,8 +216,9 @@ def check_export(text: str, catalog) -> dict[str, str]:
     for name, value in values.items():
         if declarations[name][1].strip() != value:
             raise GateError(f"{name} is not {value}")
-    for witness, (target, _, _) in WITNESSES.items():
+    for witness in WITNESSES:
         header = declarations[witness][0]
+        target = WITNESSES[witness].target
         if not header.endswith(
             f"== {target} : (Maybe -.Q2 -F32)}}"
         ) and not header.endswith(f"== {target} : (Maybe.q2 -F32)}}"):

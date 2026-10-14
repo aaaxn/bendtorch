@@ -45,14 +45,14 @@ class PointwiseControlTests(unittest.TestCase):
                     text = (target / path).read_text()
                     self.assertEqual(text, (ROOT / path).read_text().replace(old, new))
                     self.assertTrue((target / family.entry_path).exists())
-                    self.assertTrue((target / family.checked(label)).exists())
+                    self.assertTrue((target / family.rejecting_module(label)).exists())
                     for name in family.operations - {path}:
                         self.assertEqual(
                             (target / name).read_text(), (ROOT / name).read_text()
                         )
 
     def test_each_mutant_is_checked_by_its_module(self):
-        checked = {label: fold.checked(label) for label in fold.mutants}
+        checked = {label: fold.rejecting_module(label) for label in fold.mutants}
         failures = {"failed-step-done", "pair-left-failed-done"}
         failures.add("pair-right-failed-swapped")
         for label, path in checked.items():
@@ -64,7 +64,9 @@ class PointwiseControlTests(unittest.TestCase):
             self.assertEqual(path, expected, label)
         self.assertTrue(all(not site.consumer for site in pointwise.sites.values()))
         for label in reduce.mutants:
-            self.assertEqual(reduce.checked(label), "src/autograd/PROOF.bend", label)
+            self.assertEqual(
+                reduce.rejecting_module(label), "src/autograd/PROOF.bend", label
+            )
 
     def test_false_twin_changes_only_the_statement(self):
         for family in FAMILIES:

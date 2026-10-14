@@ -5,8 +5,9 @@ import shutil
 from pathlib import Path
 
 from tools.autograd_broadcast import (
-    CAPACITY,
     CAPACITY_EXCEEDED,
+    MAX_ELEMENTS,
+    MAX_RANK,
     RANK_EXCEEDED,
     program,
     run_lanes,
@@ -96,9 +97,9 @@ def grad(shape: list[int], total: list[int] | None) -> dict | None:
 
 def reference(case: dict) -> dict:
     shape = case["shape"]
-    if len(shape) > 4:
+    if len(shape) > MAX_RANK:
         return {"error": RANK_EXCEEDED}
-    if math.prod(shape) > CAPACITY:
+    if math.prod(shape) > MAX_ELEMENTS:
         return {"error": CAPACITY_EXCEEDED}
     before, held = accumulate(shape, None, case["before"])
     after, total = accumulate(shape, None, case["after"])

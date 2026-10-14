@@ -10,7 +10,8 @@ from pathlib import Path
 
 from tools.common import ROOT, Evidence, GateError, bend, check_sources
 
-CAPACITY = 1 << 20
+MAX_RANK = 4
+MAX_ELEMENTS = 1 << 20
 NOT_BROADCASTABLE = 100
 RANK_EXCEEDED = 1
 CAPACITY_EXCEEDED = 2
@@ -108,9 +109,9 @@ def cases() -> list[dict]:
 
 def reference(case: dict) -> dict:
     shape, target, words = case["shape"], case["target"], case["words"]
-    if len(target) > 4:
+    if len(target) > MAX_RANK:
         return {"error": RANK_EXCEEDED}
-    if math.prod(target) > CAPACITY:
+    if math.prod(target) > MAX_ELEMENTS:
         return {"error": CAPACITY_EXCEEDED}
     rank = max(len(shape), len(target))
     left = [1] * (rank - len(shape)) + shape
@@ -120,7 +121,7 @@ def reference(case: dict) -> dict:
         if a != b and a != 1 and b != 1:
             return {"error": INCOMPATIBLE_BROADCAST}
         output.append(b if a == 1 else a)
-    if math.prod(output) > CAPACITY:
+    if math.prod(output) > MAX_ELEMENTS:
         return {"error": CAPACITY_EXCEEDED}
     if output != target:
         return {"error": NOT_BROADCASTABLE}
