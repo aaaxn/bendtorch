@@ -16,7 +16,6 @@ import ../from-values-contract.bend as FromValues
 def storage(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>) -> Storage.Storage:
   StorageLaws.replay(ops, StorageLaws.created(Shape.count(shape), fill))
 
-# The word a replayed tensor holds at `index`.
 def value(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +index: U32) -> F32:
   StorageLaws.expected(ops, U32.to_nat(Shape.count(shape)), index, fill)
 
@@ -115,8 +114,6 @@ def read_pair_lift(+shape: Shape.Shape, -kept: Storage.Storage, +found: F32,
       read_shift(shape, storage, kept, word, found, Equal.sym(Storage.Storage, storage, kept, moved), some_value(found, word, Equal.sym(Maybe<&2, F32>, Some{word}, Some{found}, read)),
         P, h)(valid)
 
-# `read_flat` on a replayed tensor at an in-bounds index returns the replayed
-# word and an owner whose history gained one read.
 def read_lift(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>,
   -valid: {Lifecycle.logical_length(storage(shape, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}, +index: U32,
   inside: {Nat.is_lt(U32.to_nat(index), Shape.logical_numel(Shape.dimensions(shape))) == True{} : Bool},
@@ -198,8 +195,6 @@ def write_pair_lift(+shape: Shape.Shape, -kept: Storage.Storage,
     case (Core.TTensor{storage, valid}, Done{Unit{}}):
       write_shift(shape, storage, kept, Equal.sym(Storage.Storage, storage, kept, moved), P, h)(valid)
 
-# `write_flat` on a replayed tensor at an in-bounds index succeeds, and the
-# owner it returns gained one write in its history.
 def write_lift(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>,
   -valid: {Lifecycle.logical_length(storage(shape, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat},
   +index: U32, +word: F32,
@@ -212,7 +207,6 @@ def write_lift(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>,
     Core.write_flat(shape, Core.TTensor{storage(shape, fill, ops), valid}, index, word),
     write_moved(shape, fill, ops, valid, index, word), write_done(shape, fill, ops, valid, index, word, inside), P, h)
 
-# `Core.new(shape, fill)` is the replayed tensor with the empty history.
 def new_lift(+shape: Shape.Shape, +fill: F32, -P: Result<&2, &1, Core.Error, Core.Tensor<shape>> -> Type,
   h: @-fits: {Lifecycle.logical_length(storage(shape, fill, Nil{})) == Shape.logical_numel(Shape.dimensions(shape)) : Nat} ->
     P(Done{Core.TTensor{storage(shape, fill, Nil{}), fits}})) -> P(Core.new(shape, fill)):
@@ -226,7 +220,6 @@ def expected_snoc(+ops: List<&2, StorageLaws.Op>, +op: StorageLaws.Op, +n: Nat, 
     case +first <> +rest:
       expected_snoc(rest, op, n, index, StorageLaws.latest(n, first, index, word))
 
-# A read leaves every replayed word unchanged.
 def value_after_read(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +read: U32, +index: U32) ->
   {value(shape, fill, snoc(ops, StorageLaws.Read{read}), index) == value(shape, fill, ops, index) : F32}:
   expected_snoc(ops, StorageLaws.Read{read}, U32.to_nat(Shape.count(shape)), index, fill)

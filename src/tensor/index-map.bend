@@ -20,23 +20,18 @@ import ./contracts/pointwise-proof.bend as PointwiseProof
 def keep(operation: Unit, word: F32, other: F32) -> F32:
   word
 
-# The input after the loop read it at the first `count` output indices.
 def source(~P: Data, ~map: P -> Nat -> Nat, +plan: P, +input: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>,
   +count: Nat) -> Storage.Storage:
   PointwiseProof.input_storage(~P, ~map, plan, input, fill, ops, count)
 
-# The writes of the first `count` output cells.
 def writes(~P: Data, ~map: P -> Nat -> Nat, +count: Nat, +plan: P, +input: Shape.Shape, +fill: F32,
   +ops: List<&2, StorageLaws.Op>) -> List<&2, StorageLaws.Op>:
   Pointwise.writes(~Unit, ~keep, ~P, ~map, ~map, count, Unit{}, plan, input, fill, ops, input, fill, ops)
 
-# The `+0.0` output after the first `count` cells.
 def target(~P: Data, ~map: P -> Nat -> Nat, +count: Nat, +plan: P, +input: Shape.Shape, +fill: F32,
   +ops: List<&2, StorageLaws.Op>, +output: Shape.Shape) -> Storage.Storage:
   Replayed.storage(output, 0.0, writes(~P, ~map, count, plan, input, fill, ops))
 
-# One step reads input[map(plan, cursor)] and writes that word at `cursor`.
-# The storages it leaves are the next step's `source` and `target`.
 def shift(~P: Data, ~map: P -> Nat -> Nat, +plan: P, +input: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>,
   +output: Shape.Shape, +cursor: Nat, -K: Storage.Storage -> Storage.Storage -> Type,
   next: K(source(~P, ~map, plan, input, fill, ops, 1n+cursor), target(~P, ~map, 1n+cursor, plan, input, fill, ops, output))) ->
@@ -61,7 +56,6 @@ def shift(~P: Data, ~map: P -> Nat -> Nat, +plan: P, +input: Shape.Shape, +fill:
     K(source(~P, ~map, plan, input, fill, ops, 1n+cursor), _)
   next
 
-# After every output cell, output index `index` holds input[map(plan, index)].
 def copied_point(~P: Data, ~map: P -> Nat -> Nat, +plan: P, +input: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>,
   +output: Shape.Shape,
   -fits: {Lifecycle.logical_length(target(~P, ~map, Shape.logical_numel(Shape.dimensions(output)), plan, input, fill, ops, output)) ==
@@ -82,7 +76,6 @@ def copied_point(~P: Data, ~map: P -> Nat -> Nat, +plan: P, +input: Shape.Shape,
       PointwiseProof.writes_value(~Unit, ~keep, ~P, ~map, ~map, total, Unit{}, plan, input, fill, ops, input, fill, ops, output, index,
         inside, Conversion.le_reflexive(total))))
 
-# The reads leave every input word as it was.
 def kept(~P: Data, ~map: P -> Nat -> Nat, +plan: P, +count: Nat, +input: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>,
   -fits: {Lifecycle.logical_length(source(~P, ~map, plan, input, fill, ops, count)) == Shape.logical_numel(Shape.dimensions(input)) : Nat},
   +other: U32, inside: {Nat.is_lt(U32.to_nat(other), Shape.logical_numel(Shape.dimensions(input))) == True{} : Bool}) ->
@@ -95,8 +88,6 @@ def kept(~P: Data, ~map: P -> Nat -> Nat, +plan: P, +count: Nat, +input: Shape.S
     Equal.cong(F32, Maybe<&2, F32>, word => Some{word}, Replayed.value(input, fill, seen, other), Replayed.value(input, fill, ops, other),
       PointwiseProof.value_reads(~P, ~map, plan, count, input, fill, ops, other)))
 
-# On a `Core.from_values` input, the replayed word at an in-bounds index is
-# the value at that position of the list.
 def stored_at(+shape: Shape.Shape, +values: List<&2, F32>,
   +counted: {List.length(&2, F32, values) == Shape.logical_numel(Shape.dimensions(shape)) : Nat},
   +index: U32, inside: {Nat.is_lt(U32.to_nat(index), Shape.logical_numel(Shape.dimensions(shape))) == True{} : Bool}) ->

@@ -1195,8 +1195,6 @@ def Laws.matmul_valid_success(left, right, a, b, valid):
       planned_status(left, right, Matrix.plan(left, right), a, b, plan_status(left, right, valid))),
     Laws.successful_matmul_interpretation(Core.Packed{left, a}, Core.Packed{right, b})}
 
-# Error identity: the planner's rank and inner-dimension branches.
-
 def plan_left_rank(+left: Shape.Shape, +right: Shape.Shape, +dims: List<&2, U32>,
   -same: {dims == Shape.dimensions(left) : List<&2, U32>},
   not_matrix: {Shape.rank_dimensions(dims) != 2n : Nat}) ->

@@ -5,11 +5,6 @@ import ../elementwise.bend as Elementwise
 import ../harness.bend as Harness
 import ./broadcast.bend as Broadcast
 
-# Runs `Broadcast.binary`, the pointwise family's broadcast instance, on the
-# tensor corpus's binary requests and prints what `Harness.binary` prints for
-# `Elementwise.binary`. A shape that does not broadcast fails before the
-# family loop, as in `Elementwise.planned`.
-
 def planned(+operation: Elementwise.Operation, left: Core.Dynamic, right: Core.Dynamic,
   result: Result<&2, &2, Shape.Error, Shape.BroadcastPlan>) ->
   (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>:

@@ -52,7 +52,6 @@ def right_walk_bound(+plan: Shape.BroadcastPlan,
           %Equal.sym(Nat, 0n, Shape.numel(Shape.extents(Shape.output_shape(plan))), zero) : {Nat.is_lt(index, _) == True{} : Bool}
           below))
 
-# Every broadcast projection of an in-bounds output index is in bounds.
 def left_inside(+plan: Shape.BroadcastPlan, +count: Nat,
   +room: {Nat.is_le(count, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan)))) == True{} : Bool}) ->
   {Pointwise.inside(~Shape.BroadcastPlan, ~Broadcast.left_map, plan, count, Shape.logical_numel(Shape.dimensions(Shape.left_shape(plan)))) == True{} : Bool}:
