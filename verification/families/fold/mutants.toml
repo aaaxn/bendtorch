@@ -1,0 +1,101 @@
+[negative-zero-start]
+file = "src/tensor/contracts/fold.bend"
+before = '''
+  loop(~O, ~g, ~P, ~ia, ~keep, count, operation, plan, 0n, input, 0.0)'''
+after = '''
+  loop(~O, ~g, ~P, ~ia, ~keep, count, operation, plan, 0n, input, F32.neg(0.0))'''
+
+[swapped-accumulator]
+file = "src/tensor/contracts/fold.bend"
+before = '''
+      rec(input, chosen(~O, ~g, operation, kept, accumulator, x))'''
+after = '''
+      rec(input, chosen(~O, ~g, operation, kept, x, accumulator))'''
+
+[dropped-word]
+file = "src/tensor/contracts/fold.bend"
+before = '''
+      rec(input, chosen(~O, ~g, operation, kept, accumulator, x))'''
+after = '''
+      rec(input, accumulator)'''
+
+[ignored-mask]
+file = "src/tensor/contracts/fold.bend"
+before = '''
+      step(~O, ~g, operation, keep(plan, cursor), input =>'''
+after = '''
+      step(~O, ~g, operation, True{}, input =>'''
+
+[cursor-off-by-one]
+file = "src/tensor/contracts/fold.bend"
+before = '''
+  loop(~O, ~g, ~P, ~ia, ~keep, count, operation, plan, 0n, input, 0.0)'''
+after = '''
+  loop(~O, ~g, ~P, ~ia, ~keep, count, operation, plan, 1n, input, 0.0)'''
+
+[pair-swapped-operands]
+file = "src/tensor/contracts/fold.bend"
+before = '''
+      rec(left, right, g(operation, accumulator, x, y))'''
+after = '''
+      rec(left, right, g(operation, accumulator, y, x))'''
+
+[pair-wrong-map]
+file = "src/tensor/contracts/fold.bend"
+before = '''
+        right, accumulator, Core.read_dynamic(left, U32.from_nat(ia(plan, cursor))))'''
+after = '''
+        right, accumulator, Core.read_dynamic(left, U32.from_nat(ib(plan, cursor))))'''
+
+[pair-negative-zero-start]
+file = "src/tensor/contracts/fold.bend"
+before = '''
+  pair_loop(~O, ~g, ~P, ~ia, ~ib, count, operation, plan, 0n, left, right, 0.0)'''
+after = '''
+  pair_loop(~O, ~g, ~P, ~ia, ~ib, count, operation, plan, 0n, left, right, F32.neg(0.0))'''
+
+[pair-cursor-off-by-one]
+file = "src/tensor/contracts/fold.bend"
+before = '''
+  pair_loop(~O, ~g, ~P, ~ia, ~ib, count, operation, plan, 0n, left, right, 0.0)'''
+after = '''
+  pair_loop(~O, ~g, ~P, ~ia, ~ib, count, operation, plan, 1n, left, right, 0.0)'''
+
+[sum-swapped-add]
+file = "src/tensor/contracts/sum.bend"
+before = '''
+  F32.add(accumulator, word)'''
+after = '''
+  F32.add(word, accumulator)'''
+
+[dot-untransposed-right]
+file = "src/tensor/contracts/dot.bend"
+before = '''
+  Nat.add(Nat.mul(k, columns), column)'''
+after = '''
+  Nat.add(Nat.mul(column, inner), k)'''
+
+[failed-step-done]
+file = "src/tensor/contracts/fold.bend"
+before = '''
+      (input, Fail{error})'''
+after = '''
+      (input, Done{accumulator})'''
+
+[pair-left-failed-done]
+file = "src/tensor/contracts/fold.bend"
+before = '''
+      ((left, right), Fail{error})
+    case Done{x}:'''
+after = '''
+      ((left, right), Done{accumulator})
+    case Done{x}:'''
+
+[pair-right-failed-swapped]
+file = "src/tensor/contracts/fold.bend"
+before = '''
+      ((left, right), Fail{error})
+    case Done{y}:'''
+after = '''
+      ((right, left), Fail{error})
+    case Done{y}:'''

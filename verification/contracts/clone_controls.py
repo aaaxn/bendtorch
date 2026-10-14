@@ -6,6 +6,7 @@ from typing import NamedTuple
 
 from tools.common import GateError
 
+mutants = importlib.import_module("verification.contracts.mutants")
 reads = importlib.import_module("verification.contracts.reads_controls")
 
 
@@ -65,9 +66,7 @@ WITNESSES = {
     "length_owner_zero_witness": Witness("expected_fill", "wrong_value", "Some{7.0}"),
 }
 REPLACEMENT = {"wrong_value": "Some{8.0}", "expected_written": "Some{9.0}"}
-MUTANTS = reads.load_mutants(
-    (Path(__file__).resolve().parent / "clone/mutants.txt").read_text()
-)
+MUTANTS = mutants.load(Path(__file__).resolve().parent / "clone/mutants.toml")
 SITES = {
     "clone-first-last-zeroed": Site(
         "src/tensor/clone-contract.bend",
@@ -108,13 +107,13 @@ EIGHT = reads.EIGHT
 
 
 def mutant_copy(snapshot: Path, target: Path, label: str) -> None:
+    path, old, new = MUTANTS[label]
     shutil.copytree(snapshot / "src", target / "src")
-    core = target / "src/tensor/core.bend"
-    text = core.read_text()
-    old, new = MUTANTS[label]
+    edited = target / path
+    text = edited.read_text()
     if text.count(old) != 1:
-        raise GateError(f"{label}: mutation target in core.bend is not unique")
-    core.write_text(text.replace(old, new))
+        raise GateError(f"{label}: mutation target in {path} is not unique")
+    edited.write_text(text.replace(old, new))
     (target / EXPERIMENT).mkdir(parents=True)
     (target / EXPERIMENT / "core-entry.bend").write_text(
         "import Base\nimport ../../../src/tensor/core.bend as Core\n"

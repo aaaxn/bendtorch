@@ -37,7 +37,7 @@ beside the runner that checks them.
   while it checks these two, and on the `[2, 3]` grid it runs out of fuel, so
   they use `[3]`.
 - `controls.bend`: five value witnesses, each paired with one wrong value.
-- `mutants.txt`: the before and after text of each mutation.
+- `mutants.toml`: the before and after text of each mutation.
 
 | Control | Change | Source rejection | BendTT rejection |
 | --- | --- | --- | --- |
@@ -100,7 +100,7 @@ instance copy, only the instance copy for the swapped maps, or only
   `StorageError{OutOfBounds}`, and the first and last word of each returned
   input.
 - `controls.bend`: four value witnesses, each paired with one wrong value.
-- `mutants.txt`: the before and after text of each mutation.
+- `mutants.toml`: the before and after text of each mutation.
 
 | Control | Change | Source rejection | BendTT rejection |
 | --- | --- | --- | --- |
@@ -157,7 +157,7 @@ declarations.
   The kernel reports a mismatch against the type of the witness body, where
   the law's total is still an unevaluated fiber, so `stated` restates each
   total as the literal it evaluates to.
-- `mutants.txt`: the before and after text of each mutation.
+- `mutants.toml`: the before and after text of each mutation.
 
 | Control | Change | Source rejection | BendTT rejection |
 | --- | --- | --- | --- |

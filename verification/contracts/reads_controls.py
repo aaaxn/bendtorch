@@ -1,3 +1,4 @@
+import importlib
 import re
 import shutil
 from collections.abc import Callable
@@ -5,6 +6,8 @@ from pathlib import Path
 from typing import NamedTuple
 
 from tools.common import GateError
+
+mutants = importlib.import_module("verification.contracts.mutants")
 
 
 class Witness(NamedTuple):
@@ -72,23 +75,7 @@ SEVEN = "(.Some, (F32.lit1088421888, ()))"
 NINE = "(.Some, (F32.lit1091567616, ()))"
 EIGHT = "(.Some, (F32.lit1090519040, ()))"
 
-MUTANTS_FILE = Path(__file__).resolve().parent / "reads/mutants.txt"
-
-
-def load_mutants(text: str) -> dict[str, tuple[str, str]]:
-    """Parse `### <label> before` / `### <label> after` blocks of Bend source."""
-    sections = re.split(r"^### (\S+) (before|after)\n", text, flags=re.M)
-    pairs: dict[str, dict[str, str]] = {}
-    for label, side, body in zip(
-        sections[1::3], sections[2::3], sections[3::3], strict=True
-    ):
-        pairs.setdefault(label, {})[side] = body.rstrip("\n")
-    if any(set(sides) != {"before", "after"} for sides in pairs.values()):
-        raise GateError("Each mutant needs one before and one after block")
-    return {label: (sides["before"], sides["after"]) for label, sides in pairs.items()}
-
-
-MUTANTS = load_mutants(MUTANTS_FILE.read_text())
+MUTANTS = mutants.load(Path(__file__).resolve().parent / "reads/mutants.toml")
 WRITE_MUTANTS = (
     "wrong-index",
     "missing-write",
@@ -98,13 +85,13 @@ WRITE_MUTANTS = (
 
 
 def mutant_copy(snapshot: Path, target: Path, label: str) -> None:
+    path, old, new = MUTANTS[label]
     shutil.copytree(snapshot, target)
-    core = target / "src/tensor/core.bend"
-    text = core.read_text()
-    old, new = MUTANTS[label]
+    edited = target / path
+    text = edited.read_text()
     if text.count(old) != 1:
-        raise GateError(f"{label}: mutation target in core.bend is not unique")
-    core.write_text(text.replace(old, new))
+        raise GateError(f"{label}: mutation target in {path} is not unique")
+    edited.write_text(text.replace(old, new))
 
 
 def false_twin(controls: str, witness: str) -> str:

@@ -5,8 +5,8 @@ from typing import NamedTuple
 
 from tools.common import GateError
 
+mutants = importlib.import_module("verification.contracts.mutants")
 reads = importlib.import_module("verification.contracts.reads_controls")
-transforms = importlib.import_module("verification.contracts.transform_controls")
 
 
 class Witness(NamedTuple):
@@ -73,9 +73,7 @@ VALUES = {
     "expected_kept": "(.Some, (F32.lit1077936128, ()))",
     "wrong_value": reads.EIGHT,
 }
-MUTANTS = transforms.load_mutants(
-    (Path(__file__).resolve().parent / "permute-values/mutants.txt").read_text()
-)
+MUTANTS = mutants.load(Path(__file__).resolve().parent / "permute-values/mutants.toml")
 PROOF = "src/tensor/permute-values.bend"
 # The released permute and transpose contracts, which state failures and
 # metadata only; each WI mutant still passes them.

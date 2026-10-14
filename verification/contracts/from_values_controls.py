@@ -5,8 +5,8 @@ from typing import NamedTuple
 
 from tools.common import GateError
 
+mutants = importlib.import_module("verification.contracts.mutants")
 reads = importlib.import_module("verification.contracts.reads_controls")
-transforms = importlib.import_module("verification.contracts.transform_controls")
 
 
 class Witness(NamedTuple):
@@ -53,9 +53,7 @@ VALUES = {
     "expected_last": "(.Some, (F32.lit1086324736, ()))",
     "wrong_value": reads.EIGHT,
 }
-MUTANTS = transforms.load_mutants(
-    (Path(__file__).resolve().parent / "from-values/mutants.txt").read_text()
-)
+MUTANTS = mutants.load(Path(__file__).resolve().parent / "from-values/mutants.toml")
 PROOF = "src/tensor/from-values-contract.bend"
 OTHER = "src/tensor/construction-contract-PROOF.bend"
 SITES = {

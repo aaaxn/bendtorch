@@ -1,11 +1,11 @@
 import importlib
-import re
 import shutil
 from pathlib import Path
 from typing import NamedTuple
 
 from tools.common import GateError
 
+mutants = importlib.import_module("verification.contracts.mutants")
 reads = importlib.import_module("verification.contracts.reads_controls")
 
 
@@ -69,28 +69,7 @@ WITNESSES = {
 }
 
 
-def load_mutants(text: str) -> dict[str, tuple[str, str, str]]:
-    """Parse `### <label> before|after <file>` blocks of Bend source."""
-    sections = re.split(r"^### (\S+) (before|after) (\S+)\n", text, flags=re.M)
-    pairs: dict[str, dict[str, str]] = {}
-    for label, side, path, body in zip(
-        sections[1::4], sections[2::4], sections[3::4], sections[4::4], strict=True
-    ):
-        entry = pairs.setdefault(label, {"file": path})
-        if entry["file"] != path:
-            raise GateError(f"{label}: before and after name different files")
-        entry[side] = body.rstrip("\n")
-    if any(set(entry) != {"file", "before", "after"} for entry in pairs.values()):
-        raise GateError("Each mutant needs one before and one after block")
-    return {
-        label: (entry["file"], entry["before"], entry["after"])
-        for label, entry in pairs.items()
-    }
-
-
-MUTANTS = load_mutants(
-    (Path(__file__).resolve().parent / "transforms/mutants.txt").read_text()
-)
+MUTANTS = mutants.load(Path(__file__).resolve().parent / "transforms/mutants.toml")
 RESHAPE = "src/tensor/reshape-contract.bend"
 PERMUTE = "src/tensor/permute-contract.bend"
 SITES = {

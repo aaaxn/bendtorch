@@ -10,6 +10,7 @@ clones = importlib.import_module("verification.contracts.clone_controls")
 transforms = importlib.import_module("verification.contracts.transform_controls")
 values = importlib.import_module("verification.contracts.from_values_controls")
 permutes = importlib.import_module("verification.contracts.permute_values_controls")
+mutants = importlib.import_module("verification.contracts.mutants")
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -132,16 +133,16 @@ class ExperimentRunnerTests(unittest.TestCase):
 
     def test_reads_mutants_edit_only_the_named_core_definition(self):
         source = (ROOT / "src/tensor/core.bend").read_text()
-        for label, (before, after) in reads.MUTANTS.items():
-            self.assertEqual(source.count(before), 1, label)
-            self.assertNotEqual(before, after, label)
+        for label, mutant in reads.MUTANTS.items():
+            self.assertEqual(source.count(mutant.before), 1, label)
+            self.assertNotEqual(mutant.before, mutant.after, label)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "baseline/src/tensor").mkdir(parents=True)
             (root / "baseline/src/tensor/core.bend").write_text(source)
-            for label, (before, after) in reads.MUTANTS.items():
+            for label, (path, before, after) in reads.MUTANTS.items():
                 reads.mutant_copy(root / "baseline", root / label, label)
-                mutated = (root / label / "src/tensor/core.bend").read_text()
+                mutated = (root / label / path).read_text()
                 self.assertEqual(mutated.replace(after, before), source, label)
 
     def test_reads_false_twin_changes_only_the_expected_value(self):
@@ -215,9 +216,9 @@ class ExperimentRunnerTests(unittest.TestCase):
 
     def test_clone_mutants_edit_only_core(self):
         core = (ROOT / "src/tensor/core.bend").read_text()
-        for label, (old, new) in clones.MUTANTS.items():
-            self.assertEqual(core.count(old), 1, label)
-            self.assertNotEqual(old, new, label)
+        for label, mutant in clones.MUTANTS.items():
+            self.assertEqual(core.count(mutant.before), 1, label)
+            self.assertNotEqual(mutant.before, mutant.after, label)
         with tempfile.TemporaryDirectory() as directory:
             snapshot = Path(directory) / "snapshot"
             (snapshot / "src/tensor").mkdir(parents=True)
@@ -294,11 +295,12 @@ class ExperimentRunnerTests(unittest.TestCase):
                 (ROOT / "src/tensor/transforms.bend").read_text(),
             )
 
-    def test_transform_mutant_blocks_name_one_file(self):
-        with self.assertRaises(runner.GateError):
-            transforms.load_mutants(
-                "### x before a.bend\nold\n### x after b.bend\nnew\n"
-            )
+    def test_mutant_entry_needs_file_before_and_after(self):
+        with tempfile.TemporaryDirectory() as directory:
+            catalog = Path(directory) / "mutants.toml"
+            catalog.write_text("[x]\nfile = 'a.bend'\nbefore = 'old'\n")
+            with self.assertRaises(TypeError):
+                mutants.load(catalog)
 
     def test_transform_source_reason_requires_the_named_site(self):
         good = (
