@@ -10,7 +10,7 @@ import ../../storage/arith.bend as Arith
 import ../core.bend as Core
 import ../lifecycle.bend as Lifecycle
 import ../matmul.bend as Matrix
-import ../matmul-LAWS.bend as MatmulLaws
+import ../dot-fold.bend as DotFold
 import ../word-conversion.bend as Conversion
 import ../permutation-mapping.bend as Mapping
 import ./replayed.bend as Replayed
@@ -891,7 +891,7 @@ def cell_value(+left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageL
   +column: Nat, +column_below: {Nat.is_lt(column, U32.to_nat(columns)) == True{} : Bool}) ->
   {Replayed.value(output, 0.0, products(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, Shape.elements(output)),
     U32.from_nat(Nat.add(Nat.mul(row, U32.to_nat(columns)), column))) ==
-    MatmulLaws.dot_fold(Laws.factors(row, column, U32.to_nat(inner), U32.to_nat(columns),
+    DotFold.dot_fold(Laws.factors(row, column, U32.to_nat(inner), U32.to_nat(columns),
       left, left_fill, left_ops, right, right_fill, right_ops, U32.to_nat(inner)), 0.0) : F32}:
   +inner_count = U32.to_nat(inner)
   +column_count = U32.to_nat(columns)
@@ -905,30 +905,30 @@ def cell_value(+left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageL
     Replayed.value(output, 0.0, products(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, Shape.elements(output)),
       U32.from_nat(position)),
     product_total(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, U32.to_nat(U32.from_nat(position))),
-    MatmulLaws.dot_fold(Laws.factors(row, column, inner_count, column_count, left, left_fill, left_ops, right, right_fill, right_ops, inner_count), 0.0),
+    DotFold.dot_fold(Laws.factors(row, column, inner_count, column_count, left, left_fill, left_ops, right, right_fill, right_ops, inner_count), 0.0),
     products_value(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, output, Shape.elements(output),
       U32.from_nat(position), counted, elements_room(output)),
     %Equal.sym(Nat, U32.to_nat(U32.from_nat(position)), position, exact) :
       {product_total(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, _) ==
-        MatmulLaws.dot_fold(Laws.factors(row, column, inner_count, column_count, left, left_fill, left_ops, right, right_fill, right_ops, inner_count), 0.0) : F32}
+        DotFold.dot_fold(Laws.factors(row, column, inner_count, column_count, left, left_fill, left_ops, right, right_fill, right_ops, inner_count), 0.0) : F32}
     %Equal.sym(F32, product_total(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, position),
       dot_total(cell_at(inner, columns, position), left, left_fill, left_ops, right, right_fill, right_ops, inner_count),
       total_history(cell_at(inner, columns, position), inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, position, inner_count)) :
-      {_ == MatmulLaws.dot_fold(Laws.factors(row, column, inner_count, column_count, left, left_fill, left_ops, right, right_fill, right_ops, inner_count), 0.0) : F32}
+      {_ == DotFold.dot_fold(Laws.factors(row, column, inner_count, column_count, left, left_fill, left_ops, right, right_fill, right_ops, inner_count), 0.0) : F32}
     %Equal.sym(F32, dot_total(cell_at(inner, columns, position), left, left_fill, left_ops, right, right_fill, right_ops, inner_count),
-      MatmulLaws.dot_fold(Laws.factors(row_of(column_count, position), column_of(column_count, position), inner_count, column_count,
+      DotFold.dot_fold(Laws.factors(row_of(column_count, position), column_of(column_count, position), inner_count, column_count,
         left, left_fill, left_ops, right, right_fill, right_ops, inner_count), 0.0),
       DotProof.total_factors(row_of(column_count, position), column_of(column_count, position), inner_count, column_count,
         left, left_fill, left_ops, right, right_fill, right_ops, inner_count)) :
-      {_ == MatmulLaws.dot_fold(Laws.factors(row, column, inner_count, column_count, left, left_fill, left_ops, right, right_fill, right_ops, inner_count), 0.0) : F32}
+      {_ == DotFold.dot_fold(Laws.factors(row, column, inner_count, column_count, left, left_fill, left_ops, right, right_fill, right_ops, inner_count), 0.0) : F32}
     %Equal.sym(Nat, row_of(column_count, position), row, row_at(row, column, column_count, column_below)) :
-      {MatmulLaws.dot_fold(Laws.factors(_, column_of(column_count, position), inner_count, column_count,
+      {DotFold.dot_fold(Laws.factors(_, column_of(column_count, position), inner_count, column_count,
         left, left_fill, left_ops, right, right_fill, right_ops, inner_count), 0.0) ==
-        MatmulLaws.dot_fold(Laws.factors(row, column, inner_count, column_count, left, left_fill, left_ops, right, right_fill, right_ops, inner_count), 0.0) : F32}
+        DotFold.dot_fold(Laws.factors(row, column, inner_count, column_count, left, left_fill, left_ops, right, right_fill, right_ops, inner_count), 0.0) : F32}
     %Equal.sym(Nat, column_of(column_count, position), column, column_at(row, column, column_count, column_below)) :
-      {MatmulLaws.dot_fold(Laws.factors(row, _, inner_count, column_count,
+      {DotFold.dot_fold(Laws.factors(row, _, inner_count, column_count,
         left, left_fill, left_ops, right, right_fill, right_ops, inner_count), 0.0) ==
-        MatmulLaws.dot_fold(Laws.factors(row, column, inner_count, column_count, left, left_fill, left_ops, right, right_fill, right_ops, inner_count), 0.0) : F32}
+        DotFold.dot_fold(Laws.factors(row, column, inner_count, column_count, left, left_fill, left_ops, right, right_fill, right_ops, inner_count), 0.0) : F32}
     {==})
 
 def kept_value(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +history: List<&2, StorageLaws.Op>,
@@ -955,7 +955,7 @@ def ordered(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape, +rows
   +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>,
   -right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_ops)) == Shape.logical_numel(Shape.dimensions(right)) : Nat}) ->
   Records.MatmulContract<left, right, U32.to_nat(rows), U32.to_nat(columns),
-    row => column => MatmulLaws.dot_fold(Laws.factors(row, column, U32.to_nat(inner), U32.to_nat(columns),
+    row => column => DotFold.dot_fold(Laws.factors(row, column, U32.to_nat(inner), U32.to_nat(columns),
       left, left_fill, left_ops, right, right_fill, right_ops, U32.to_nat(inner)), 0.0),
     other => Replayed.value(left, left_fill, left_ops, other),
     other => Replayed.value(right, right_fill, right_ops, other),
@@ -982,7 +982,7 @@ def ordered(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape, +rows
       +row_below = row_below
       +column_below = column_below
       +position = U32.from_nat(Nat.add(Nat.mul(row, U32.to_nat(columns)), column))
-      +cell = MatmulLaws.dot_fold(Laws.factors(row, column, U32.to_nat(inner), U32.to_nat(columns),
+      +cell = DotFold.dot_fold(Laws.factors(row, column, U32.to_nat(inner), U32.to_nat(columns),
         left, left_fill, left_ops, right, right_fill, right_ops, U32.to_nat(inner)), 0.0)
       matmul_lift(left, left_fill, left_ops, left_fits, right, right_fill, right_ops, right_fits, plan, planned,
         result => {Records.product_point(result, position) == Some{cell} : Maybe<&2, F32>},
@@ -1024,7 +1024,7 @@ def matmul_ordered(+left: Shape.Shape, +right: Shape.Shape, +plan: Matrix.Plan<l
   +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>,
   -right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_ops)) == Shape.logical_numel(Shape.dimensions(right)) : Nat}) ->
   Records.MatmulContract<left, right, Laws.matrix_rows(left, right, plan), Laws.matrix_columns(left, right, plan),
-    row => column => MatmulLaws.dot_fold(Laws.factors(row, column, Laws.matrix_inner(left, right, plan), Laws.matrix_columns(left, right, plan),
+    row => column => DotFold.dot_fold(Laws.factors(row, column, Laws.matrix_inner(left, right, plan), Laws.matrix_columns(left, right, plan),
       left, left_fill, left_ops, right, right_fill, right_ops, Laws.matrix_inner(left, right, plan)), 0.0),
     other => Replayed.value(left, left_fill, left_ops, other),
     other => Replayed.value(right, right_fill, right_ops, other),

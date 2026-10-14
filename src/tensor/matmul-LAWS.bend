@@ -3,16 +3,7 @@ import ../shape/core.bend as Shape
 import ./core.bend as Core
 import ./matmul.bend as Matrix
 import ./math-totality.bend as Totality
-
-type Factors is Data:
-  Factors{left: F32, right: F32}
-
-def dot_fold(values: List<&2, Factors>, accumulator: F32) -> F32:
-  match values:
-    case Nil{}:
-      accumulator
-    case Factors{left, right} <> tail:
-      dot_fold(tail, F32.add(accumulator, F32.mul(left, right)))
+import ./dot-fold.bend as DotFold
 
 def coordinate_observe_result(+shape: Shape.Shape, tensor: Core.Tensor<shape>,
   result: Result<&2, &2, Shape.Error, Shape.FlatIndex<shape>>) -> Maybe<&2, F32>:
@@ -26,19 +17,19 @@ def coordinate_observe(+shape: Shape.Shape, tensor: Core.Tensor<shape>, coordina
   coordinate_observe_result(shape, tensor, Shape.flatten_checked(shape, coordinates))
 
 def LogicalDot(+fuel: Nat, +left: Shape.Shape, +right: Shape.Shape, -a: Core.Tensor<left>, -b: Core.Tensor<right>,
-  +row: U32, +column: U32, +cursor: Nat, values: List<&2, Factors>) -> Data:
+  +row: U32, +column: U32, +cursor: Nat, values: List<&2, DotFold.Factors>) -> Data:
   match fuel values:
     case 0n Nil{}:
       Unit
-    case 1n+tail Factors{lv, rv} <> rest:
+    case 1n+tail DotFold.Factors{lv, rv} <> rest:
       DotStep<tail, left, right, a, b, row, column, cursor, lv, rv, rest>
-    case 0n Factors{lv, rv} <> rest:
+    case 0n DotFold.Factors{lv, rv} <> rest:
       Empty
     case 1n+tail Nil{}:
       Empty
 
 type DotStep<-fuel: Nat, -left: Shape.Shape, -right: Shape.Shape, -a: Core.Tensor<left>, -b: Core.Tensor<right>,
-  -row: U32, -column: U32, -cursor: Nat, -lv: F32, -rv: F32, -values: List<&2, Factors>> is Data:
+  -row: U32, -column: U32, -cursor: Nat, -lv: F32, -rv: F32, -values: List<&2, DotFold.Factors>> is Data:
   DotStep{-exact: {U32.to_nat(U32.from_nat(cursor)) == cursor : Nat},
     -left_observed: {coordinate_observe(left, a, [row, U32.from_nat(cursor)]) == Some{lv} : Maybe<&2, F32>},
     -right_observed: {coordinate_observe(right, b, [U32.from_nat(cursor), column]) == Some{rv} : Maybe<&2, F32>},
@@ -46,8 +37,8 @@ type DotStep<-fuel: Nat, -left: Shape.Shape, -right: Shape.Shape, -a: Core.Tenso
 
 type DotMeaning<-fuel: Nat, -left: Shape.Shape, -right: Shape.Shape, -a: Core.Tensor<left>, -b: Core.Tensor<right>,
   -row: U32, -column: U32, -cursor: Nat, -accumulator: F32, -ra: Core.Tensor<left>, -rb: Core.Tensor<right>, -value: F32> is Data:
-  DotMeaning{-values: List<&2, Factors>, -logical: LogicalDot(fuel, left, right, a, b, row, column, cursor, values),
-    -fold: {value == dot_fold(values, accumulator) : F32},
+  DotMeaning{-values: List<&2, DotFold.Factors>, -logical: LogicalDot(fuel, left, right, a, b, row, column, cursor, values),
+    -fold: {value == DotFold.dot_fold(values, accumulator) : F32},
     -left_kept: @+index: U32 -> {Core.checked_observe(left, ra, index) == Core.checked_observe(left, a, index) : Maybe<&2, F32>},
     -right_kept: @+index: U32 -> {Core.checked_observe(right, rb, index) == Core.checked_observe(right, b, index) : Maybe<&2, F32>}}
 
@@ -72,8 +63,8 @@ type ProductCell<-inner: U32, -left: Shape.Shape, -right: Shape.Shape, -a: Core.
     -decoded: {Shape.unflatten_checked(output, U32.from_nat(position)) == Done{coordinate} : Result<&2, &2, Shape.Error, Shape.CheckedCoordinate<output>>},
     -coordinates: {Shape.coordinate_values(output, coordinate) == [row, column] : List<&2, U32>},
     -word_exact: {U32.to_nat(U32.from_nat(position)) == position : Nat},
-    -factors: List<&2, Factors>, -logical: LogicalDot(U32.to_nat(inner), left, right, a, b, row, column, 0n, factors),
-    -value: F32, -fold: {value == dot_fold(factors, 0.0) : F32},
+    -factors: List<&2, DotFold.Factors>, -logical: LogicalDot(U32.to_nat(inner), left, right, a, b, row, column, 0n, factors),
+    -value: F32, -fold: {value == DotFold.dot_fold(factors, 0.0) : F32},
     -checked: Core.ObservationChecked(Core.Packed{output, out}, U32.from_nat(position)),
     -observed: {Core.checked_observe(output, out, U32.from_nat(position)) == Some{value} : Maybe<&2, F32>}}
 

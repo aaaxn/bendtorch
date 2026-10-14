@@ -103,7 +103,8 @@ natural-to-word conversion at each position. It does not invoke `sum_loop`,
 structure fixes the number and order of values, so the public sum uses exactly
 the logical element count and excludes storage padding.
 
-Matrix multiplication's specification is `dot_fold(List<Factors>, accumulator)`.
+Matrix multiplication's specification is `dot_fold(List<Factors>, accumulator)`,
+defined in `dot-fold.bend`.
 `LogicalDot` relates each factor pair to independently checked shape/coordinate
 observations of the original operands at `[row, k]` and `[k, column]`, in
 increasing natural `k` order. Coordinate observations use the shape's checked

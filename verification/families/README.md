@@ -126,9 +126,9 @@ instance copy, only the instance copy for the swapped maps, or only
 | Pair right failed swapped | `pair_right` returns the inputs as `(right, left)` when the right read fails | `pair_fails_right` | `consumers.pair_fails_right` |
 | Sum swapped add | `Sum.add` returns `F32.add(word, accumulator)` | `total_words` | `total_words` |
 | Dot untransposed right | `Dot.right_index` reads `column * inner + k` | `total_factors` | `total_factors` |
-| `matmul` reversed order | `natural_dot` reads `k` from `inner - 1` down to 0 | `dot_step_lift` | `successful_dot_interpretation` |
-| `matmul` negative zero start | `product_coordinates` starts the dot at `F32.neg(0.0)` | `product_step_lift` | `product_coordinates_proof` |
-| `matmul` transposed right | `dot_decided` reads the right matrix at `[column, k]` | `dot_decided_lift` | `dot_decision` |
+| `matmul` reversed order | `natural_dot` reads `k` from `inner - 1` down to 0 | `dot_step_lift` | `dot_step_lift` |
+| `matmul` negative zero start | `product_coordinates` starts the dot at `F32.neg(0.0)` | `product_step_lift` | `product_step_lift` |
+| `matmul` transposed right | `dot_decided` reads the right matrix at `[column, k]` | `dot_decided_lift` | `dot_decided_lift` |
 
 The first nine mutants change the generic loops in `fold.bend`, and the
 generic proofs reject them. The next three change what the loops return when
@@ -140,11 +140,9 @@ them. The last three change the `matmul` loops in `src/tensor/matmul.bend`.
 The erased proofs in `src/tensor/matmul-PROOF.bend` reject them too, so the
 source check runs `src/tensor/contracts/matmul-proof.bend`, the live proof of
 `matmul_ordered`, instead of `src/tensor/contracts/PROOF.bend`, and rejects
-them in a step of its walk. The kernel artifact holds the erased proofs too:
-`src/tensor/contracts/PROOF.bend` imports `matmul-PROOF.bend` to discharge the
-laws of `matmul-LAWS.bend`, which defines `dot_fold`. So BendTT reports each of
-these mutants first in an erased `matmul-LAWS.bend` or `matmul-PROOF.bend`
-declaration, and the table names that declaration. The fold family's BendTT
+them in a step of its walk. The contracts take `dot_fold` from
+`src/tensor/dot-fold.bend`, which holds no law, so the kernel artifact holds no
+erased matmul proof and BendTT rejects them in the same step. The fold family's BendTT
 prefix is `src/tensor/`, so the transplant also carries the mutated
 `matmul.bend` declarations.
 

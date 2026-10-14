@@ -7,7 +7,7 @@ import ../elementwise.bend as Elementwise
 import ../from-values-contract.bend as FromValues
 import ../reduction.bend as Reduction
 import ../matmul.bend as Matrix
-import ../matmul-LAWS.bend as MatmulLaws
+import ../dot-fold.bend as DotFold
 import ./replayed.bend as Replayed
 import ./broadcast.bend as Broadcast
 import ./pointwise-records.bend as Records
@@ -93,19 +93,19 @@ law sum_ordered:
 # left[row, k] and right[k, column].
 def factors(+row: Nat, +column: Nat, +inner: Nat, +columns: Nat,
   +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
-  +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +count: Nat) -> List<&2, MatmulLaws.Factors>:
+  +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +count: Nat) -> List<&2, DotFold.Factors>:
   match count:
     case 0n:
       Nil{}
     case 1n+previous:
-      List.append(&2, MatmulLaws.Factors,
+      List.append(&2, DotFold.Factors,
         factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, previous),
-        [MatmulLaws.Factors{Replayed.value(left, left_fill, left_ops, U32.from_nat(Nat.add(Nat.mul(row, inner), previous))),
+        [DotFold.Factors{Replayed.value(left, left_fill, left_ops, U32.from_nat(Nat.add(Nat.mul(row, inner), previous))),
           Replayed.value(right, right_fill, right_ops, U32.from_nat(Nat.add(Nat.mul(previous, columns), column)))}])
 
 # Ordered-fold family, dot instance: for every in-bounds output cell of a
 # product of a rows x inner and an inner x columns replayed matrix, the dot
-# product succeeds with `MatmulLaws.dot_fold` of the cell's factor pairs in
+# product succeeds with `DotFold.dot_fold` of the cell's factor pairs in
 # increasing k, starting at +0.0, and both returned inputs keep every word.
 law dot_ordered:
   for +rows: Nat
@@ -126,7 +126,7 @@ law dot_ordered:
   for +right_ops: List<&2, StorageLaws.Op>
   for -right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_ops)) == Shape.logical_numel(Shape.dimensions(right)) : Nat}
   FoldRecords.PairFoldContract<left, right,
-    MatmulLaws.dot_fold(factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, inner), 0.0),
+    DotFold.dot_fold(factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, inner), 0.0),
     other => Replayed.value(left, left_fill, left_ops, other),
     other => Replayed.value(right, right_fill, right_ops, other),
     Dot.dot(Dot.Cell{row, column, inner, columns},
@@ -147,7 +147,7 @@ def matrix_columns(-left: Shape.Shape, -right: Shape.Shape, plan: Matrix.Plan<le
 
 # Ordered-fold family, matmul: for every plan of a product of two replayed
 # matrices, matmul succeeds with a rows x columns output whose cell
-# (row, column) holds `MatmulLaws.dot_fold` of the cell's factor pairs in
+# (row, column) holds `DotFold.dot_fold` of the cell's factor pairs in
 # increasing k, starting at +0.0, the value `dot_ordered` states for
 # `Dot.dot`, and both returned inputs keep every word.
 law matmul_ordered:
@@ -162,7 +162,7 @@ law matmul_ordered:
   for +right_ops: List<&2, StorageLaws.Op>
   for -right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_ops)) == Shape.logical_numel(Shape.dimensions(right)) : Nat}
   FoldRecords.MatmulContract<left, right, matrix_rows(left, right, plan), matrix_columns(left, right, plan),
-    row => column => MatmulLaws.dot_fold(factors(row, column, matrix_inner(left, right, plan), matrix_columns(left, right, plan),
+    row => column => DotFold.dot_fold(factors(row, column, matrix_inner(left, right, plan), matrix_columns(left, right, plan),
       left, left_fill, left_ops, right, right_fill, right_ops, matrix_inner(left, right, plan)), 0.0),
     other => Replayed.value(left, left_fill, left_ops, other),
     other => Replayed.value(right, right_fill, right_ops, other),

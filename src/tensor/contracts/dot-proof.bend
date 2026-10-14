@@ -7,7 +7,7 @@ import ../../storage/arith.bend as Arith
 import ../../storage/api.bend as Api
 import ../core.bend as Core
 import ../lifecycle.bend as Lifecycle
-import ../matmul-LAWS.bend as MatmulLaws
+import ../dot-fold.bend as DotFold
 import ../word-conversion.bend as Conversion
 import ./replayed.bend as Replayed
 import ./pointwise.bend as Pointwise
@@ -17,13 +17,13 @@ import ./fold-proof.bend as Proof
 import ./dot.bend as Dot
 import ./LAWS.bend as Laws
 
-def dot_snoc(+values: List<&2, MatmulLaws.Factors>, +left: F32, +right: F32, +accumulator: F32) ->
-  {MatmulLaws.dot_fold(List.append(&2, MatmulLaws.Factors, values, [MatmulLaws.Factors{left, right}]), accumulator) ==
-    F32.add(MatmulLaws.dot_fold(values, accumulator), F32.mul(left, right)) : F32}:
+def dot_snoc(+values: List<&2, DotFold.Factors>, +left: F32, +right: F32, +accumulator: F32) ->
+  {DotFold.dot_fold(List.append(&2, DotFold.Factors, values, [DotFold.Factors{left, right}]), accumulator) ==
+    F32.add(DotFold.dot_fold(values, accumulator), F32.mul(left, right)) : F32}:
   match values:
     case Nil{}:
       {==}
-    case MatmulLaws.Factors{+a, +b} <> +rest:
+    case DotFold.Factors{+a, +b} <> +rest:
       dot_snoc(rest, left, right, F32.add(accumulator, F32.mul(a, b)))
 
 def total_factors(+row: Nat, +column: Nat, +inner: Nat, +columns: Nat,
@@ -31,7 +31,7 @@ def total_factors(+row: Nat, +column: Nat, +inner: Nat, +columns: Nat,
   +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +count: Nat) ->
   {Fold.pair_total(~Unit, ~Dot.multiply_add, ~Dot.Cell, ~Dot.left_index, ~Dot.right_index, Unit{}, Dot.Cell{row, column, inner, columns},
     left, left_fill, left_ops, right, right_fill, right_ops, count) ==
-    MatmulLaws.dot_fold(Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, count), 0.0) : F32}:
+    DotFold.dot_fold(Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, count), 0.0) : F32}:
   match count:
     case 0n:
       {==}
@@ -39,14 +39,14 @@ def total_factors(+row: Nat, +column: Nat, +inner: Nat, +columns: Nat,
       +x = Replayed.value(left, left_fill, left_ops, U32.from_nat(Nat.add(Nat.mul(row, inner), previous)))
       +y = Replayed.value(right, right_fill, right_ops, U32.from_nat(Nat.add(Nat.mul(previous, columns), column)))
       +before = Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, previous)
-      %Equal.sym(F32, MatmulLaws.dot_fold(List.append(&2, MatmulLaws.Factors, before, [MatmulLaws.Factors{x, y}]), 0.0),
-        F32.add(MatmulLaws.dot_fold(before, 0.0), F32.mul(x, y)), dot_snoc(before, x, y, 0.0)) :
+      %Equal.sym(F32, DotFold.dot_fold(List.append(&2, DotFold.Factors, before, [DotFold.Factors{x, y}]), 0.0),
+        F32.add(DotFold.dot_fold(before, 0.0), F32.mul(x, y)), dot_snoc(before, x, y, 0.0)) :
         {F32.add(Fold.pair_total(~Unit, ~Dot.multiply_add, ~Dot.Cell, ~Dot.left_index, ~Dot.right_index, Unit{},
           Dot.Cell{row, column, inner, columns}, left, left_fill, left_ops, right, right_fill, right_ops, previous), F32.mul(x, y)) == _ : F32}
       Equal.cong(F32, F32, total => F32.add(total, F32.mul(x, y)),
         Fold.pair_total(~Unit, ~Dot.multiply_add, ~Dot.Cell, ~Dot.left_index, ~Dot.right_index, Unit{},
           Dot.Cell{row, column, inner, columns}, left, left_fill, left_ops, right, right_fill, right_ops, previous),
-        MatmulLaws.dot_fold(before, 0.0),
+        DotFold.dot_fold(before, 0.0),
         total_factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, previous))
 
 def lt_mul_add(+a: Nat, +m: Nat, +b: Nat, +n: Nat, a_below: {Nat.is_lt(a, m) == True{} : Bool},
@@ -133,7 +133,7 @@ def dot_ordered(+rows: Nat, +inner: Nat, +columns: Nat, +row: Nat, +row_below: {
   +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>,
   -right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_ops)) == Shape.logical_numel(Shape.dimensions(right)) : Nat}) ->
   Records.PairFoldContract<left, right,
-    MatmulLaws.dot_fold(Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, inner), 0.0),
+    DotFold.dot_fold(Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, inner), 0.0),
     other => Replayed.value(left, left_fill, left_ops, other),
     other => Replayed.value(right, right_fill, right_ops, other),
     Dot.dot(Dot.Cell{row, column, inner, columns},
