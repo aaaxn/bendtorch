@@ -2,6 +2,10 @@ import Base
 import ../shape/core.bend as Shape
 import ../shape/flat.bend as Flat
 import ../storage/main.bend as Storage
+import ../storage/model.bend as Model
+import ../storage/array.bend as ArrayModel
+import ../storage/refinement.bend as Refinement
+import ../storage/certificates.bend as Certificates
 import ./core.bend as Core
 import ./lifecycle.bend as Lifecycle
 
@@ -161,11 +165,240 @@ def planned(operation: Operation, left: Core.Dynamic, right: Core.Dynamic,
     case Done{+plan}:
       allocated(operation, plan, left, right, Core.new(Shape.output_shape(plan), 0.0))
 
-def binary(operation: Operation, left: Core.Dynamic, right: Core.Dynamic) ->
+# The sequential operation: one loop writes the output cells in increasing
+# index order. `binary` writes the same cells in parallel.
+def sequential(operation: Operation, left: Core.Dynamic, right: Core.Dynamic) ->
   (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>:
   Core.Packed{+left_shape, left_tensor} = left
   Core.Packed{+right_shape, right_tensor} = right
   planned(operation, Core.pack(left_shape, left_tensor), Core.pack(right_shape, right_tensor),
+    Shape.broadcast_checked(left_shape, right_shape))
+
+def left_walk(-left: List<&2, Nat>, -right: List<&2, Nat>, -output: List<&2, Nat>,
+  map: Shape.Index<left, right, output>, +position: Nat) -> Nat:
+  match map:
+    case Shape.Indexed{rows, exact}:
+      Shape.walk_left(rows, position)
+    case Shape.Unindexed{zero}:
+      0n
+
+def right_walk(-left: List<&2, Nat>, -right: List<&2, Nat>, -output: List<&2, Nat>,
+  map: Shape.Index<left, right, output>, +position: Nat) -> Nat:
+  match map:
+    case Shape.Indexed{rows, exact}:
+      Shape.walk_right(rows, position)
+    case Shape.Unindexed{zero}:
+      0n
+
+# One output cell: `scalar(operation, left[ia], right[ib])` when the cell is
+# below `count`, else `+0.0`. Both input arrays come back with the cell.
+def cell_right(+operation: Operation, x: F32, la: Array<F32>, pair: Array<F32> & F32) ->
+  Array<F32> & (Array<F32> & Array<F32>):
+  (ra, y) = pair
+  (ALeaf{scalar(operation, x, y)}, (la, ra))
+
+def cell_left(+operation: Operation, ra: Array<F32>, +right_index: U32, pair: Array<F32> & F32) ->
+  Array<F32> & (Array<F32> & Array<F32>):
+  (la, x) = pair
+  cell_right(operation, x, la, Array.get(F32, ra, right_index))
+
+def cell(+operation: Operation, -le: List<&2, Nat>, -re: List<&2, Nat>, -oe: List<&2, Nat>,
+  +map: Shape.Index<le, re, oe>, +position: Nat, la: Array<F32>, ra: Array<F32>, inside: Bool) ->
+  Array<F32> & (Array<F32> & Array<F32>):
+  match inside:
+    case False{}:
+      (ALeaf{0.0}, (la, ra))
+    case True{}:
+      cell_left(operation, ra, U32.from_nat(right_walk(le, re, oe, map, position)),
+        Array.get(F32, la, U32.from_nat(left_walk(le, re, oe, map, position))))
+
+def tree_join(a: Array<F32>, high: Array<F32> & (Array<F32> & Array<F32>)) -> Array<F32> & (Array<F32> & Array<F32>):
+  (b, inputs) = high
+  (ANode{a, b}, inputs)
+
+def tree_node(rec: Array<F32> -> Array<F32> -> Array<F32> & (Array<F32> & Array<F32>),
+  low: Array<F32> & (Array<F32> & Array<F32>)) -> Array<F32> & (Array<F32> & Array<F32>):
+  (a, inputs) = low
+  (la, ra) = inputs
+  tree_join(a, rec(la, ra))
+
+# The cells `base .. base + 2^depth` as a balanced tree, built in index order
+# on one thread.
+def tree(+depth: Nat, +operation: Operation, -le: List<&2, Nat>, -re: List<&2, Nat>, -oe: List<&2, Nat>,
+  +map: Shape.Index<le, re, oe>, +count: Nat, +base: Nat, la: Array<F32>, ra: Array<F32>) ->
+  Array<F32> & (Array<F32> & Array<F32>):
+  match depth:
+    case 0n:
+      cell(operation, le, re, oe, map, base, la, ra, Nat.is_lt(base, count))
+    case 1n+inner:
+      tree_node(l => r => tree(inner, operation, le, re, oe, map, count, Nat.add(Model.capacity(inner), base), l, r),
+        tree(inner, operation, le, re, oe, map, count, base, la, ra))
+
+def fork(lp: Array<F32> & Array<F32>, rp: Array<F32> & Array<F32>,
+  low: Array<F32> -> Array<F32> -> Array<F32>, high: Array<F32> -> Array<F32> -> Array<F32>) -> Array<F32>:
+  (la, lb) = lp
+  (ra, rb) = rp
+  a b = low(la, ra) high(lb, rb)
+  ANode{a, b}
+
+# The parallel build. The top `splits` levels fork, and each half gets its own
+# clone of both input arrays, because an Array has one owner. Below the forks
+# a thread builds its subtree in index order and computes the broadcast index
+# map once. Every cell gets the F32 term the sequential loop writes there, so
+# no output word depends on the split.
+def build(+depth: Nat, +splits: Nat, +operation: Operation, +plan: Shape.BroadcastPlan, +count: Nat, +base: Nat,
+  la: Array<F32>, ra: Array<F32>) -> Array<F32>:
+  match depth splits:
+    case 1n+inner 1n+rest:
+      +high = Nat.add(Model.capacity(inner), base)
+      fork(Array.clone(F32, la), Array.clone(F32, ra),
+        l => r => build(inner, rest, operation, plan, count, base, l, r),
+        l => r => build(inner, rest, operation, plan, count, high, l, r))
+    case _ _:
+      Pair.fst(Array<F32>, Array<F32> & Array<F32>, tree(depth, operation,
+        Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan)),
+        Shape.index_map(plan), count, base, la, ra))
+
+# A subtree below the forks holds 2^15 cells: an output of 2^20 cells forks
+# five levels into 32 subtrees, and an output of at most 2^15 cells does not
+# fork.
+def splits(+depth: Nat) -> Nat:
+  Nat.sub(depth, 15n)
+
+type BalancedModel<-depth: Nat, -array: Array<F32>> is Data:
+  BalancedModel{-valid: Model.Balanced(F32, depth, array)}
+
+def tree_join_balanced(+inner: Nat, a: Array<F32>, high: Array<F32> & (Array<F32> & Array<F32>),
+  -low_valid: Model.Balanced(F32, inner, a), -high_valid: BalancedModel<inner, Pair.fst(Array<F32>, Array<F32> & Array<F32>, high)>) ->
+  BalancedModel<1n+inner, Pair.fst(Array<F32>, Array<F32> & Array<F32>, tree_join(a, high))>:
+  (b, inputs) = high
+  BalancedModel{(low_valid, {\{BalancedModel: v => v} : BalancedModel<inner, b> -> Model.Balanced(F32, inner, b)}(high_valid))}
+
+def tree_node_balanced(+inner: Nat, rec: Array<F32> -> Array<F32> -> Array<F32> & (Array<F32> & Array<F32>),
+  low: Array<F32> & (Array<F32> & Array<F32>), -low_valid: BalancedModel<inner, Pair.fst(Array<F32>, Array<F32> & Array<F32>, low)>,
+  -next: @la: Array<F32> -> @ra: Array<F32> -> BalancedModel<inner, Pair.fst(Array<F32>, Array<F32> & Array<F32>, rec(la, ra))>) ->
+  BalancedModel<1n+inner, Pair.fst(Array<F32>, Array<F32> & Array<F32>, tree_node(rec, low))>:
+  (a, inputs) = low
+  (la, ra) = inputs
+  tree_join_balanced(inner, a, rec(la, ra), {\{BalancedModel: v => v} : BalancedModel<inner, a> -> Model.Balanced(F32, inner, a)}(low_valid), next(la)(ra))
+
+def cell_right_balanced(+operation: Operation, x: F32, la: Array<F32>, pair: Array<F32> & F32) ->
+  BalancedModel<0n, Pair.fst(Array<F32>, Array<F32> & Array<F32>, cell_right(operation, x, la, pair))>:
+  (ra, y) = pair
+  BalancedModel{Unit{}}
+
+def cell_left_balanced(+operation: Operation, ra: Array<F32>, +right_index: U32, pair: Array<F32> & F32) ->
+  BalancedModel<0n, Pair.fst(Array<F32>, Array<F32> & Array<F32>, cell_left(operation, ra, right_index, pair))>:
+  (la, x) = pair
+  cell_right_balanced(operation, x, la, Array.get(F32, ra, right_index))
+
+def cell_balanced(+operation: Operation, -le: List<&2, Nat>, -re: List<&2, Nat>, -oe: List<&2, Nat>,
+  +map: Shape.Index<le, re, oe>, +position: Nat, la: Array<F32>, ra: Array<F32>, inside: Bool) ->
+  BalancedModel<0n, Pair.fst(Array<F32>, Array<F32> & Array<F32>, cell(operation, le, re, oe, map, position, la, ra, inside))>:
+  match inside:
+    case False{}:
+      BalancedModel{Unit{}}
+    case True{}:
+      cell_left_balanced(operation, ra, U32.from_nat(right_walk(le, re, oe, map, position)),
+        Array.get(F32, la, U32.from_nat(left_walk(le, re, oe, map, position))))
+
+def tree_balanced(+depth: Nat, +operation: Operation, -le: List<&2, Nat>, -re: List<&2, Nat>, -oe: List<&2, Nat>,
+  +map: Shape.Index<le, re, oe>, +count: Nat, +base: Nat, la: Array<F32>, ra: Array<F32>) ->
+  BalancedModel<depth, Pair.fst(Array<F32>, Array<F32> & Array<F32>, tree(depth, operation, le, re, oe, map, count, base, la, ra))>:
+  match depth:
+    case 0n:
+      cell_balanced(operation, le, re, oe, map, base, la, ra, Nat.is_lt(base, count))
+    case 1n+inner:
+      tree_node_balanced(inner, l => r => tree(inner, operation, le, re, oe, map, count, Nat.add(Model.capacity(inner), base), l, r),
+        tree(inner, operation, le, re, oe, map, count, base, la, ra),
+        tree_balanced(inner, operation, le, re, oe, map, count, base, la, ra),
+        l => r => tree_balanced(inner, operation, le, re, oe, map, count, Nat.add(Model.capacity(inner), base), l, r))
+
+def fork_balanced(+inner: Nat, lp: Array<F32> & Array<F32>, rp: Array<F32> & Array<F32>,
+  -low: Array<F32> -> Array<F32> -> Array<F32>, -high: Array<F32> -> Array<F32> -> Array<F32>,
+  -low_valid: @l: Array<F32> -> @r: Array<F32> -> BalancedModel<inner, low(l, r)>,
+  -high_valid: @l: Array<F32> -> @r: Array<F32> -> BalancedModel<inner, high(l, r)>) ->
+  BalancedModel<1n+inner, fork(lp, rp, low, high)>:
+  (la, lb) = lp
+  (ra, rb) = rp
+  BalancedModel{({\{BalancedModel: v => v} : BalancedModel<inner, low(la, ra)> -> Model.Balanced(F32, inner, low(la, ra))}(low_valid(la)(ra)), {\{BalancedModel: v => v} : BalancedModel<inner, high(lb, rb)> -> Model.Balanced(F32, inner, high(lb, rb))}(high_valid(lb)(rb)))}
+
+def build_balanced(+depth: Nat, +splits: Nat, +operation: Operation, +plan: Shape.BroadcastPlan, +count: Nat, +base: Nat,
+  la: Array<F32>, ra: Array<F32>) -> BalancedModel<depth, build(depth, splits, operation, plan, count, base, la, ra)>:
+  match depth splits:
+    case 1n+inner 1n+rest:
+      +high = Nat.add(Model.capacity(inner), base)
+      fork_balanced(inner, Array.clone(F32, la), Array.clone(F32, ra),
+        l => r => build(inner, rest, operation, plan, count, base, l, r),
+        l => r => build(inner, rest, operation, plan, count, high, l, r),
+        l => r => build_balanced(inner, rest, operation, plan, count, base, l, r),
+        l => r => build_balanced(inner, rest, operation, plan, count, high, l, r))
+    case 0n _:
+      tree_balanced(0n, operation,
+        Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan)),
+        Shape.index_map(plan), count, base, la, ra)
+    case 1n+inner 0n:
+      tree_balanced(1n+inner, operation,
+        Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan)),
+        Shape.index_map(plan), count, base, la, ra)
+
+# The input handed back to the caller and an array copy for the build. A
+# tensor with empty storage has no cell to read.
+def take_owned(+shape: Shape.Shape, +depth: Nat, +length: Nat, -array: Array<F32>,
+  pair: Array<F32> & Array<F32>, -same: {pair == Array.clone(F32, array) : Array<F32> & Array<F32>},
+  -balanced: Model.Balanced(F32, depth, array), -valid: {Storage.bounds(depth, length) == True{} : Bool},
+  -exact: {length == Shape.logical_numel(Shape.dimensions(shape)) : Nat}) -> Core.Dynamic & Array<F32>:
+  (kept, copy) = pair
+  (Core.Packed{shape, Core.TTensor{Storage.Owned{depth, length, kept,
+    Certificates.clone_first(F32, depth, array, (kept, copy), same, balanced), valid}, exact}}, copy)
+
+def take(dynamic: Core.Dynamic) -> Core.Dynamic & Array<F32>:
+  Core.Packed{+shape, Core.TTensor{storage, exact}} = dynamic
+  match storage:
+    case Storage.Empty{}:
+      (Core.Packed{shape, Core.TTensor{Storage.Empty{}, exact}}, Array.new(F32, 0n, 0.0))
+    case Storage.Owned{+depth, +length, array, balanced, valid}:
+      take_owned(shape, depth, length, array, Array.clone(F32, array), {==}, balanced, valid, exact)
+
+def parallel_output(+operation: Operation, +plan: Shape.BroadcastPlan, +depth: Nat, +length: Nat,
+  -valid: {Storage.bounds(depth, length) == True{} : Bool},
+  -exact: {length == Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))) : Nat},
+  left: Core.Dynamic & Array<F32>, right: Core.Dynamic & Array<F32>) ->
+  (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>:
+  (kept_left, la) = left
+  (kept_right, ra) = right
+  ((kept_left, kept_right), Done{Core.pack(Shape.output_shape(plan), Core.TTensor{Storage.Owned{depth, length,
+    build(depth, splits(depth), operation, plan, length, 0n, la, ra),
+    {\{BalancedModel: v => v} : BalancedModel<depth, build(depth, splits(depth), operation, plan, length, 0n, la, ra)> -> Model.Balanced(F32, depth, build(depth, splits(depth), operation, plan, length, 0n, la, ra))}(build_balanced(depth, splits(depth), operation, plan, length, 0n, la, ra)),
+    valid}, exact})})
+
+def parallel_allocated(+operation: Operation, +plan: Shape.BroadcastPlan, left: Core.Dynamic, right: Core.Dynamic,
+  result: Result<&2, &1, Core.Error, Core.Tensor<Shape.output_shape(plan)>>) ->
+  (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>:
+  match result:
+    case Fail{error}:
+      ((left, right), Fail{error})
+    case Done{Core.TTensor{storage, exact}}:
+      match storage:
+        case Storage.Empty{}:
+          ((left, right), Done{Core.pack(Shape.output_shape(plan), Core.TTensor{Storage.Empty{}, exact})})
+        case Storage.Owned{+depth, +length, array, balanced, valid}:
+          parallel_output(operation, plan, depth, length, valid, exact, take(left), take(right))
+
+def parallel_planned(operation: Operation, left: Core.Dynamic, right: Core.Dynamic,
+  result: Result<&2, &2, Shape.Error, Shape.BroadcastPlan>) ->
+  (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>:
+  match result:
+    case Fail{error}:
+      ((left, right), Fail{Core.ShapeError{error}})
+    case Done{+plan}:
+      parallel_allocated(operation, plan, left, right, Core.new(Shape.output_shape(plan), 0.0))
+
+def binary(operation: Operation, left: Core.Dynamic, right: Core.Dynamic) ->
+  (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>:
+  Core.Packed{+left_shape, left_tensor} = left
+  Core.Packed{+right_shape, right_tensor} = right
+  parallel_planned(operation, Core.pack(left_shape, left_tensor), Core.pack(right_shape, right_tensor),
     Shape.broadcast_checked(left_shape, right_shape))
 
 def add(left: Core.Dynamic, right: Core.Dynamic) ->
