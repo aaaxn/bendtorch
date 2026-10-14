@@ -1,8 +1,5 @@
 import Base
 
-# Prototype C (scalar part): forward-mode dual numbers, the independent reference.
-# One forward pass per input direction; there is no graph, store or backward pass.
-
 type Dual<-T: Data> is Data:
   Dual{value: T, tangent: T}
 

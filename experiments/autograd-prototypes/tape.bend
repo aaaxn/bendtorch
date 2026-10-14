@@ -1,10 +1,5 @@
 import Base
 
-# Prototype A (scalar part): an explicit reverse tape.
-# The tape is one owned store. Each entry holds a node and its forward value;
-# operands are node ids (Nat), never values, so equal values cannot merge.
-# Arithmetic is a template: laws instantiate it at U32 and run it at F32.
-
 type Node is Data:
   Input{}
   Add{a: Nat, b: Nat}
@@ -26,7 +21,6 @@ def at(-T: Data, xs: List<&2, T>, +offset: Nat, +fallback: T) -> T:
     case Con{h, t} 1n+p:
       at(T, t, p, fallback)
 
-# The value of node `id` in a newest-first list of `size` items.
 def by_id(-T: Data, +size: Nat, +xs: List<&2, T>, +id: Nat, +fallback: T) -> T:
   at(T, xs, Nat.sub(Nat.sub(size, 1n), id), fallback)
 
@@ -59,7 +53,6 @@ def push(-T: Data, node: Node, value: T, tape: Tape<T>) -> Tape<T> & Nat:
 def input(-T: Data, value: T) -> Build(T, Nat):
   tape => push(T, Input{}, value, tape)
 
-# Operand `id` sits at offset `size - 1 - id` from the head.
 def operand(-T: Data, +size: Nat, +entries: List<&2, Entry<T>>, +id: Nat, +zero: T) -> T:
   value_at(T, entries, Nat.sub(Nat.sub(size, 1n), id), zero)
 
@@ -118,7 +111,6 @@ def zeros(-T: Data, n: Nat, +zero: T) -> List<&2, T>:
     case 1n+p:
       zero <> zeros(T, p, zero)
 
-# Seeds d(output)/d(output) = 1 at the head and runs the reverse sweep.
 def gradients(~T: Data, ~plus: T -> T -> T, ~times: T -> T -> T, tape: Tape<T>, +zero: T, +one: T) -> Tape<T> & List<&2, T>:
   Tape{+size, +entries} = tape
   (Tape{size, entries},
@@ -128,8 +120,6 @@ def gradients(~T: Data, ~plus: T -> T -> T, ~times: T -> T -> T, tape: Tape<T>, 
 def empty(-T: Data) -> Tape<T>:
   Tape{0n, Nil{}}
 
-# Runs a program that answers (inputs, output id) and reads the output value and the
-# gradient of every input id.
 def read_grads(-T: Data, +size: Nat, +grads: List<&2, T>, ids: List<&2, Nat>, +zero: T) -> List<&2, T>:
   match ids:
     case Nil{}:

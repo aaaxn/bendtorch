@@ -10,8 +10,6 @@ import ./dual-PROOF.bend as DualProof
 import ./pullback-LAWS.bend as PullbackLaws
 import ./dual-LAWS.bend as DualLaws
 
-# Composes the per-design proofs: both sides equal the hand derivative.
-
 def Laws.tape_matches_dual_case1(x):
   Equal.trans(Nat & List<&2, Nat>, TapeCases.run1(~Nat, ~Nat.add, ~TapeLaws.times, x, 0n, 1n), TapeLaws.Hand1(x),
     DualCases.run1(~Nat, ~Nat.add, ~TapeLaws.times, x, 0n, 1n),

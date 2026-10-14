@@ -1,8 +1,5 @@
 import Base
 
-# Prototype B (scalar part): one-shot affine pullback closures composed backward.
-# A value carries its forward result and a closure that maps its cotangent into a
-# gradient environment. The closure is affine, so a handle has one consumer.
 # A value used twice goes through `share`, which gives it a fresh slot and calls
 # its pullback once with the summed cotangent.
 

@@ -148,8 +148,7 @@ them in 0.7 s. The BendTT kernel answers "out of fuel" on each one (its `FUEL`
 is 400,000,000 steps). The minimal repro, `kernel-fuel-adds.bend`, is three
 chained rank-0 `Elementwise.add` calls. Two chained adds still pass (about 8 s
 in the kernel). The old pin behaves the same. This is a known upstream kernel
-limitation (bendlang/bend #1322 and #1193, both open; PR #1487 was withdrawn),
-not a new bug, and it is not worked around here.
+limitation, not a new bug, and it is not worked around here.
 
 So under `--verdict`, tensor gradient laws must be generic statements over
 producers, following the proof-boundary pattern: universal shapes and values,
@@ -205,7 +204,7 @@ How each prototype fits that style:
    scalar laws use U32/Nat instances of the same templates. The autograd laws
    must decide whether the gradient spec is stated over an abstract semiring,
    as the templates do, or over F32 with uninterpreted ops.
-7. **Kernel fuel.** If upstream lifts the fuel limit (#1322, #1193), concrete
+7. **Kernel fuel.** If upstream lifts the fuel limit, concrete
    tensor laws could become `--verdict` evidence. Until then they are
    `--check-only` probes only, and the doc must not count them as kernel-checked.
 

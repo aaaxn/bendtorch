@@ -1,8 +1,6 @@
 import Base
 import ./pullback.bend as P
 
-# Cases 1-3 with pullback closures. Each use beyond the first needs a `share`.
-
 def case1(~T: Data, ~plus: T -> T -> T, ~times: T -> T -> T, x: T, +zero: T) -> P.Gen(P.V(T)):
   do P.Gen<P.V(T)>:
     x : P.V(T) <- P.input(~T, ~plus, x)

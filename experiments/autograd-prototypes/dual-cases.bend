@@ -1,8 +1,6 @@
 import Base
 import ./dual.bend as Dual
 
-# Cases 1-3 with forward duals. x appears as one reusable dual; no clone is needed.
-
 def run1(~T: Data, ~plus: T -> T -> T, ~times: T -> T -> T, +x: T, +zero: T, +one: T) -> T & List<&2, T>:
   Dual.run1(~T, ~plus, ~times, x, zero, one)
 

@@ -4,7 +4,6 @@ import ./tensor-ops.bend as Ops
 import ./pullback-tensor.bend as P
 
 # Case 4 with pullback closures, y = sum(W*x + b) with W:[2,3], x:[3], b:[3].
-# Case 1 again on rank-0 tensors: x is used three times, so it is shared twice.
 
 def case4_program(w: Core.Dynamic, x: Core.Dynamic, b: Core.Dynamic) -> P.Gen(P.V()):
   do P.Gen<P.V()>:

@@ -12,7 +12,7 @@ import ../../src/tensor/matmul.bend as Matrix
 
 import ../../src/tensor/transforms.bend as Transforms
 
-# Shared tensor wrappers for the case-4 prototypes. Every op hands its input owners back.
+# Every op hands its input owners back.
 
 type Error is Data:
   TensorError{error: Core.Error}
@@ -117,8 +117,6 @@ def row_ones(g: Core.Dynamic, want: List<&2, U32>, result: Result<&2, &1, Core.E
     case Done{left}:
       row_product(want, Matrix.matmul(left, g))
 
-# Reduces a [r, c] cotangent over its leading axis by ones[1, r] @ g, then reshapes.
-# Only this broadcast pattern is supported; others answer Unsupported.
 def row_reduce(g: Core.Dynamic, have: List<&2, U32>, want: List<&2, U32>) -> Result<&2, &1, Error, Core.Dynamic>:
   match have:
     case Con{+r, Con{c, Nil{}}}:
@@ -188,8 +186,6 @@ def error_code(error: Error) -> U32:
     case Missing{}:
       400
 
-# Store helpers: a list of optional owned tensors, taken and put back by offset.
-
 def Slot() -> Type:
   Maybe<&1, Core.Dynamic>
 
@@ -231,6 +227,5 @@ def accumulate_taken(+offset: Nat, delta: Core.Dynamic, taken: List<&1, Slot()> 
     case Some{g}:
       accumulate_add(grads, offset, add(g, delta))
 
-# Adds `delta` into the gradient slot at `offset`: the first contribution moves in, later ones add.
 def accumulate(grads: List<&1, Slot()>, +offset: Nat, delta: Core.Dynamic) -> Result<&2, &1, Error, List<&1, Slot()>>:
   accumulate_taken(offset, delta, take(grads, offset))

@@ -6,12 +6,7 @@ import ../../src/tensor/core.bend as Core
 
 import ./tensor-ops.bend as Ops
 
-# Prototype A (tensor part): an explicit reverse tape over tensors.
-# The tape owns one store slot per node. An op takes its operands out of their
-# slots, runs the tensor op (which hands the owners back) and puts them back, so a
-# value lives in exactly one place. Taking an empty slot answers Missing, so an
-# alias cannot be formed: x*x clones the operand once and both contributions go
-# to the original node id in the backward sweep.
+# In the backward sweep, both contributions of x*x go to the original node id.
 
 type Node is Data:
   Input{}
@@ -29,8 +24,7 @@ type Aux is Type:
 type Sweep is Type:
   Sweep{slots: List<&1, Ops.Slot()>, grads: List<&1, Ops.Slot()>, aux: Aux}
 
-# The result of one run: the retained output, each input's (value, gradient)
-# oldest first, forward operand clones, backward clones and saved-value count.
+# Each input's (value, gradient), oldest first.
 type Outcome is Type:
   Outcome{value: Core.Dynamic, leaves: List<&1, Leaf()>, forward_clones: Nat, backward_clones: Nat, saved: Nat}
 
@@ -155,12 +149,9 @@ def sum_tape(+a: Nat, tape: Tape) -> R(Tape & Nat):
 def sum(+a: Nat) -> Build(Nat):
   tape => sum_tape(a, tape)
 
-# Backward
-# ========
 # The sweep pops one node per step, newest first. `grads` is aligned with the
-# nodes still on the tape; an empty slot means no contribution yet. A popped
-# node's value is freed once its contributions are made; input values and
-# gradients move to `leaves`, oldest first.
+# nodes still on the tape; an empty slot means no contribution yet.
+# Input values and gradients move to `leaves`, oldest first.
 
 def Leaf() -> Type:
   Ops.Slot() & Ops.Slot()
@@ -236,7 +227,7 @@ def mul_shaped(grads: List<&1, Ops.Slot()>, aux: Aux, +target: Nat, +other: Nat,
     case Some{+target_shape}:
       mul_borrowed(grads, aux, target, target_shape, other, g, Ops.take(slots, other))
 
-# d(a*b)/da: g * b, borrowing b's saved value and reducing to a's shape.
+# d(a*b)/da: g * b, reduced to a's shape.
 def mul_side(sweep: Sweep, +target: Nat, +other: Nat, g: Core.Dynamic) -> R(Sweep):
   Sweep{slots, grads, aux} = sweep
   mul_shaped(grads, aux, target, other, g, shape_at(slots, target))
@@ -269,7 +260,6 @@ def then_side(result: R(Sweep), k: Sweep -> R(Sweep)) -> R(Sweep):
     case Done{sweep}:
       k(sweep)
 
-# A binary node sends its cotangent to two operands, so it is cloned once.
 def two_cotangents(sweep: Sweep, g: Core.Dynamic) -> Sweep & (Core.Dynamic & Core.Dynamic):
   Sweep{slots, grads, aux} = sweep
   Aux{clones, leaves} = aux
@@ -285,7 +275,6 @@ def add_back(+a: Nat, +b: Nat, pair: Sweep & (Core.Dynamic & Core.Dynamic)) -> R
   (g1, g2) = gs
   then_side(add_side(sweep, a, g1), next => add_side(next, b, g2))
 
-# Operand ids become offsets into the `below` nodes still on the tape.
 def contribute(node: Node, +below: Nat, sweep: Sweep, g: Core.Dynamic) -> R(Sweep):
   match node:
     case Input{}:
@@ -360,7 +349,6 @@ def output_shaped(+size: Nat, nodes: List<&2, Node>, slots: List<&1, Ops.Slot()>
   (value, +shape) = pair
   seeded(value, size, nodes, slots, clones, Ops.fill(shape, 1.0))
 
-# The output is never an operand, so its value leaves the store without a copy.
 def output_taken(+size: Nat, nodes: List<&2, Node>, clones: Nat, taken: List<&1, Ops.Slot()> & Ops.Slot()) -> R(Outcome):
   (slots, slot) = taken
   match slot:
@@ -381,6 +369,5 @@ def run_built(result: R(Tape & Nat)) -> R(Outcome):
       (tape, output) = pair
       run_tape(tape)
 
-# Runs a program and sweeps back from its last node, seeded with ones.
 def run(program: Build(Nat)) -> R(Outcome):
   run_built(program(Tape{0n, Nil{}, Nil{}, 0n}))
