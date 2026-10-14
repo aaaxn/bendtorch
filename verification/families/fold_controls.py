@@ -57,6 +57,8 @@ FAMILY = controls.Family(
         f"{SRC}fold_2d_records.PairFoldContract.arms",
         "consumers.SumCase.arms",
         "consumers.DotCase.arms",
+        "consumers.FailCase.arms",
+        "consumers.PairFailCase.arms",
     ),
     consumers=tuple(
         f"consumers.{name}"
@@ -65,9 +67,12 @@ FAMILY = controls.Family(
             "sum_grid",
             "sum_scalar",
             "sum_empty",
+            "sum_fails",
             "dot_lower_left",
             "dot_upper_right",
             "dot_empty",
+            "pair_fails_left",
+            "pair_fails_right",
         )
     ),
     witnesses={
@@ -153,6 +158,27 @@ FAMILY = controls.Family(
             "plan, 1n, Core.Packed{left,",
             "fold_2d_proof.pair_contract.qvvvvv",
             ("fold.pair_run.qvvvvv", "fold.pair_run.qvvvvv_1"),
+        ),
+        "failed-step-done": Site(
+            "sum_fails",
+            "OutOfBounds",
+            "consumers.sum_fails",
+            ("fold.step.qvv", "fold.step.qvv_1"),
+            consumer=True,
+        ),
+        "pair-left-failed-done": Site(
+            "pair_fails_left",
+            "OutOfBounds",
+            "consumers.pair_fails_left",
+            ("fold.pair_left.qvv", "fold.pair_left.qvv_1"),
+            consumer=True,
+        ),
+        "pair-right-failed-swapped": Site(
+            "pair_fails_right",
+            "Some{10.0}",
+            "consumers.pair_fails_right",
+            ("fold.pair_right.qvv", "fold.pair_right.qvv_1"),
+            consumer=True,
         ),
         "sum-swapped-add": Site(
             "total_words",

@@ -161,6 +161,10 @@ from `lt_mul_add`: `a * n + b < m * n` when `a < m` and `b < n`.
 - The family output is itself a replayed tensor, with history `writes(n)` over
   `+0.0`. The proof uses that fact, but no law exports it, so a consumer cannot
   yet chain two family operations through laws alone.
+- The laws require every index in bounds, so they say nothing about a failed
+  read. What `Fold.run` and `Fold.pair_run` return then, the error and the
+  inputs, is checked only by the failure consumers in
+  `verification/families/fold/`.
 - F32 operations are opaque. A value is stated as the term
   `F32.sub(5.0, 20.0)`, not as `-15.0`.
 - `reduce_to` is not an instance yet. Its specification, `Laws.fiber` in
@@ -171,7 +175,8 @@ from `lt_mul_add`: `a * n + b < m * n` when `a < m` and `b < n`.
 ## Controls
 
 `verification/families/` holds literal consumers of `broadcast_pointwise`,
-`sum_ordered` and `dot_ordered`, false twins of eight value statements, and
-seventeen mutants of the family loops and of their instances. Its
+`sum_ordered` and `dot_ordered`, consumers of failed folds, false twins of
+eight value statements, and twenty mutants of the family loops and of their
+instances. Its
 [README](../verification/families/README.md) lists each control and the
 rejection it expects.
