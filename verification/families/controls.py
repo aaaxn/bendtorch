@@ -78,8 +78,7 @@ class Family:
     def entry_path(self) -> str:
         return f"{self.experiment}/entry.bend"
 
-    def checked(self, label: str) -> str:
-        """The module whose source check must reject the mutant."""
+    def rejecting_module(self, label: str) -> str:
         if self.sites[label].consumer:
             return f"{self.experiment}/consumers.bend"
         return self.proof

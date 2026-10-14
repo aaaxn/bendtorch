@@ -282,7 +282,7 @@ class ExperimentRunnerTests(unittest.TestCase):
             text = (ROOT / path).read_text()
             self.assertEqual(text.count(old), 1, label)
             self.assertNotEqual(old, new, label)
-            self.assertTrue(transforms.module(label).endswith("."), label)
+            self.assertTrue(transforms.export_prefix(label).endswith("."), label)
         with tempfile.TemporaryDirectory() as directory:
             snapshot = Path(directory) / "snapshot"
             shutil.copytree(ROOT / "src", snapshot / "src")

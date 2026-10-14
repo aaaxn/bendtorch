@@ -101,9 +101,8 @@ SITES = {
 OTHER = {RESHAPE: PERMUTE, PERMUTE: RESHAPE}
 
 
-def module(label: str) -> str:
-    """Export prefix of the module a mutant edits."""
-    stem = Path(MUTANTS[label][0]).stem.replace("-", "_2d_")
+def export_prefix(label: str) -> str:
+    stem = Path(MUTANTS[label].file).stem.replace("-", "_2d_")
     return f"{SRC}{stem}."
 
 

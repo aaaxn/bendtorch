@@ -629,7 +629,7 @@ def transform(snapshot, output, bend, kernel, run, parallel, reasons) -> None:
         )
     for label in transforms.MUTANTS:
         artifacts[label] = reads.transplant(
-            text, exports[label].read_text(), catalog, transforms.module(label)
+            text, exports[label].read_text(), catalog, transforms.export_prefix(label)
         )
     for label, artifact in artifacts.items():
         (output / f"transform-false-{label}.bendtt").write_text(artifact)
@@ -887,7 +887,7 @@ def permute_values(snapshot, output, bend, kernel, run, parallel, reasons) -> No
         )
     for label in permutes.MUTANTS:
         artifacts[label] = reads.transplant(
-            text, exports[label].read_text(), catalog, permutes.module(label)
+            text, exports[label].read_text(), catalog, permutes.export_prefix(label)
         )
     for label, artifact in artifacts.items():
         (output / f"permute-false-{label}.bendtt").write_text(artifact)
