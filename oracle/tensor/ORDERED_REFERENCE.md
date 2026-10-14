@@ -91,8 +91,8 @@ acceptance evidence retains `numerical_cases` and adds `ordered_reference` and
 optimized backend while claiming that only the compatibility envelope is its
 contract. Keep the reference backend available for sequence conformance.
 
-The stage and runtime snapshots bind these records, the root comparator, the
-independent model and its focused tests. The existing protected hash checks
+The tensor gate and runtime snapshots bind these records, the root comparator,
+the independent model and its focused tests. The existing protected hash checks
 also cover the new records and controls. The runtime runs the two controls
 separately through `decode_case`, `bend_program` and the existing output parser
 in native and generated JavaScript executables. They are not inserted into the
