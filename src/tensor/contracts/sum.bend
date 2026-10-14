@@ -12,6 +12,9 @@ def add(operation: Unit, accumulator: F32, word: F32) -> F32:
 def position(plan: Unit, index: Nat) -> Nat:
   index
 
+def every(plan: Unit, index: Nat) -> Bool:
+  True{}
+
 def sum(input: Core.Dynamic) -> Core.Dynamic & Result<&2, &1, Core.Error, F32>:
   Core.Packed{+shape, tensor} = input
-  Fold.run(~Unit, ~add, ~Unit, ~position, Unit{}, Unit{}, Shape.elements(shape), Core.Packed{shape, tensor})
+  Fold.run(~Unit, ~add, ~Unit, ~position, ~every, Unit{}, Unit{}, Shape.elements(shape), Core.Packed{shape, tensor})

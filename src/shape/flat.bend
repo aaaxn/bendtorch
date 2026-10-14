@@ -4,8 +4,6 @@ import ./nat_proofs.bend as Nats
 import ./coordinate_proofs.bend as Coordinates
 import ./projection_proofs.bend as Projection
 
-# A flat index of an empty output does not exist, so an Unindexed map is never
-# met with one.
 def hollow(+output: Shape.Shape, +value: Nat, zero: {0n == Shape.numel(Shape.extents(output)) : Nat}, bound: {True{} == Nat.is_lt(value, Shape.elements(output)) : Bool}) -> Empty:
   +size = Equal.trans(Nat, Shape.elements(output), Shape.numel(Shape.extents(output)), 0n, Shape.elements_exact(output), Equal.sym(Nat, 0n, Shape.numel(Shape.extents(output)), zero))
   %Equal.trans(Bool, True{}, Nat.is_lt(value, 0n), False{}, Equal.trans(Bool, True{}, Nat.is_lt(value, Shape.elements(output)), Nat.is_lt(value, 0n), bound, Equal.cong(Nat, Bool, count => Nat.is_lt(value, count), Shape.elements(output), 0n, size)), Projection.lt_zero_false(value)) : Shape.truth(_)

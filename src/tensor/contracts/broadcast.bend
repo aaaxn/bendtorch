@@ -37,7 +37,6 @@ def binary(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, left: 
   Pointwise.run(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~left_map, ~right_map,
     operation, plan, Shape.output_shape(plan), left, right)
 
-# The word the instance writes at output index `index`.
 def cell(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
   +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +index: Nat) -> F32:
   Elementwise.scalar(operation, Replayed.value(Shape.left_shape(plan), left_fill, left_ops, U32.from_nat(left_map(plan, index))),

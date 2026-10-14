@@ -36,9 +36,6 @@ def second_kept(+shape: Shape.Shape, original: Core.Tensor<shape>) -> Holds<Seco
     ConstructionLaws.CloneMeaning<shape, original> -> Holds<SecondKept(shape, original, Core.clone(shape, original))>}(
     ConstructionLaws.public_clone_elements(shape, original))
 
-# Retention: the identity branch keeps the first clone, which observes like the
-# original; every other branch is reduce_to.
-
 def first_property(+property: Totality.Property, -shape: Shape.Shape, -original: Core.Tensor<shape>, -first: Core.Tensor<shape>,
   checked: @+index: U32 -> {Core.checked_observe(shape, first, index) == Core.checked_observe(shape, original, index) : Maybe<&2, F32>},
   model: @+index: U32 -> {Core.observe(shape, first, index) == Core.observe(shape, original, index) : Maybe<&2, F32>}) ->
@@ -74,9 +71,6 @@ def Laws.sum_to_size_retains_input(input, target):
   Core.Packed{+shape, tensor} = input
   decided_retains(shape, tensor, target, Layout.words_same(Shape.dimensions(shape), Shape.dimensions(target)))
 
-# Identity: equal dimensions select the clone branch, whose second copy has
-# the original's words.
-
 def cloned_identity(+shape: Shape.Shape, -original: Core.Tensor<shape>, +target: Shape.Shape, pair: Core.Tensor<shape> & Core.Tensor<shape>,
   -same: {Shape.dimensions(shape) == Shape.dimensions(target) : List<&2, U32>},
   -kept: SecondKept(shape, original, pair)) ->
@@ -107,8 +101,6 @@ def Laws.sum_to_size_identity(input, target, same):
         SumToSize.decided(shape, tensor, target, Layout.words_same(Shape.dimensions(shape), Shape.dimensions(target))))> ->
       Laws.Identity(Core.Packed{shape, tensor}, target, SumToSize.sum_to_size(Core.Packed{shape, tensor}, target))}(
       decided_identity(shape, tensor, target, Layout.words_same(Shape.dimensions(shape), Shape.dimensions(target)), {==}, same))}
-
-# Reduction: other dimensions select reduce_to itself.
 
 def decided_reduces(+shape: Shape.Shape, tensor: Core.Tensor<shape>, +target: Shape.Shape, flag: Bool,
   decided: {flag == Layout.words_same(Shape.dimensions(shape), Shape.dimensions(target)) : Bool},

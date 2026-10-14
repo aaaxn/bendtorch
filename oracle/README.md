@@ -1,4 +1,4 @@
-# S0 reference oracle
+# Reference oracle
 
 This is an isolated, reference-only PyTorch project for the progressively native
 Bend2 implementation. The root harness must read the frozen JSON; it must not
@@ -46,13 +46,13 @@ uv run --frozen python generate.py
 Generation uses fixed inputs, CPU F32 operations, one intra-op thread, one inter-op
 thread, deterministic algorithms, and the highest F32 matmul precision. No random
 inputs or timestamps enter the artifacts. `--check` is read-only and compares
-`fixtures/s0.json` byte for byte. The unittest suite regenerates twice in
-isolated temporary directories under `oracle/` and checks both `s0.json` results
+`fixtures/toolchain.json` byte for byte. The unittest suite regenerates twice in
+isolated temporary directories under `oracle/` and checks both `toolchain.json` results
 against the frozen bytes.
 
 ## Fixture format
 
-`fixtures/s0.json` declares the verified `oracle` identity,
+`fixtures/toolchain.json` declares the verified `oracle` identity,
 `dtype: "float32"`, `device: "cpu"`, and independent `finite_cases` and
 `nonfinite_cases`. Each case has an `id`, `op`, named `inputs`, and named `outputs`.
 The `matmul_add` operation means `(a @ b) + bias`. All reduction cases reduce the
@@ -92,4 +92,4 @@ the verified identity, interpreter and uv versions, lockfile SHA-256, CPU
 model/capability, deterministic execution settings, and the actual
 `torch.__config__.show()` and `parallel_info()` outputs. It is rewritten by
 regeneration and is not checked: another CPU or `OMP_NUM_THREADS` changes it
-without changing `s0.json`.
+without changing `toolchain.json`.

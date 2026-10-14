@@ -2,10 +2,13 @@
 
 The family laws in `src/tensor/contracts/LAWS.bend` are proved in
 `src/tensor/contracts/PROOF.bend`, aggregated by `src/tensor/LAWS.bend`, and
-required by `verification/s2.json`, so the root `PROOF.bend --verdict` and the
-S2 gate protect them. [Contract families](../../docs/contract-families.md)
-explains what they state. This directory holds literal consumers, false
-twins and implementation mutants, beside the runner that checks them.
+required by `verification/tensor.json`, so the root `PROOF.bend --verdict` and
+the tensor gate protect them. The `reduce_to` instance is stated in
+`src/autograd/reduce-fold-LAWS.bend` and required by
+`verification/autograd.json`. [Contract
+families](../../docs/contract-families.md) explains what they state. This
+directory holds literal consumers, false twins and implementation mutants,
+beside the runner that checks them.
 
 ## Pointwise
 
@@ -34,7 +37,7 @@ twins and implementation mutants, beside the runner that checks them.
   while it checks these two, and on the `[2, 3]` grid it runs out of fuel, so
   they use `[3]`.
 - `controls.bend`: five value witnesses, each paired with one wrong value.
-- `mutants.txt`: the before and after text of each mutation.
+- `mutants.toml`: the before and after text of each mutation.
 
 | Control | Change | Source rejection | BendTT rejection |
 | --- | --- | --- | --- |
@@ -87,16 +90,17 @@ instance copy, only the instance copy for the swapped maps, or only
   `F32.add(F32.add(F32.add(0.0, 1.0), 2.0), 3.0)`.
 
   The family laws require every index in bounds, so no law says what a failed
-  fold returns. The last three consumers run `Fold.run` and `Fold.pair_run`
-  directly with the index map `doubled(k) = 2k`, which reads index 4 of a
-  three-word input at step 2, after two successful steps. `sum_fails` folds
-  `[1, 2, 3]` that way, `pair_fails_left` reads the left input with `doubled`
+  fold returns. The last three consumers run `Fold.run`, with the mask
+  `Sum.every` that keeps every word, and `Fold.pair_run` directly with the
+  index map `reads_past_input(k) = 2k`, which reads index 4 of a three-word
+  input at step 2, after two successful steps. `sum_fails` folds `[1, 2, 3]`
+  that way, `pair_fails_left` reads the left input with `reads_past_input`
   and `pair_fails_right` reads the right input with it, after the left read
   of the same step succeeds. Each states the error,
   `StorageError{OutOfBounds}`, and the first and last word of each returned
   input.
 - `controls.bend`: four value witnesses, each paired with one wrong value.
-- `mutants.txt`: the before and after text of each mutation.
+- `mutants.toml`: the before and after text of each mutation.
 
 | Control | Change | Source rejection | BendTT rejection |
 | --- | --- | --- | --- |
@@ -104,10 +108,11 @@ instance copy, only the instance copy for the swapped maps, or only
 | False twin `start_witness` | `7.0` for `F32.add(0.0, 7.0)`, the fold starts at the first word | the witness | the witness |
 | False twin `dot_witness` | `F32.mul(5.0, 20.0)`, the right matrix read along a row | the witness | the witness |
 | False twin `kept_witness` | left word 5 reads the right input | the witness | the witness |
-| Negative zero start | `run` starts at `F32.neg(0.0)` | `contract` | `contract.qvvvv` |
-| Swapped accumulator | `step` folds `g(operation, x, accumulator)` | `step_lift` | `step_lift.qvvvv` |
-| Dropped word | `step` keeps the accumulator | `step_lift` | `step_lift.qvvvv` |
-| Cursor off by one | `run` starts the loop at 1 | `contract` | `contract.qvvvv` |
+| Negative zero start | `run` starts at `F32.neg(0.0)` | `contract` | `contract.qvvvvv` |
+| Swapped accumulator | `step` folds `g(operation, x, accumulator)` | `step_lift` | `step_lift.qvvvvv` |
+| Dropped word | `step` keeps the accumulator | `step_lift` | `step_lift.qvvvvv` |
+| Ignored mask | `loop` keeps every word instead of asking `keep` | `step_lift` | `step_lift.qvvvvv` |
+| Cursor off by one | `run` starts the loop at 1 | `contract` | `contract.qvvvvv` |
 | Pair swapped operands | `pair_right` folds `g(operation, accumulator, y, x)` | `pair_step_lift` | `pair_step_lift.qvvvvv` |
 | Pair wrong map | `pair_loop` reads the left input at `ib` | `pair_step_lift` | `pair_step_lift.qvvvvv` |
 | Pair negative zero start | `pair_run` starts at `F32.neg(0.0)` | `pair_contract` | `pair_contract.qvvvvv` |
@@ -118,7 +123,7 @@ instance copy, only the instance copy for the swapped maps, or only
 | Sum swapped add | `Sum.add` returns `F32.add(word, accumulator)` | `total_words` | `total_words` |
 | Dot untransposed right | `Dot.right_index` reads `column * inner + k` | `total_factors` | `total_factors` |
 
-The first eight mutants change the generic loops in `fold.bend`, and the
+The first nine mutants change the generic loops in `fold.bend`, and the
 generic proofs reject them. The next three change what the loops return when
 a read fails. The proofs accept them, since no law covers a failed read, and
 the runner checks them against `fold/consumers.bend` instead, where the
@@ -133,6 +138,45 @@ before `fold.bend`. With the same import order, the mutant export names the
 constants the same way, and each transplant replaces only the mutated
 declarations.
 
+## Reduce
+
+`reduce/` holds:
+
+- `consumers.bend`: five consumers of `reduce_fold_fiber`, the law that states
+  `ReduceFold.cell` as the `reduce_to` specification of one output cell: an
+  ordered fold over the contribution words that land on it. `Reduce.reduce_to`
+  does not call `ReduceFold.cell` yet. Each consumer reduces the `[2, 3]`
+  contribution `[1, 2, 3, 4, 5, 6]`, replayed as the writes of
+  `Core.from_values`, to a target:
+  - `[3]`: cell 1 adds column 1, words 1 and 4.
+  - `[2, 1]`: cell 1 adds row 1, words 3, 4 and 5.
+  - `[]`: the one cell adds every word.
+  - `[2, 3]`: no axis is reduced, and cell 4 adds word 4 to `+0.0`.
+  - `[0]` of a `[2, 0]` contribution: no word lands, and the cell is `+0.0`.
+
+  Each non-empty consumer also states one word of the returned contribution.
+- `controls.bend`: four value witnesses, each paired with one wrong value.
+  The kernel reports a mismatch against the type of the witness body, where
+  the law's total is still an unevaluated fiber, so `stated` restates each
+  total as the literal it evaluates to.
+- `mutants.toml`: the before and after text of each mutation.
+
+| Control | Change | Source rejection | BendTT rejection |
+| --- | --- | --- | --- |
+| False twin `column_witness` | every word of the grid, the mask ignored | the witness | the witness |
+| False twin `row_witness` | row 0 instead of row 1 | the witness | the witness |
+| False twin `same_witness` | `5.0` for `F32.add(0.0, 5.0)`, the word copied without the fold | the witness | the witness |
+| False twin `word_witness` | contribution word 4 read at word 5 | the witness | the witness |
+| Lands on source | `lands` compares the contribution offset with the cell | `fiber_total` | `fiber_total` |
+| Inverted mask | `lands` keeps the words that do not land on the cell | `fiber_total` | `fiber_total` |
+| Reads target offset | `source` reads the word at the target offset | `fiber_total` | `fiber_total` |
+| Target count | `cell` folds over the target's element count | `reduce_fold_fiber` | `reduce_fold_fiber` |
+
+The mutants change `src/autograd/reduce-fold.bend`, and the proofs in
+`src/autograd/reduce-fold-PROOF.bend` reject them. `reduce/entry.bend`
+imports `broadcast.bend` and `sum.bend` before `reduce-fold.bend`, for the
+same export names as `fold/entry.bend`.
+
 ## Run
 
 ```sh
@@ -140,7 +184,7 @@ uv run --locked python -m verification.families.run --output <fresh directory> -
 uv run --locked python -m unittest verification/families/test_run.py -v
 ```
 
-The runner snapshots `src/`, `pointwise/` and `fold/`. For each family it
+The runner snapshots `src/`, `pointwise/`, `fold/` and `reduce/`. For each family it
 builds the false twins and the mutant copies, and runs the source checks,
 `--verdict` on the consumers and the controls, the exports, and BendTT on the
 positive and mutated exports. Each family writes its outputs to its own

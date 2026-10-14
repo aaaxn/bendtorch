@@ -9,7 +9,7 @@ isolated oracle environment (PyTorch `2.14.1+cpu`, one thread,
 
 ## Requests PyTorch accepts and bendtorch rejects
 
-Of the 45 expected-error requests in `oracle/s2/fixtures/s2-v2.json`, PyTorch
+Of the 45 expected-error requests in `oracle/tensor/fixtures/s2-v2.json`, PyTorch
 raises on 24 and accepts 21. The 21 accepted requests are deliberate
 restrictions of the bounded API, not bugs:
 
@@ -43,15 +43,15 @@ Both reject `coordinate_rank_before_bounds` (coordinate `[9]` on shape
 before bounds. PyTorch treats `[9]` as a partial index and reports
 `IndexError: index 9 is out of bounds for dimension 0 with size 2`. The
 bendtorch precedence is part of the frozen policy
-(`oracle/s2/numerical-policy.json`, `expected_errors.precedence`).
+(`oracle/tensor/numerical-policy.json`, `expected_errors.precedence`).
 
 ## Reduction order: parity with PyTorch is envelope-only
 
-`sum`, `matmul` and S3's `reduce_to` accumulate sequentially in ascending
-row-major order from `+0.0`. PyTorch's CPU reduction uses a vectorized order.
-The results are word-identical only for short inputs. For uniform values in
-`[-8, 8]` (seed 0), PyTorch `sum`, the PyTorch gradient of `expand` and the
-sequential fold give:
+`sum`, `matmul` and the autograd `reduce_to` accumulate sequentially in
+ascending row-major order from `+0.0`. PyTorch's CPU reduction uses a
+vectorized order. The results are word-identical only for short inputs. For
+uniform values in `[-8, 8]` (seed 0), PyTorch `sum`, the PyTorch gradient of
+`expand` and the sequential fold give:
 
 | n | `torch.sum` | torch `expand` gradient | sequential fold |
 | --- | --- | --- | --- |
@@ -62,10 +62,10 @@ sequential fold give:
 | 65536 | `c4cd82c4` | `c4cd82c4` | `c4cd829a` |
 
 So from about 16 elements on, agreement with PyTorch is checked only within the
-S2 reduction envelope (`oracle/s2/README.md`). Word-exact checks of these
-operations are against the ordered reference
-(`oracle/s2/ORDERED_REFERENCE.md`), not against PyTorch. A future pairwise or
-blocked reduction needs its own law; the ordered law stays the reference.
+tensor reduction envelope (`oracle/tensor/README.md`). Word-exact checks of
+these operations are against the ordered reference
+(`oracle/tensor/ORDERED_REFERENCE.md`), not against PyTorch. A future pairwise
+or blocked reduction needs its own law; the ordered law stays the reference.
 
 The PyTorch outputs above come from a script run in the oracle environment;
 it reproduces with `uv run --project oracle --frozen --no-sync python <script>`
@@ -75,7 +75,7 @@ and is not part of any gate.
 
 The scalar `backward` in `src/autograd/backward.bend` agrees with PyTorch
 scalar autograd word for word on 83 of the 91 scripts in
-`oracle/s3/fixtures/s3-backward-torch-v1.json`, including `None` gradients,
+`oracle/autograd/fixtures/s3-backward-torch-v1.json`, including `None` gradients,
 NaN payloads, infinities, `-0.0` and subnormals. The differences:
 
 | Behavior | bendtorch | PyTorch |
@@ -87,4 +87,4 @@ NaN payloads, infinities, `-0.0` and subnormals. The differences:
 | Saved operands that disagree with the leaves | Gradients use the saved values of a forged tape | Cannot be built (1 script, `forged_sound`, recorded as unrepresentable) |
 | `NaN_a - NaN_b` with two payloads | Native keeps `NaN_a`'s payload | Keeps `NaN_b`'s payload (1 script); `add` and `mul` agree |
 
-[docs/s3-backward.md](s3-backward.md) has the contract.
+[docs/backward.md](backward.md) has the contract.

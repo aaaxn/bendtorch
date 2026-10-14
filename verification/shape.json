@@ -1,0 +1,22 @@
+{
+  "required_exports": [
+    "LAWS.row_major_bounded",
+    "LAWS.flatten_unflatten",
+    "LAWS.unflatten_flatten",
+    "LAWS.flatten_row_major",
+    "LAWS.broadcast_left_projection",
+    "LAWS.broadcast_right_projection",
+    "LAWS.construction_complete",
+    "LAWS.flatten_checked_refines",
+    "LAWS.unflatten_checked_refines",
+    "LAWS.broadcast_output_unique",
+    "LAWS.broadcast_checked_plan",
+    "LAWS.broadcast_checked_complete",
+    "LAWS.project_left_checked_refines",
+    "LAWS.project_right_checked_refines",
+    "LAWS.project_left_index_refines",
+    "LAWS.project_right_index_refines",
+    "LAWS.flatten_rank_error",
+    "LAWS.flatten_bounds_error"
+  ]
+}

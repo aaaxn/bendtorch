@@ -190,10 +190,8 @@ def dot_empty() -> {Fold.pair_value(dot_result(1n, 2n, 0n, 3n, empty_grid_shape(
       empty_wide_shape(), {==}, 0.0, writes([]), {==}))
 
 # Failure. The family laws require every index in bounds, so these consumers
-# run the generic loops directly with an index map that leaves the input:
-# `doubled` reads index 4 of a three-word input at step 2, after two
-# successful steps.
-def doubled(plan: Unit, index: Nat) -> Nat:
+# run the generic loops directly with an index map that leaves the input.
+def reads_past_input(plan: Unit, index: Nat) -> Nat:
   Nat.mul(2n, index)
 
 def failure(result: Core.Dynamic & Result<&2, &1, Core.Error, F32>) -> Maybe<&2, Core.Error>:
@@ -216,14 +214,14 @@ def out_of_bounds() -> Maybe<&2, Core.Error>:
   Some{Core.StorageError{Storage.OutOfBounds{}}}
 
 def failed_sum() -> Core.Dynamic & Result<&2, &1, Core.Error, F32>:
-  Fold.run(~Unit, ~Sum.add, ~Unit, ~doubled, Unit{}, Unit{}, 3n, input(three_shape(), three_values(), {==}))
+  Fold.run(~Unit, ~Sum.add, ~Unit, ~reads_past_input, ~Sum.every, Unit{}, Unit{}, 3n, input(three_shape(), three_values(), {==}))
 
 def failed_left() -> (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, F32>:
-  Fold.pair_run(~Unit, ~Dot.multiply_add, ~Unit, ~doubled, ~Sum.position, Unit{}, Unit{}, 3n,
+  Fold.pair_run(~Unit, ~Dot.multiply_add, ~Unit, ~reads_past_input, ~Sum.position, Unit{}, Unit{}, 3n,
     input(three_shape(), three_values(), {==}), input(three_shape(), [10.0, 20.0, 30.0], {==}))
 
 def failed_right() -> (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, F32>:
-  Fold.pair_run(~Unit, ~Dot.multiply_add, ~Unit, ~Sum.position, ~doubled, Unit{}, Unit{}, 3n,
+  Fold.pair_run(~Unit, ~Dot.multiply_add, ~Unit, ~Sum.position, ~reads_past_input, Unit{}, Unit{}, 3n,
     input(three_shape(), three_values(), {==}), input(three_shape(), [10.0, 20.0, 30.0], {==}))
 
 type FailCase<-error: Maybe<&2, Core.Error>, -first: Maybe<&2, F32>, -last: Maybe<&2, F32>> is Data:

@@ -1,20 +1,20 @@
 import json
 import unittest
 
+from tools.autograd import ERROR_CONTROLS
 from tools.common import ROOT
-from tools.s3 import ERROR_CONTROLS
 
 ERROR_LAWS = {
-    "verification/s1.json": (
-        "_2e_._2f_.._2f_src_2f_shape_2f_LAWS.",
+    "verification/shape.json": (
+        "LAWS.",
         ["flatten_rank_error", "flatten_bounds_error"],
     ),
-    "verification/s2.json": (
-        "_2e_._2f_.._2f_src_2f_tensor_2f_matmul_2d_LAWS.",
+    "verification/tensor.json": (
+        "matmul_2d_LAWS.",
         ["matmul_left_rank_error", "matmul_right_rank_error", "matmul_inner_error"],
     ),
-    "verification/s3.json": (
-        "_2e_._2f_.._2f_src_2f_autograd_2f_",
+    "verification/autograd.json": (
+        "",
         [
             "broadcast_2d_LAWS.broadcast_shape_error",
             "broadcast_2d_LAWS.broadcast_not_target",

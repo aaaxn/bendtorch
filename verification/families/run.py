@@ -10,12 +10,11 @@ from pathlib import Path
 
 from tools.common import GateError, check_sources
 
-r1b = importlib.import_module("verification.r1-b.run")
-reads = importlib.import_module("verification.r1-b.reads_controls")
-controls = importlib.import_module("verification.families.controls")
+contracts = importlib.import_module("verification.contracts.run")
+reads = importlib.import_module("verification.contracts.reads_controls")
 FAMILIES = tuple(
     importlib.import_module(f"verification.families.{name}_controls").FAMILY
-    for name in ("pointwise", "fold")
+    for name in ("pointwise", "fold", "reduce")
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -58,7 +57,11 @@ def family_controls(family, snapshot, output, bend, kernel, parallel, reasons) -
             *(
                 (
                     f"{name}/source-{label}",
-                    [*bend, copies[label] / family.checked(label), "--check-only"],
+                    [
+                        *bend,
+                        copies[label] / family.rejecting_module(label),
+                        "--check-only",
+                    ],
                     1,
                 )
                 for label in family.mutants
@@ -113,18 +116,20 @@ def family_controls(family, snapshot, output, bend, kernel, parallel, reasons) -
     )
     text = positive.read_text()
     (output / "export-statements.txt").write_text(
-        "\n\n".join(family.check_export(text, r1b.catalog).values()) + "\n"
+        "\n\n".join(family.check_export(text, contracts.catalog).values()) + "\n"
     )
     artifacts = {
-        witness: family.kernel_twin(text, witness, r1b.catalog, r1b.replace_declaration)
+        witness: family.kernel_twin(
+            text, witness, contracts.catalog, contracts.replace_declaration
+        )
         for witness in family.witnesses
     }
     for label in family.mutants:
         artifacts[label] = reads.transplant(
-            text, exports[label].read_text(), r1b.catalog, controls.SRC
+            text, exports[label].read_text(), contracts.catalog, family.prefix
         )
         reasons[f"{name}/kernel-replaced-{label}"] = family.replaced(
-            text, artifacts[label], r1b.catalog, label
+            text, artifacts[label], contracts.catalog, label
         )
     for label, artifact in artifacts.items():
         (output / f"false-{label}.bendtt").write_text(artifact)

@@ -38,8 +38,6 @@ def matched(total: Maybe<&2, F32>, value: Maybe<&2, F32>, same: Bool) -> Maybe<&
     case True{}:
       add_word(total, value)
 
-# One contribution position: if its projection lands on the requested target
-# position, add the source word at the position's source offset.
 def contribute(+values: List<&2, F32>, +target_index: U32, total: Maybe<&2, F32>, offsets: Maybe<&1, U32 & U32>) -> Maybe<&2, F32>:
   match offsets:
     case None{}:
@@ -50,8 +48,8 @@ def contribute(+values: List<&2, F32>, +target_index: U32, total: Maybe<&2, F32>
 
 # The specified accumulation: start at +0.0 and visit contribution positions
 # 0, 1, ..., count - 1 in ascending order; each position whose independent
-# broadcast projection (Projection.offset_spec, with the target as the left
-# operand) lands on target_index adds its word with one F32 add.
+# broadcast projection, Projection.offset_spec, has target_offset equal to
+# target_index adds the word at its source_offset with one F32 add.
 def fiber(+plan: Shape.BroadcastPlan, +values: List<&2, F32>, +target_index: U32, +count: Nat) -> Maybe<&2, F32>:
   match count:
     case 0n:
@@ -68,8 +66,7 @@ def planned_fiber(+values: List<&2, F32>, +target_index: U32, +count: Nat,
       fiber(plan, values, target_index, count)
 
 # values lists the contribution's words: the checked observation at every
-# U32 position is the word at that position, so values has exactly the
-# contribution's logical length.
+# U32 position is the word at that position.
 def Listed(-input: Core.Dynamic, +values: List<&2, F32>) -> Type:
   @+source: U32 -> {Core.checked_observe_dynamic(input, source) == word_at(values, U32.to_nat(source)) : Maybe<&2, F32>}
 
@@ -108,6 +105,9 @@ type MappingModel<-input: Core.Dynamic, -target: Shape.Shape,
 type Success<-pair: Core.Dynamic & Result<&2, &1, Reduce.Error, Core.Dynamic>> is Data:
   Success{-successful: {succeeded(pair) == True{} : Bool}}
 
+type Length<-input: Core.Dynamic, -values: List<&2, F32>> is Data:
+  Length{-exact: {List.length(&2, F32, values) == Shape.logical_numel(Totality.dimensions(input)) : Nat}}
+
 type Zeros<-target: Shape.Shape, -pair: Core.Dynamic & Result<&2, &1, Reduce.Error, Core.Dynamic>> is Data:
   Zeros{-zeros: ZeroValues(target, pair)}
 
@@ -125,6 +125,14 @@ law reduce_mapping:
   for +target: Shape.Shape
   MappingModel<input, target, Reduce.reduce_to(input, target)>
 
+# A list of words that lists the contribution has exactly the contribution's
+# logical length.
+law listed_length:
+  for input: Core.Dynamic
+  for +values: List<&2, F32>
+  for listed: Listed(input, values)
+  Length<input, values>
+
 # A target whose right-aligned broadcast with the contribution shape is the
 # contribution shape itself always succeeds.
 law reduce_valid_success:
@@ -141,10 +149,10 @@ law reduce_empty_zeros:
   for empty: {Shape.logical_numel(Totality.dimensions(input)) == 0n : Nat}
   Zeros<target, Reduce.reduce_to(input, target)>
 
-# When the S1 planner rejects the target and contribution shapes, reduce_to
-# fails with exactly that S1 error and returns the contribution owner. For
-# example [2] to [0] fails with IncompatibleBroadcast instead of returning an
-# empty tensor.
+# When the broadcast planner rejects the target and contribution shapes,
+# reduce_to fails with exactly that planner error and returns the contribution
+# owner. For example [2] to [0] fails with IncompatibleBroadcast instead of
+# returning an empty tensor.
 law reduce_shape_error:
   for input: Core.Dynamic
   for +target: Shape.Shape

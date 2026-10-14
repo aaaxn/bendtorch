@@ -102,8 +102,6 @@ def accumulate_shape(-dimensions: List<&2, U32>, items: List<&1, Result<&2, &1, 
         slot : Gradient.Slot <- contributions(items, shape, Gradient.Unset{})
         finished(Gradient.gradient(shape, slot))
 
-# Accumulates the contributions in order into a fresh slot of the given
-# dimensions and prints each outcome, then the slot's gradient.
 def accumulate(+dimensions: List<&2, U32>, items: List<&1, Result<&2, &1, Core.Error, Core.Dynamic>>) -> IO(Unit):
   accumulate_shape(dimensions, items, Shape.construct(dimensions))
 
@@ -133,8 +131,6 @@ def print_grad(read: Maybe<&1, Core.Dynamic>) -> IO(Gradient.Slot):
         kept : Core.Dynamic <- snapshot_kept(Core.shape(gradient))
         return Gradient.Held{kept}
 
-# Prints what the public accessor Gradient.grad returns, then rebuilds the slot
-# from that result.
 def read_grad(slot: Gradient.Slot) -> IO(Gradient.Slot):
   print_grad(Gradient.grad(slot))
 
@@ -153,9 +149,6 @@ def lifecycle_shape(-dimensions: List<&2, U32>, before: List<&1, Result<&2, &1, 
         final : Gradient.Slot <- read_grad(last)
         finished(Gradient.gradient(shape, final))
 
-# Accumulates before into a fresh slot, prints grad, resets the slot and prints
-# grad again, then accumulates after, prints grad and the zeros-materializing
-# gradient.
 def lifecycle(+dimensions: List<&2, U32>, before: List<&1, Result<&2, &1, Core.Error, Core.Dynamic>>,
   after: List<&1, Result<&2, &1, Core.Error, Core.Dynamic>>) -> IO(Unit):
   lifecycle_shape(dimensions, before, after, Shape.construct(dimensions))

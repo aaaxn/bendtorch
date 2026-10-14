@@ -43,8 +43,6 @@ import ./gradient-LAWS.bend as Laws
 type Holds<-P: Type> is Data:
   Holds{-proof: P}
 
-# Natural-number facts about the loop cursor.
-
 def lt_self(+number: Nat) -> {Nat.is_lt(number, number) == False{} : Bool}:
   match number:
     case 0n:
@@ -112,8 +110,6 @@ def word_exact(+left: U32, +right: U32, equal: {True{} == Nat.is_eq(U32.to_nat(l
     Equal.cong(Nat, U32, U32.from_nat, U32.to_nat(left), U32.to_nat(right),
       Lifecycle.natural_equal(U32.to_nat(left), U32.to_nat(right), equal))}
 
-# Unset slots read as zeros of their shape; held slots read as their gradient.
-
 def unset_zeros(+shape: Shape.Shape, result: Result<&2, &1, Core.Error, Core.Tensor<shape>>,
   -same: {result == Core.new(shape, 0.0) : Result<&2, &1, Core.Error, Core.Tensor<shape>>},
   -done: Allocation.TensorDone<shape, result>) ->
@@ -142,8 +138,6 @@ def Laws.gradient_unset_zeros(shape):
 def Laws.gradient_held(shape, held):
   {==}
 
-# Loop state views.
-
 def state_contribution(-shape: Shape.Shape, state: Gradient.State<shape>) -> Core.Dynamic:
   Gradient.State{contribution, total} = state
   contribution
@@ -165,9 +159,6 @@ def step_continued(-shape: Shape.Shape, result: Gradient.Step<shape>) -> Bool:
       False{}
     case Gradient.Continue{state}:
       True{}
-
-# Step retention: every step returns the contribution owner it was given or the
-# owner retained by its one checked read.
 
 def write_owner(-shape: Shape.Shape, -contribution: Core.Dynamic, pair: Core.Tensor<shape> & Result<&2, &2, Core.Error, Unit>) ->
   Holds<{step_owner(shape, Gradient.step_write(shape, contribution, pair)) == contribution : Core.Dynamic}>:
@@ -218,10 +209,6 @@ def step_retains(-shape: Shape.Shape, +index: U32, state: Gradient.State<shape>)
     ElementwiseProof.SourceModel<contribution, ElementwiseProof.dynamic_read_owner(Core.read_dynamic(contribution, index))> ->
     Totality.SameSource(contribution, step_owner(shape, Gradient.step_contribution(shape, index, total, Core.read_dynamic(contribution, index))))}(
     ElementwiseProof.dynamic_read_retains(contribution, index))}
-
-# Mapping: after the loop has visited positions below cursor, each of those
-# positions holds total + contribution and every other position still holds
-# the original total.
 
 def partial(+below: Bool, total: Maybe<&2, F32>, contribution: Maybe<&2, F32>) -> Maybe<&2, F32>:
   match below:
@@ -608,8 +595,6 @@ def Laws.accumulate_mapping(shape, slot, contribution):
       Laws.Mapping(slot, Core.Packed{contribution_shape, tensor}, shape, Gradient.accumulate(shape, slot, Core.Packed{contribution_shape, tensor}))}(
       checked_mapping(shape, slot, contribution_shape, tensor, Layout.words_same(Shape.dimensions(contribution_shape), Shape.dimensions(shape)), {==}))}
 
-# Success: once the shapes agree, every read and write of the loop is in bounds.
-
 def write_success(-shape: Shape.Shape, owner: Core.Dynamic, pair: Core.Tensor<shape> & Result<&2, &2, Core.Error, Unit>,
   -successful: {TransformTotality.write_succeeded(shape, pair) == True{} : Bool}) ->
   Holds<{step_continued(shape, Gradient.step_write(shape, owner, pair)) == True{} : Bool}>:
@@ -796,9 +781,6 @@ def Laws.accumulate_valid_success(shape, slot, contribution, fits, agrees):
   checked_success(shape, slot, contribution_shape, tensor,
     Layout.words_same(Shape.dimensions(contribution_shape), Shape.dimensions(shape)), {==}, fits, agrees)
 
-# Refusal: the loop never stops once the shapes agree, so every refusal is a
-# shape mismatch that returns the slot and the contribution as they were.
-
 def accumulated_keeps(-slot: Gradient.Slot, -contribution: Core.Dynamic, outcome: Gradient.Outcome,
   -successful: {Laws.accumulated(outcome) == True{} : Bool}) -> Holds<Laws.RefusalKeeps(slot, contribution, outcome)>:
   match outcome:
@@ -877,9 +859,6 @@ def Laws.grad_held_some(held):
 def Laws.reset_unset(slot):
   {==}
 
-# After a reset the slot is Unset, so a contribution whose dimensions agree
-# takes the move-in branch.
-
 def reset_checked(+shape: Shape.Shape, +contribution_shape: Shape.Shape, tensor: Core.Tensor<contribution_shape>, same: Bool,
   decided: {same == Layout.words_same(Shape.dimensions(contribution_shape), Shape.dimensions(shape)) : Bool},
   agrees: {Shape.dimensions(contribution_shape) == Shape.dimensions(shape) : List<&2, U32>}) ->
@@ -898,8 +877,6 @@ def reset_checked(+shape: Shape.Shape, +contribution_shape: Shape.Shape, tensor:
 def Laws.reset_then_accumulate_moves_in(shape, slot, contribution, agrees):
   Core.Packed{+contribution_shape, tensor} = contribution
   reset_checked(shape, contribution_shape, tensor, Layout.words_same(Shape.dimensions(contribution_shape), Shape.dimensions(shape)), {==}, agrees)
-
-# Wrong-shaped contribution: unequal dimensions select the refusal branch.
 
 def checked_wrong_shape(+shape: Shape.Shape, slot: Gradient.Slot, +contribution_shape: Shape.Shape,
   tensor: Core.Tensor<contribution_shape>, flag: Bool,

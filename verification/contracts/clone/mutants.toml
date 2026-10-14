@@ -1,0 +1,161 @@
+[clone-first-last-zeroed]
+file = "src/tensor/core.bend"
+before = '''
+def clone(-shape: Shape.Shape, tensor: Tensor<shape>) -> Tensor<shape> & Tensor<shape>:
+  TTensor{storage, valid} = tensor
+  clone_result(shape, storage, valid, Storage.clone(storage), {==})
+
+def length_result(-shape: Shape.Shape, -original: Storage.Storage,
+  -valid: {Lifecycle.logical_length(original) == Shape.logical_numel(Shape.dimensions(shape)) : Nat},
+  pair: Storage.Storage & Nat, -same: {pair == Storage.length(original) : Storage.Storage & Nat}) -> Tensor<shape> & Nat:
+  (storage, n) = pair
+  (TTensor{storage, Equal.trans(Nat, Lifecycle.logical_length(storage), Lifecycle.logical_length(original),
+    Shape.logical_numel(Shape.dimensions(shape)),
+    %Equal.sym(Storage.Storage & Nat, (storage, n), Storage.length(original), same) :
+      {Lifecycle.length_owner(_) == Lifecycle.logical_length(original) : Nat}
+    Lifecycle.length_preserved(original), valid)}, n)
+
+def length(-shape: Shape.Shape, tensor: Tensor<shape>) -> Tensor<shape> & Nat:
+  TTensor{storage, valid} = tensor
+  length_result(shape, storage, valid, Storage.length(storage), {==})'''
+after = '''
+def length_result(-shape: Shape.Shape, -original: Storage.Storage,
+  -valid: {Lifecycle.logical_length(original) == Shape.logical_numel(Shape.dimensions(shape)) : Nat},
+  pair: Storage.Storage & Nat, -same: {pair == Storage.length(original) : Storage.Storage & Nat}) -> Tensor<shape> & Nat:
+  (storage, n) = pair
+  (TTensor{storage, Equal.trans(Nat, Lifecycle.logical_length(storage), Lifecycle.logical_length(original),
+    Shape.logical_numel(Shape.dimensions(shape)),
+    %Equal.sym(Storage.Storage & Nat, (storage, n), Storage.length(original), same) :
+      {Lifecycle.length_owner(_) == Lifecycle.logical_length(original) : Nat}
+    Lifecycle.length_preserved(original), valid)}, n)
+
+def length(-shape: Shape.Shape, tensor: Tensor<shape>) -> Tensor<shape> & Nat:
+  TTensor{storage, valid} = tensor
+  length_result(shape, storage, valid, Storage.length(storage), {==})
+
+def drop_status(-shape: Shape.Shape, pair: Tensor<shape> & Result<&2, &2, Error, Unit>) -> Tensor<shape>:
+  (tensor, status) = pair
+  tensor
+
+def zero_at_end(-shape: Shape.Shape, pair: Tensor<shape> & Nat) -> Tensor<shape>:
+  (tensor, n) = pair
+  drop_status(shape, write_flat(shape, tensor, U32.sub(U32.from_nat(n), 1), 0.0))
+
+def zero_last(-shape: Shape.Shape, tensor: Tensor<shape>) -> Tensor<shape>:
+  zero_at_end(shape, length(shape, tensor))
+
+def first_last_zeroed(-shape: Shape.Shape, pair: Tensor<shape> & Tensor<shape>) -> Tensor<shape> & Tensor<shape>:
+  (first, second) = pair
+  (zero_last(shape, first), second)
+
+def clone(-shape: Shape.Shape, tensor: Tensor<shape>) -> Tensor<shape> & Tensor<shape>:
+  TTensor{storage, valid} = tensor
+  first_last_zeroed(shape, clone_result(shape, storage, valid, Storage.clone(storage), {==}))'''
+
+[clone-second-first-zeroed]
+file = "src/tensor/core.bend"
+before = '''
+def clone_result(-shape: Shape.Shape, -original: Storage.Storage,
+  -valid: {Lifecycle.logical_length(original) == Shape.logical_numel(Shape.dimensions(shape)) : Nat},
+  pair: Storage.Storage & Storage.Storage,
+  -same: {pair == Storage.clone(original) : Storage.Storage & Storage.Storage}) -> Tensor<shape> & Tensor<shape>:
+  (first, second) = pair
+  (TTensor{first, Equal.trans(Nat, Lifecycle.logical_length(first), Lifecycle.logical_length(original),
+    Shape.logical_numel(Shape.dimensions(shape)),
+    %Equal.sym(Storage.Storage & Storage.Storage, (first, second), Storage.clone(original), same) :
+      {Lifecycle.first_length(_) == Lifecycle.logical_length(original) : Nat}
+    Lifecycle.clone_first_length(original), valid)},
+  TTensor{second, Equal.trans(Nat, Lifecycle.logical_length(second), Lifecycle.logical_length(original),
+    Shape.logical_numel(Shape.dimensions(shape)),
+    %Equal.sym(Storage.Storage & Storage.Storage, (first, second), Storage.clone(original), same) :
+      {Lifecycle.second_length(_) == Lifecycle.logical_length(original) : Nat}
+    Lifecycle.clone_second_length(original), valid)})'''
+after = '''
+def drop_status(-shape: Shape.Shape, pair: Tensor<shape> & Result<&2, &2, Error, Unit>) -> Tensor<shape>:
+  (tensor, status) = pair
+  tensor
+
+def zero_first(-shape: Shape.Shape, tensor: Tensor<shape>) -> Tensor<shape>:
+  drop_status(shape, write_flat(shape, tensor, 0, 0.0))
+
+def clone_result(-shape: Shape.Shape, -original: Storage.Storage,
+  -valid: {Lifecycle.logical_length(original) == Shape.logical_numel(Shape.dimensions(shape)) : Nat},
+  pair: Storage.Storage & Storage.Storage,
+  -same: {pair == Storage.clone(original) : Storage.Storage & Storage.Storage}) -> Tensor<shape> & Tensor<shape>:
+  (first, second) = pair
+  (TTensor{first, Equal.trans(Nat, Lifecycle.logical_length(first), Lifecycle.logical_length(original),
+    Shape.logical_numel(Shape.dimensions(shape)),
+    %Equal.sym(Storage.Storage & Storage.Storage, (first, second), Storage.clone(original), same) :
+      {Lifecycle.first_length(_) == Lifecycle.logical_length(original) : Nat}
+    Lifecycle.clone_first_length(original), valid)},
+  zero_first(shape, TTensor{second, Equal.trans(Nat, Lifecycle.logical_length(second), Lifecycle.logical_length(original),
+    Shape.logical_numel(Shape.dimensions(shape)),
+    %Equal.sym(Storage.Storage & Storage.Storage, (first, second), Storage.clone(original), same) :
+      {Lifecycle.second_length(_) == Lifecycle.logical_length(original) : Nat}
+    Lifecycle.clone_second_length(original), valid)}))'''
+
+[length-off-by-one]
+file = "src/tensor/core.bend"
+before = '''
+def length_result(-shape: Shape.Shape, -original: Storage.Storage,
+  -valid: {Lifecycle.logical_length(original) == Shape.logical_numel(Shape.dimensions(shape)) : Nat},
+  pair: Storage.Storage & Nat, -same: {pair == Storage.length(original) : Storage.Storage & Nat}) -> Tensor<shape> & Nat:
+  (storage, n) = pair
+  (TTensor{storage, Equal.trans(Nat, Lifecycle.logical_length(storage), Lifecycle.logical_length(original),
+    Shape.logical_numel(Shape.dimensions(shape)),
+    %Equal.sym(Storage.Storage & Nat, (storage, n), Storage.length(original), same) :
+      {Lifecycle.length_owner(_) == Lifecycle.logical_length(original) : Nat}
+    Lifecycle.length_preserved(original), valid)}, n)'''
+after = '''
+def length_result(-shape: Shape.Shape, -original: Storage.Storage,
+  -valid: {Lifecycle.logical_length(original) == Shape.logical_numel(Shape.dimensions(shape)) : Nat},
+  pair: Storage.Storage & Nat, -same: {pair == Storage.length(original) : Storage.Storage & Nat}) -> Tensor<shape> & Nat:
+  (storage, n) = pair
+  (TTensor{storage, Equal.trans(Nat, Lifecycle.logical_length(storage), Lifecycle.logical_length(original),
+    Shape.logical_numel(Shape.dimensions(shape)),
+    %Equal.sym(Storage.Storage & Nat, (storage, n), Storage.length(original), same) :
+      {Lifecycle.length_owner(_) == Lifecycle.logical_length(original) : Nat}
+    Lifecycle.length_preserved(original), valid)}, 1n+n)'''
+
+[length-owner-first-zeroed]
+file = "src/tensor/core.bend"
+before = '''
+def length_result(-shape: Shape.Shape, -original: Storage.Storage,
+  -valid: {Lifecycle.logical_length(original) == Shape.logical_numel(Shape.dimensions(shape)) : Nat},
+  pair: Storage.Storage & Nat, -same: {pair == Storage.length(original) : Storage.Storage & Nat}) -> Tensor<shape> & Nat:
+  (storage, n) = pair
+  (TTensor{storage, Equal.trans(Nat, Lifecycle.logical_length(storage), Lifecycle.logical_length(original),
+    Shape.logical_numel(Shape.dimensions(shape)),
+    %Equal.sym(Storage.Storage & Nat, (storage, n), Storage.length(original), same) :
+      {Lifecycle.length_owner(_) == Lifecycle.logical_length(original) : Nat}
+    Lifecycle.length_preserved(original), valid)}, n)'''
+after = '''
+def drop_status(-shape: Shape.Shape, pair: Tensor<shape> & Result<&2, &2, Error, Unit>) -> Tensor<shape>:
+  (tensor, status) = pair
+  tensor
+
+def zero_first(-shape: Shape.Shape, tensor: Tensor<shape>) -> Tensor<shape>:
+  drop_status(shape, write_flat(shape, tensor, 0, 0.0))
+
+def length_result(-shape: Shape.Shape, -original: Storage.Storage,
+  -valid: {Lifecycle.logical_length(original) == Shape.logical_numel(Shape.dimensions(shape)) : Nat},
+  pair: Storage.Storage & Nat, -same: {pair == Storage.length(original) : Storage.Storage & Nat}) -> Tensor<shape> & Nat:
+  (storage, n) = pair
+  (zero_first(shape, TTensor{storage, Equal.trans(Nat, Lifecycle.logical_length(storage), Lifecycle.logical_length(original),
+    Shape.logical_numel(Shape.dimensions(shape)),
+    %Equal.sym(Storage.Storage & Nat, (storage, n), Storage.length(original), same) :
+      {Lifecycle.length_owner(_) == Lifecycle.logical_length(original) : Nat}
+    Lifecycle.length_preserved(original), valid)}), n)'''
+
+[count-off-by-one]
+file = "src/tensor/core.bend"
+before = '''
+def count(dynamic: Dynamic) -> Dynamic & U32:
+  match dynamic:
+    case Packed{+shape, tensor}:
+      (Packed{shape, tensor}, Shape.count(shape))'''
+after = '''
+def count(dynamic: Dynamic) -> Dynamic & U32:
+  match dynamic:
+    case Packed{+shape, tensor}:
+      (Packed{shape, tensor}, U32.add(Shape.count(shape), 1))'''

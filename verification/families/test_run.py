@@ -5,11 +5,12 @@ from pathlib import Path
 
 from tools.common import GateError
 
-r1b = importlib.import_module("verification.r1-b.run")
+contracts = importlib.import_module("verification.contracts.run")
 controls = importlib.import_module("verification.families.controls")
 pointwise = importlib.import_module("verification.families.pointwise_controls").FAMILY
 fold = importlib.import_module("verification.families.fold_controls").FAMILY
-FAMILIES = (pointwise, fold)
+reduce = importlib.import_module("verification.families.reduce_controls").FAMILY
+FAMILIES = (pointwise, fold, reduce)
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -44,14 +45,14 @@ class PointwiseControlTests(unittest.TestCase):
                     text = (target / path).read_text()
                     self.assertEqual(text, (ROOT / path).read_text().replace(old, new))
                     self.assertTrue((target / family.entry_path).exists())
-                    self.assertTrue((target / family.checked(label)).exists())
+                    self.assertTrue((target / family.rejecting_module(label)).exists())
                     for name in family.operations - {path}:
                         self.assertEqual(
                             (target / name).read_text(), (ROOT / name).read_text()
                         )
 
-    def test_failure_mutants_are_checked_by_the_consumers(self):
-        checked = {label: fold.checked(label) for label in fold.mutants}
+    def test_each_mutant_is_checked_by_its_module(self):
+        checked = {label: fold.rejecting_module(label) for label in fold.mutants}
         failures = {"failed-step-done", "pair-left-failed-done"}
         failures.add("pair-right-failed-swapped")
         for label, path in checked.items():
@@ -62,6 +63,10 @@ class PointwiseControlTests(unittest.TestCase):
             )
             self.assertEqual(path, expected, label)
         self.assertTrue(all(not site.consumer for site in pointwise.sites.values()))
+        for label in reduce.mutants:
+            self.assertEqual(
+                reduce.rejecting_module(label), "src/autograd/PROOF.bend", label
+            )
 
     def test_false_twin_changes_only_the_statement(self):
         for family in FAMILIES:
@@ -83,14 +88,16 @@ class PointwiseControlTests(unittest.TestCase):
             "sub_witness : {(f x) == expected_sub : (Maybe -.Q2 -F32)} =\n  proof\n"
         )
         twin = pointwise.kernel_twin(
-            text, "sub_witness", r1b.catalog, r1b.replace_declaration
+            text, "sub_witness", contracts.catalog, contracts.replace_declaration
         )
-        header, body = r1b.catalog(twin)["sub_witness"]
+        header, body = contracts.catalog(twin)["sub_witness"]
         self.assertEqual(
             header, "sub_witness : {(f x) == swapped_sub : (Maybe -.Q2 -F32)}"
         )
         self.assertEqual(body, "  proof\n")
-        self.assertEqual(r1b.catalog(twin)["expected_sub"], ("expected_sub : T", "  a"))
+        self.assertEqual(
+            contracts.catalog(twin)["expected_sub"], ("expected_sub : T", "  a")
+        )
 
     def test_source_reason_requires_the_paired_wrong_value(self):
         value = "Some{F32.sub(5.0, 20.0)}"
@@ -158,13 +165,13 @@ class PointwiseControlTests(unittest.TestCase):
         )
         instance = positive.replace("  b\n", "  c\n")
         self.assertEqual(
-            pointwise.replaced(positive, instance, r1b.catalog, "swapped-maps"),
+            pointwise.replaced(positive, instance, contracts.catalog, "swapped-maps"),
             "pointwise.step.qvvvvv_1",
         )
         with self.assertRaises(GateError):
-            pointwise.replaced(positive, instance, r1b.catalog, "wrong-input-map")
+            pointwise.replaced(positive, instance, contracts.catalog, "wrong-input-map")
         with self.assertRaises(GateError):
-            pointwise.replaced(positive, positive, r1b.catalog, "swapped-maps")
+            pointwise.replaced(positive, positive, contracts.catalog, "swapped-maps")
 
 
 if __name__ == "__main__":

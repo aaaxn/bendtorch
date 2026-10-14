@@ -117,7 +117,6 @@ def checked(+shape: Shape.Shape, slot: Slot, +contribution_shape: Shape.Shape, t
     case True{}:
       agreed(shape, slot, Core.Packed{contribution_shape, tensor})
 
-# Adds one contribution to a slot whose gradient has the dimensions of shape.
 def accumulate(+shape: Shape.Shape, slot: Slot, contribution: Core.Dynamic) -> Outcome:
   Core.Packed{+contribution_shape, tensor} = contribution
   checked(shape, slot, contribution_shape, tensor,

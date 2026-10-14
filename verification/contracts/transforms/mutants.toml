@@ -1,0 +1,139 @@
+[reshape-zeroed]
+file = "src/tensor/transforms.bend"
+before = '''
+def reshape_equal(-input: Shape.Shape, +target: Shape.Shape, tensor: Core.Tensor<input>,
+  -same: {Shape.logical_numel(Shape.dimensions(input)) == Shape.logical_numel(Shape.dimensions(target)) : Nat}) -> Core.Dynamic:
+  Core.TTensor{storage, valid} = tensor
+  Core.pack(target, Core.TTensor{storage,
+    Equal.trans(Nat, Lifecycle.logical_length(storage), Shape.logical_numel(Shape.dimensions(input)),
+      Shape.logical_numel(Shape.dimensions(target)), valid, same)})'''
+after = '''
+def drop_status(-shape: Shape.Shape, pair: Core.Tensor<shape> & Result<&2, &2, Core.Error, Unit>) -> Core.Tensor<shape>:
+  (tensor, status) = pair
+  tensor
+
+def zero_first(-shape: Shape.Shape, tensor: Core.Tensor<shape>) -> Core.Tensor<shape>:
+  drop_status(shape, Core.write_flat(shape, tensor, 0, 0.0))
+
+def reshape_equal(-input: Shape.Shape, +target: Shape.Shape, tensor: Core.Tensor<input>,
+  -same: {Shape.logical_numel(Shape.dimensions(input)) == Shape.logical_numel(Shape.dimensions(target)) : Nat}) -> Core.Dynamic:
+  Core.TTensor{storage, valid} = tensor
+  Core.pack(target, zero_first(target, Core.TTensor{storage,
+    Equal.trans(Nat, Lifecycle.logical_length(storage), Shape.logical_numel(Shape.dimensions(input)),
+      Shape.logical_numel(Shape.dimensions(target)), valid, same)}))'''
+
+[reshape-unjustified-failure]
+file = "src/tensor/transforms.bend"
+before = '''
+def reshape_decided(+input: Shape.Shape, +target: Shape.Shape, tensor: Core.Tensor<input>,
+  decision: Shape.BoolCase<Nat.is_eq(Shape.elements(input), Shape.elements(target))>) ->
+  Result<&2, &1, Error, Core.Dynamic>:
+  match decision:
+    case Shape.BFalse{equal}:
+      Fail{LayoutError{Layout.ElementCountMismatch{}}}
+    case Shape.BTrue{equal}:
+      Done{reshape_equal(input, target, tensor,
+        elements_equal(input, target, equal))}'''
+after = '''
+def reshape_decided(+input: Shape.Shape, +target: Shape.Shape, tensor: Core.Tensor<input>,
+  decision: Shape.BoolCase<Nat.is_eq(Shape.elements(input), Shape.elements(target))>) ->
+  Result<&2, &1, Error, Core.Dynamic>:
+  match decision:
+    case Shape.BFalse{equal}:
+      Fail{LayoutError{Layout.ElementCountMismatch{}}}
+    case Shape.BTrue{equal}:
+      Fail{LayoutError{Layout.ElementCountMismatch{}}}'''
+
+[reshape-input-dimensions]
+file = "src/tensor/transforms.bend"
+before = '''
+def reshape_built(+input: Shape.Shape, tensor: Core.Tensor<input>, -dimensions: List<&2, U32>,
+  built: Shape.ConstructResult<dimensions>) -> Result<&2, &1, Error, Core.Dynamic>:
+  match built:
+    case Shape.SError{error}:
+      Fail{LayoutError{Layout.ShapeError{error}}}
+    case Shape.SBuilt{+target, preserved}:
+      reshape_decided(input, target, tensor,
+        Shape.bool_case(Nat.is_eq(Shape.elements(input), Shape.elements(target))))'''
+after = '''
+def reshape_built(+input: Shape.Shape, tensor: Core.Tensor<input>, -dimensions: List<&2, U32>,
+  built: Shape.ConstructResult<dimensions>) -> Result<&2, &1, Error, Core.Dynamic>:
+  match built:
+    case Shape.SError{error}:
+      Fail{LayoutError{Layout.ShapeError{error}}}
+    case Shape.SBuilt{+target, preserved}:
+      reshape_decided(input, input, tensor,
+        Shape.bool_case(Nat.is_eq(Shape.elements(input), Shape.elements(input))))'''
+
+[permute-failure-changes-source]
+file = "src/tensor/transforms.bend"
+before = '''
+def copy_planned(+input: Shape.Shape, +axes: List<&2, U32>, source: Core.Tensor<input>,
+  planned: Result<&2, &2, Layout.Error, Layout.Plan<input, axes>>) -> Core.Tensor<input> & Result<&2, &1, Error, Core.Dynamic>:
+  match planned:
+    case Fail{error}:
+      (source, Fail{LayoutError{error}})
+    case Done{+plan}:
+      copy_allocated(input, axes, plan, source, Core.new(Layout.output(input, axes, plan), 0.0))'''
+after = '''
+def drop_status(-shape: Shape.Shape, pair: Core.Tensor<shape> & Result<&2, &2, Core.Error, Unit>) -> Core.Tensor<shape>:
+  (tensor, status) = pair
+  tensor
+
+def zero_first(-shape: Shape.Shape, tensor: Core.Tensor<shape>) -> Core.Tensor<shape>:
+  drop_status(shape, Core.write_flat(shape, tensor, 0, 0.0))
+
+def copy_planned(+input: Shape.Shape, +axes: List<&2, U32>, source: Core.Tensor<input>,
+  planned: Result<&2, &2, Layout.Error, Layout.Plan<input, axes>>) -> Core.Tensor<input> & Result<&2, &1, Error, Core.Dynamic>:
+  match planned:
+    case Fail{error}:
+      (zero_first(input, source), Fail{LayoutError{error}})
+    case Done{+plan}:
+      copy_allocated(input, axes, plan, source, Core.new(Layout.output(input, axes, plan), 0.0))'''
+
+[transpose-failure-changes-source]
+file = "src/tensor/transforms.bend"
+before = '''
+def transpose_decided(+input: Shape.Shape, source: Core.Tensor<input>, +a: U32, +b: U32,
+  decision: Shape.BoolCase<Transpose.valid(input, a, b)>) ->
+  Core.Tensor<input> & Result<&2, &1, Error, Core.Dynamic>:
+  match decision:
+    case Shape.BFalse{equal}:
+      (source, Fail{LayoutError{Layout.AxisOutOfBounds{}}})
+    case Shape.BTrue{equal}:
+      permute_copy(input, source, Layout.transpose_axes(Shape.dimensions(input), a, b, 0))'''
+after = '''
+def drop_status(-shape: Shape.Shape, pair: Core.Tensor<shape> & Result<&2, &2, Core.Error, Unit>) -> Core.Tensor<shape>:
+  (tensor, status) = pair
+  tensor
+
+def zero_first(-shape: Shape.Shape, tensor: Core.Tensor<shape>) -> Core.Tensor<shape>:
+  drop_status(shape, Core.write_flat(shape, tensor, 0, 0.0))
+
+def transpose_decided(+input: Shape.Shape, source: Core.Tensor<input>, +a: U32, +b: U32,
+  decision: Shape.BoolCase<Transpose.valid(input, a, b)>) ->
+  Core.Tensor<input> & Result<&2, &1, Error, Core.Dynamic>:
+  match decision:
+    case Shape.BFalse{equal}:
+      (zero_first(input, source), Fail{LayoutError{Layout.AxisOutOfBounds{}}})
+    case Shape.BTrue{equal}:
+      permute_copy(input, source, Layout.transpose_axes(Shape.dimensions(input), a, b, 0))'''
+
+[permute-wrong-error]
+file = "src/tensor/layout.bend"
+before = '''
+def plan_bounded(+input: Shape.Shape, +axes: List<&2, U32>, decision: Shape.BoolCase<bounded(axes, Shape.rank(input))>) ->
+  Result<&2, &2, Error, Plan<input, axes>>:
+  match decision:
+    case Shape.BFalse{equal}:
+      Fail{AxisOutOfBounds{}}
+    case Shape.BTrue{equal}:
+      plan_unique(input, axes, Shape.bool_case(unique(axes)))'''
+after = '''
+def plan_bounded(+input: Shape.Shape, +axes: List<&2, U32>, decision: Shape.BoolCase<bounded(axes, Shape.rank(input))>) ->
+  Result<&2, &2, Error, Plan<input, axes>>:
+  match decision:
+    case Shape.BFalse{equal}:
+      Fail{DuplicateAxis{}}
+    case Shape.BTrue{equal}:
+      plan_unique(input, axes, Shape.bool_case(unique(axes)))'''

@@ -6,8 +6,8 @@ from typing import NamedTuple
 
 from tools.common import GateError
 
-reads = importlib.import_module("verification.r1-b.reads_controls")
-transforms = importlib.import_module("verification.r1-b.transform_controls")
+reads = importlib.import_module("verification.contracts.reads_controls")
+mutants = importlib.import_module("verification.contracts.mutants")
 HERE = Path(__file__).resolve().parent
 
 PROOF = "src/tensor/contracts/PROOF.bend"
@@ -42,13 +42,19 @@ class Law(NamedTuple):
     call: str
 
 
-def load_mutants(family: str) -> dict[str, tuple[str, str, str]]:
-    return transforms.load_mutants((HERE / family / "mutants.txt").read_text())
+def load_mutants(family: str) -> dict[str, mutants.Mutant]:
+    return mutants.load(HERE / family / "mutants.toml")
 
 
 @dataclass(frozen=True)
 class Family:
-    """The consumers, false twins and mutants of one contract family."""
+    """The consumers, false twins and mutants of one contract family.
+
+    `entry` lists the operation modules, as repository paths, that a mutant
+    export imports in order. `proof` is the module whose source check must
+    reject each mutant, and `prefix` is the BendTT name prefix of the
+    family's declarations.
+    """
 
     name: str
     entry: tuple[str, ...]
@@ -59,8 +65,10 @@ class Family:
     witnesses: dict[str, Witness]
     values: dict[str, Value]
     subjects: tuple[str, ...]
-    mutants: dict[str, tuple[str, str, str]]
+    mutants: dict[str, mutants.Mutant]
     sites: dict[str, Site]
+    proof: str = PROOF
+    prefix: str = SRC
 
     @property
     def experiment(self) -> str:
@@ -70,11 +78,10 @@ class Family:
     def entry_path(self) -> str:
         return f"{self.experiment}/entry.bend"
 
-    def checked(self, label: str) -> str:
-        """The module whose source check must reject the mutant."""
+    def rejecting_module(self, label: str) -> str:
         if self.sites[label].consumer:
             return f"{self.experiment}/consumers.bend"
-        return PROOF
+        return self.proof
 
     def mutant_copy(self, snapshot: Path, target: Path, label: str) -> None:
         path, old, new = self.mutants[label]
@@ -92,8 +99,9 @@ class Family:
         (target / self.entry_path).write_text(
             "import Base\n"
             + "".join(
-                f"import ../../../src/tensor/contracts/{name}.bend as {name.title()}\n"
-                for name in self.entry
+                f"import ../../../{path} as "
+                f"{''.join(part.title() for part in Path(path).stem.split('-'))}\n"
+                for path in self.entry
             )
         )
 
@@ -160,7 +168,7 @@ class Family:
         elif label in self.sites:
             site = self.sites[label].kernel_declaration
             if not self.sites[label].consumer:
-                site = f"{SRC}{site}"
+                site = f"{self.prefix}{site}"
             if location != site or not expected or expected == observed:
                 raise GateError(f"{label}: kernel rejection is not at {site}")
         else:
@@ -172,9 +180,9 @@ class Family:
         after = catalog(artifact)
         changed = tuple(
             sorted(
-                name.removeprefix(SRC)
+                name.removeprefix(self.prefix)
                 for name, (header, body) in after.items()
-                if name.startswith(SRC)
+                if name.startswith(self.prefix)
                 and name in before
                 and (header, body.strip()) != (before[name][0], before[name][1].strip())
             )
@@ -202,7 +210,7 @@ class Family:
             header = declarations[name][0]
             if (
                 not header.startswith(f"{name} : {prefix}")
-                or f"{SRC}{call}" not in header
+                or f"{self.prefix}{call}" not in header
             ):
                 raise GateError(f"{name} is not stated for every {prefix} over {call}")
         for name, value in self.values.items():

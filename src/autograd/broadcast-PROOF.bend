@@ -292,9 +292,6 @@ def Laws.broadcast_valid_success(input, target, alignment):
   planned_success(shape, tensor, target, Shape.broadcast_checked(shape, target), PlanProof.broadcast_checked_plan(shape, target),
     PlanProof.broadcast_checked_complete(shape, target, Shape.dimensions(target), alignment, rank_of(target), capacity_of(target)), alignment)
 
-# Error identity: a planner failure is passed through, and a plan whose output
-# is not the target selects NotBroadcastable.
-
 def Laws.broadcast_shape_error(input, target, error, rejected):
   Core.Packed{+shape, tensor} = input
   %Equal.sym(Result<&2, &2, Shape.Error, Shape.BroadcastPlan>, Shape.broadcast_checked(shape, target), Fail{error}, rejected) :

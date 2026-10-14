@@ -665,8 +665,6 @@ def seek_left(+p: Nat, +k: Nat, +left: {Nat.add(1n+p, k) == 20n : Nat}) -> {Nat.
   %Equal.sym(Nat, Nat.add(p, 1n+k), 1n+Nat.add(p, k), Arith.add_succ(p, k)) : {_ == 20n : Nat}
   left
 
-# depth_seek doubles its capacity until n fits; with twenty doublings left at
-# depth zero it stops at depth twenty at the latest, where 2^20 >= n.
 def seek_bounds(+fuel: Nat, +n: Nat, +k: Nat, +c: Nat, done: Bool, +decided: {done == Nat.is_le(n, c) : Bool},
   +sized: {c == Model.capacity(k) : Nat}, +left: {Nat.add(fuel, k) == 20n : Nat},
   +limit: {Nat.is_le(n, Model.capacity(20n)) == True{} : Bool}, +positive: {Nat.is_lt(0n, n) == True{} : Bool}) ->

@@ -10,129 +10,124 @@ import ./pointwise-proof.bend as PointwiseProof
 import ./fold.bend as Fold
 import ./fold-records.bend as Records
 
-def Shaped(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat,
+def Shaped(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~keep: P -> Nat -> Bool,
   +fuel: Nat, +operation: O, +plan: P, +shape: Shape.Shape, +cursor: Nat, -storage: Storage.Storage, +accumulator: F32,
   -Q: Core.Dynamic & Result<&2, &1, Core.Error, F32> -> Type) -> Type:
   @-fits: {Lifecycle.logical_length(storage) == Shape.logical_numel(Shape.dimensions(shape)) : Nat} ->
-    Q(Fold.loop(~O, ~g, ~P, ~ia, fuel, operation, plan, cursor, Core.Packed{shape, Core.TTensor{storage, fits}}, accumulator))
+    Q(Fold.loop(~O, ~g, ~P, ~ia, ~keep, fuel, operation, plan, cursor, Core.Packed{shape, Core.TTensor{storage, fits}}, accumulator))
 
-def Start(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat,
+def Start(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~keep: P -> Nat -> Bool,
   +fuel: Nat, +operation: O, +plan: P, +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +cursor: Nat,
   -Q: Core.Dynamic & Result<&2, &1, Core.Error, F32> -> Type) -> Type:
-  Shaped(~O, ~g, ~P, ~ia, fuel, operation, plan, shape, cursor, PointwiseProof.input_storage(~P, ~ia, plan, shape, fill, ops, cursor),
-    Fold.total(~O, ~g, ~P, ~ia, operation, plan, shape, fill, ops, cursor), Q)
+  Shaped(~O, ~g, ~P, ~ia, ~keep, fuel, operation, plan, shape, cursor, PointwiseProof.input_storage(~P, ~ia, plan, shape, fill, ops, cursor),
+    Fold.total(~O, ~g, ~P, ~ia, ~keep, operation, plan, shape, fill, ops, cursor), Q)
 
-def Final(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat,
+def Final(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~keep: P -> Nat -> Bool,
   +operation: O, +plan: P, +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +count: Nat,
   -Q: Core.Dynamic & Result<&2, &1, Core.Error, F32> -> Type) -> Type:
   @-fits: {Lifecycle.logical_length(PointwiseProof.input_storage(~P, ~ia, plan, shape, fill, ops, count)) ==
     Shape.logical_numel(Shape.dimensions(shape)) : Nat} ->
     Q((Core.Packed{shape, Core.TTensor{PointwiseProof.input_storage(~P, ~ia, plan, shape, fill, ops, count), fits}},
-      Done{Fold.total(~O, ~g, ~P, ~ia, operation, plan, shape, fill, ops, count)}))
+      Done{Fold.total(~O, ~g, ~P, ~ia, ~keep, operation, plan, shape, fill, ops, count)}))
 
-def final_at(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat,
+def final_at(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~keep: P -> Nat -> Bool,
   +operation: O, +plan: P, +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, -end: Nat, -count: Nat,
   same: {end == count : Nat}, -Q: Core.Dynamic & Result<&2, &1, Core.Error, F32> -> Type,
-  h: Final(~O, ~g, ~P, ~ia, operation, plan, shape, fill, ops, end, Q)) ->
-  Final(~O, ~g, ~P, ~ia, operation, plan, shape, fill, ops, count, Q):
-  %same : Final(~O, ~g, ~P, ~ia, operation, plan, shape, fill, ops, _, Q)
+  h: Final(~O, ~g, ~P, ~ia, ~keep, operation, plan, shape, fill, ops, end, Q)) ->
+  Final(~O, ~g, ~P, ~ia, ~keep, operation, plan, shape, fill, ops, count, Q):
+  %same : Final(~O, ~g, ~P, ~ia, ~keep, operation, plan, shape, fill, ops, _, Q)
   h
 
-def shift(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat,
+def shift(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~keep: P -> Nat -> Bool,
   +rest: Nat, +operation: O, +plan: P, +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +cursor: Nat,
   -Q: Core.Dynamic & Result<&2, &1, Core.Error, F32> -> Type,
-  next: Start(~O, ~g, ~P, ~ia, rest, operation, plan, shape, fill, ops, 1n+cursor, Q)) ->
-  Shaped(~O, ~g, ~P, ~ia, rest, operation, plan, shape, 1n+cursor,
+  next: Start(~O, ~g, ~P, ~ia, ~keep, rest, operation, plan, shape, fill, ops, 1n+cursor, Q)) ->
+  Shaped(~O, ~g, ~P, ~ia, ~keep, rest, operation, plan, shape, 1n+cursor,
     Replayed.storage(shape, fill, Replayed.snoc(List.append(&2, StorageLaws.Op, ops, Pointwise.reads(~P, ~ia, plan, cursor)),
       StorageLaws.Read{U32.from_nat(ia(plan, cursor))})),
-    g(operation, Fold.total(~O, ~g, ~P, ~ia, operation, plan, shape, fill, ops, cursor),
+    Fold.chosen(~O, ~g, operation, keep(plan, cursor), Fold.total(~O, ~g, ~P, ~ia, ~keep, operation, plan, shape, fill, ops, cursor),
       Replayed.value(shape, fill, List.append(&2, StorageLaws.Op, ops, Pointwise.reads(~P, ~ia, plan, cursor)), U32.from_nat(ia(plan, cursor)))),
     Q):
   +read = {StorageLaws.Read{U32.from_nat(ia(plan, cursor))} : StorageLaws.Op}
   +seen = List.append(&2, StorageLaws.Op, ops, Pointwise.reads(~P, ~ia, plan, cursor))
-  +before = Fold.total(~O, ~g, ~P, ~ia, operation, plan, shape, fill, ops, cursor)
+  +before = Fold.total(~O, ~g, ~P, ~ia, ~keep, operation, plan, shape, fill, ops, cursor)
   +x = Replayed.value(shape, fill, seen, U32.from_nat(ia(plan, cursor)))
   +original = Replayed.value(shape, fill, ops, U32.from_nat(ia(plan, cursor)))
   %Equal.cong(List<&2, StorageLaws.Op>, Storage.Storage, history => Replayed.storage(shape, fill, history),
     List.append(&2, StorageLaws.Op, ops, Replayed.snoc(Pointwise.reads(~P, ~ia, plan, cursor), read)), Replayed.snoc(seen, read),
     PointwiseProof.append_snoc(ops, Pointwise.reads(~P, ~ia, plan, cursor), read)) :
-    Shaped(~O, ~g, ~P, ~ia, rest, operation, plan, shape, 1n+cursor, _, g(operation, before, x), Q)
-  %Equal.cong(F32, F32, w => g(operation, before, w), original, x,
+    Shaped(~O, ~g, ~P, ~ia, ~keep, rest, operation, plan, shape, 1n+cursor, _, Fold.chosen(~O, ~g, operation, keep(plan, cursor), before, x), Q)
+  %Equal.cong(F32, F32, w => Fold.chosen(~O, ~g, operation, keep(plan, cursor), before, w), original, x,
     Equal.sym(F32, x, original, PointwiseProof.value_reads(~P, ~ia, plan, cursor, shape, fill, ops, U32.from_nat(ia(plan, cursor))))) :
-    Shaped(~O, ~g, ~P, ~ia, rest, operation, plan, shape, 1n+cursor, PointwiseProof.input_storage(~P, ~ia, plan, shape, fill, ops, 1n+cursor), _, Q)
+    Shaped(~O, ~g, ~P, ~ia, ~keep, rest, operation, plan, shape, 1n+cursor, PointwiseProof.input_storage(~P, ~ia, plan, shape, fill, ops, 1n+cursor), _, Q)
   next
 
-def step_lift(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat,
+def step_lift(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~keep: P -> Nat -> Bool,
   +rest: Nat, +operation: O, +plan: P, +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +cursor: Nat,
   inside: {Nat.is_lt(U32.to_nat(U32.from_nat(ia(plan, cursor))), Shape.logical_numel(Shape.dimensions(shape))) == True{} : Bool},
   -Q: Core.Dynamic & Result<&2, &1, Core.Error, F32> -> Type,
-  next: Start(~O, ~g, ~P, ~ia, rest, operation, plan, shape, fill, ops, 1n+cursor, Q)) ->
-  Start(~O, ~g, ~P, ~ia, 1n+rest, operation, plan, shape, fill, ops, cursor, Q):
+  next: Start(~O, ~g, ~P, ~ia, ~keep, rest, operation, plan, shape, fill, ops, 1n+cursor, Q)) ->
+  Start(~O, ~g, ~P, ~ia, ~keep, 1n+rest, operation, plan, shape, fill, ops, cursor, Q):
   +seen = List.append(&2, StorageLaws.Op, ops, Pointwise.reads(~P, ~ia, plan, cursor))
-  +before = Fold.total(~O, ~g, ~P, ~ia, operation, plan, shape, fill, ops, cursor)
+  +before = Fold.total(~O, ~g, ~P, ~ia, ~keep, operation, plan, shape, fill, ops, cursor)
   fits =>
     Replayed.read_lift(shape, fill, seen, fits, U32.from_nat(ia(plan, cursor)), inside,
-      pair => Q(Fold.step(~O, ~g, operation,
-        input => value => Fold.loop(~O, ~g, ~P, ~ia, rest, operation, plan, 1n+cursor, input, value),
+      pair => Q(Fold.step(~O, ~g, operation, keep(plan, cursor),
+        input => value => Fold.loop(~O, ~g, ~P, ~ia, ~keep, rest, operation, plan, 1n+cursor, input, value),
         before, Core.read_dynamic_result(shape, pair))),
-      after => shift(~O, ~g, ~P, ~ia, rest, operation, plan, shape, fill, ops, cursor, Q, next)(after))
+      after => shift(~O, ~g, ~P, ~ia, ~keep, rest, operation, plan, shape, fill, ops, cursor, Q, next)(after))
 
-def loop_lift(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat,
+def loop_lift(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~keep: P -> Nat -> Bool,
   +fuel: Nat, +operation: O, +plan: P, +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +cursor: Nat, +count: Nat,
   +steps: {Nat.add(cursor, fuel) == count : Nat},
   +inside: {Pointwise.inside(~P, ~ia, plan, count, Shape.logical_numel(Shape.dimensions(shape))) == True{} : Bool},
   -Q: Core.Dynamic & Result<&2, &1, Core.Error, F32> -> Type,
-  h: Final(~O, ~g, ~P, ~ia, operation, plan, shape, fill, ops, count, Q)) ->
-  Start(~O, ~g, ~P, ~ia, fuel, operation, plan, shape, fill, ops, cursor, Q):
+  h: Final(~O, ~g, ~P, ~ia, ~keep, operation, plan, shape, fill, ops, count, Q)) ->
+  Start(~O, ~g, ~P, ~ia, ~keep, fuel, operation, plan, shape, fill, ops, cursor, Q):
   match fuel:
     case 0n:
-      final_at(~O, ~g, ~P, ~ia, operation, plan, shape, fill, ops, count, cursor,
+      final_at(~O, ~g, ~P, ~ia, ~keep, operation, plan, shape, fill, ops, count, cursor,
         Equal.sym(Nat, cursor, count, PointwiseProof.steps_done(cursor, count, steps)), Q, h)
     case 1n+rest:
       +below = PointwiseProof.cursor_below(cursor, rest, count, steps)
-      step_lift(~O, ~g, ~P, ~ia, rest, operation, plan, shape, fill, ops, cursor,
+      step_lift(~O, ~g, ~P, ~ia, ~keep, rest, operation, plan, shape, fill, ops, cursor,
         PointwiseProof.word_inside(ia(plan, cursor), shape,
           PointwiseProof.inside_at(~P, ~ia, plan, count, Shape.logical_numel(Shape.dimensions(shape)), inside, cursor, below)),
-        Q, loop_lift(~O, ~g, ~P, ~ia, rest, operation, plan, shape, fill, ops, 1n+cursor, count,
+        Q, loop_lift(~O, ~g, ~P, ~ia, ~keep, rest, operation, plan, shape, fill, ops, 1n+cursor, count,
           PointwiseProof.steps_next(cursor, rest, count, steps), inside, Q, h))
 
-def start_cast(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat,
+def start_cast(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~keep: P -> Nat -> Bool,
   +fuel: Nat, +operation: O, +plan: P, +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>,
   -Q: Core.Dynamic & Result<&2, &1, Core.Error, F32> -> Type,
-  start: Start(~O, ~g, ~P, ~ia, fuel, operation, plan, shape, fill, ops, 0n, Q)) ->
-  Shaped(~O, ~g, ~P, ~ia, fuel, operation, plan, shape, 0n, Replayed.storage(shape, fill, ops), 0.0, Q):
+  start: Start(~O, ~g, ~P, ~ia, ~keep, fuel, operation, plan, shape, fill, ops, 0n, Q)) ->
+  Shaped(~O, ~g, ~P, ~ia, ~keep, fuel, operation, plan, shape, 0n, Replayed.storage(shape, fill, ops), 0.0, Q):
   %Equal.cong(List<&2, StorageLaws.Op>, Storage.Storage, history => Replayed.storage(shape, fill, history),
     List.append(&2, StorageLaws.Op, ops, Nil{}), ops, PointwiseProof.append_nil(ops)) :
-    Shaped(~O, ~g, ~P, ~ia, fuel, operation, plan, shape, 0n, _, 0.0, Q)
+    Shaped(~O, ~g, ~P, ~ia, ~keep, fuel, operation, plan, shape, 0n, _, 0.0, Q)
   start
 
-# The family result: for a replayed input whose index map stays in bounds,
-# the loop returns the input with the reads it made appended to its history,
-# and the fold of the words it read.
-def run_lift(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat,
+def run_lift(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~keep: P -> Nat -> Bool,
   +operation: O, +plan: P, +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +count: Nat,
   +inside: {Pointwise.inside(~P, ~ia, plan, count, Shape.logical_numel(Shape.dimensions(shape))) == True{} : Bool},
   -Q: Core.Dynamic & Result<&2, &1, Core.Error, F32> -> Type,
-  h: Final(~O, ~g, ~P, ~ia, operation, plan, shape, fill, ops, count, Q)) ->
-  Shaped(~O, ~g, ~P, ~ia, count, operation, plan, shape, 0n, Replayed.storage(shape, fill, ops), 0.0, Q):
-  start_cast(~O, ~g, ~P, ~ia, count, operation, plan, shape, fill, ops, Q,
-    loop_lift(~O, ~g, ~P, ~ia, count, operation, plan, shape, fill, ops, 0n, count, {==}, inside, Q, h))
+  h: Final(~O, ~g, ~P, ~ia, ~keep, operation, plan, shape, fill, ops, count, Q)) ->
+  Shaped(~O, ~g, ~P, ~ia, ~keep, count, operation, plan, shape, 0n, Replayed.storage(shape, fill, ops), 0.0, Q):
+  start_cast(~O, ~g, ~P, ~ia, ~keep, count, operation, plan, shape, fill, ops, Q,
+    loop_lift(~O, ~g, ~P, ~ia, ~keep, count, operation, plan, shape, fill, ops, 0n, count, {==}, inside, Q, h))
 
-# The generic fold contract: one proof for every step function and every
-# in-bounds index map.
-def contract(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat,
+def contract(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~keep: P -> Nat -> Bool,
   +operation: O, +plan: P, +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +count: Nat,
   +inside: {Pointwise.inside(~P, ~ia, plan, count, Shape.logical_numel(Shape.dimensions(shape))) == True{} : Bool},
   -fits: {Lifecycle.logical_length(Replayed.storage(shape, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}) ->
-  Records.FoldContract<shape, Fold.total(~O, ~g, ~P, ~ia, operation, plan, shape, fill, ops, count),
+  Records.FoldContract<shape, Fold.total(~O, ~g, ~P, ~ia, ~keep, operation, plan, shape, fill, ops, count),
     other => Replayed.value(shape, fill, ops, other),
-    Fold.run(~O, ~g, ~P, ~ia, operation, plan, count, Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}})>:
+    Fold.run(~O, ~g, ~P, ~ia, ~keep, operation, plan, count, Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}})>:
   Records.FoldContract{
-    run_lift(~O, ~g, ~P, ~ia, operation, plan, shape, fill, ops, count, inside,
-      result => {Fold.value(result) == Some{Fold.total(~O, ~g, ~P, ~ia, operation, plan, shape, fill, ops, count)} : Maybe<&2, F32>},
+    run_lift(~O, ~g, ~P, ~ia, ~keep, operation, plan, shape, fill, ops, count, inside,
+      result => {Fold.value(result) == Some{Fold.total(~O, ~g, ~P, ~ia, ~keep, operation, plan, shape, fill, ops, count)} : Maybe<&2, F32>},
       after => {==})(fits),
     other => within =>
-      run_lift(~O, ~g, ~P, ~ia, operation, plan, shape, fill, ops, count, inside,
+      run_lift(~O, ~g, ~P, ~ia, ~keep, operation, plan, shape, fill, ops, count, inside,
         result => {Fold.input_point(result, other) == Some{Replayed.value(shape, fill, ops, other)} : Maybe<&2, F32>},
         after => PointwiseProof.input_point(~P, ~ia, plan, count, shape, fill, ops, after, other, within))(fits)}
 
@@ -285,8 +280,6 @@ def pair_start_cast(~O: Data, ~g: O -> F32 -> F32 -> F32 -> F32, ~P: Data, ~ia: 
       PointwiseProof.input_storage(~P, ~ia, plan, left, left_fill, left_ops, 0n), _, 0.0, Q)
   start
 
-# The pair result: both inputs come back with the reads appended to their
-# histories, and the fold of the pairs of words read.
 def pair_run_lift(~O: Data, ~g: O -> F32 -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~ib: P -> Nat -> Nat,
   +operation: O, +plan: P, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
   +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +count: Nat,
@@ -300,8 +293,6 @@ def pair_run_lift(~O: Data, ~g: O -> F32 -> F32 -> F32 -> F32, ~P: Data, ~ia: P 
     pair_loop_lift(~O, ~g, ~P, ~ia, ~ib, count, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, 0n, count,
       {==}, left_inside, right_inside, Q, h))
 
-# The generic pair fold contract: one proof for every step function and
-# every pair of in-bounds index maps.
 def pair_contract(~O: Data, ~g: O -> F32 -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~ib: P -> Nat -> Nat,
   +operation: O, +plan: P, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
   +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +count: Nat,
