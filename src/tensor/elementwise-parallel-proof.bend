@@ -7,7 +7,13 @@ import ../storage/model.bend as Model
 import ../storage/refinement.bend as Refinement
 import ../storage/clone.bend as Clone
 import ../storage/arith.bend as Arith
+import ../storage/main.bend as Storage
+import ../storage/route.bend as Route
+import ../storage/certificates.bend as Certificates
+import ./core.bend as Core
+import ./lifecycle.bend as Lifecycle
 import ./elementwise.bend as Elementwise
+import ./elementwise-totality.bend as Totality
 
 # Proofs that the parallel elementwise build writes, at every output index,
 # the word the sequential loop writes there.
@@ -230,3 +236,100 @@ def build_cells(+depth: Nat, +splits: Nat, +operation: Elementwise.Operation, +p
       facts_cells(0n, operation, plan, count, base, dl, dr, A, B, Elementwise.tree(0n, operation, Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan)), Shape.index_map(plan), count, base, la, ra), tree_facts(0n, operation, plan, count, base, dl, dr, A, B, la, ra, el, er, left_valid, right_valid))
     case 1n+inner 0n:
       facts_cells(1n+inner, operation, plan, count, base, dl, dr, A, B, Elementwise.tree(1n+inner, operation, Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan)), Shape.index_map(plan), count, base, la, ra), tree_facts(1n+inner, operation, plan, count, base, dl, dr, A, B, la, ra, el, er, left_valid, right_valid))
+
+# What `take` hands back for one input: the copy for the build is balanced at
+# some depth and, below the input's element count, holds what the checked
+# observation of the input sees; the kept tensor observes like the input.
+def SourceReads(-input: Core.Dynamic, -depth: Nat, -copy: Array<F32>) -> Type:
+  @+index: U32 -> @inside: {Nat.is_lt(U32.to_nat(index), Shape.logical_numel(Totality.dimensions(input))) == True{} : Bool} ->
+    {Model.observe(F32, depth, copy, Refinement.route(depth, index)) == Core.checked_observe_dynamic(input, index) : Maybe<&2, F32>}
+
+type Taken<-input: Core.Dynamic, -pair: Core.Dynamic & Array<F32>> is Data:
+  Taken{-depth: Nat, -balanced: Model.Balanced(F32, depth, Pair.snd(Core.Dynamic, Array<F32>, pair)),
+    -reads: SourceReads(input, depth, Pair.snd(Core.Dynamic, Array<F32>, pair)),
+    -retained: Totality.SameSource(input, Pair.fst(Core.Dynamic, Array<F32>, pair))}
+
+def owned_inspect(+shape: Shape.Shape, +depth: Nat, +length: Nat, property: Totality.Property, array: Array<F32>) -> Totality.Inspection:
+  match property:
+    case Totality.Dimensions{}:
+      Totality.Dims{Shape.dimensions(shape)}
+    case Totality.Checked{+index}:
+      Totality.Value{Lifecycle.checked_observe_array(depth, length, array, index)}
+    case Totality.Raw{+index}:
+      Totality.Value{Model.observe(F32, depth, array, Refinement.route(depth, index))}
+
+def owned_view(+shape: Shape.Shape, +depth: Nat, +length: Nat, property: Totality.Property, -array: Array<F32>,
+  -balanced: Model.Balanced(F32, depth, array), -valid: {Storage.bounds(depth, length) == True{} : Bool},
+  -exact: {length == Shape.logical_numel(Shape.dimensions(shape)) : Nat}) ->
+  {Totality.inspect(property, Core.Packed{shape, Core.TTensor{Storage.Owned{depth, length, array, balanced, valid}, exact}}) ==
+    owned_inspect(shape, depth, length, property, array) : Totality.Inspection}:
+  match property:
+    case Totality.Dimensions{}:
+      {==}
+    case Totality.Checked{+index}:
+      {==}
+    case Totality.Raw{+index}:
+      {==}
+
+def observe_allowed_equal(+depth: Nat, +length: Nat, -array: Array<F32>, +index: U32, allowed: Bool,
+  accepted: {allowed == True{} : Bool}, matched: {Storage.index_matches(depth, length, index) == True{} : Bool}) ->
+  {Lifecycle.observe_allowed(depth, length, array, index, allowed) ==
+    Model.observe(F32, depth, array, Refinement.route(depth, index)) : Maybe<&2, F32>}:
+  match allowed:
+    case False{}:
+      Empty.absurd({None{} == Model.observe(F32, depth, array, Refinement.route(depth, index)) : Maybe<&2, F32>}, Arith.clash(accepted))
+    case True{}:
+      %Equal.sym(Bool, Storage.index_matches(depth, length, index), True{}, matched) :
+        {Lifecycle.observe_index(depth, length, array, index, _) == Model.observe(F32, depth, array, Refinement.route(depth, index)) : Maybe<&2, F32>}
+      {==}
+
+def taken_owned(+shape: Shape.Shape, +depth: Nat, +length: Nat, -array: Array<F32>, pair: Array<F32> & Array<F32>,
+  -same: {pair == Array.clone(F32, array) : Array<F32> & Array<F32>}, -balanced: Model.Balanced(F32, depth, array),
+  -valid: {Storage.bounds(depth, length) == True{} : Bool}, -exact: {length == Shape.logical_numel(Shape.dimensions(shape)) : Nat}) ->
+  Taken<Core.Packed{shape, Core.TTensor{Storage.Owned{depth, length, array, balanced, valid}, exact}},
+    Elementwise.take_owned(shape, depth, length, array, pair, same, balanced, valid, exact)>:
+  (kept, copy) = pair
+  -kept_same = {\{Fact: p => p} : Fact<({Pair.fst(Array<F32>, Array<F32>, (kept, copy)) == array : Array<F32>})> -> {kept == array : Array<F32>}}(
+    clone_first(depth, array, array, (kept, copy), same, {==}, balanced))
+  -copy_same = {\{Fact: p => p} : Fact<({Pair.snd(Array<F32>, Array<F32>, (kept, copy)) == array : Array<F32>})> -> {copy == array : Array<F32>}}(
+    clone_second(depth, array, array, (kept, copy), same, {==}, balanced))
+  Taken{depth,
+    {\{Fact: p => p} : Fact<(Model.Balanced(F32, depth, copy))> -> Model.Balanced(F32, depth, copy)}(transport_balanced(depth, copy, array, copy_same, balanced)),
+    index => inside => Equal.trans(Maybe<&2, F32>, Model.observe(F32, depth, copy, Refinement.route(depth, index)),
+      Model.observe(F32, depth, array, Refinement.route(depth, index)),
+      Lifecycle.observe_allowed(depth, length, array, index, Nat.is_lt(U32.to_nat(index), length)),
+      Equal.cong(Array<F32>, Maybe<&2, F32>, a => Model.observe(F32, depth, a, Refinement.route(depth, index)), copy, array, copy_same),
+      Equal.sym(Maybe<&2, F32>, Lifecycle.observe_allowed(depth, length, array, index, Nat.is_lt(U32.to_nat(index), length)),
+        Model.observe(F32, depth, array, Refinement.route(depth, index)),
+        observe_allowed_equal(depth, length, array, index, Nat.is_lt(U32.to_nat(index), length),
+          %Equal.sym(Nat, length, Shape.logical_numel(Shape.dimensions(shape)), exact) : {Nat.is_lt(U32.to_nat(index), _) == True{} : Bool}
+          inside,
+          Equal.sym(Bool, True{}, Storage.index_matches(depth, length, index),
+            Route.index_complete(depth, length, index, valid,
+              %Equal.sym(Nat, length, Shape.logical_numel(Shape.dimensions(shape)), exact) : {Nat.is_lt(U32.to_nat(index), _) == True{} : Bool}
+              inside))))),
+    property => Equal.trans(Totality.Inspection,
+      Totality.inspect(property, Core.Packed{shape, Core.TTensor{Storage.Owned{depth, length, kept,
+        Certificates.clone_first(F32, depth, array, (kept, copy), same, balanced), valid}, exact}}),
+      owned_inspect(shape, depth, length, property, kept),
+      Totality.inspect(property, Core.Packed{shape, Core.TTensor{Storage.Owned{depth, length, array, balanced, valid}, exact}}),
+      owned_view(shape, depth, length, property, kept, Certificates.clone_first(F32, depth, array, (kept, copy), same, balanced), valid, exact),
+      Equal.trans(Totality.Inspection, owned_inspect(shape, depth, length, property, kept), owned_inspect(shape, depth, length, property, array),
+        Totality.inspect(property, Core.Packed{shape, Core.TTensor{Storage.Owned{depth, length, array, balanced, valid}, exact}}),
+        Equal.cong(Array<F32>, Totality.Inspection, a => owned_inspect(shape, depth, length, property, a), kept, array, kept_same),
+        Equal.sym(Totality.Inspection, Totality.inspect(property, Core.Packed{shape, Core.TTensor{Storage.Owned{depth, length, array, balanced, valid}, exact}}),
+          owned_inspect(shape, depth, length, property, array), owned_view(shape, depth, length, property, array, balanced, valid, exact))))}
+
+def taken(dynamic: Core.Dynamic) -> Taken<dynamic, Elementwise.take(dynamic)>:
+  Core.Packed{+shape, Core.TTensor{storage, exact}} = dynamic
+  match storage:
+    case Storage.Empty{}:
+      Taken{0n, Unit{},
+        index => inside => Empty.absurd({Model.observe(F32, 0n, Array.new(F32, 0n, 0.0), Refinement.route(0n, index)) ==
+          Core.checked_observe_dynamic(Core.Packed{shape, Core.TTensor{Storage.Empty{}, exact}}, index) : Maybe<&2, F32>},
+          Arith.lt_zero(U32.to_nat(index),
+            %Equal.sym(Nat, 0n, Shape.logical_numel(Shape.dimensions(shape)), exact) : {Nat.is_lt(U32.to_nat(index), _) == True{} : Bool}
+            inside)),
+        property => {==}}
+    case Storage.Owned{+depth, +length, array, balanced, valid}:
+      taken_owned(shape, depth, length, array, Array.clone(F32, array), {==}, balanced, valid, exact)
