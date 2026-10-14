@@ -184,10 +184,12 @@ declarations.
 The first four mutants change `src/autograd/reduce-fold.bend`, and the proofs
 in `src/autograd/reduce-fold-PROOF.bend` reject them. The last three change
 the `reduce_to` loop in `src/autograd/reduce.bend`. The erased proofs in
-`src/autograd/reduce-PROOF.bend` reject them too, and `src/autograd/PROOF.bend`
-reports those first. So the runner checks them with
+`src/autograd/reduce-PROOF.bend` reject them too, and each checker reports
+the first failure it meets. So the source check runs
 `src/autograd/reduce-to-fold-PROOF.bend`, the live proof of `reduce_to_fiber`,
-and both checkers reject them in its `step_lift`. `reduce/entry.bend` imports
+instead of `src/autograd/PROOF.bend`, and `controls.bend` imports only the two
+family proofs, so the kernel artifact holds no erased `reduce_to` proof. Both
+checkers then reject these mutants in `step_lift`. `reduce/entry.bend` imports
 `broadcast.bend` and `sum.bend` before `reduce-fold.bend` and `reduce.bend`,
 for the same export names as `fold/entry.bend`.
 

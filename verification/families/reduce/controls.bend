@@ -4,7 +4,8 @@ import ../../../src/tensor/lifecycle.bend as Lifecycle
 import ../../../src/tensor/contracts/replayed.bend as Replayed
 import ../../../src/tensor/contracts/fold.bend as Fold
 import ../../../src/autograd/reduce-fold-LAWS.bend as Laws
-import ../../../src/autograd/PROOF.bend as AutogradProof
+import ../../../src/autograd/reduce-fold-PROOF.bend as FoldProof
+import ../../../src/autograd/reduce-to-fold-PROOF.bend as ReduceToProof
 import ./consumers.bend as Cases
 
 def expected_column() -> Maybe<&2, F32>:
