@@ -163,10 +163,6 @@ def check_inventory(text: str, required: list[str]) -> None:
 def check_laws(
     evidence: Evidence, name: str, root: Path, required: list[str], timeout: int = 300
 ) -> Path:
-    """Checks a law root with the Bend checker and with `--verdict`, exports
-    it, requires each listed declaration in the export, and rechecks the
-    export with BendTT directly. Removing any one required declaration from
-    the export must fail the inventory."""
     tool_root = evidence.tool_root
     for check, mode in (("source", "--check-only"), ("kernel", "--verdict")):
         evidence.run(
@@ -190,8 +186,6 @@ def check_laws(
 
 
 def check_omissions(text: str, required: list[str]) -> None:
-    """Removes each required declaration from the export in turn, and requires
-    the inventory to reject every such copy."""
     for declaration in required:
         missing = re.sub(
             rf"(?m)^{re.escape(declaration)} :", "omitted :", text, count=1

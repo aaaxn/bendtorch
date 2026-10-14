@@ -39,7 +39,6 @@ def plan_of(r: Result<&2, &2, Shape.Error, Shape.BroadcastPlan>,
     case Fail{error}:
       Empty.absurd(Shape.BroadcastPlan, Arith.clash(done))
 
-# Each plan broadcasts a target (left) with a [2, 3] contribution (right).
 def three_grid() -> Shape.BroadcastPlan:
   plan_of(Shape.broadcast_checked(three_shape(), grid_shape()), {==})
 
@@ -117,26 +116,21 @@ def open_empty(+plan: Shape.BroadcastPlan, +index: U32, +values: List<&2, F32>,
 def grid_values() -> List<&2, F32>:
   [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
 
-# Target [3]: cell 1 adds column 1, words 1 and 4.
 def reduce_columns() -> ReduceCase<result(three_grid(), 1, grid_values(), {==}),
   Some{F32.add(F32.add(0.0, 2.0), 5.0)}, 4, 5.0>:
   expose_reduce(three_grid(), {==}, 1, grid_values(), {==}, 4, {==})
 
-# Target [2, 1]: cell 1 adds row 1, words 3, 4 and 5.
 def reduce_rows() -> ReduceCase<result(column_grid(), 1, grid_values(), {==}),
   Some{F32.add(F32.add(F32.add(0.0, 4.0), 5.0), 6.0)}, 0, 1.0>:
   expose_reduce(column_grid(), {==}, 1, grid_values(), {==}, 0, {==})
 
-# Target []: the one cell adds every word.
 def reduce_scalar() -> ReduceCase<result(scalar_grid(), 0, grid_values(), {==}),
   Some{F32.add(F32.add(F32.add(F32.add(F32.add(F32.add(0.0, 1.0), 2.0), 3.0), 4.0), 5.0), 6.0)}, 5, 6.0>:
   expose_reduce(scalar_grid(), {==}, 0, grid_values(), {==}, 5, {==})
 
-# Target [2, 3]: no axis is reduced, and cell 4 adds word 4 to +0.0.
 def reduce_same() -> ReduceCase<result(grid_grid(), 4, grid_values(), {==}),
   Some{F32.add(0.0, 5.0)}, 2, 3.0>:
   expose_reduce(grid_grid(), {==}, 4, grid_values(), {==}, 2, {==})
 
-# Target [0] of a [2, 0] contribution: no word lands, and the cell is +0.0.
 def reduce_empty() -> {Fold.value(result(empty_plan(), 0, [], {==})) == Some{0.0} : Maybe<&2, F32>}:
   open_empty(empty_plan(), 0, [], {==}, Laws.reduce_fold_fiber(empty_plan(), {==}, 0, 0.0, writes([]), {==}))

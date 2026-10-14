@@ -81,7 +81,6 @@ def load_mutants(text: str) -> dict[str, tuple[str, str]]:
     return {label: (sides["before"], sides["after"]) for label, sides in pairs.items()}
 
 
-# Each mutant edits only src/tensor/core.bend: the public operation, never a proof.
 MUTANTS = load_mutants(MUTANTS_FILE.read_text())
 WRITE_MUTANTS = (
     "wrong-index",
@@ -264,7 +263,6 @@ def transplant(
 def refuse_read(
     positive: str, catalog: Callable[[str], dict[str, tuple[str, str]]]
 ) -> str:
-    """Make the exported storage_read_error report OutOfBounds on success."""
     name = f"{CORE}storage_read_error"
     header, body = catalog(positive)[name]
     done = "(.Done, (x0, ()))"

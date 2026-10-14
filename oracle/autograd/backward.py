@@ -46,10 +46,7 @@ def operation(name: str, operands: list[torch.Tensor]) -> torch.Tensor:
     return -operands[0]
 
 
-# Replays one backward case on PyTorch scalars. A node id is a position in a
-# Python list, so an id the list does not hold raises IndexError (a read of
-# such an id records one rejection for the value and one for the gradient). Every
-# backward keeps the graph (retain_graph=True) and every non-leaf retains its
+# Every backward keeps the graph (retain_graph=True) and every non-leaf retains its
 # gradient, so .grad can be read on each node.
 def replay(case: Json) -> Json:
     if any(step["op"] == "forge" for step in case["steps"]):

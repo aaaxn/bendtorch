@@ -175,8 +175,6 @@ PROOF_CONTROLS = {
 }
 
 
-# Each mutant returns a different error for a request whose error identity a
-# law states; the proofs must reject it at that law's proof.
 ERROR_CONTROLS = {
     "broadcast-shape-error-renamed": (
         "src/autograd/broadcast.bend",

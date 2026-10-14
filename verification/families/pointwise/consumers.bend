@@ -189,8 +189,6 @@ def keep_scalar() -> PointCase<result(Elementwise.KeepLeft{}, scalar_three(), [7
 def empty() -> EmptyCase<result(Elementwise.Add{}, empty_plan(), [], [], {==}, {==}), [2, 0]>:
   expose_empty(Elementwise.Add{}, empty_plan(), [], [], {==}, {==})
 
-# The family on tensors that the public producers build. A producer failure
-# leaves no inputs to broadcast.
 def produced_right(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, left: Core.Tensor<Shape.left_shape(plan)>,
   right: Result<&2, &1, Core.Error, Core.Tensor<Shape.right_shape(plan)>>) ->
   Maybe<&1, (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>>:
@@ -217,7 +215,6 @@ def produced_point(outcome: Maybe<&1, (Core.Dynamic & Core.Dynamic) & Result<&2,
     case Some{result}:
       Pointwise.output_point(result, index)
 
-# What the family promises for a produced pair; nothing when a producer fails.
 def Produced(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan,
   +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>,
   outcome: Maybe<&1, (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>>) -> Type:
@@ -231,8 +228,6 @@ def Produced(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan,
         other => Replayed.value(Shape.right_shape(plan), right_fill, right_ops, other),
         result>
 
-# `from_values_replayed` turns both `Core.from_values` results into replayed
-# tensors, and `broadcast_pointwise` gives the contract of their broadcast.
 def from_values_pointwise(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan,
   +left: List<&2, F32>, left_counted: {List.length(&2, F32, left) == Shape.logical_numel(Shape.dimensions(Shape.left_shape(plan))) : Nat},
   +right: List<&2, F32>, right_counted: {List.length(&2, F32, right) == Shape.logical_numel(Shape.dimensions(Shape.right_shape(plan))) : Nat}) ->
@@ -246,7 +241,6 @@ def from_values_pointwise(+operation: Elementwise.Operation, +plan: Shape.Broadc
         produced(operation, plan, Done{Core.TTensor{Replayed.storage(Shape.left_shape(plan), 0.0, writes(left)), left_fits}}, r)),
       right_fits => Contracts.broadcast_pointwise(operation, plan, 0.0, writes(left), left_fits, 0.0, writes(right), right_fits)))
 
-# The same through `new_replayed`, for two `Core.new` fills.
 def new_pointwise(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +left_fill: F32, +right_fill: F32) ->
   Produced(operation, plan, left_fill, Nil{}, right_fill, Nil{},
     produced(operation, plan, Core.new(Shape.left_shape(plan), left_fill), Core.new(Shape.right_shape(plan), right_fill))):

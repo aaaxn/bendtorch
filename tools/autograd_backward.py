@@ -21,8 +21,6 @@ SIGNALING_NAN = 0x7FA00001
 QUIET = 0x00400000
 BINARY = ("add", "sub", "mul")
 
-# Each mutant breaks one contract on a copy of backward.bend; the JavaScript
-# lane must reject every one of them.
 RUNTIME_CONTROLS = {
     "seed-newest-node": (
         "unit => pass(rest, below, output), Nat.is_eq(below, output))",
@@ -74,7 +72,6 @@ def binary_case(identifier: str, name: str, x: float, y: float) -> dict:
 
 
 def fan_out(identifier: str, x: float, a: float, b: float, c: float) -> dict:
-    # x = 0 has three consumers p = x*a, q = x*b and r = x*c; t = (p + q) + r.
     return {
         "id": identifier,
         "steps": [
