@@ -110,5 +110,11 @@ FAMILY = controls.Family(
             "pointwise_2d_proof.step_lift.qvvvvv_1",
             ("pointwise.step.qvvvvv_1",),
         ),
+        "wrong-output-shape": Site(
+            "broadcast_pointwise",
+            "Core.new_result(Shape.left_shape(plan)",
+            "broadcast_2d_proof.broadcast_pointwise",
+            ("broadcast.binary",),
+        ),
     },
 )

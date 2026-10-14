@@ -38,12 +38,15 @@ twins and implementation mutants, beside the runner that checks them.
 | Wrong input map | `step` reads the left input at `ib` | `step_lift` | `step_lift.qvvvvv` |
 | Cursor off by one | `allocated` starts the loop at 1 | `run_lift` | `run_lift.qvvvvv` |
 | Swapped maps | `Broadcast.binary` passes `right_map, left_map` | `broadcast_pointwise` | `step_lift.qvvvvv_1` |
+| Wrong output shape | `Broadcast.binary` allocates the output with `Shape.left_shape(plan)` | `broadcast_pointwise` | `broadcast_pointwise` |
 
 The first five mutants change the generic loop in `pointwise.bend`, and the
-generic proof rejects them. The swapped maps change only the broadcast
-instance. The source checker rejects it where `broadcast-proof.bend`
-instantiates the theorem. BendTT rechecks each template instance, so it
-rejects the broadcast copy of the generic step proof, `step_lift.qvvvvv_1`.
+generic proof rejects them. The last two change only the broadcast instance.
+The source checker rejects them where `broadcast-proof.bend` instantiates the
+theorem. BendTT rechecks each template instance, so it rejects the swapped
+maps in the broadcast copy of the generic step proof, `step_lift.qvvvvv_1`.
+It rejects the wrong output shape in `broadcast_pointwise` itself, whose
+statement names `Shape.output_shape(plan)`.
 
 Each mutated operation still checks on its own. The runner checks
 `pointwise/entry.bend`, which imports only `broadcast.bend`, in each mutant
@@ -51,7 +54,8 @@ copy. For BendTT, the runner exports that entry and transplants its changed
 declarations into the positive export, so the kernel rechecks the unchanged
 proofs against the mutated operation. The runner checks that each transplant
 replaces exactly the mutated declarations: the generic copy and the broadcast
-instance copy, or only the instance copy for the swapped maps.
+instance copy, only the instance copy for the swapped maps, or only
+`Broadcast.binary` for the wrong output shape.
 
 ## Fold
 

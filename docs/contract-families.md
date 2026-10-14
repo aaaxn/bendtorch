@@ -172,6 +172,6 @@ from `lt_mul_add`: `a * n + b < m * n` when `a < m` and `b < n`.
 
 `verification/families/` holds literal consumers of `broadcast_pointwise`,
 `sum_ordered` and `dot_ordered`, false twins of eight value statements, and
-fourteen mutants of the family loops and of their instances. Its
+fifteen mutants of the family loops and of their instances. Its
 [README](../verification/families/README.md) lists each control and the
 rejection it expects.
