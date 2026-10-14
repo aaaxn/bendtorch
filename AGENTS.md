@@ -87,10 +87,10 @@ corpora, so run the gate of each module you touched too:
 ```sh
 bend PROOF.bend --verdict
 uv run --locked python -m unittest discover -s tests -v
-uv run --locked ruff check tools tests
-uv run --locked ruff format --check tools tests
+uv run --locked ruff check tools tests verification experiments
+uv run --locked ruff format --check tools tests verification experiments
 uv run --locked ty check
-uv run --locked python -m tools.check <module> --output .evidence/<new directory>
+uv run --locked python -m tools.check <suite> --output .evidence/<new directory>
 ```
 
 Gate runs refuse to overwrite an output directory. There is no CI: run the
@@ -159,7 +159,7 @@ parallel call reads costs one atomic per read.
 
 `python -m tools.check` runs the gate of each named suite: `toolchain`,
 `shape`, `storage`, `tensor` and `autograd`, or `all` of them. Each suite's
-gate is `tools/<suite>.py`. A helper gate, such as `tools/autograd_graph.py`,
+gate is `tools/<suite>.py`. A helper gate, such as `tools/autograd_backward.py`,
 runs only if its suite's gate calls it.
 
 The unit of a PR is one independently verifiable capability. Name files,

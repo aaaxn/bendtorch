@@ -4,7 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.common import Evidence, GateError, check_inventory, check_omissions
+from tools.check import SUITES
+from tools.common import ROOT, Evidence, GateError, check_inventory, check_omissions
 from tools.toolchain import F32_PROBE
 
 
@@ -25,6 +26,16 @@ class GateTests(unittest.TestCase):
         twice = "core.construct : *1 =\n  ()\ncore.construct : *1 =\n  ()\n"
         with self.assertRaises(GateError):
             check_omissions(twice, ["core.construct"])
+
+    def test_root_and_suites_cover_every_module(self):
+        modules = sorted(path.parent.name for path in ROOT.glob("src/*/PROOF.bend"))
+        self.assertTrue(modules)
+        for root in ("PROOF", "LAWS"):
+            text = (ROOT / f"{root}.bend").read_text()
+            for module in modules:
+                with self.subTest(root=root, module=module):
+                    self.assertIn(f"import ./src/{module}/{root}.bend as ", text)
+        self.assertLessEqual(set(modules), set(SUITES))
 
     def test_evidence_cannot_be_overwritten(self):
         with tempfile.TemporaryDirectory() as directory:
