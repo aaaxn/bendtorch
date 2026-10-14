@@ -110,6 +110,16 @@ output cell `i` holds
 ## Controls
 
 `verification/families/` holds literal consumers of `broadcast_pointwise`,
-false twins of four value statements and seven mutants of the family loop and
-of the broadcast instance. Its [README](../verification/families/README.md)
+two of them on the actual `Core.from_values` and `Core.new` results, false
+twins of five value statements and seven mutants of the family loop and of
+the broadcast instance. Its [README](../verification/families/README.md)
 lists each control and the rejection it expects.
+
+The proofs and controls check what the laws state, not the compiled code.
+`tools/s2_families.py`, which the S2 gate runs, compiles `Broadcast.binary`
+in the native and JavaScript lanes and runs the 67 S2 `add`, `sub` and `mul`
+requests that reach Bend through it. They include the `ieee_edges` cases,
+whose words are signed zeros, subnormals, the largest finite values, NaN and
+infinities. Each lane must give the output words that the S2 numerical policy
+accepts, the four broadcast and capacity errors, and both inputs unchanged. Its results are in `pointwise-family/` of the S2
+output, apart from the `Elementwise.binary` corpus.

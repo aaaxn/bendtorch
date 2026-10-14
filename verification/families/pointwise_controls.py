@@ -47,6 +47,8 @@ CONSUMERS = tuple(
         "add_same",
         "keep_scalar",
         "empty",
+        "from_values_sub",
+        "new_sub",
     )
 )
 WITNESSES = {
@@ -54,6 +56,7 @@ WITNESSES = {
     "outer_witness": Witness("expected_outer", "unbroadcast_outer"),
     "keep_witness": Witness("expected_keep", "wrong_keep"),
     "kept_witness": Witness("expected_kept", "overwritten_kept"),
+    "produced_witness": Witness("expected_produced", "swapped_produced"),
 }
 FIVE = "F32.lit1084227584"
 TWENTY = "F32.lit1101004800"
@@ -77,6 +80,14 @@ VALUES = {
     "expected_kept": Value("Some{5.0}", f"(.Some, ({FIVE}, ()))"),
     "overwritten_kept": Value(
         "Some{F32.sub(5.0, 20.0)}", f"(.Some, ((F32.sub {FIVE} {TWENTY}), ()))"
+    ),
+    "expected_produced": Value(
+        "Some{F32.sub(3.0, 30.0)}",
+        "(.Some, ((F32.sub F32.lit1077936128 F32.lit1106247680), ()))",
+    ),
+    "swapped_produced": Value(
+        "Some{F32.sub(30.0, 3.0)}",
+        "(.Some, ((F32.sub F32.lit1106247680 F32.lit1077936128), ()))",
     ),
 }
 
@@ -253,6 +264,8 @@ def check_export(text: str, catalog) -> dict[str, str]:
         header = declarations[witness][0]
         if not header.endswith(f"== {target} : (Maybe -.Q2 -F32)}}"):
             raise GateError(f"Witness statement target changed: {witness}")
-        if "(consumers.result " not in header:
+        if not any(
+            f"(consumers.{subject} " in header for subject in ("result", "produced")
+        ):
             raise GateError(f"Witness is not about a broadcast result: {witness}")
     return {name: "\n".join(declarations[name]) for name in names}

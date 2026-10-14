@@ -1,5 +1,6 @@
 import Base
 import ../../../src/shape/core.bend as Shape
+import ../../../src/tensor/core.bend as Core
 import ../../../src/tensor/elementwise.bend as Elementwise
 import ../../../src/tensor/lifecycle.bend as Lifecycle
 import ../../../src/tensor/contracts/LAWS.bend as Contracts
@@ -81,3 +82,17 @@ def kept_witness() ->
   left_word(Elementwise.Sub{}, Cases.grid_three(), Cases.grid_values(), Cases.three_values(), {==}, {==},
     Contracts.broadcast_pointwise(Elementwise.Sub{}, Cases.grid_three(), 0.0, Cases.writes(Cases.grid_values()), {==},
       0.0, Cases.writes(Cases.three_values()), {==}), 4, {==})
+
+def expected_produced() -> Maybe<&2, F32>:
+  Some{F32.sub(3.0, 30.0)}
+
+def swapped_produced() -> Maybe<&2, F32>:
+  Some{F32.sub(30.0, 3.0)}
+
+def produced_witness() ->
+  {Cases.produced_point(Cases.produced(Elementwise.Sub{}, Cases.three_three(), Core.from_values(Cases.three_shape(), [1.0, 2.0, 3.0]),
+    Core.from_values(Cases.three_shape(), Cases.three_values())), 2) == expected_produced() : Maybe<&2, F32>}:
+  Cases.produced_value(Elementwise.Sub{}, Cases.three_three(), 0.0, Cases.writes([1.0, 2.0, 3.0]), 0.0, Cases.writes(Cases.three_values()),
+    Cases.produced(Elementwise.Sub{}, Cases.three_three(), Core.from_values(Cases.three_shape(), [1.0, 2.0, 3.0]),
+      Core.from_values(Cases.three_shape(), Cases.three_values())),
+    Cases.from_values_pointwise(Elementwise.Sub{}, Cases.three_three(), [1.0, 2.0, 3.0], {==}, Cases.three_values(), {==}), 2, {==})
