@@ -1,4 +1,4 @@
-# S3.B gradient slots
+# Gradient slots
 
 `src/autograd/gradient.bend` holds the gradient of one tensor during reverse
 differentiation. A `Slot` is `Unset{}` until it receives a contribution, then
@@ -43,9 +43,8 @@ would compute `+0.0 + -0.0 = +0.0` on the next contribution instead.
 
 `Gradient.gradient(shape, slot)` is the separately named zeros-materializing
 read: an `Unset` slot gives zeros of `shape`, allocated at that moment, and a
-`Held` slot gives its gradient. A
-shape that the S1 limits reject fails before any slot exists, with the S1
-rank (1) or capacity (2) error.
+`Held` slot gives its gradient. A shape that the shape limits reject fails
+before any slot exists, with the shape rank (1) or capacity (2) error.
 
 Cost: the first contribution costs nothing. Each later contribution costs, per
 position, one checked read of the contribution, one checked read of the total
@@ -82,8 +81,8 @@ proves them. Each law quantifies over every shape, slot and contribution.
   slot's dimensions gives `Accumulated{Held{contribution}}`: it moves in
   unchanged, whatever the slot held before.
 
-The S3 gate also runs nine proof controls on a copy of the sources. The proofs
-reject each of them:
+The autograd gate also runs nine proof controls on a copy of the sources. The
+proofs reject each of them:
 
 - overwriting the total instead of adding
 - adding in the reversed order

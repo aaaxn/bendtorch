@@ -1,4 +1,4 @@
-# S3.B PyTorch-facing sum to size
+# PyTorch-facing sum to size
 
 `SumToSize.sum_to_size(input, target)` in `src/autograd/sum-to-size.bend`
 reduces a broadcast contribution to an operand's shape the way PyTorch's
@@ -20,7 +20,7 @@ sequential fold gives `+0.0`.
    reduced. The output is a clone of the contribution, so every word is kept,
    `-0.0` and NaN payloads included. The call always succeeds.
 2. Otherwise the result is exactly `Reduce.reduce_to(input, target)`: the same
-   errors (`IncompatibleBroadcast` 6, `NotReducible` 101, S1 rank and
+   errors (`IncompatibleBroadcast` 6, `NotReducible` 101, shape rank and
    capacity), and on success the ordered fold from `+0.0`.
 
 The contribution owner comes back next to the result in both cases.
@@ -64,7 +64,7 @@ tensor and target shape.
 - `sum_to_size_reduces`: if the dimensions differ, the result equals
   `reduce_to(input, target)`, so every `reduce_to` law applies to it.
 
-The S3 gate checks three proof controls, and the proofs must reject each:
+The autograd gate checks three proof controls, and the proofs must reject each:
 folding the identity case through `reduce_to`, skipping the dimension check
 (always cloning), and always folding.
 

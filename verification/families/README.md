@@ -2,12 +2,13 @@
 
 The family laws in `src/tensor/contracts/LAWS.bend` are proved in
 `src/tensor/contracts/PROOF.bend`, aggregated by `src/tensor/LAWS.bend`, and
-required by `verification/tensor.json`, so the root `PROOF.bend --verdict` and the
-S2 gate protect them. The `reduce_to` instance is stated in
-`src/autograd/reduce-fold-LAWS.bend` and required by `verification/autograd.json`.
-[Contract families](../../docs/contract-families.md)
-explains what they state. This directory holds literal consumers, false
-twins and implementation mutants, beside the runner that checks them.
+required by `verification/tensor.json`, so the root `PROOF.bend --verdict` and
+the tensor gate protect them. The `reduce_to` instance is stated in
+`src/autograd/reduce-fold-LAWS.bend` and required by
+`verification/autograd.json`. [Contract
+families](../../docs/contract-families.md) explains what they state. This
+directory holds literal consumers, false twins and implementation mutants,
+beside the runner that checks them.
 
 ## Pointwise
 

@@ -81,8 +81,8 @@ law broadcast_valid_success:
   for +alignment: Shape.Broadcast<Shape.extents(Totality.dynamic_shape(input)), Shape.extents(target), Shape.extents(target)>
   Success<Broadcast.broadcast_to(input, target)>
 
-# When the S1 planner rejects the input and target shapes, broadcast_to fails
-# with exactly that S1 error and returns the input owner. For example [2] to
+# When the broadcast planner rejects the input and target shapes, broadcast_to
+# fails with exactly that planner error and returns the input owner. For example [2] to
 # [0] fails with IncompatibleBroadcast instead of returning an empty tensor.
 law broadcast_shape_error:
   for input: Core.Dynamic

@@ -1,4 +1,4 @@
-# S2 independent axis algebra
+# Independent axis algebra
 
 `src/tensor/axis-spec.bend` specifies axis order without importing Layout.
 Its axes are natural-number indices. `lookup` drops a natural number of list
@@ -10,10 +10,11 @@ natural identity list. None of these definitions calls `Layout.lookup`,
 `Layout.coordinate_for`, or `Layout.inverse_coordinates`.
 
 The live reference seam is `Axis.scatter(U32, rank, Shape.naturals(axes),
-coordinates, 0n)`. The transform reference uses the S1 natural digit decoder,
-converts its result to words, and passes those words through this independent
-scatter. The algebra proves that Layout's word scatter implements this seam.
-It does not introduce a separate natural-coordinate source-index API.
+coordinates, 0n)`. The transform reference uses the shape layer's natural digit
+decoder, converts its result to words, and passes those words through this
+independent scatter. The algebra proves that Layout's word scatter implements
+this seam. It does not introduce a separate natural-coordinate source-index
+API.
 
 ## Domain and proof method
 

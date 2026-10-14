@@ -141,10 +141,10 @@ law reduce_empty_zeros:
   for empty: {Shape.logical_numel(Totality.dimensions(input)) == 0n : Nat}
   Zeros<target, Reduce.reduce_to(input, target)>
 
-# When the S1 planner rejects the target and contribution shapes, reduce_to
-# fails with exactly that S1 error and returns the contribution owner. For
-# example [2] to [0] fails with IncompatibleBroadcast instead of returning an
-# empty tensor.
+# When the broadcast planner rejects the target and contribution shapes,
+# reduce_to fails with exactly that planner error and returns the contribution
+# owner. For example [2] to [0] fails with IncompatibleBroadcast instead of
+# returning an empty tensor.
 law reduce_shape_error:
   for input: Core.Dynamic
   for +target: Shape.Shape

@@ -1,7 +1,7 @@
-# S2 elementwise projection refinement
+# Elementwise projection refinement
 
 The supplemental contracts in `src/tensor/projection-LAWS.bend` connect the
-actual elementwise offset method to S1's independent coordinate
+actual elementwise offset method to the shape layer's independent coordinate
 specification. They do not replace or weaken the existing Core or
 Elementwise contracts.
 
@@ -18,8 +18,8 @@ coordinate with `Shape.row_major` and converts its natural offset to `U32`.
 This specification does not call `Elementwise.input_indices`,
 `Elementwise.flat_input_indices`, `Shape.index_map`, the flat projection
 methods, or the executable stride-table walks. Its coordinate projections
-are the stable S1 mathematical implementation, whose S1 laws relate them
-to independent right-aligned natural coordinate lists.
+are the stable shape-layer mathematical implementation, whose shape laws relate
+them to independent right-aligned natural coordinate lists.
 
 ## Added laws
 
@@ -27,7 +27,7 @@ to independent right-aligned natural coordinate lists.
   valid `Shape.FlatIndex` of its output. It states that the successful
   branch of the actual `Elementwise.flat_input_indices(plan, Done{index})`
   returns exactly the pair specified at that index's natural position.
-  The proof obtains both S1 flat-projection refinements for the actual
+  The proof obtains both shape-layer flat-projection refinements for the actual
   `Shape.index_map(plan)` and combines them into one pair refinement.
 - `input_indices_refines` quantifies over every broadcast plan and every
   `U32` output index. Its actual-method result observer is `None` on
@@ -38,7 +38,7 @@ to independent right-aligned natural coordinate lists.
   that the actual offset method succeeds if and only if the natural
   output index is less than `Shape.numel(Shape.extents(output_shape))`.
   The cached executable `Shape.elements` decision is connected to that
-  mathematical size by S1's checked exact-size bridge.
+  mathematical size by the shape layer's checked exact-size bridge.
 - `expected_projection_refines` quantifies over every operation, broadcast
   plan, pair of source tensors, and `U32` index. It states that the original
   `Elementwise.expected` equals `specified_expected` applied to the
@@ -70,26 +70,26 @@ proof cannot establish that equality by reflexivity.
 ## Trust boundaries
 
 These contracts certify the source-level U32 offset pair and checked
-source-read interpretation. They use S1's checked Nat/Fin coordinate
-projection and row-major flatten proofs. The specification exposes the
-same final `U32.from_nat` conversion as the stable S1 offset refinement;
-the new public laws do not assume a conversion succeeds or hide an
+source-read interpretation. They use the shape layer's checked Nat/Fin
+coordinate projection and row-major flatten proofs. The specification exposes
+the same final `U32.from_nat` conversion as the stable shape-layer offset
+refinement; the new public laws do not assume a conversion succeeds or hide an
 unchecked output-index conversion. Output positions enter through
 `U32.to_nat`, and `Shape.flat_checked` validates the natural bound before
 the flat projections run. The new statements certify the outward `U32`
 offsets; they do not separately assert a round-trip theorem for
 `U32.to_nat(U32.from_nat(n))`. The natural input offsets are bounded by
-the S1 flat projection's `FlatIndex` type, while the last Nat-to-U32
-conversion is the same primitive used by the independent S1 flatten
+the shape-layer flat projection's `FlatIndex` type, while the last Nat-to-U32
+conversion is the same primitive used by the independent shape-layer flatten
 specification.
 
 All new definitions are specification observers or proof producers,
 reached only by proof modules. No executable storage or tensor is cloned,
-and no runtime implementation, S1 source, source pin, compiler, or kernel
-is changed by this supplement. The existing elementwise loop proof and
+and no runtime implementation, shape-layer source, source pin, compiler, or
+kernel is changed by this supplement. The existing elementwise loop proof and
 constructor proof remain separate obligations; this module does not
 claim allocator, C/JS compilation, IEEE-754 arithmetic, or backend runtime
-correctness. The stage's native/JS corpus is still required.
+correctness. The tensor gate's native/JS corpus is still required.
 
 The expected-value proof's source tensors are erased parameters of
 `expected_indices_view`; its remaining observer applications occur inside
@@ -129,7 +129,7 @@ projection_2d_LAWS.expected_projection_refines
 ```
 
 Importing the module through an aggregate changes its exported namespace;
-the aggregate owner must record those resulting names in the stage
+the aggregate owner must record those resulting names in the tensor gate
 inventory and recertify that aggregate.
 
 A copied-source negative test lives in
@@ -138,9 +138,9 @@ baseline passes the pinned checker. Replacing only the actual
 `flat_input_indices` successful branch with `Done{(0, 0)}`, while leaving
 the independent specification and proofs unchanged, fails checking at
 `Laws.actual_flat_projection` with exit code 1. The expected type contains
-`Some{(0, 0)}`; the supplied S1 refinement contains the actual projected
-offsets instead. `wrong-constant-check-only.stderr` records that mismatch.
-The live worktree was not mutated.
+`Some{(0, 0)}`; the supplied shape-layer refinement contains the actual
+projected offsets instead. `wrong-constant-check-only.stderr` records that
+mismatch. The live worktree was not mutated.
 
 Earlier native/JS screening is not proof evidence for these final source
 files. No final aggregate or backend gate result is claimed by this scoped

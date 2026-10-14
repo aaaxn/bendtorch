@@ -1,11 +1,11 @@
-# S3 PyTorch observations
+# Autograd PyTorch observations
 
 `generate.py` records what PyTorch `2.14.1+cpu` does with every request of the
-S3 broadcast, `reduce_to` and gradient subgates, and writes
-`fixtures/s3-torch-v1.json`. The S3 gates compare Bend with Python references in
-`tools/s3_*.py`; `tests/test_autograd_torch.py` in the root suite compares those
-references with this file. Bend never calls PyTorch, and the root suite reads
-only the frozen JSON.
+autograd broadcast, `reduce_to` and gradient subgates, and writes
+`fixtures/s3-torch-v1.json`. The autograd gates compare Bend with Python
+references in `tools/autograd_*.py`; `tests/test_autograd_torch.py` in the root
+suite compares those references with this file. Bend never calls PyTorch, and
+the root suite reads only the frozen JSON.
 
 For each request the generator records:
 
@@ -38,20 +38,20 @@ rejects with `IncompatibleBroadcast`, `NotBroadcastable`, `NotReducible` or
 
 ## Backward
 
-`backward.py` replays every script of the S3 backward subgate on PyTorch
+`backward.py` replays every script of the autograd backward subgate on PyTorch
 scalars and writes `fixtures/s3-backward-torch-v1.json`. Each script records
 leaves and `+`, `-`, `*` and unary `-` in order; every node keeps its gradient
 (`retain_grad()`), every `backward` keeps the graph (`retain_graph=True`), and
-`zero_grad` sets every `.grad` to `None`. `tests/test_autograd_backward.py` in the
-root suite compares the gate's Python reference with this file. 83 of 91
+`zero_grad` sets every `.grad` to `None`. `tests/test_autograd_backward.py` in
+the root suite compares the gate's Python reference with this file. 83 of 91
 scripts agree line for line. Three scripts use node ids that the tape does not
 hold; bendtorch reports `UnknownNode` where the replay raises `IndexError`.
 Four scripts forge tapes and are recorded as `unrepresentable`: three with
-malformed wiring (an operand that is the node itself, a newer node or a
-missing node) and one with sound wiring but saved state that disagrees with
-its leaves. In `nan_payloads_sub`, PyTorch's `NaN_a - NaN_b` keeps the second
-payload and bendtorch's native lane keeps the first. [docs/backward.md](../../docs/backward.md)
-lists them.
+malformed wiring (an operand that is the node itself, a newer node or a missing
+node) and one with sound wiring but saved state that disagrees with its leaves.
+In `nan_payloads_sub`, PyTorch's `NaN_a - NaN_b` keeps the second payload and
+bendtorch's native lane keeps the first.
+[docs/backward.md](../../docs/backward.md) lists them.
 
 ## Reproduce
 
@@ -62,7 +62,7 @@ export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
 PYTHONDONTWRITEBYTECODE=1 uv run --project oracle --frozen --no-sync python oracle/autograd/generate.py --check
 PYTHONDONTWRITEBYTECODE=1 uv run --project oracle --frozen --no-sync python oracle/autograd/backward.py --check
 (cd oracle/autograd && PYTHONDONTWRITEBYTECODE=1 uv run --project .. --frozen --no-sync python -m unittest discover -s tests -v)
-uv run --locked python -m unittest tests.test_s3_torch tests.test_s3_backward.BackwardTorchOracleTests -v
+uv run --locked python -m unittest tests.test_autograd_torch tests.test_autograd_backward.BackwardTorchOracleTests -v
 ```
 
 `--check` regenerates the file in memory and compares bytes. Without

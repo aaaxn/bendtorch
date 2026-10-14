@@ -6,9 +6,9 @@ import ../../src/tensor/core.bend as Core
 
 import ./tensor-ops.bend as Ops
 
-# Prototype A (tensor part): an explicit reverse tape over S2 tensors.
+# Prototype A (tensor part): an explicit reverse tape over tensors.
 # The tape owns one store slot per node. An op takes its operands out of their
-# slots, runs the S2 op (which hands the owners back) and puts them back, so a
+# slots, runs the tensor op (which hands the owners back) and puts them back, so a
 # value lives in exactly one place. Taking an empty slot answers Missing, so an
 # alias cannot be formed: x*x clones the operand once and both contributions go
 # to the original node id in the backward sweep.

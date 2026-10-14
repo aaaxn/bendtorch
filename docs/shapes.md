@@ -1,4 +1,4 @@
-# S1 shapes, indexing, and broadcasting
+# Shapes, indexing, and broadcasting
 
 The implementation is `src/shape/core.bend`. A `Shape` is reusable `Data`: its
 dimensions are a reusable list of `U32`, and its natural-number certificates
@@ -170,10 +170,10 @@ input index 1 instead of 0, and `--verdict` rejects the proofs.
 
 ## Reproduction and evidence
 
-The shape stage runs inside the S1 gate and can also run alone:
+The shape gate runs together with the storage gate and can also run alone:
 
 ```sh
-uv run --locked python -m tools.shape --output .evidence/s1-shapes
+uv run --locked python -m tools.check shape --output .evidence/shape
 uv run --locked python -m unittest tests.test_shapes -v
 ```
 
@@ -189,13 +189,13 @@ root Python code imports PyTorch or NumPy.
 
 The exhaustive domain contains 237 shapes: all 156 of rank zero through three
 with dimensions zero through four, and all 81 of rank four with dimensions zero
-through two. Each shape is checked at every valid coordinate and flat index plus
-boundary and wrong-rank coordinates, and all 56,169 ordered shape pairs are
-broadcast. Every valid broadcast output coordinate, and every valid output flat
-index, is projected to both inputs. Invalid ranks, coordinates, indices, and
-incompatible pairs are also checked.
-Separate cases cover capacity-edge indices, products that would overflow U32,
-huge prefixes followed by zero, and output capacity overflow. Negative and
-above-`2^32-1` values cannot be encoded as U32 words, so the gate checks that
-the encoder rejects them instead of running them. Storage ownership and the root
-S1 gate inventory are outside this module.
+through two. Each shape is checked at every valid coordinate and flat index
+plus boundary and wrong-rank coordinates, and all 56,169 ordered shape pairs
+are broadcast. Every valid broadcast output coordinate, and every valid output
+flat index, is projected to both inputs. Invalid ranks, coordinates, indices,
+and incompatible pairs are also checked. Separate cases cover capacity-edge
+indices, products that would overflow U32, huge prefixes followed by zero, and
+output capacity overflow. Negative and above-`2^32-1` values cannot be encoded
+as U32 words, so the gate checks that the encoder rejects them instead of
+running them. Storage ownership and the root inventory of the shape and storage
+gates are outside this module.

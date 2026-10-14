@@ -1,11 +1,11 @@
-# S2 CPU F32 reference oracle
+# Tensor CPU F32 reference oracle
 
 The active `s2-v2` corpus corrects scalar transpose `(0,0)` against the exact
 pinned source and observed CPU wheel. See
 [`docs/scalar-transpose.md`](../../docs/scalar-transpose.md) for old/new laws,
 hashes and the one-ID correction. The source-backed proposal remains separately
 labeled in `fixtures/scalar-transpose-correction.json`; the original `s2-v1`
-records, CPU profile, policy and R3 ordered records remain byte-identical.
+records, CPU profile, policy and ordered reference records remain byte-identical.
 Generation defaults to the current contract. `--historical-scalar-transpose`
 replays the old records only; it does not select a legacy runtime backend.
 
@@ -39,14 +39,15 @@ inputs or outputs. It also contains 45 expected-error requests and 7 independent
 shape-only boundary cases. There are 2,921 raw input/output words; nothing is
 removed because it is NaN, infinite, empty, subnormal, or numerically awkward.
 
-The tensor encoding is compatible with the S0 `shape`/`f32_bits` encoding, but
-these cases are independent of S0. Words are flat logical row-major, eight-digit
-lowercase hexadecimal IEEE binary32 words in most-significant-digit order,
-independent of host byte order. Rank zero `[]` has one word; any zero dimension
-has zero words. `nonfinite` uses S0's index/classification entries. The added
-`classifications` array covers **every word**, distinguishing normal values,
-subnormals, both zero signs, both infinity signs, and NaNs. NaN payload/sign/quiet
-bits remain observable in `f32_bits`; their equality is not a portable requirement.
+The tensor encoding is compatible with the toolchain fixture's
+`shape`/`f32_bits` encoding, but these cases are independent of it. Words are
+flat logical row-major, eight-digit lowercase hexadecimal IEEE binary32 words
+in most-significant-digit order, independent of host byte order. Rank zero `[]`
+has one word; any zero dimension has zero words. `nonfinite` uses the toolchain
+fixture's index/classification entries. The added `classifications` array
+covers **every word**, distinguishing normal values, subnormals, both zero
+signs, both infinity signs, and NaNs. NaN payload/sign/quiet bits remain
+observable in `f32_bits`; their equality is not a portable requirement.
 
 Every successful case has named `inputs`, `outputs.result` (observed PyTorch),
 `comparison_policy`, and `independent_reference.result`. Parameters carry reshape
@@ -179,16 +180,17 @@ scoped invocation must actually select the generator, helpers and tests.
 
 To deliberately regenerate, omit `--check` and supply a fresh `--output-dir`.
 Generation refuses an existing directory. Outputs are restricted to
-`oracle/tensor/`, even when supplying `--output-dir`. The S2 suite validates all
-words/classifications, independent references, explicit errors, goldens,
-rounding ties/overflow, policy rejection, and mutation controls; it also runs two
-actual uv subprocess regenerations in temporary S2 directories, compares both
-byte-for-byte with frozen artifacts, and verifies stale `--check` is read-only.
-`evidence/` retains actual command outcomes, including initial diagnostics,
-precomparison freezes, final verification, and preservation checks for S0 and
-both lockfiles. Before publication, host names and local paths in those
-transcripts were replaced by `<host>` and `<worktree>`. No scientific timings or
-Bend performance results are reported.
+`oracle/tensor/`, even when supplying `--output-dir`. The tensor suite
+validates all words/classifications, independent references, explicit errors,
+goldens, rounding ties/overflow, policy rejection, and mutation controls; it
+also runs two actual uv subprocess regenerations in temporary tensor
+directories, compares both byte-for-byte with frozen artifacts, and verifies
+stale `--check` is read-only. `evidence/` retains actual command outcomes,
+including initial diagnostics, precomparison freezes, final verification, and
+preservation checks for the toolchain fixtures and both lockfiles. Before
+publication, host names and local paths in those transcripts were replaced by
+`<host>` and `<worktree>`. No scientific timings or Bend performance results
+are reported.
 
 ## CI host provenance
 
@@ -196,12 +198,12 @@ Historical: GitHub CI has since been removed and verification is local. The
 text below describes the former CI procedure; run the generator and `--check`
 recipes above locally.
 
-The committed `cpu-config-v2.json` records the reference host, not a
-claim that every runner has that CPU model or SIMD capability. CI preserves
-that record as `reference-cpu-config.json`, generates into a fresh directory on its actual host,
-and requires zero Git differences in the frozen S2 numerical corpus,
-mathematical goldens, numerical policy, S0 fixtures and both lockfiles. Only
-the local, uncommitted CPU provenance record is replaced by the runner's
+The committed `cpu-config-v2.json` records the reference host, not a claim that
+every runner has that CPU model or SIMD capability. CI preserves that record as
+`reference-cpu-config.json`, generates into a fresh directory on its actual
+host, and requires zero Git differences in the frozen tensor numerical corpus,
+mathematical goldens, numerical policy, toolchain fixtures and both lockfiles.
+Only the local, uncommitted CPU provenance record is replaced by the runner's
 actual observation and retained as `runner-cpu-config.json` in the uploaded
 artifact. No runner identity is fabricated and no numerical field is ignored.
 

@@ -1,4 +1,4 @@
-# S2 public elementwise guarantees
+# Public elementwise guarantees
 
 The elementwise review additions certify the actual public
 `Elementwise.binary` result. They do not change tensor arithmetic, storage,
@@ -23,16 +23,16 @@ the logical bounds check.
 `Shape.Broadcast` witness from the actual input extents to a proposed output
 dimension list. If the public result is `Done`, its actual packed output
 dimensions equal that list. There is no output rank or capacity hypothesis
-on this partial-correctness statement. The proof combines the S1 planner's
-input-dimension preservation with natural broadcast-output uniqueness and
-the word/natural round trip, then follows the actual allocation and loop
+on this partial-correctness statement. The proof combines the broadcast
+planner's input-dimension preservation with natural broadcast-output uniqueness
+and the word/natural round trip, then follows the actual allocation and loop
 result. A zero-length output with dimensions `[0, 2]` cannot satisfy the
 statement for the independently specified `[0]` output of `[0]` with `[0]`.
 
 `binary_valid_success` covers every `Operation`, including `Add`, `Sub`,
 and `Mul`, for lawful inputs with a `Compatible` witness. That witness
 contains only an independent natural `Shape.Broadcast` alignment, the
-stage's output rank bound of four, and its inclusive output cardinality
+tensor layer's output rank bound of four, and its inclusive output cardinality
 bound of 1,048,576. It contains no successful actual planner result, allocator
 result, read or write result, conversion equality, or loop certificate.
 The conclusion states that the actual public result is `Done`, so returning
@@ -40,18 +40,18 @@ The conclusion states that the actual public result is `Done`, so returning
 
 These additions strengthen the public specification separately. No existing
 law statement or definition called by an existing law was altered. The
-root-owned stage aggregators and export inventory must protect all three
+root-owned tensor gate aggregators and export inventory must protect all three
 new law declarations and their proof implementations.
 
 ## Proof boundary and domain
 
-The valid-input proof derives actual planner success using S1 broadcast
-completeness. It derives allocation success from `AllocationProof`, bounded
-left and right offsets from S1 flat projection, source reads and target
-writes from `TransformProof`, and exact cursor conversion from the certified
-word-conversion and cursor producers. The induction follows the actual
-natural step and loop. Unconditional retention carries the original input
-dimension equalities to each next state, so every subsequent read retains
+The valid-input proof derives actual planner success using shape-layer
+broadcast completeness. It derives allocation success from `AllocationProof`,
+bounded left and right offsets from shape-layer flat projection, source reads
+and target writes from `TransformProof`, and exact cursor conversion from the
+certified word-conversion and cursor producers. The induction follows the
+actual natural step and loop. Unconditional retention carries the original
+input dimension equalities to each next state, so every subsequent read retains
 its valid logical bound. The left and right projections remain distinct;
 asymmetric broadcast axes are never identified with one another.
 
@@ -93,8 +93,8 @@ change only the accepted export's concrete candidate-result producer. Every
 negative result is an ordinary expected/observed proof mismatch at `witness`,
 not a timeout, source budget, stack overflow, or missing-import rejection.
 
-This proof verification is not a replacement for the root-owned S2 native/JS
-runtime corpus, retained-input harness checks, or Python gate checks.
+This proof verification is not a replacement for the root-owned tensor
+native/JS runtime corpus, retained-input harness checks, or Python gate checks.
 
 ## Stopped closed huge-zero control
 

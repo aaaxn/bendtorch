@@ -1,25 +1,25 @@
-# S2 fixed-F32 tensor core
+# Fixed-F32 tensor core
 
 ## Contracts stated before implementation
 
 `Tensor<shape>` has one affine `Storage.Storage` owner and an erased equality
 between that storage's natural logical length and
 `Shape.logical_numel(Shape.dimensions(shape))`. The shape is validated by the
-frozen S1 API: ranks zero through four and at most `2^20` logical elements.
+frozen shape API: ranks zero through four and at most `2^20` logical elements.
 A dynamic tensor packages this validated shape with its indexed owner. Scalars
 have one element; empty shapes have zero elements and no valid coordinate.
 
 Construction takes F32 values in row-major order and rejects an incorrect value
 count explicitly. Reads and writes retain the owner on both success and error;
-clone returns independent owners. Coordinate errors come from S1, storage
-errors are preserved, and internal length inconsistencies are errors rather
-than default values. No numerical fallback is permitted.
+clone returns independent owners. Coordinate errors come from the shape layer,
+storage errors are preserved, and internal length inconsistencies are errors
+rather than default values. No numerical fallback is permitted.
 
 Binary add, subtract, and multiply retain both inputs and allocate a separate
-output. They use the S1 right-aligned broadcast plan, including `0/1 -> 0`.
-Each checked output flat index is projected directly through S1’s zero-stride
-flat index map and read through the owned Storage adapter. No coordinate
-roundtrip is materialized. The operation applies exactly
+output. They use the shape layer's right-aligned broadcast plan, including
+`0/1 -> 0`. Each checked output flat index is projected directly through the
+shape layer’s zero-stride flat index map and read through the owned Storage
+adapter. No coordinate roundtrip is materialized. The operation applies exactly
 one corresponding Base F32 primitive and writes the result through Storage.
 An incompatible or oversized output shape is rejected before allocation.
 
@@ -64,7 +64,7 @@ matched to obtain a validated shape and its corresponding owner.
 
 `Shape.dimensions(shape)`, `Shape.rank(shape)` and `Shape.count(shape)` expose
 copyable shape metadata. The leading `-shape` parameters above are erased;
-coordinate operations need a live shape for their checked S1 conversion.
+coordinate operations need a live shape for their checked shape conversion.
 `logical_length`, `observe`, `write_observe`, `ConstructionDimensions`,
 `ValuesCount`, `LengthValid` and `ObservationChecked` are proof-model interfaces, not retained-owner
 runtime observations. In particular, do not substitute a mathematical array
@@ -111,11 +111,11 @@ index cases and changes no numerical tolerance or scalar policy.
 
 ## Errors and precedence
 
-`ShapeError{error}` preserves S1 codes 1–6: rank, capacity, coordinate rank,
-coordinate bounds, flat-index bounds and incompatible broadcast. Shape
-construction fails before inspecting the input value count. Coordinate rank
-validation precedes coordinate bounds validation. Binary plan validation precedes
-output allocation or scalar computation.
+`ShapeError{error}` preserves the shape layer's codes 1–6: rank, capacity,
+coordinate rank, coordinate bounds, flat-index bounds and incompatible
+broadcast. Shape construction fails before inspecting the input value count.
+Coordinate rank validation precedes coordinate bounds validation. Binary plan
+validation precedes output allocation or scalar computation.
 
 `StorageError{TooLarge{}}`, `StorageError{OutOfBounds{}}` and
 `StorageError{InvalidIndex{}}` use codes 7, 8 and 9. Flat tensor reads/writes
@@ -128,9 +128,9 @@ drops the partial output and returns the original inputs with the error.
 ## Checked laws and proof boundary
 
 `core-LAWS.bend` and `core-PROOF.bend` discharge **38 core laws** on the
-reviewed S1 base. No earlier law was removed, narrowed or weakened. The scalar
-dispatch laws universally pin Add/Sub/Mul to the respective opaque Base F32
-primitive; they assert no IEEE ring identities.
+reviewed shape base. No earlier law was removed, narrowed or weakened. The
+scalar dispatch laws universally pin Add/Sub/Mul to the respective opaque Base
+F32 primitive; they assert no IEEE ring identities.
 
 The three added `public_add_dispatch`, `public_sub_dispatch`, and
 `public_mul_dispatch` laws equate each actual public wrapper with
@@ -144,8 +144,9 @@ companions universally preserve those observations on reads. Computational
 `Read`, `DynamicRead` and `Write` certificates expose the actual retained owner,
 result and normal equality to the public method's pair. `UpdateModel` and
 `CheckedUpdateModel` certify successful writes and a universal frame on another
-previously checked index. All S1 array traversal/refinement builders used for
-these claims occur inside erased proof fields, never numerical execution.
+previously checked index. All shape-layer array traversal/refinement builders
+used for these claims occur inside erased proof fields, never numerical
+execution.
 
 ### Actual step, prefix, loop and public wrappers
 
@@ -153,10 +154,10 @@ these claims occur inside erased proof fields, never numerical execution.
 provides the written route, exact scalar observation, both retained input
 interpretations and the output frame. `natural_certificate` adds the actual
 checked cursor equality. `invariant_advance` extends a natural prefix: earlier
-positions are preserved by S1's primitive frame law and checked route
-separation, while the new position gets the selected scalar value. The logical
-index equal to the current cursor is identified by structurally proved U32
-natural injectivity; no global conversion-totality premise is supplied.
+positions are preserved by the shape layer's primitive frame law and checked
+route separation, while the new position gets the selected scalar value. The
+logical index equal to the current cursor is identified by structurally proved
+U32 natural injectivity; no global conversion-totality premise is supplied.
 
 `loop_certificate` inducts on the real loop's fuel and is tied to the actual
 returned pair by a normal equality. Its initial invariant has an empty prefix
@@ -171,7 +172,7 @@ The additive `elementwise-LAWS.bend` contracts separately preserve both
 returned owners' dimensions, checked observations, and raw observations on
 every exit. They constrain successful output dimensions by the independent
 Nat broadcast relation, including empty outputs, and force actual success
-when that output meets the unchanged stage rank and capacity bounds. The
+when that output meets the unchanged tensor rank and capacity bounds. The
 caller supplies no plan, allocation, conversion, projection, or access-success
 premise. These contracts strengthen, rather than replace, the original
 conditional element-value interpretation.
@@ -183,8 +184,8 @@ universal laws: `actual_flat_projection`, `input_indices_refines`,
 `input_indices_acceptance` and `expected_projection_refines`. They relate the
 actual offsets to the independent Nat/Fin unflatten, right-aligned
 singleton-to-zero projection and row-major flatten specification under the
-plan's own S1 Broadcast certificate. `independent_elementwise_loop` and
-`independent_elementwise_binary` compose that refinement with the actual
+plan's own shape-layer Broadcast certificate. `independent_elementwise_loop`
+and `independent_elementwise_binary` compose that refinement with the actual
 whole-result theorem. A wrong executable projection cannot change both sides
 of these independent claims.
 
@@ -234,9 +235,9 @@ not a missing observation proof, and has not been substituted for verification.
 
 The independent public constructor/list-element and clone-outcome laws live in
 `construction-LAWS.bend` / `construction-PROOF.bend`, owned and aggregated
-separately. The root stage gate aggregates these modules with transforms,
-reductions and matmul; this core handoff is not an assertion that every S2 gate
-or pull request has already passed.
+separately. The root tensor gate aggregates these modules with transforms,
+reductions and matmul; this core handoff is not an assertion that every tensor
+gate or pull request has already passed.
 
 ### Trusted boundaries and deliberately unclaimed properties
 
@@ -277,20 +278,20 @@ export BENDTT="$PWD/.tools/kernel/bendtt"
 export LEAN_STACK_SIZE_KB=4194304
 export CC="$PWD/.tools/llvm/usr/bin/clang-19"
 export LD_LIBRARY_PATH="$PWD/.tools/llvm/usr/lib/x86_64-linux-gnu"
-mkdir -p ".evidence/s2-core-new-evidence"
+mkdir -p ".evidence/tensor-core-new-evidence"
 bun .tools/bend/bend2/main.ts src/tensor/core-PROOF.bend --check-only
 bun .tools/bend/bend2/main.ts src/tensor/core-PROOF.bend --verdict
 bun .tools/bend/bend2/main.ts src/tensor/core-PROOF.bend \
-  -o ".evidence/s2-core-new-evidence/core-PROOF.bendtt"
-.tools/kernel/bendtt ".evidence/s2-core-new-evidence/core-PROOF.bendtt"
+  -o ".evidence/tensor-core-new-evidence/core-PROOF.bendtt"
+.tools/kernel/bendtt ".evidence/tensor-core-new-evidence/core-PROOF.bendtt"
 bun .tools/bend/bend2/main.ts src/tensor/core-demo.bend --verdict
 bun .tools/bend/bend2/main.ts src/tensor/core-demo.bend \
-  -o ".evidence/s2-core-new-evidence/core-demo"
-".evidence/s2-core-new-evidence/core-demo" --threads 1 --gpu off
+  -o ".evidence/tensor-core-new-evidence/core-demo"
+".evidence/tensor-core-new-evidence/core-demo" --threads 1 --gpu off
 ```
 
-Fresh final core logs/artifacts and the source/law inventory on reviewed S1
-`1e43717834311191fe4d3a977d622da3cf44ca66` are in
+Fresh final core logs/artifacts and the source/law inventory on the reviewed
+shape layer `1e43717834311191fe4d3a977d622da3cf44ca66` are in
 `<scratch>/s2-core-s1-1e437178-final`. The authorized minimal-contour checks
 remain separately in `<scratch>/s2-core-erased-owner-contour-final`.
 The demo emits 105 exact

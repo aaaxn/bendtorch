@@ -1,12 +1,13 @@
-# R1.B public proof contracts
+# Public proof contracts
 
-R1.B turns the R1.A pattern into laws, one capability per PR. Each capability
-states its public contract as a law in `src/tensor/<capability>-contract-LAWS.bend`
-and proves it in the paired `-PROOF.bend`, so the root `PROOF.bend --verdict`
-and the S2 gate protect it. The literal consumers, false twins and
-implementation mutants live here, beside the runner that checks them.
+These contracts turn the pattern of `experiments/proof-boundary/` into laws,
+one capability per PR. Each capability states its public contract as a law in
+`src/tensor/<capability>-contract-LAWS.bend` and proves it in the paired
+`-PROOF.bend`, so the root `PROOF.bend --verdict` and the tensor gate protect
+it. The literal consumers, false twins and implementation mutants live here,
+beside the runner that checks them.
 
-## Construction (R1.B.1)
+## Construction
 
 Laws in `src/tensor/construction-contract-LAWS.bend`, aggregated by
 `src/tensor/LAWS.bend` and required by `verification/tensor.json`:
@@ -39,7 +40,7 @@ The runner adds three kinds of control:
 | Wrong fill | `Core.new` allocates `0.0`; only the body of the true count proof follows | `point_value`: `0.0` vs `fill` against `Some(fill)`, source and kernel; metadata control still passes |
 | Unjustified failure | `Core.new_result` returns `Fail{StorageLengthMismatch}` on a successful allocation | `new_result_length`: `None == Some(numel)`, source and kernel |
 
-## Reads and writes (R1.B.2)
+## Reads and writes
 
 Laws in `src/tensor/read-write-contract-LAWS.bend`, aggregated by
 `src/tensor/LAWS.bend` and required by `verification/tensor.json`. The record types
@@ -98,7 +99,7 @@ The kernel mutants are built by exporting the mutant `core.bend` alone and
 transplanting its changed and new declarations into the positive export, so the
 kernel rechecks the unchanged proofs against the mutated operation.
 
-## Clone and metadata (R1.B.3)
+## Clone and metadata
 
 Laws in `src/tensor/clone-metadata-contract-LAWS.bend`, aggregated by
 `src/tensor/LAWS.bend` and required by `verification/tensor.json`. The record types
@@ -144,7 +145,7 @@ Each law is generic over a `Core.new(shape, fill)` producer:
 | Changed owner | `length_result` writes `0.0` at index 0 of the owner it returns | `owner_value_projection`, source and kernel; clone proof passes |
 | Wrong word count | `Core.count` returns `count + 1` | `read_count_pair` (the first proof that states the count), source and kernel |
 
-## Transforms (R1.B.4)
+## Transforms
 
 Laws in `src/tensor/transform-contract-LAWS.bend`, aggregated by
 `src/tensor/LAWS.bend` and required by `verification/tensor.json`. Record types
@@ -197,7 +198,7 @@ The kernel lane exports the mutated module alone (`transforms.bend` or
 `layout.bend`) and transplants its changed declarations into the positive
 export.
 
-## From values (R1.B.6a)
+## From values
 
 Law in `src/tensor/from-values-contract-LAWS.bend`, aggregated by
 `src/tensor/LAWS.bend` and required by `verification/tensor.json`. The record type
@@ -237,7 +238,7 @@ on each mutated copy: the `Core.new` laws do not depend on the fill loop. The
 kernel lane exports the mutated `core.bend` alone and transplants its changed
 declarations into the positive export.
 
-## Permute and transpose values (R1.B.6b)
+## Permute and transpose values
 
 Laws in `src/tensor/permute-values-contract-LAWS.bend`, aggregated by
 `src/tensor/LAWS.bend` and required by `verification/tensor.json`. The record

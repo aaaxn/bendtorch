@@ -3,7 +3,7 @@
 These are hypotheses, not results. No storage or differentiation architecture is
 promoted before its discriminating cases and required laws pass.
 
-## S1 storage and dependent certificates
+## Storage and dependent certificates
 
 Compare a small dependent list, a reusable immutable balanced tree, and an owned
 padded array. Construct lengths 0, 1, 3, 4, and 5; read twice; update; clone;
@@ -15,7 +15,7 @@ indices before access. Measure native time and allocation separately from
 checking and compilation. Stop promotion if a representation needs unsafe
 sharing, cannot express its invariant, or has pathological copying.
 
-## S3 repeated-input differentiation
+## Repeated-input differentiation
 
 Compare a one-shot affine closure pullback, a tagged reverse tape, and forward
 dual numbers on a scalar polynomial, `x*x`, a diamond graph, and a tiny affine

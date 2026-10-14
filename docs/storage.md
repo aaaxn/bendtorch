@@ -1,4 +1,4 @@
-# S1 owned F32 storage
+# Owned F32 storage
 
 `src/storage/main.bend` is the executable module. `new(length, fill)` returns a
 validated sole owner or `TooLarge`; `get(owner, index)` and `set(owner, index,
@@ -45,7 +45,7 @@ values because the balance and range certificates are erased, so a proof
 cannot use them, and an affine array cannot be both read and fed to a model
 lemma. Every storage the API builds from `new` is covered; a storage forged
 from erased certificates is not, and the runtime `InvalidIndex` check stays.
-A later stage that adds another way to make storage, such as an imported
+A later change that adds another way to make storage, such as an imported
 buffer, needs its own law or a proof that it yields what these histories
 reach. Clone laws state the contents of each copy; that the copies do not
 share memory at run time is checked by the native corpus, not by a law.

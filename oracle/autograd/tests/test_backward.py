@@ -5,7 +5,7 @@ import backward
 import generate
 
 
-class S3BackwardOracleTests(unittest.TestCase):
+class BackwardOracleTests(unittest.TestCase):
     def test_regeneration_is_byte_identical(self) -> None:
         generate.configure_cpu()
         identity = generate.observed_identity()

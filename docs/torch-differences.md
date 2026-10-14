@@ -47,11 +47,11 @@ bendtorch precedence is part of the frozen policy
 
 ## Reduction order: parity with PyTorch is envelope-only
 
-`sum`, `matmul` and S3's `reduce_to` accumulate sequentially in ascending
-row-major order from `+0.0`. PyTorch's CPU reduction uses a vectorized order.
-The results are word-identical only for short inputs. For uniform values in
-`[-8, 8]` (seed 0), PyTorch `sum`, the PyTorch gradient of `expand` and the
-sequential fold give:
+`sum`, `matmul` and the autograd `reduce_to` accumulate sequentially in
+ascending row-major order from `+0.0`. PyTorch's CPU reduction uses a
+vectorized order. The results are word-identical only for short inputs. For
+uniform values in `[-8, 8]` (seed 0), PyTorch `sum`, the PyTorch gradient of
+`expand` and the sequential fold give:
 
 | n | `torch.sum` | torch `expand` gradient | sequential fold |
 | --- | --- | --- | --- |
@@ -62,10 +62,10 @@ sequential fold give:
 | 65536 | `c4cd82c4` | `c4cd82c4` | `c4cd829a` |
 
 So from about 16 elements on, agreement with PyTorch is checked only within the
-S2 reduction envelope (`oracle/tensor/README.md`). Word-exact checks of these
-operations are against the ordered reference
-(`oracle/tensor/ORDERED_REFERENCE.md`), not against PyTorch. A future pairwise or
-blocked reduction needs its own law; the ordered law stays the reference.
+tensor reduction envelope (`oracle/tensor/README.md`). Word-exact checks of
+these operations are against the ordered reference
+(`oracle/tensor/ORDERED_REFERENCE.md`), not against PyTorch. A future pairwise
+or blocked reduction needs its own law; the ordered law stays the reference.
 
 The PyTorch outputs above come from a script run in the oracle environment;
 it reproduces with `uv run --project oracle --frozen --no-sync python <script>`

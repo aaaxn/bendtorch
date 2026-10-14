@@ -1,4 +1,4 @@
-# S2 requested transpose axes
+# Requested transpose axes
 
 `src/tensor/transpose-spec.bend` specifies the requested `a`/`b` exchange
 without importing Layout. `swap(A, items, a, b)` independently looks up both
@@ -75,8 +75,8 @@ integration; these metadata laws do not claim them.
 
 ## Added law inventory
 
-All three statements are new. No existing definition, law, proof, runtime,
-pin, proof budget, or S1 storage/Core definition is changed.
+All three statements are new. No existing definition, law, proof, runtime, pin,
+proof budget, or storage/Core definition is changed.
 
 | Law | Statement protected |
 | --- | --- |
@@ -124,5 +124,5 @@ bounds-rejection checks. Each pair checks its literal expected order,
 independent requested order, actual Layout bijectivity, and independently
 computed inverse. Evidence and the final manifest are retained under
 `<scratch>/s2-transpose-algebra-01/`. The protected allocation and axis
-checkpoint files, frozen count conversion, S1 HEAD, and pin were rechecked
-unchanged at the API and final freezes.
+checkpoint files, frozen count conversion, the shape and storage HEAD, and pin
+were rechecked unchanged at the API and final freezes.

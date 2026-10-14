@@ -1,4 +1,4 @@
-# S2 ordered reduction and rank-two matrix multiplication
+# Ordered reduction and rank-two matrix multiplication
 
 ## Public math completeness supplement
 
@@ -41,8 +41,8 @@ The combined interpretation certificates use the original interpretations;
 success makes their failure branches unreachable rather than changing their
 meaning.
 
-The proofs reuse the twelve-law word-conversion bridge, the independent S1
-checked flatten/unflatten interpretation and coordinate bounds,
+The proofs reuse the twelve-law word-conversion bridge, the independent
+shape-layer checked flatten/unflatten interpretation and coordinate bounds,
 `AllocationProof.core_new_done`, and the transform read/write success
 producers. Natural output/reduction cursors are bounded by the shape's exact
 logical count. Dot cursors are bounded by the actual U32 inner dimension;
@@ -69,8 +69,9 @@ assumed successful result. Original failed formulations and checker/kernel
 diagnostics remain immutable in `<scratch>/s2-review-math-totality-01`;
 the fresh source snapshot and checks use the separate `-02` directory.
 
-Whole-stage aggregate, Python, native/JS corpus, and oracle revalidation remain
-the root's responsibility. These supplements do not promote S2 or authorize S3.
+Tensor gate aggregate, Python, native/JS corpus, and oracle revalidation remain
+the root's responsibility. These supplements do not promote the tensor layer or
+authorize the autograd work.
 
 ## Verification status: restored Core dependency
 
@@ -80,15 +81,16 @@ the restored dependency. Both source-checking paths and the exported direct
 BendTT checks passed from a preserved source tree. No math code or law
 statement changed after the earlier `s1-2cd8d04-stable-01` checkpoint.
 
-These module checks do not establish whole-stage readiness. The final aggregate
+These module checks do not establish whole-layer readiness. The final aggregate
 proof, native/JS corpus, and source-snapshot consistency remain requirements of
-the authoritative S2 gate. They do not authorize starting S3.
+the authoritative tensor gate. They do not authorize starting the autograd
+work.
 
 The mathematical contract is an **ordered-machine model** using the pinned
 Base `F32.add` and `F32.mul` operations. It does not assume associativity,
 commutativity, distributivity, an F32 ring, or a proof that the native backend
 implements IEEE arithmetic. Native numerical acceptance is a separate check
-against the frozen S2 corpus and policy.
+against the frozen tensor corpus and policy.
 
 ## Independent interpretations
 
@@ -161,9 +163,9 @@ and storage mapping/frame proofs are in the law/proof modules; native programs
 do not import those modules. Production computation uses Base in-place reads
 and writes and scalar F32 operations.
 
-## Reviewed S1 cached-size adaptation
+## Reviewed shape cached-size adaptation
 
-The reviewed S1 representation carries a cached natural size and an exact
+The reviewed shape representation carries a cached natural size and an exact
 relation to the mathematical element count. `scalar_shape` now supplies the
 cached size `1` and its exactness witness. The live sum and matrix output loops
 take their fuel from `Shape.elements(shape)`, rather than evaluating
@@ -216,9 +218,10 @@ qualify their namespaces differently.
 
 The dependencies are checked source proofs, not extra loop-result hypotheses:
 
-- Reviewed S1 supplies the cached-size equality and the natural checked
-  flatten/unflatten coordinate interpretation. The live cached size is linked
-  to the unchanged mathematical statements only in erased certificate fields.
+- The reviewed shape layer supplies the cached-size equality and the natural
+  checked flatten/unflatten coordinate interpretation. The live cached size is
+  linked to the unchanged mathematical statements only in erased certificate
+  fields.
 - Core's computational reader certificates connect the actual reader pair to
   `Core.source_read_model` and `Core.source_read_keeps`. They provide the
   original checked observations and their preservation after each read.
@@ -234,7 +237,7 @@ boundary is the checked source refinement of Base array accesses; proving the
 native implementation of those primitives and F32 operations equivalent to the
 source model is outside these math laws. Original input contents are defined by
 their checked observers. Public construction/supplied-value and clone laws are
-separate dependencies of the full S2 interface, not hidden premises of the
+separate dependencies of the full tensor interface, not hidden premises of the
 sum or matrix loop theorems.
 
 ## Checked cursors, domain, and ownership
@@ -282,12 +285,12 @@ also certifies the three public construction/clone supplement laws.
 
 ### Reviewed-base recheck
 
-After the reviewed S1 `2cd8d04` integration and the Core reader/update stability
-signal, all 15 unchanged laws passed fresh pinned source checks, BendTT
-verdicts, and direct checks of the independently exported `.bendtt` artifacts.
-This is the verified snapshot that predates the later Core supplement and its
-quantity disagreement, not a check of the subsequently modified integrated
-source. Its evidence is in
+After the reviewed shape layer `2cd8d04` integration and the Core reader/update
+stability signal, all 15 unchanged laws passed fresh pinned source checks,
+BendTT verdicts, and direct checks of the independently exported `.bendtt`
+artifacts. This is the verified snapshot that predates the later Core
+supplement and its quantity disagreement, not a check of the subsequently
+modified integrated source. Its evidence is in
 `<scratch>/s2-math-proofs/s1-2cd8d04-stable-01`; `verified-exports.json`
 records the checked law names and every local proof definition, and
 `verification-summary.json` records the native assertions.
@@ -306,14 +309,14 @@ obligation by both `--check-only` and `--verdict` in fresh reviewed-base scratch
 Those are entrypoint rejection controls; the positive artifacts above are the
 ones checked directly by BendTT.
 
-This math task did not rerun the root aggregate proof or frozen corpus/stage
-gate for the reviewed base. The root reruns those after all writers stop; the
-pre-integration corpus results below remain historical evidence only.
+This math task did not rerun the root aggregate proof or frozen corpus and
+tensor gate for the reviewed base. The root reruns those after all writers
+stop; the pre-integration corpus results below remain historical evidence only.
 
 ### Preserved original evidence and reproduction
 
 The original verification was run in a local worktree before the
-reviewed S1 reintegration. Both proof modules passed
+reviewed shape-layer reintegration. Both proof modules passed
 the pinned Bend2 source checker and the pinned BendTT verifier; their directly
 exported `.bendtt` artifacts were also checked independently. That source
 closure and evidence are preserved under
@@ -327,7 +330,7 @@ export BENDTT="$PWD/.tools/kernel/bendtt"
 export LEAN_STACK_SIZE_KB=4194304
 export CC="$PWD/.tools/llvm/usr/bin/clang-19"
 export LD_LIBRARY_PATH="$PWD/.tools/llvm/usr/lib/x86_64-linux-gnu"
-EVIDENCE=".evidence/s2-math-proofs/recheck-$(date +%Y%m%d-%H%M%S)"
+EVIDENCE=".evidence/tensor-math-proofs/recheck-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$EVIDENCE"
 for module in reduction matmul; do
   bun .tools/bend/bend2/main.ts "src/tensor/$module-PROOF.bend" --check-only
@@ -367,11 +370,11 @@ the laws or introducing axioms.
 
 Reviewed-base adaptation and fresh verification work uses the separate
 `<scratch>/s2-math-proofs/s1-2cd8d04-01` directory. The root owns the final
-new-base corpus and stage-gate evidence.
+new-base corpus and tensor gate evidence.
 
 The preserved checkpoint contains complete reduction/matmul source
 interpretation producers. Current integrated-source readiness remains paused
 pending the Core quantity-disagreement decision and root revalidation.
-S2 promotion remains the root's review and stage-gate decision; this document
-does not promote S2 or substitute the snapshot checks for the frozen numerical
-gates.
+Promoting the tensor layer remains the root's review and gate decision; this
+document does not promote it or substitute the snapshot checks for the frozen
+numerical gates.

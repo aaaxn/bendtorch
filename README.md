@@ -220,19 +220,17 @@ evidence to a new directory and refuses to overwrite an existing one.
 ```sh
 bend PROOF.bend --verdict
 uv run --locked python -m unittest discover -s tests -v
-uv run --locked python -m tools.toolchain --output .evidence/<new directory>
-uv run --locked python -m tools.s1 --output .evidence/<new directory>
-uv run --locked python -m tools.tensor --output .evidence/<new directory>
-uv run --locked python -m tools.autograd --output .evidence/<new directory>
+uv run --locked python -m tools.check all --output .evidence/<new directory>
 uv run --locked python -m verification.contracts.run --output <new directory>
 uv run --locked python -m verification.families.run --output <new directory>
 ```
 
-`PROOF.bend` checks the shape, storage and tensor laws. The gates are numbered
-in the order the capabilities were added. `tools.toolchain` checks the toolchain
-itself, `tools.s1` shapes and storage, `tools.tensor` tensors and the frozen
-corpus, and `tools.autograd` the autograd building blocks and their laws. The last
-two commands check the proved contracts and their negative controls.
+`PROOF.bend` checks the laws of every module. `tools.check all` runs one gate
+per suite: `toolchain` checks the pinned Bend2 and BendTT themselves, `shape`
+and `storage` their modules, `tensor` the tensor laws and the frozen PyTorch
+corpus, and `autograd` the autograd laws and the backward pass. Name suites to
+run only those, as in `tools.check tensor autograd`. The last two commands
+check the proved contracts and their negative controls.
 
 The oracle has its own uv project with a CPU-only PyTorch, so PyTorch is
 never installed in the root environment. The [oracle](oracle/README.md) and
@@ -245,8 +243,8 @@ the references.
 | --- | --- |
 | `src/` | The Bend library: `shape`, `storage`, `tensor` and `autograd`, each with its `LAWS.bend` and `PROOF.bend`. |
 | `LAWS.bend`, `PROOF.bend` | The root law and proof files. |
-| `verification/` | Per-gate law roots, required proof exports, the Bend pin, and the contract consumers and controls. |
-| `tools/` | Python gates and the bootstrap. |
+| `verification/` | The proof exports each gate requires, the Bend pin, and the contract consumers and controls. |
+| `tools/` | The Python gates, one per suite and run with `tools.check`, and the bootstrap. |
 | `tests/` | Python tests for the gates. |
 | `oracle/` | The isolated PyTorch reference project and its frozen fixtures. |
 | `experiments/` | Experimental code, outside `src/` until it is promoted. |

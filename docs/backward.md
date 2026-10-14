@@ -128,8 +128,8 @@ value.
   `backward_twice_mul` (both slots of `x*y` read `g + g`).
 - **zero_grad:** `zero_grad_empties` and `zero_grad_keeps_nodes`.
 
-The S3 gate also applies nine proof controls and two error controls to a copy
-of the sources, and the proofs reject each one: seeding the newest node, a
+The autograd gate also applies nine proof controls and two error controls to a
+copy of the sources, and the proofs reject each one: seeding the newest node, a
 lookup or a slot update that matches a larger id, dropping a later
 contribution, swapping the `Mul` VJP operands, dropping the `Sub` sign,
 overwriting a slot instead of adding, a wiring check that skips the operand
@@ -164,15 +164,15 @@ the gate can build tapes with dangling operands.
   third backward.
 
 Both lanes must print exactly the lines of a Python reference that applies the
-same rules in the same order and rounds to F32 after each operation. The
-native lane must match bit for bit, NaN payloads included. When an operand is
-NaN, the reference does not use Python arithmetic. It implements the payload
-rule of the pinned native lane (clang 19 `-O3` on x86-64): the result is a NaN
-operand, quieted. With two NaN operands, `add` and `mul` keep the second
-operand's NaN and `sub` keeps the first's. The rule was measured on this
-toolchain; it is a property of the compiled code, not of IEEE 754, and the
-same C at `-O0` picks differently. The JavaScript lane may return a NaN with
-another payload, as in the other S3 subgates.
+same rules in the same order and rounds to F32 after each operation. The native
+lane must match bit for bit, NaN payloads included. When an operand is NaN, the
+reference does not use Python arithmetic. It implements the payload rule of the
+pinned native lane (clang 19 `-O3` on x86-64): the result is a NaN operand,
+quieted. With two NaN operands, `add` and `mul` keep the second operand's NaN
+and `sub` keeps the first's. The rule was measured on this toolchain; it is a
+property of the compiled code, not of IEEE 754, and the same C at `-O0` picks
+differently. The JavaScript lane may return a NaN with another payload, as in
+the other autograd subgates.
 
 The subgate also builds four runtime controls from a mutated copy of
 `backward.bend` and requires the JavaScript lane to reject each one: a seed at
@@ -206,7 +206,7 @@ dual numbers would give NaN. The other 8 differ as listed:
 ```sh
 bend src/autograd/backward-PROOF.bend --verdict
 uv run --locked python -m tools.autograd_backward --output .evidence/<new directory>
-uv run --locked python -m unittest tests.test_s3_backward -v
+uv run --locked python -m unittest tests.test_autograd_backward -v
 export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
 PYTHONDONTWRITEBYTECODE=1 uv run --project oracle --frozen --no-sync python oracle/autograd/backward.py --check
 ```

@@ -201,11 +201,11 @@ family loops and of their instances. Its [README](../verification/families/READM
 control and the rejection it expects.
 
 The proofs and controls check what the laws state, not the compiled code.
-`tools/tensor_families.py`, which the S2 gate runs, compiles `Broadcast.binary`
-in the native and JavaScript lanes and runs the 67 S2 `add`, `sub` and `mul`
-requests that reach Bend through it. They include the `ieee_edges` cases,
-whose words are signed zeros, subnormals, the largest finite values, NaN and
-infinities. Each lane must give the output words that the S2 numerical policy
-accepts, the four broadcast and capacity errors, and both inputs unchanged.
-Its results are in `pointwise-family/` of the S2 output, apart from the
-`Elementwise.binary` corpus.
+`tools/tensor_families.py`, which the tensor gate runs, compiles
+`Broadcast.binary` in the native and JavaScript lanes and runs the 67 tensor
+`add`, `sub` and `mul` requests that reach Bend through it. They include the
+`ieee_edges` cases, whose words are signed zeros, subnormals, the largest
+finite values, NaN and infinities. Each lane must give the output words that
+the tensor numerical policy accepts, the four broadcast and capacity errors,
+and both inputs unchanged. Its results are in `pointwise-family/` of the tensor
+gate output, apart from the `Elementwise.binary` corpus.

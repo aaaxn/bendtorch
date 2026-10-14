@@ -14,7 +14,7 @@ import generate
 import torch
 
 
-class S2OracleTests(unittest.TestCase):
+class TensorOracleTests(unittest.TestCase):
     def test_transport_lists_precede_shape_admission(self) -> None:
         requests = (
             ("get", "coordinate", [1]),

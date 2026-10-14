@@ -1,4 +1,4 @@
-# S2 review-fix verification
+# Tensor review-fix verification
 
 These fixes follow the review of PR #4 at
 `0bbfb1906e2b809cc9c78b6a1a706e9b40d45535`. They add thirteen laws without
@@ -12,20 +12,20 @@ previous tensor entrypoints, with no removal.
 
 ## Snapshot identity
 
-The single integrated S2 gate run froze 88 inputs.
-The SHA256 of `source-inventory.json` is
-`723b8b7ec013b3a67aea5a7603d4a31eeebce9c243409268fbe7f1298b203568`.
-Its freshly exported, directly checked proof has SHA256
-`5812a44f5b0a8b12318aa5c000a53e40e35b7e48ff8229fad56073725a58475e`;
-the compressed package decompresses to that exact artifact. Every frozen
-input matched again before publication.
+The single integrated tensor gate run froze 88 inputs. The SHA256 of
+`source-inventory.json` is
+`723b8b7ec013b3a67aea5a7603d4a31eeebce9c243409268fbe7f1298b203568`. Its freshly
+exported, directly checked proof has SHA256
+`5812a44f5b0a8b12318aa5c000a53e40e35b7e48ff8229fad56073725a58475e`; the
+compressed package decompresses to that exact artifact. Every frozen input
+matched again before publication.
 
 The corpus remains
 `e8999f9170f836b86dcfb8462b5f65fc14619a9d3305fa952302ad1dc25fd356`, and the
 numerical policy remains
-`0a0e28b2e4666aa9a859af9a091cf0a2cad93ac10f7bb4c68413f1250853d9a4`.
-S1 source, tensor arithmetic/transform runtime bodies, both lockfiles, the
-tool pin, bounds, and tolerances are unchanged. The harness changes which
+`0a0e28b2e4666aa9a859af9a091cf0a2cad93ac10f7bb4c68413f1250853d9a4`. The shape
+and storage source, tensor arithmetic/transform runtime bodies, both lockfiles,
+the tool pin, bounds, and tolerances are unchanged. The harness changes which
 public arithmetic wrappers it calls and serializes their actual retained
 owners; Python still performs no tensor computation in the gate.
 
@@ -33,7 +33,7 @@ owners; Python still performs no tensor computation in the gate.
 
 | Scope | Source | Verdict | Fresh export | Direct kernel |
 | --- | --- | --- | --- | --- |
-| Integrated S2 proof and all 181 required exports | Pass | Pass | Pass | Pass |
+| Integrated tensor proof and all 181 required exports | Pass | Pass | Pass | Pass |
 | Released root proof | Pass | Pass | Pass | Pass |
 | Constructor producers and all ten original closed cases, both certificate routes | Pass | Pass | Pass | Pass |
 | Public elementwise producers and all nine original named public-call cases | Pass | Pass | Pass | Pass |
@@ -54,10 +54,10 @@ semantic countermodel pairs pass all 112 expected checks, including wrong
 empty output dimensions, swapped/replaced owners on success and error, and
 raw-only padding changes. These rejections are semantic, not resource failures.
 
-All 66 root tests and twenty-one isolated S2 oracle tests pass, together with
-the relevant Ruff, formatting, ty and diff checks. Oracle regeneration checks
-preserve every frozen numerical document. The native and generated-Bend JS
-lanes each pass 160 numerical cases, seven shape cases, thirty actual API
+All 66 root tests and twenty-one isolated tensor oracle tests pass, together
+with the relevant Ruff, formatting, ty and diff checks. Oracle regeneration
+checks preserve every frozen numerical document. The native and generated-Bend
+JS lanes each pass 160 numerical cases, seven shape cases, thirty actual API
 errors, and 67 ordered public binary-retention observations; native also
 records the four decoder and seven static F32 boundaries. Copy auditing remains
 `STORAGE_COPY_AUDIT 0 0`.

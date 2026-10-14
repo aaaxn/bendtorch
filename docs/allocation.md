@@ -1,4 +1,4 @@
-# S2 actual allocation totality
+# Actual allocation totality
 
 The allocation modules prove that actual `Storage.new` succeeds throughout its
 unchanged U32 capacity domain and that actual `Core.new` succeeds for every
@@ -52,13 +52,13 @@ are proof-only; it is not an additional runtime allocation API.
 
 ## Composition through the unchanged implementations
 
-Frozen S1 `Api.cap_from` derives the allocator's natural capacity bound from
-its U32 range contract. For a positive request, frozen `Api.seek` proves that
-the actual `Storage.depth_seek` result satisfies every existing
-`Storage.bounds` condition: depth at most 20, positive logical length, and
-enough physical capacity. The new proof follows actual `new_checked`,
-`allocate_at`, and `allocate` branches to produce the exact requested length.
-Zero is separately certified as exactly `Done{Storage.Empty{}}` for any fill.
+Frozen `Api.cap_from` derives the allocator's natural capacity bound from its
+U32 range contract. For a positive request, frozen `Api.seek` proves that the
+actual `Storage.depth_seek` result satisfies every existing `Storage.bounds`
+condition: depth at most 20, positive logical length, and enough physical
+capacity. The new proof follows actual `new_checked`, `allocate_at`, and
+`allocate` branches to produce the exact requested length. Zero is separately
+certified as exactly `Done{Storage.Empty{}}` for any fill.
 
 For Core allocation, the certified `WordConversion.shape_count_within` and
 `WordConversion.shape_count_exact` derive the required range and count
@@ -106,12 +106,12 @@ zero failure, invalid search bounds, and false attachment/Core failure
 contracts. Source controls also reject over-capacity success and a fabricated
 witness for a failed Core result.
 
-The JS and native functional control checks zero, small, non-power-of-two,
-and endpoint storage allocations, verifies metadata, and observes the last
-logical element of every nonempty accepted allocation. It checks precise
-`TooLarge` rejection for 1048577 and U32 maximum, and actual scalar and rank-4
-huge-zero Core allocations. These checks are not timings or a replacement
-for the universal laws and complete S2 gate.
+The JS and native functional control checks zero, small, non-power-of-two, and
+endpoint storage allocations, verifies metadata, and observes the last logical
+element of every nonempty accepted allocation. It checks precise `TooLarge`
+rejection for 1048577 and U32 maximum, and actual scalar and rank-4 huge-zero
+Core allocations. These checks are not timings or a replacement for the
+universal laws and complete tensor gate.
 
 The direct-reflexivity path for the closed huge-zero constructor exhausted
 the normal kernel budget on pinned Bend 2.0.34 and installed latest 2.0.35.

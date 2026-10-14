@@ -1,4 +1,4 @@
-# S3.B reduce to shape
+# Reduce to shape
 
 `Reduce.reduce_to(input, target)` in `src/autograd/reduce.bend` sums a
 broadcast contribution back to a target shape. It is the adjoint of
@@ -15,9 +15,9 @@ is `reduce_to` otherwise.
 
 ## Semantics
 
-1. Plan the S1 broadcast of the target (left) against the contribution shape
+1. Plan the broadcast of the target (left) against the contribution shape
    (right). An incompatible pair fails with `IncompatibleBroadcast` (code 6);
-   the S1 rank and capacity errors keep their codes.
+   the shape rank and capacity errors keep their codes.
 2. Require the planned output to equal the contribution shape. Otherwise the
    target is larger than the contribution in some axis and the request fails
    with `NotReducible` (code 101): for example `[3]` reduced to `[2, 3]`, or
@@ -75,8 +75,8 @@ none evaluates a concrete tensor.
   the contribution's shape (for example a `[2, 3]` target for a `[3]`
   contribution), the result is exactly `(contribution, Fail{NotReducible})`.
 
-The S3 gate checks four more proof controls in its source copy, and the proofs
-must reject each: overwriting the total instead of adding, adding in the
+The autograd gate checks four more proof controls in its source copy, and the
+proofs must reject each: overwriting the total instead of adding, adding in the
 reversed order (`word + total`), starting from `1.0`, and skipping the target
 check.
 

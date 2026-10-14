@@ -1,17 +1,19 @@
-# R1.A public proof interface and trust boundary
+# Public proof interface and trust boundary
 
-R1.A is qualified on a local Linux x86_64 host with the current pinned Bend2 (`0e14aa8b`, the
-newest upstream main) and with the previous pin (`947db722`). On the bytes in this branch, the source
-checker, `--verdict` and a direct BendTT check of a fresh export agree on every
-positive consumer. Four false expected-value twins and an aligned wrong-fill
+The proof-boundary experiment is qualified on a local Linux x86_64 host with
+the current pinned Bend2 (`0e14aa8b`, the newest upstream main) and with the
+previous pin (`947db722`). On the bytes in this branch, the source checker,
+`--verdict` and a direct BendTT check of a fresh export agree on every positive
+consumer. Four false expected-value twins and an aligned wrong-fill
 implementation mutant are rejected for the intended value reason, and the
 metadata-only control passes on the wrong-fill copy. The work stays in
-`experiments/proof-boundary/`; no law, runtime file, pin, corpus or numerical policy
-changed.
+`experiments/proof-boundary/`; no law, runtime file, pin, corpus or numerical
+policy changed.
 
-R1.A covers construction through `Core.new(shape, fill)` and its first and
-retained reads. It does not cover the rest of the S2 surface. R1.B extends the
-same pattern operation by operation.
+The proof-boundary experiment covers construction through
+`Core.new(shape, fill)` and its first and retained reads. It does not cover the
+rest of the tensor surface. The live contracts (`verification/contracts/`)
+extend the same pattern operation by operation.
 
 ## Public producer and separate LIVE consumer
 
@@ -37,12 +39,12 @@ producer's result through a normal argument. `Claims` holds nine fields:
 | `retained_word_count` | the returned owner keeps the word count |
 | `retained_value` | for every in-bounds `other`, a second `read_flat` on the returned owner is `Some(fill)` |
 
-The retention proof reuses S1's replay-read and replay-size evidence with one
-read, plus ordinary `Core` read-result projections. It does not extract the
-erased `SourceRead`, `SourceReadKeeps` or construction witness. No proof code
-runs inside a numerical tensor kernel. The record does not establish one
-physical allocation, pointer identity, buffer separation or native runtime
-behavior.
+The retention proof reuses the storage layer's replay-read and replay-size
+evidence with one read, plus ordinary `Core` read-result projections. It does
+not extract the erased `SourceRead`, `SourceReadKeeps` or construction witness.
+No proof code runs inside a numerical tensor kernel. The record does not
+establish one physical allocation, pointer identity, buffer separation or
+native runtime behavior.
 
 ## Literal consumers
 
@@ -167,17 +169,17 @@ cloud verdict that was SIGKILLed did not reproduce on that host.
 | Boundary | Status |
 | --- | --- |
 | Generic `Core.new` producer and LIVE consumers | Qualified: source, verdict, fresh export and direct kernel agree; value and wrong-fill controls rejected for the intended reason, on the pin and on Bend main. |
-| Raw `Tensor`/`Storage` erased invariants | Not changed. R1.A follows actual construction. Arbitrary raw packages and LIVE versions of erased evidence are R1.B questions. |
+| Raw `Tensor`/`Storage` erased invariants | Not changed. The proof-boundary experiment follows actual construction. Arbitrary raw packages and LIVE versions of erased evidence are questions for the live contracts. |
 | F32 and arrays | Opaque F32 semantics and primitive array lowering stay trusted. No IEEE algebra, native bits or heap separation claim. |
 | Compiler, export, kernel and Lean | Trusted at the recorded commits. The controls show sensitivity for these statements; they do not prove verifier soundness. |
 | Error ownership | Unchanged: elementwise failures retain operands; sum and matmul failures consume them. |
-| Runtime, S2, data | No S2 runtime file changed. No stage gate, native/JS corpus, oracle, GPU, training or benchmark ran for this PR. |
+| Runtime, tensor layer, data | No tensor runtime file changed. No gate, native/JS corpus, oracle, GPU, training or benchmark ran for this PR. |
 
-## R1.B transforms: what is LIVE and what is not
+## Live transform contracts: what is LIVE and what is not
 
-R1.B.4 (`src/tensor/transform-contract-LAWS.bend`) states LIVE laws for the
-parts of `reshape`, `permute_copy` and `transpose_copy` that can be proved
-live today:
+The live transform contract (`src/tensor/transform-contract-LAWS.bend`) states
+LIVE laws for the parts of `reshape`, `permute_copy` and `transpose_copy` that
+can be proved live today:
 
 - `reshape` success on a `Core.new` producer: status 0, the requested
   dimensions, length and word count, every in-bounds value of the output read
@@ -199,19 +201,19 @@ Those laws use erased evidence (`Transforms.Prefix`, `PermuteOutput`,
 evidence. Making the value mapping LIVE needs the copy loop re-proved as live
 code plus a LIVE distinct-values producer (`from_values`). That is tracked as a
 separate follow-up; until it lands, a permute or transpose value claim is
-checked by the existing erased laws and by the S2 native/JS corpus, not by a
-LIVE R1.B contract.
+checked by the existing erased laws and by the tensor native/JS corpus, not by
+a LIVE contract.
 
-R1.B.6a adds the LIVE distinct-values producer:
-`from_values_contract` (`src/tensor/from-values-contract-LAWS.bend`) states,
-with LIVE fields, that `Core.from_values(shape, values)` with
-`length(values) == numel(shape)` succeeds with the shape's metadata and reads
-`values[i]` at every in-bounds `i`.
+The LIVE distinct-values producer for `from_values` is `from_values_contract`
+(`src/tensor/from-values-contract-LAWS.bend`), which states, with LIVE fields,
+that `Core.from_values(shape, values)` with `length(values) == numel(shape)`
+succeeds with the shape's metadata and reads `values[i]` at every in-bounds
+`i`.
 
-R1.B.6b adds the LIVE permute and transpose value contracts over this
-producer: `permute_contract` and `transpose_contract`
-(`src/tensor/permute-values-contract-LAWS.bend`) state that output index `i`
-holds `values[permute_source(input, axes, i)]` and that the returned source
+The LIVE permute and transpose value contracts over this producer are
+`permute_contract` and `transpose_contract`
+(`src/tensor/permute-values-contract-LAWS.bend`). They state that output index
+`i` holds `values[permute_source(input, axes, i)]` and that the returned source
 keeps every value. The proof re-walks the copy loop with live code, as an
 instance of a generic index-map copy built on the pointwise contract family.
 The nine existing permute/transpose statements are unchanged and still hold

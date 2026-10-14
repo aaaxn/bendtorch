@@ -1,4 +1,4 @@
-# S2 public construction and clone source contracts
+# Public construction and clone source contracts
 
 `src/tensor/construction-LAWS.bend` states five public source-contract laws.
 `construction-PROOF.bend` supplies checked producers for all five. No caller
@@ -156,8 +156,8 @@ observation bridge. `from_values_new_elements` and
 For clone, `clone_meaning` handles the storage constructors.
 `clone_owned_meaning` composes explicit projection equalities through the
 actual `Core.clone_result` and `Storage.finish_clone` wrappers with the
-existing S1 `Clone.certify`, `Clone.first_equal`, and `Clone.second_equal`
-producers for the actual `Base.Array.clone` operation.
+existing shape and storage layer `Clone.certify`, `Clone.first_equal`, and
+`Clone.second_equal` producers for the actual `Base.Array.clone` operation.
 
 For completeness, `fill_success` inducts on the supplied suffix with the
 invariant `cursor + List.length(values) <= Shape.elements(shape)`. In a
@@ -179,7 +179,7 @@ uses `AllocationProof.core_new_done`, which internally reuses
 mathematical value-count premise is bridged to the cached natural size with
 unchanged `Shape.elements_exact`.
 
-Dynamic completeness invokes the certified S1 shape-construction completeness
+Dynamic completeness invokes the certified shape-construction completeness
 producer under the original rank/capacity bounds. It follows the actual
 `Shape.construct`, `Core.construct_shape`, and `Core.construct_values`
 branches, transports the supplied length through preserved dimensions, and
@@ -208,16 +208,16 @@ correctness, IEEE behavior, operating-system allocation behavior, or pointer
 separation.
 Affine sole ownership is checked by Bend's source quantity discipline;
 native/JavaScript buffer independence remains a runtime conformance boundary.
-The stage corpus and existing shape/storage laws still cover their separate
+The tensor corpus and existing shape/storage laws still cover their separate
 responsibilities. The supplied-element and both-owner public clone meaning
 gaps are closed by the original three laws; the two additive completeness
 laws close the successful-public-construction gap under the input contracts.
 
 The checked statements rely on the pinned Bend2 source translation, the
-BendTT kernel, and the existing S1 structural Base array model and producers.
-No S1 definition, law, checker, kernel, source pin, bound, or tolerance was
-changed by this proof work. Aggregator and gate integration belong to the
-stage owner.
+BendTT kernel, and the existing shape and storage layer's structural Base array
+model and producers. No shape or storage definition, law, checker, kernel,
+source pin, bound, or tolerance was changed by this proof work. Aggregator and
+gate integration belong to the tensor gate owner.
 
 ## Fresh verification
 
@@ -286,7 +286,7 @@ claim a native million-element allocation measurement.
 Importing the module into an aggregator changes its qualification prefix.
 The proof module imports the stabilized Core proof producer, so its verdict
 and direct export also recheck that source dependency. This verification is
-not a substitute for the root-owned S2 runtime gate.
+not a substitute for the root-owned tensor runtime gate.
 
 ## Authorized generic-first control certification
 
@@ -357,7 +357,7 @@ updated Core proof snapshot, and all twelve semantic mutation results.
 
 This is a proof/control organization change outside `src/`, not a change to
 `Core.construct`, any old law block, or the frozen production API. The
-historical bare S1 `Shape.construct([0, 4294967295])` reduction still records
+historical bare `Shape.construct([0, 4294967295])` reduction still records
 source acceptance and a kernel resource failure; the generic-first
 certificate proves the same admitted public-construction requirement through
 the checked generic producers. None of these results is a native allocation

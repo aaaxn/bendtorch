@@ -1,6 +1,6 @@
 import Base
 
-# Minimal repro of the kernel fuel limit: three chained rank-0 S2 adds,
+# Minimal repro of the kernel fuel limit: three chained rank-0 tensor adds,
 # evaluated by a law. `--check-only` accepts it; `--verdict` and `bendtt` on the
 # exported file answer "In probe: out of fuel" (bendtt.lean FUEL = 400000000).
 # Two chained adds pass both (~8 s in the kernel). Same result on 32d23b4, 63b2c0d, 0e14aa8 and 947db72.

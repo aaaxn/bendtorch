@@ -1,11 +1,11 @@
-# S2 scalar transpose specification correction
+# Scalar transpose specification correction
 
-This correction is based on R3 parent
-`a295fa66daadb76daa7673d09aa692c13cc14e47`. The widened S2 producers pass the
-pinned source checker, verdict, export and direct BendTT check. The scalar
-probe also passes those checks and actual native/generated-JS execution.
-R1 proof liveness remains a separate gap; no R1 workaround or S3 promotion is
-implied by this scalar result.
+This correction is based on the ordered-reference parent
+`a295fa66daadb76daa7673d09aa692c13cc14e47`. The widened tensor producers pass
+the pinned source checker, verdict, export and direct BendTT check. The scalar
+probe also passes those checks and actual native/generated-JS execution. Live
+proofs for these producers remain a separate gap; no proof-interface
+workaround or autograd promotion is implied by this scalar result.
 
 ## Counterexample and corrected domain
 
@@ -63,8 +63,9 @@ not become live guarantees merely because this domain correction was made.
 
 ## Corrected active corpus and preserved history
 
-`oracle/tensor/fixtures/s2-v1.json`, its CPU profile, the numerical policy, R3 ordered
-records and all historical evidence remain byte-for-byte unchanged.
+`oracle/tensor/fixtures/s2-v1.json`, its CPU profile, the numerical policy,
+the ordered reference records and all historical evidence remain byte-for-byte
+unchanged.
 `scalar-transpose-correction.json` retains the source-backed proposal and old
 request/ID; it is not relabeled as a PyTorch observation. The separately
 generated `fixtures/s2-v2.json` is the corrected active reference.
@@ -100,8 +101,9 @@ inventory/hash checks.
 Activation follows an explicit by-ID comparison: all 208 old IDs survive, only
 `transpose_scalar` changes, and exactly the five named invalid controls are
 added. The independent raw-word result equals the actual pinned PyTorch result.
-Policy, mathematical goldens and R3 records must remain unchanged; any unrelated
-generator/corpus mismatch stops integration rather than triggering regeneration.
+Policy, mathematical goldens and ordered reference records must remain
+unchanged; any unrelated generator/corpus mismatch stops integration rather
+than triggering regeneration.
 
 ## Behavioral and mutation obligations
 
@@ -140,4 +142,4 @@ axis-one/U32 failure obligations to reject it. Preserve existing requested-map,
 wrong-pair and wrong-inverse controls for positive ranks. Proof syntax failures,
 timeouts or unsupported compiler lowering are not successful semantic
 negative controls. Public fill/clone/write live-contract work stays deferred to
-R1's interfaces.
+the live contracts.

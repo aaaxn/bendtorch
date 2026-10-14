@@ -129,9 +129,9 @@ def planned(+shape: Shape.Shape, tensor: Core.Tensor<shape>, +target: Shape.Shap
         Layout.words_same(Shape.dimensions(Shape.output_shape(plan)), Shape.dimensions(shape)))
 
 # The contribution owner comes back unchanged next to the result. A target
-# that does not broadcast with the contribution fails with the S1 broadcast
-# error; a target whose broadcast with the contribution is larger than the
-# contribution (for example [2, 3] for a [3] contribution) fails with
+# that does not broadcast with the contribution fails with the planner's
+# broadcast error; a target whose broadcast with the contribution is larger
+# than the contribution (for example [2, 3] for a [3] contribution) fails with
 # NotReducible.
 def reduce_to(input: Core.Dynamic, +target: Shape.Shape) -> Core.Dynamic & Result<&2, &1, Error, Core.Dynamic>:
   Core.Packed{+shape, tensor} = input

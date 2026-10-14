@@ -5,7 +5,7 @@ import unittest
 import generate
 
 
-class S3OracleTests(unittest.TestCase):
+class AutogradOracleTests(unittest.TestCase):
     def test_regeneration_is_byte_identical(self) -> None:
         generate.configure_cpu()
         identity = generate.observed_identity()

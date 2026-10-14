@@ -1,4 +1,4 @@
-# S3.B materialized broadcast
+# Materialized broadcast
 
 `Broadcast.broadcast_to(input, target)` in `src/autograd/broadcast.bend`
 returns an owned tensor with the requested shape. Each output position holds
@@ -9,18 +9,19 @@ result. `broadcast_to_dimensions(input, dims)` first builds `dims` with
 
 ## Semantics
 
-1. Plan the S1 broadcast of the input shape against the target
-   (`Shape.broadcast_checked`). An incompatible pair fails with the S1 shape
-   error (`IncompatibleBroadcast`, code 6). A planned output above capacity
-   fails with `CapacityExceeded` (code 2).
+1. Plan the broadcast of the input shape against the target
+   (`Shape.broadcast_checked`). An incompatible pair fails with the shape error
+   (`IncompatibleBroadcast`, code 6). A planned output above capacity fails
+   with `CapacityExceeded` (code 2).
 2. Require the planned output dimensions to equal the target. Otherwise the
    request fails with `NotBroadcastable` (code 100): for example `[3]` to
    `[1]`, or `[2, 3]` to `[3]`. The planner accepts both pairs, but their
    broadcast is larger than the target.
-3. Allocate a zero tensor of the target shape and run the S2 elementwise loop
-   with the new `Elementwise.KeepLeft` operation (`scalar(KeepLeft, l, r) = l`)
-   against it. Each output word is the source word itself, with no arithmetic,
-   so NaN payloads, signed zeros and subnormals are copied bit for bit.
+3. Allocate a zero tensor of the target shape and run the tensor elementwise
+   loop with the new `Elementwise.KeepLeft` operation (`scalar(KeepLeft, l, r)
+   = l`) against it. Each output word is the source word itself, with no
+   arithmetic, so NaN payloads, signed zeros and subnormals are copied bit for
+   bit.
 
 Cost: two allocations of the target shape (the zero right operand and the
 output), plus one checked read of each operand and one write per output
@@ -39,10 +40,10 @@ because they state the result and not the loop.
 
 ## Laws
 
-`src/autograd/broadcast-LAWS.bend` states six laws, and
-`broadcast-PROOF.bend` proves them by reusing the S2 elementwise retention,
-dimension, mapping and success certificates. Each law quantifies over every
-input tensor and target shape; none of them evaluates a concrete tensor.
+`src/autograd/broadcast-LAWS.bend` states six laws, and `broadcast-PROOF.bend`
+proves them by reusing the tensor elementwise retention, dimension, mapping and
+success certificates. Each law quantifies over every input tensor and target
+shape; none of them evaluates a concrete tensor.
 
 - `keep_left_scalar`: `scalar(KeepLeft, left, right) == left` for all F32s.
 - `broadcast_retains_input`: the returned owner has the same dimensions and the
@@ -68,22 +69,23 @@ output satisfies it vacuously. The two error laws fix the result of every
 request the planner or the target check rejects, so together with
 `broadcast_valid_success` every request has a specified outcome.
 
-The S3 gate also checks three proof controls. Each one changes the source in
-the gate's copy, and the proofs must then fail: `KeepLeft` returning `right`,
-`finish` returning the zero tensor as the owner, and skipping the target check.
+The autograd gate also checks three proof controls. Each one changes the source
+in the gate's copy, and the proofs must then fail: `KeepLeft` returning
+`right`, `finish` returning the zero tensor as the owner, and skipping the
+target check.
 
 ## Runtime lanes
 
-`tools/autograd_broadcast.py` runs 536 requests on native Bend CPU
-(`--threads 1 --gpu off`) and on the generated-Bend JavaScript executable.
-There are 16 handwritten cases and every pair of an input shape with rank 0 to
-2 and a target with rank 0 to 3, using extents 0, 1 and 2. It checks the
-retained input and each output word against a Python projection reference,
-bit for bit. The JavaScript lane may canonicalize NaN payloads, the same
-exception that S1 storage makes. Inputs use distinct counting words, so a
-wrong projection gives a wrong word. The handwritten cases include signed
-zero, subnormals, infinities and NaN payloads.
+`tools/autograd_broadcast.py` runs 536 requests on native Bend CPU (`--threads
+1 --gpu off`) and on the generated-Bend JavaScript executable. There are 16
+handwritten cases and every pair of an input shape with rank 0 to 2 and a
+target with rank 0 to 3, using extents 0, 1 and 2. It checks the retained input
+and each output word against a Python projection reference, bit for bit. The
+JavaScript lane may canonicalize NaN payloads, the same exception that storage
+makes. Inputs use distinct counting words, so a wrong projection gives a wrong
+word. The handwritten cases include signed zero, subnormals, infinities and NaN
+payloads.
 
 ```sh
-uv run --locked python -m tools.autograd --output .evidence/<fresh-s3>
+uv run --locked python -m tools.check autograd --output .evidence/<fresh-autograd>
 ```

@@ -50,7 +50,7 @@ def matches(expected: dict, observed: dict) -> str:
     return "words"
 
 
-class S3TorchOracleTests(unittest.TestCase):
+class AutogradTorchOracleTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         data = FIXTURE.read_bytes()

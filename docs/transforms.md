@@ -1,8 +1,9 @@
-# S2 owned tensor transforms
+# Owned tensor transforms
 
 The scalar `(0,0)` specification correction is described in
 [scalar-transpose.md](scalar-transpose.md). Historical verification results
-below belong to the original S2 contract; they do not certify the correction.
+below belong to the original tensor contract; they do not certify the
+correction.
 
 The transform contract is stated before the implementation. Reshape consumes a
 contiguous tensor and transfers its sole storage owner to a checked target
@@ -32,19 +33,19 @@ an assumed bounded-word identity or a silently wrapped destination. The exact
 word/cursor equality is erased. The shape domain remains ranks zero through
 four and at most `2^20` logical elements.
 
-On reviewed S1 the executable count comes from `Shape.elements`, whose erased
-`elements_exact` certificate connects it to natural logical numel. Runtime
-reshape and permutation count decisions also use that stored size, so a
+On the reviewed shape layer the executable count comes from `Shape.elements`,
+whose erased `elements_exact` certificate connects it to natural logical numel.
+Runtime reshape and permutation count decisions also use that stored size, so a
 huge-zero shape does not eagerly recompute a large intermediate natural
 product. Layout keeps local checked word-coordinate/index witnesses; these are
 metadata witnesses, not tensor storage or array traversals. With the user's
 explicit approval, the old U32 Horner/divmod codec has been replaced by the
-frozen S1 natural codec. `flatten_words` now computes `Shape.horner` and converts
-its natural result to U32; `unflatten_words` uses `Shape.digits_words` and
-`Shape.words`. No old/new universal equivalence is claimed. The word-coordinate
-law statements are unchanged, but `mapped_flat` and `mapped_output` now refer to
-these new definitions. Definitions that transitively call these codecs also
-have this dependency-meaning change.
+frozen shape natural codec. `flatten_words` now computes `Shape.horner` and
+converts its natural result to U32; `unflatten_words` uses `Shape.digits_words`
+and `Shape.words`. No old/new universal equivalence is claimed. The
+word-coordinate law statements are unchanged, but `mapped_flat` and
+`mapped_output` now refer to these new definitions. Definitions that
+transitively call these codecs also have this dependency-meaning change.
 
 Proofs concern validated metadata, the inverse element map, ownership, and the
 source storage observation/write refinement. F32 values are copied as opaque
@@ -109,13 +110,13 @@ certified axis-algebra bridge, not an assumed caller mapping equality.
 
 `codec_flatten_decode` proves that decoding and then flattening the actual new
 codec restores every U32 index below the shape's mathematical element count.
-It derives digit fitting from S1's finite coordinate, uses the fitting-list
-word conversion theorem, and restores the original U32 through the certified
-word/natural inverse. `natural_word_exact` proves the general natural-to-word
-identity when a supplied U32 limit bounds the natural value. Its bounded-limit
-hypothesis is not a closed-capacity bridge for all S2 shapes. The separately
-certified `WordConversion.shape_count_exact` now supplies that exact bridge
-over every lawful shape on the unchanged domain.
+It derives digit fitting from the shape layer's finite coordinate, uses the
+fitting-list word conversion theorem, and restores the original U32 through the
+certified word/natural inverse. `natural_word_exact` proves the general
+natural-to-word identity when a supplied U32 limit bounds the natural value.
+Its bounded-limit hypothesis is not a closed-capacity bridge for all tensor
+shapes. The separately certified `WordConversion.shape_count_exact` now
+supplies that exact bridge over every lawful shape on the unchanged domain.
 
 The proof module also derives actual `Core.read_flat` success for every lawful
 tensor and mathematically in-range U32 index. It derives route success through
@@ -153,8 +154,9 @@ of the preceding 32 statements or any executable definition:
 
 - `permutation_valid_success` proves that actual `Layout.permutation` must
   return `Done` under the existing `Layout.bijective` predicate. Independent
-  axis completeness, rank and product preservation derive the S1 construction
-  bounds internally, including zero-product and huge-zero dimensions.
+  axis completeness, rank and product preservation derive the shape
+  construction bounds internally, including zero-product and huge-zero
+  dimensions.
 - `tensor_read_valid_success` and `tensor_write_valid_success` prove actual
   `Core.read_flat` and `Core.write_flat` must return `Done` for a lawful owner
   and a mathematically in-range U32 index. Storage bounds and route completeness
@@ -162,7 +164,7 @@ of the preceding 32 statements or any executable definition:
   success certificates.
 - `decoded_words_valid_success` proves the actual `Layout.words_check` of the
   actual decoded coordinate list must return `Done` for an in-range index. The
-  S1 coordinate construction and the certified per-extent conversion theorem
+  shape coordinate construction and the certified per-extent conversion theorem
   supply coordinate validity without a closed-capacity conversion premise.
 - `permute_axes_length_rejection`, `permute_axis_bounds_rejection` and
   `permute_duplicate_axes_rejection` prove the exact errors of the actual
@@ -254,7 +256,8 @@ Fresh native and JS demo outputs match their respective immutable 32-law and
 42-law outputs byte-for-byte, including raw nonfinite output. The freshly
 instrumented native demo reports `STORAGE_COPY_AUDIT 0 0` and unchanged output.
 Pertinent semantic controls and the final aggregate gate remain separate
-closure obligations. S2 stays unpublished until those obligations are complete.
+closure obligations. The tensor layer stays unpublished until those obligations
+are complete.
 
 ## Native and negative evidence
 
@@ -303,13 +306,13 @@ export LEAN_STACK_SIZE_KB=4194304
 bun .tools/bend/bend2/main.ts src/tensor/transform-PROOF.bend --check-only
 bun .tools/bend/bend2/main.ts src/tensor/transform-PROOF.bend --verdict
 bun .tools/bend/bend2/main.ts src/tensor/transform-PROOF.bend \
-  -o ".evidence/s2-transforms/proof.bendtt"
-.tools/kernel/bendtt ".evidence/s2-transforms/proof.bendtt"
+  -o ".evidence/tensor-transforms/proof.bendtt"
+.tools/kernel/bendtt ".evidence/tensor-transforms/proof.bendtt"
 CC=.tools/llvm/usr/bin/clang-19 \
 LD_LIBRARY_PATH=.tools/llvm/usr/lib/x86_64-linux-gnu \
 bun .tools/bend/bend2/main.ts src/tensor/transform-demo.bend \
-  -o ".evidence/s2-transforms/demo.native" \
-  -o ".evidence/s2-transforms/demo.c"
+  -o ".evidence/tensor-transforms/demo.native" \
+  -o ".evidence/tensor-transforms/demo.c"
 LD_LIBRARY_PATH=.tools/llvm/usr/lib/x86_64-linux-gnu \
-".evidence/s2-transforms/demo.native" --threads 1 --gpu off
+".evidence/tensor-transforms/demo.native" --threads 1 --gpu off
 ```

@@ -7,9 +7,9 @@ import ../tensor/layout.bend as Layout
 # Materialized broadcast: an owned tensor of the requested shape whose every
 # position holds the input value at its right-aligned broadcast projection.
 # It plans the broadcast of the input shape against the target, requires the
-# planned output to be the target itself, and runs the S2 elementwise loop with
-# KeepLeft against a zero tensor of the target shape. Each output position is
-# one checked read and one write; no view or stride is created.
+# planned output to be the target itself, and runs the tensor elementwise loop
+# with KeepLeft against a zero tensor of the target shape. Each output position
+# is one checked read and one write; no view or stride is created.
 
 type Error is Data:
   TensorError{error: Core.Error}
@@ -50,7 +50,7 @@ def planned(input: Core.Dynamic, +target: Shape.Shape, result: Result<&2, &2, Sh
       fitted(input, target, plan, Layout.words_same(Shape.dimensions(Shape.output_shape(plan)), Shape.dimensions(target)))
 
 # The input owner comes back unchanged next to the result. An incompatible
-# shape pair fails with the S1 broadcast error; a compatible pair whose
+# shape pair fails with the planner's broadcast error; a compatible pair whose
 # broadcast is larger than the target (for example [3] to [1]) fails with
 # NotBroadcastable.
 def broadcast_to(input: Core.Dynamic, +target: Shape.Shape) -> Core.Dynamic & Result<&2, &1, Error, Core.Dynamic>:

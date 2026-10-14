@@ -1,4 +1,4 @@
-# S2 exact capacity-conversion obligation
+# Exact capacity-conversion obligation
 
 This document fixed the obligation before the authorized structural/symbolic
 attempt. The bridge, shape-count applications, public copy-success and actual
@@ -106,9 +106,10 @@ observed equivalence in that corpus, separately per backend; they are not
 universal old/new codec equivalence or a substitute for this bridge. The
 existing JavaScript NaN-payload classification stays unchanged.
 
-The required public-success and actual-inverse applications are now covered
-by the certified laws described below. S2 remains unpublished and S3 remains
-unstarted; verification success does not authorize publication.
+The required public-success and actual-inverse applications are now covered by
+the certified laws described below. The tensor layer remains unpublished and
+autograd work remains unstarted; verification success does not authorize
+publication.
 
 ## Certified exact bridge checkpoint
 
@@ -174,8 +175,8 @@ inferred from a zero total product.
 
 The complete transform graph has 57 laws with all previous 32 statement blocks
 preserved. The final aggregate requires 168 exported declarations, including
-the six allocation laws and three requested-transpose laws. Root's frozen
-gate evidence is `<scratch>/s2-root-final-after-reset-01/`; it separately
-checks proof/runtime source agreement and the unchanged numerical corpus in
-both executable lanes. Publication and S3 remain prohibited by the current
-user instruction, regardless of verification success.
+the six allocation laws and three requested-transpose laws. Root's frozen gate
+evidence is `<scratch>/s2-root-final-after-reset-01/`; it separately checks
+proof/runtime source agreement and the unchanged numerical corpus in both
+executable lanes. Publication and autograd work remain prohibited by the
+current user instruction, regardless of verification success.

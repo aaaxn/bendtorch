@@ -1,4 +1,4 @@
-# S2 native CPU process adapter
+# Tensor native CPU process adapter
 
 `src/tensor/harness.bend` dispatches operations to the tensor modules and
 serializes their actual results. `tools/tensor_runtime.py` generates a corpus-specific
@@ -29,10 +29,10 @@ tools bootstrapped:
 
 ```sh
 hostname && pwd && git rev-parse --show-toplevel
-uv run --locked python -m tools.tensor --output .evidence/s2-new-run
+uv run --locked python -m tools.check tensor --output .evidence/tensor-new-run
 uv run --locked python -m tools.tensor_runtime \
-  --output ".evidence/s2-runtime-new-run" --javascript
-uv run --frozen --no-sync python -m unittest tests.test_s2_runtime -v
+  --output ".evidence/tensor-runtime-new-run" --javascript
+uv run --frozen --no-sync python -m unittest tests.test_tensor_runtime -v
 uv run --frozen --no-sync ruff check tools/tensor_runtime.py tests/test_tensor_runtime.py
 uv run --frozen --no-sync ruff format --check tools/tensor_runtime.py tests/test_tensor_runtime.py
 uv run --frozen --no-sync ty check tools/tensor_runtime.py tests/test_tensor_runtime.py
@@ -242,7 +242,7 @@ Its `source/` directory preserves all Bend source and proof roots, the gate and
 adapter code, the protected tool references, and the frozen numerical inputs;
 `source-inventory.json` records their hashes. A source change during the gate
 invalidates the run, so preliminary screening cannot be published as final
-stage evidence. The proof checks and BendTT export use this preserved source
+gate evidence. The proof checks and BendTT export use this preserved source
 tree, not mutable live modules. Every executable source hash must also match
 that proof snapshot, so the two lanes cannot certify different implementations.
 
@@ -265,11 +265,11 @@ checks. Runtime tests leave fresh run directories named `s2-runtime-tests-*`
 under `.evidence/` for inspection.
 
 `tools.storage.instrument_copy_audit` instruments the emitted C without
-changing S1. The audited executable must reproduce the same parsed observations
-and report exactly `STORAGE_COPY_AUDIT 0 0`: no live array splits or
-reconstructions, including construction, clone, transforms, numerical compute,
-and serialization. Sanctioned storage initialization/clone intrinsics do not
-increment these counters.
+changing the shape and storage code. The audited executable must reproduce the
+same parsed observations and report exactly `STORAGE_COPY_AUDIT 0 0`: no live
+array splits or reconstructions, including construction, clone, transforms,
+numerical compute, and serialization. Sanctioned storage initialization/clone
+intrinsics do not increment these counters.
 
 `--benchmark` runs a minimal separate native executable three times under
 `/usr/bin/time`, recording elapsed/user/system time and peak RSS. The screen
@@ -307,13 +307,13 @@ adapter/type boundaries rather than being falsely labeled JS runtime errors.
 the root must apply the unchanged numerical comparator separately to its
 successful observations. No exact native/JS NaN payload equality is asserted.
 
-## Stage gate and supported interface
+## Tensor gate and supported interface
 
 `tools.tensor` requires both executable lanes, applies the frozen numerical
 comparator to each independently, checks every error and shape-only result,
 checks the exported law inventory directly with BendTT, and runs accepted and
 rejected certificate twins. It also rejects source drift and a native binary
-that links CUDA or PyTorch. A JavaScript failure is fatal to the stage gate;
+that links CUDA or PyTorch. A JavaScript failure is fatal to the tensor gate;
 native success does not substitute for it. The standalone runner keeps the
 native evidence when JS fails, but its CLI exits nonzero.
 
@@ -333,4 +333,4 @@ semantic witness, not merely exhaust a verifier resource budget.
 The public tensor interface consists of the Bend modules imported by a Bend
 program. Neither executable conformance nor these source APIs establish a
 JavaScript module ABI. The unsupported experimental `.mjs` bridge is not part
-of S2; no handwritten JavaScript performs tensor computations.
+of the tensor layer; no handwritten JavaScript performs tensor computations.

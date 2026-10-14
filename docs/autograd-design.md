@@ -1,9 +1,10 @@
-# S3.A: experimental AD architecture comparison
+# Autograd prototypes: experimental AD architecture comparison
 
-**Status: EXPERIMENTAL.** This experiment does not establish a verified S3
-foundation, and R1 is still open. All code lives in `experiments/autograd-prototypes/`,
-outside `src/`. No `src/` file and no `LAWS.bend` under `src/` or
-`verification/` changed. Nothing here is a benchmark claim.
+**Status: EXPERIMENTAL.** This experiment does not establish a verified
+autograd foundation, and the proof-interface work is still open. All code lives
+in `experiments/autograd-prototypes/`, outside `src/`. No `src/` file and no
+`LAWS.bend` under `src/` or `verification/` changed. Nothing here is a
+benchmark claim.
 
 - Repository base: `071d9cc` (main after #8, #11 and #12; Bend pin `0e14aa8`). The measurements below are from one run at this revision. An earlier run on `23c1536` agreed within 3%.
 - Bend: pinned `bendlang/bend` `0e14aa8b3082e68f419320b2c785762de1d0577b`
@@ -15,13 +16,14 @@ outside `src/`. No `src/` file and no `LAWS.bend` under `src/` or
 
 ## Recommendation
 
-Promote the **explicit reverse tape (A)** as the S3.B base. It handled every
-case. It keeps each tensor in exactly one owner, the store. It sends both
-contributions of `x*x` and `u+u` to one node id. Its scalar laws compose with
-the other designs' laws under `--verdict`. The ownership story was the easiest
-of the two reverse designs to state: "a value lives in one store slot; an op
-takes it out and puts it back." The cost is code size: about 1.5x the lines of
-the closure design at the tensor level, mostly plumbing that S3.B can factor out.
+Promote the **explicit reverse tape (A)** as the base of the autograd building
+blocks. It handled every case. It keeps each tensor in exactly one owner, the
+store. It sends both contributions of `x*x` and `u+u` to one node id. Its
+scalar laws compose with the other designs' laws under `--verdict`. The
+ownership story was the easiest of the two reverse designs to state: "a value
+lives in one store slot; an op takes it out and puts it back." The cost is code
+size: about 1.5x the lines of the closure design at the tensor level, mostly
+plumbing that the autograd building blocks can factor out.
 
 Keep **forward duals (C)** as the independent reference. It is the smallest
 design and the only one with no graph. Its tensor cost grows with the
@@ -49,17 +51,17 @@ file.
 | 4. `y=sum(W*x+b)`, W:[2,3], x,b:[3] | see below | match | match | match |
 | 1 on rank-0 tensors | 12, 7 | 12, 7 | 12, 7 | 12, 7 |
 
-Case 4 uses `W=[[1,2,3],[4,5,6]]`, `x=[0.5,-1,2]` and `b=[1,-1,0.5]`, with S2
-`Elementwise.mul`/`add` (broadcasting `[3]` against `[2,3]`) and
+Case 4 uses `W=[[1,2,3],[4,5,6]]`, `x=[0.5,-1,2]` and `b=[1,-1,0.5]`, with
+tensor `Elementwise.mul`/`add` (broadcasting `[3]` against `[2,3]`) and
 `Reduction.sum_dynamic`. The expected values are `y=14.5`,
 `dW=[[0.5,-1,2],[0.5,-1,2]]`, `dx=[5,7,9]` and `db=[2,2,2]`. A and B return
 the original input tensors next to their gradients. C returns one tangent per
 pass. A dangling operand id on the tape answers `Missing` (error 400) and
-builds no alias. Applying a B pullback value or an S2 tensor twice without
+builds no alias. Applying a B pullback value or a tensor twice without
 `share` or `clone` is rejected by the checker: "x (consumed more than once)".
 
 The reduction of a broadcast cotangent over the leading axis (`dW*x` to `[3]`,
-`g` to `[3]`) is `ones[1,r] @ g` through S2 `Matrix.matmul`, then a reshape
+`g` to `[3]`) is `ones[1,r] @ g` through tensor `Matrix.matmul`, then a reshape
 (`experiments/autograd-prototypes/tensor-ops.bend`, `unbroadcast`). It supports only that
 pattern and answers `Unsupported` otherwise.
 
@@ -89,10 +91,10 @@ case-4 run pays.
 | Prototype lines (scalar + tensor, no blanks/comments) | 116 + 297 | 76 + 190 | 33 + 64 |
 | Top-level defs (scalar + tensor) | 25 + 55 | 20 + 39 | 10 + 11 |
 
-The shared S2 wrappers and store helpers in `tensor-ops.bend` (190 lines) are
-used by all three designs and are not counted above. Check times are close to
-the cost of loading S2 itself (0.29 s for `tensor-ops.bend` alone), so they do
-not separate the designs.
+The shared tensor wrappers and store helpers in `tensor-ops.bend` (190 lines)
+are used by all three designs and are not counted above. Check times are close
+to the cost of loading the tensor layer itself (0.29 s for `tensor-ops.bend`
+alone), so they do not separate the designs.
 
 Notes on the numbers:
 
@@ -103,9 +105,9 @@ Notes on the numbers:
 - Peak RSS is the runtime's 2 MB floor for every job. At these sizes no design
   shows measurable memory pressure. The memory column is not evidence for or
   against any design.
-- Case 4 cost is dominated by S2 operations. Each `Elementwise` call and each
-  `matmul` goes through broadcast planning and checked storage. The 1.75 µs
-  construct floor and about 31 µs per reverse pass (two elementwise ops, one
+- Case 4 cost is dominated by tensor operations. Each `Elementwise` call and
+  each `matmul` goes through broadcast planning and checked storage. The 1.75
+  µs construct floor and about 31 µs per reverse pass (two elementwise ops, one
   sum, the backward ops and two unbroadcast matmuls) make the tape bookkeeping
   itself a small share.
 
@@ -139,7 +141,7 @@ accumulation order gave the shortest proof.
 
 ## Design constraint: tensor gradient laws must be generic
 
-Closed evaluations of concrete S2 tensor computations do not pass `--verdict`.
+Closed evaluations of concrete tensor computations do not pass `--verdict`.
 `experiments/autograd-prototypes/kernel-fuel-probe.bend` states whole-run facts about case 4
 and rank-0 case 1 (input count, clones, saved values). `--check-only` accepts
 them in 0.7 s. The BendTT kernel answers "out of fuel" on each one (its `FUEL`
@@ -150,9 +152,9 @@ limitation (bendlang/bend #1322 and #1193, both open; PR #1487 was withdrawn),
 not a new bug, and it is not worked around here.
 
 So under `--verdict`, tensor gradient laws must be generic statements over
-producers, following the R1.A pattern: universal shapes and values, proved by
-the actual definitions. Concrete numeric gradients belong to the native
-runtime tests and the oracle.
+producers, following the proof-boundary pattern: universal shapes and values,
+proved by the actual definitions. Concrete numeric gradients belong to the
+native runtime tests and the oracle.
 
 How each prototype fits that style:
 
@@ -171,35 +173,38 @@ How each prototype fits that style:
   natural generic reference, but it states directional derivatives and not a
   full gradient.
 
-## Open questions for S3.C
+## Open questions for the autograd laws
 
-1. **Generic tensor laws.** S3.C must state the tape's correctness generically,
-   as the derivative of an op times the cotangent, accumulated per id, for all
-   shapes and values. What is the smallest S2 law surface it can build on?
-   Today S2 has retention and success laws for elementwise ops. Elementwise
-   semantics ("output[i] = op(left[j], right[k])") would be needed to state
-   that a contribution equals `g*b` element by element.
+1. **Generic tensor laws.** The autograd laws must state the tape's correctness
+   generically, as the derivative of an op times the cotangent, accumulated per
+   id, for all shapes and values. What is the smallest tensor law surface it
+   can build on? Today the tensor layer has retention and success laws for
+   elementwise ops. Elementwise semantics ("output[i] = op(left[j], right[k])")
+   would be needed to state that a contribution equals `g*b` element by
+   element.
 2. **Unbroadcast.** The prototype reduces only the leading axis, through
-   `matmul` with a ones row. S3 needs a real sum-over-axes reduction in S2 (or
-   S3) with its own laws, and a decision on whether it is an S2 capability.
+   `matmul` with a ones row. The autograd building blocks need a real
+   sum-over-axes reduction in the tensor layer (or the autograd layer) with its
+   own laws, and a decision on whether it is a tensor capability.
 3. **Store representation.** The tape store is a newest-first list of
-   `Maybe<Dynamic>` with O(n) take/put. That is fine at four nodes. S3.B should
-   decide between a list, an owned `Array` (needs a `Type`-element array API;
-   `Array.get` requires `Data`) or a tree. It should also decide whether ids
-   carry an erased proof that they are below the head, so a dangling id is a
-   type error instead of a runtime `Missing`.
+   `Maybe<Dynamic>` with O(n) take/put. That is fine at four nodes. The first
+   autograd implementation should decide between a list, an owned `Array`
+   (needs a `Type`-element array API; `Array.get` requires `Data`) or a tree.
+   It should also decide whether ids carry an erased proof that they are below
+   the head, so a dangling id is a type error instead of a runtime `Missing`.
 4. **Saved-value policy.** A keeps every node value until the sweep pops it (6
-   saved for case 4). B keeps only what each backward rule needs (2). S3.B can
-   free values the backward pass never reads (`Add` and `Sum` operands) at
-   record time. That needs a per-op "needs operand" table.
+   saved for case 4). B keeps only what each backward rule needs (2). The first
+   autograd implementation can free values the backward pass never reads (`Add`
+   and `Sum` operands) at record time. That needs a per-op "needs operand"
+   table.
 5. **Clone accounting.** Backward clones one cotangent per binary node. A
-   borrow API on S2 (read a tensor without consuming it) would remove those
-   clones and the take/put round trips. Can that API exist without unsafe
+   borrow API on tensors (read a tensor without consuming it) would remove
+   those clones and the take/put round trips. Can that API exist without unsafe
    aliasing?
 6. **F32 laws.** The checker does not reduce F32 arithmetic on literals, so
-   scalar laws use U32/Nat instances of the same templates. S3.C must decide
-   whether the gradient spec is stated over an abstract semiring, as the
-   templates do, or over F32 with uninterpreted ops.
+   scalar laws use U32/Nat instances of the same templates. The autograd laws
+   must decide whether the gradient spec is stated over an abstract semiring,
+   as the templates do, or over F32 with uninterpreted ops.
 7. **Kernel fuel.** If upstream lifts the fuel limit (#1322, #1193), concrete
    tensor laws could become `--verdict` evidence. Until then they are
    `--check-only` probes only, and the doc must not count them as kernel-checked.

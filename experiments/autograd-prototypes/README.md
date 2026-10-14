@@ -1,4 +1,4 @@
-# S3.A prototypes (experimental)
+# Autograd prototypes (experimental)
 
 Three automatic-differentiation designs over the same cases, compared in
 [docs/autograd-design.md](../../docs/autograd-design.md). Nothing here is
@@ -10,8 +10,8 @@ imported by `src/` or by any gate.
 | B. One-shot affine pullback closures | `pullback.bend` | `pullback-tensor.bend` | `pullback-cases.bend`, `pullback-tensor-cases.bend` | `pullback-LAWS.bend`, `pullback-PROOF.bend` |
 | C. Forward dual numbers (reference) | `dual.bend` | `dual-tensor.bend` | `dual-cases.bend`, `dual-tensor-cases.bend` | `dual-LAWS.bend`, `dual-PROOF.bend` |
 
-- `tensor-ops.bend`: S2 wrappers shared by the tensor versions (ops that hand
-  owners back, leading-axis unbroadcast, the optional-tensor store).
+- `tensor-ops.bend`: tensor wrappers shared by the tensor versions (ops that
+  hand owners back, leading-axis unbroadcast, the optional-tensor store).
 - `compare-LAWS.bend`, `compare-PROOF.bend`: A and B each equal C for every `x`.
 - `bench.bend`: the repetition driver, `bench <job> <n>`.
 - `kernel-fuel-probe.bend`, `kernel-fuel-adds.bend`: concrete tensor laws that

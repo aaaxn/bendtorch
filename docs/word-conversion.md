@@ -1,4 +1,4 @@
-# S2 Base word conversion bridge
+# Base word conversion bridge
 
 `src/tensor/word-conversion.bend` proves conversion identities for the pinned
 Base definitions. It does not introduce another codec or assume that two codecs
@@ -46,11 +46,11 @@ layout or transforms.
 
 The scalar theorem applies to every natural bounded by an actual U32 value.
 Its inclusive bound is a representability requirement, not a conversion-equality
-assumption. Specializing it from S2's literal capacity bound requires a separate
-bridge to `U32.to_nat(1048576)`: source literal semantics and executable compiler
-lowering are not proof of definitional equality. That previously unproved bridge
-is now supplied by the exact `capacity_word_nat` theorem. The new
-`capacity_natural_word_exact` API accepts only the existing
+assumption. Specializing it from the tensor layer's literal capacity bound
+requires a separate bridge to `U32.to_nat(1048576)`: source literal semantics
+and executable compiler lowering are not proof of definitional equality. That
+previously unproved bridge is now supplied by the exact `capacity_word_nat`
+theorem. The new `capacity_natural_word_exact` API accepts only the existing
 `Shape.LE(number, 1048576n)` contract and derives the representation transport
 internally; callers supply no new representation or conversion equality.
 
@@ -59,13 +59,13 @@ It permits wrapping: conversion may decrease the number, but it never increases
 it. Together with `Arith.u32_lt` and `Arith.lt_le_trans`, it transports a checked
 U32 index bound against `U32.from_nat(number)` to the mathematical bound
 `U32.to_nat(index) < number`. This inequality still does not prove conversion
-exactness at S2's closed literal capacity; that is the separate identity proved
-by `capacity_word_nat` and `capacity_natural_word_exact`.
+exactness at the tensor layer's closed literal capacity; that is the separate
+identity proved by `capacity_word_nat` and `capacity_natural_word_exact`.
 
 The list theorem uses each actual dimension as the scalar theorem's limit.
 `Shape.fit` supplies the strict coordinate bound and the matching list lengths.
 There is no rank restriction or global coordinate cap in this theorem, so it
-covers S2 ranks 0 through 4 without excluding arbitrary U32 dimensions on
+covers tensor ranks 0 through 4 without excluding arbitrary U32 dimensions on
 zero-count shapes. Such shapes have no fitting coordinates when any extent is
 zero. The rank-zero case proves the identity on empty lists.
 
@@ -154,7 +154,7 @@ APIs do not claim those integration obligations are already complete.
 
 ## Certification and controls
 
-Certification used a local Linux x86_64 worktree at reviewed S1 HEAD
+Certification used a local Linux x86_64 worktree at reviewed shape-layer HEAD
 `1e43717834311191fe4d3a977d622da3cf44ca66`, with the pinned Bend2 commit
 `947db722640c86247849343657bf2f7ef01cb7f1` (Bend 2.0.34). Source fingerprints
 match `verification/references.json`.
@@ -176,8 +176,8 @@ export BEND_NO_TELEMETRY=1 BENDTT="$PWD/.tools/kernel/bendtt"
 bun .tools/bend/bend2/main.ts src/tensor/word-conversion-PROOF.bend --check-only
 bun .tools/bend/bend2/main.ts src/tensor/word-conversion-PROOF.bend --verdict
 bun .tools/bend/bend2/main.ts src/tensor/word-conversion-PROOF.bend \
-  -o ".evidence/s2-capacity-conversion-01/PROOF.bendtt"
-.tools/kernel/bendtt ".evidence/s2-capacity-conversion-01/PROOF.bendtt"
+  -o ".evidence/tensor-capacity-conversion-01/PROOF.bendtt"
+.tools/kernel/bendtt ".evidence/tensor-capacity-conversion-01/PROOF.bendtt"
 uv run --locked python "<scratch>/s2-capacity-conversion-01/verify.py"
 uv run --locked python "<scratch>/s2-capacity-conversion-controls-01/verify.py"
 ```
@@ -262,6 +262,6 @@ module prefixes; the names above are the standalone export inventory.
 These proofs establish identities of the formal pinned Base definitions.
 They do not automatically certify the compiler's native or JavaScript
 arithmetic replacements or their execution. The native/compiler arithmetic
-boundary remains explicitly trusted and still needs the stage's independent
-native and JavaScript corpus checks. This standalone proof task does not claim
-to have run or certified the aggregate S2 gate.
+boundary remains explicitly trusted and still needs the tensor gate's
+independent native and JavaScript corpus checks. This standalone proof task
+does not claim to have run or certified the aggregate tensor gate.

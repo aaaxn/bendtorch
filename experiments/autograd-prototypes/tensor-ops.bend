@@ -12,7 +12,7 @@ import ../../src/tensor/matmul.bend as Matrix
 
 import ../../src/tensor/transforms.bend as Transforms
 
-# Shared S2 wrappers for the case-4 prototypes. Every op hands its input owners back.
+# Shared tensor wrappers for the case-4 prototypes. Every op hands its input owners back.
 
 type Error is Data:
   TensorError{error: Core.Error}

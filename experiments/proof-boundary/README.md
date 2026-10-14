@@ -1,8 +1,8 @@
-# R1.A proof-interface experiment
+# Proof-interface experiment
 
-This directory holds the qualified R1.A public proof interface for
-`Core.new(shape, fill)`. See [the proof boundary](../../docs/proof-boundary.md)
-for what it claims, the controls and the recorded results.
+This directory holds the qualified public proof interface for `Core.new(shape,
+fill)`. See [the proof boundary](../../docs/proof-boundary.md) for what it
+claims, the controls and the recorded results.
 
 ## Files
 

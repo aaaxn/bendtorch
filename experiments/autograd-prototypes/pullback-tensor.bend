@@ -18,7 +18,7 @@ type Outcome is Type:
   Outcome{value: Core.Dynamic, inputs: List<&1, Core.Dynamic>, grads: List<&1, Ops.Slot()>,
     forward_clones: Nat, backward_clones: Nat, saved: Nat}
 
-# Prototype B (tensor part): one-shot affine pullback closures over S2 tensors.
+# Prototype B (tensor part): one-shot affine pullback closures over tensors.
 # A value is its forward tensor and an affine closure that sends a cotangent
 # back into a gradient environment indexed by input and share slots. A closure
 # owns the tensors it saved and frees them when it runs. A value used twice goes
