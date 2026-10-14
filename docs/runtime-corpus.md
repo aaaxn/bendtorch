@@ -277,8 +277,8 @@ the count from the request shapes alone (723 for the frozen corpus), so any
 split, and any join outside these builds, including in construction, clone,
 transforms, numerical compute, and serialization, still fails the gate.
 Sanctioned storage initialization/clone intrinsics do not increment these
-counters. The counters are plain globals, exact under the gate's
-`--threads 1`.
+counters. The counters are incremented atomically, so the count is exact at
+any thread count.
 
 `--benchmark` runs a minimal separate native executable three times under
 `/usr/bin/time`, recording elapsed/user/system time and peak RSS. The screen

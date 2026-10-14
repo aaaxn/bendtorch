@@ -194,11 +194,12 @@ def instrument_copy_audit(text: str) -> str:
             "INLINE Term blk_node(Env e, Term l, Term r) {",
             "static u64 storage_audit_halves, storage_audit_nodes;\n"
             "INLINE Term blk_node(Env e, Term l, Term r) {\n"
-            "  storage_audit_nodes++;",
+            "  __atomic_fetch_add(&storage_audit_nodes, 1, __ATOMIC_RELAXED);",
         ),
         (
             "INLINE Term blk_half(Env e, Term a, u32 hi) {",
-            "INLINE Term blk_half(Env e, Term a, u32 hi) {\n  storage_audit_halves++;",
+            "INLINE Term blk_half(Env e, Term a, u32 hi) {\n"
+            "  __atomic_fetch_add(&storage_audit_halves, 1, __ATOMIC_RELAXED);",
         ),
         (
             "  io_sync();\n  return 0;",
