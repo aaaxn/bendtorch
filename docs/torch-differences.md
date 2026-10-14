@@ -70,3 +70,21 @@ blocked reduction needs its own law; the ordered law stays the reference.
 The PyTorch outputs above come from a script run in the oracle environment;
 it reproduces with `uv run --project oracle --frozen --no-sync python <script>`
 and is not part of any gate.
+
+## Scalar backward
+
+The scalar `backward` in `src/autograd/backward.bend` agrees with PyTorch
+scalar autograd word for word on 83 of the 91 scripts in
+`oracle/s3/fixtures/s3-backward-torch-v1.json`, including `None` gradients,
+NaN payloads, infinities, `-0.0` and subnormals. The differences:
+
+| Behavior | bendtorch | PyTorch |
+| --- | --- | --- |
+| Second `backward` on the same graph | Adds to the gradient slots, like `retain_graph=True` | Raises `RuntimeError` unless the first call passed `retain_graph=True` |
+| `.grad` of a non-leaf | Every node has a slot | `None` unless `retain_grad()` was called (the oracle calls it on every node) |
+| Node id the tape does not hold | `UnknownNode` (103) | No ids; the oracle's Python list raises `IndexError` (3 scripts) |
+| Operand that is the node itself, a newer node or a missing node | `DanglingOperand` (104) for a forged tape | Cannot be built (3 scripts recorded as unrepresentable) |
+| Saved operands that disagree with the leaves | Gradients use the saved values of a forged tape | Cannot be built (1 script, `forged_sound`, recorded as unrepresentable) |
+| `NaN_a - NaN_b` with two payloads | Native keeps `NaN_a`'s payload | Keeps `NaN_b`'s payload (1 script); `add` and `mul` agree |
+
+[docs/s3-backward.md](s3-backward.md) has the contract.

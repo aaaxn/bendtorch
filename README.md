@@ -28,6 +28,7 @@ with F32 tensors only, and it cannot train a model yet.
 | Reshape, permute, transpose | `src/tensor/transforms.bend` | `reshape` keeps the linear order. `permute_copy` and `transpose_copy` write a new contiguous tensor. |
 | Proved contracts | `src/tensor/*-contract-LAWS.bend`, `src/tensor/contracts/` | Laws that later proofs can use as inputs, for construction, reads and writes, clone and metadata, and reshape, plus the error cases of permute and transpose. A generic theorem for pointwise loops proves the values that a broadcast binary operation writes. A second one, for ordered folds, proves the total of a sum and of one matmul dot product, with its addition order. |
 | Autograd building blocks | `src/autograd/` | `broadcast_to` (copies a tensor to a larger shape), `reduce_to` (sums a gradient back to the shape of its input), `sum_to_size` (the PyTorch-facing form of `reduce_to`, which keeps the input unchanged when no axis is reduced) and gradient slots (`Gradient.accumulate`, `Gradient.grad`, `Gradient.reset`, `Gradient.gradient`) that add the contributions to a gradient in the order they arrive, read as `None` until they receive one, and reset to `None`. |
+| Scalar backward | `src/autograd/backward.bend` | Reverse-mode `backward` for F32 scalars on a tape of `add`, `sub`, `mul` and `neg`. It seeds the output the caller selects, gives `None` to every node that output does not reach, adds the contributions to a node used several times in a fixed order, accumulates repeated calls like PyTorch's `retain_graph=True`, and reports unknown node ids as errors. |
 | Experimental tape | `experiments/s3a/` | Three autograd prototypes: a reverse tape, pullback closures and forward dual numbers. The reverse tape was chosen as the base for the real engine. |
 
 Every operation either consumes its inputs or gives them back to the caller
@@ -37,7 +38,8 @@ The [tensor core](docs/s2-core.md), [construction and clone](docs/s2-constructio
 [elementwise ops](docs/s2-elementwise.md), [sum and matmul](docs/s2-math.md),
 [transforms](docs/s2-transforms.md), [broadcast](docs/s3-broadcast.md),
 [reduce to shape](docs/s3-reduce.md), [sum to size](docs/s3-sum-to-size.md),
-[gradient slots](docs/s3-gradient.md) and [contract families](docs/contract-families.md)
+[gradient slots](docs/s3-gradient.md), [scalar backward](docs/s3-backward.md)
+and [contract families](docs/contract-families.md)
 pages document each capability. The [shape](docs/s1-shapes.md) and
 [storage](docs/s1-storage.md) pages document the layers below them. The
 [autograd design comparison](docs/s3-architecture.md) explains why the reverse
@@ -130,8 +132,8 @@ request that PyTorch accepts and bendtorch rejects.
 ## Roadmap
 
 The road from Bend to PyTorch has nine phases. bendtorch has finished the
-tensor layer and the pieces that autograd needs. It has no backward pass yet,
-so it cannot train a model.
+tensor layer and the pieces that autograd needs. Its backward pass works on
+scalars but not yet on tensors, so it cannot train a model.
 
 | # | Phase | Status | What it delivers |
 | --- | --- | --- | --- |
@@ -139,7 +141,7 @@ so it cannot train a model.
 | 2 | Tensor core and operations | Done | Tensors with `add`, `sub`, `mul`, whole-tensor `sum`, 2-D `matmul`, `reshape`, `permute_copy` and `transpose_copy`, checked against frozen PyTorch outputs. |
 | 3 | Live proof contracts | In progress | Laws that later proofs can take as inputs. Construction, `from_values`, reads and writes, clone, metadata, reshape and the permute and transpose failures are live. The values that permute and transpose write are in progress. The values that elementwise ops, `sum` and `matmul` compute come after them. |
 | 4 | Autograd building blocks | Done | `broadcast_to`, `reduce_to`, `sum_to_size` and gradient slots that accumulate in arrival order and read as `None` until they receive a value. |
-| 5 | Reverse-mode engine | Next | `backward` on a tape, first for scalars and then for tensors, built on the gradient slots. The reverse-tape prototype in `experiments/` is its starting point. |
+| 5 | Reverse-mode engine | In progress (scalars done) | `backward` on a tape, first for scalars and then for tensors, built on the gradient slots. Scalar `backward` for `add`, `sub`, `mul` and `neg` is done. The tensor version comes next. |
 | 6 | Neural-network modules | Planned | `Linear`, activations and losses, each with its forward and backward pass. |
 | 7 | Optimizers and training | Planned | SGD-style optimizers and a training loop that trains a small model end to end. |
 | 8 | An API closer to PyTorch | Planned | More dtypes, views and strides, `dim` and `keepdim` on reductions, negative axes and indices, slicing and batched `matmul`. |
