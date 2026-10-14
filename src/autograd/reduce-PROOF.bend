@@ -103,9 +103,6 @@ def same_trans(-a: Core.Dynamic, -b: Core.Dynamic, -c: Core.Dynamic,
   Holds{property => Equal.trans(Totality.Inspection, Totality.inspect(property, c), Totality.inspect(property, b), Totality.inspect(property, a),
     bc(property), ab(property))}
 
-# Step retention: every step returns the contribution owner it was given or the
-# owner retained by its one checked read.
-
 def write_owner(-target: Shape.Shape, -input: Core.Dynamic, pair: Core.Tensor<target> & Result<&2, &2, Core.Error, Unit>) ->
   Holds<{step_owner(target, Reduce.step_write(target, input, pair)) == input : Core.Dynamic}>:
   (output, result) = pair
@@ -258,9 +255,6 @@ def planned_retains(+shape: Shape.Shape, tensor: Core.Tensor<shape>, +target: Sh
 def Laws.reduce_retains_input(input, target):
   Core.Packed{+shape, tensor} = input
   planned_retains(shape, tensor, target, Shape.broadcast_checked(target, shape))
-
-# Mapping: the loop keeps every in-bounds target position equal to the ordered
-# fiber sum of the contribution positions visited so far.
 
 def Inv(+plan: Shape.BroadcastPlan, +values: List<&2, F32>, +target: Shape.Shape, +cursor: Nat, output: Core.Tensor<target>) -> Type:
   @+index: U32 -> @inside: {Nat.is_lt(U32.to_nat(index), Shape.logical_numel(Shape.dimensions(target))) == True{} : Bool} ->
@@ -660,9 +654,6 @@ def Laws.reduce_mapping(input, target):
       Laws.Mapping(Core.Packed{shape, tensor}, target, Reduce.reduce_to(Core.Packed{shape, tensor}, target))}(
       planned_mapping(shape, tensor, target, Shape.broadcast_checked(target, shape)))}
 
-# Success: every step succeeds while the contribution keeps its dimensions,
-# because the projected source and target indices are in bounds.
-
 def output_in_bounds(+plan: Shape.BroadcastPlan, +target: Shape.Shape, +index: U32,
   -left: {Shape.dimensions(Shape.left_shape(plan)) == Shape.dimensions(target) : List<&2, U32>},
   -bound: {Nat.is_lt(U32.to_nat(index), Shape.logical_numel(Shape.dimensions(Shape.left_shape(plan)))) == True{} : Bool}) ->
@@ -887,8 +878,6 @@ def Laws.reduce_valid_success(input, target, alignment):
   planned_success(shape, tensor, target, Shape.broadcast_checked(target, shape), PlanProof.broadcast_checked_plan(target, shape),
     PlanProof.broadcast_checked_complete(target, shape, Shape.dimensions(shape), alignment, rank_of(shape), capacity_of(shape)), alignment)
 
-# Empty contribution: the fiber of every target position is the empty sum.
-
 def empty_fiber(+plan: Shape.BroadcastPlan, +values: List<&2, F32>, +index: U32, +count: Nat,
   -empty: {count == 0n : Nat}) -> Holds<{Laws.fiber(plan, values, index, count) == Some{0.0} : Maybe<&2, F32>}>:
   Holds{
@@ -961,9 +950,6 @@ def planned_zeros(+shape: Shape.Shape, tensor: Core.Tensor<shape>, +target: Shap
 def Laws.reduce_empty_zeros(input, target, empty):
   Core.Packed{+shape, tensor} = input
   planned_zeros(shape, tensor, target, Shape.broadcast_checked(target, shape), empty)
-
-# Error identity: a planner failure is passed through, and a plan whose output
-# is not the contribution's shape selects NotReducible.
 
 def Laws.reduce_shape_error(input, target, error, rejected):
   Core.Packed{+shape, tensor} = input
