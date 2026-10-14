@@ -13,8 +13,8 @@ bendtorch is early research code. It is used from Bend programs; it has no
 Python API and is not a drop-in replacement for PyTorch. It runs on the CPU,
 with F32 tensors only, and it cannot train a model yet.
 
-About 80% of the code was written by Claude Opus (Anthropic), with Artur Xavier
-directing, reviewing and verifying the work.
+> **Disclaimer.** bendtorch is an experiment. Most of its code was vibe-coded:
+> AI models wrote it.
 
 ## What works today
 
@@ -128,26 +128,40 @@ NaN-payload and `None`-gradient differences.
 The [differences from PyTorch](docs/torch-differences.md) page lists each
 request that PyTorch accepts and bendtorch rejects.
 
-## Next steps
+## Roadmap
 
-1. Live contracts for the values that transforms, sum and matmul compute, so
-   the autograd proofs can build on them.
-2. A reverse-mode engine, first for scalars and then for tensors, on top of
-   the gradient slots.
-3. PyTorch-conformance fixes: adopt a stricter numerical policy.
-4. Neural-network modules: `Linear`, activations and losses.
-5. A training loop and optimizers.
-6. Performance: parallel CPU code and GPU kernels.
-7. An API that is closer to PyTorch.
+The road from Bend to PyTorch has nine phases. bendtorch has finished the
+tensor layer and the pieces that autograd needs. It has no backward pass yet,
+so it cannot train a model.
 
-Each step lands as one capability with its laws, proofs and a gate. No step
-weakens an existing law, removes a test case or widens a numerical tolerance.
+| # | Phase | Status | What it delivers |
+| --- | --- | --- | --- |
+| 1 | Shapes and storage | Done | Validated shapes up to rank 4, row-major indexing, broadcast plans and bounds-checked F32 storage with one owner. |
+| 2 | Tensor core and operations | Done | Tensors with `add`, `sub`, `mul`, whole-tensor `sum`, 2-D `matmul`, `reshape`, `permute_copy` and `transpose_copy`, checked against frozen PyTorch outputs. |
+| 3 | Live proof contracts | In progress | Laws that later proofs can take as inputs. Construction, `from_values`, reads and writes, clone, metadata, reshape and the permute and transpose failures are live. The values that permute and transpose write are in progress. The values that elementwise ops, `sum` and `matmul` compute come after them. |
+| 4 | Autograd building blocks | Done | `broadcast_to`, `reduce_to`, `sum_to_size` and gradient slots that accumulate in arrival order and read as `None` until they receive a value. |
+| 5 | Reverse-mode engine | Next | `backward` on a tape, first for scalars and then for tensors, built on the gradient slots. The reverse-tape prototype in `experiments/` is its starting point. |
+| 6 | Neural-network modules | Planned | `Linear`, activations and losses, each with its forward and backward pass. |
+| 7 | Optimizers and training | Planned | SGD-style optimizers and a training loop that trains a small model end to end. |
+| 8 | An API closer to PyTorch | Planned | More dtypes, views and strides, `dim` and `keepdim` on reductions, negative axes and indices, slicing and batched `matmul`. |
+| 9 | Performance | Planned | Parallel CPU code and GPU kernels. Today the gates run native code on one thread. |
+
+Each phase lands as a series of capabilities, each with its laws, proofs and a
+gate. No step weakens an existing law, removes a test case or widens a
+numerical tolerance.
 
 ## Quickstart
 
-The supported host is Ubuntu 24.04 on x86_64. You need Git, GCC 13, the libc
-development headers, tar, zstd, dpkg-deb, [uv](https://docs.astral.sh/uv/)
-0.10.2 and [Bun](https://bun.sh/) 1.3.14.
+bendtorch runs on Ubuntu 24.04 on x86_64. Install
+[Bun](https://bun.sh/) 1.3.14, which runs Bend2, and
+[uv](https://docs.astral.sh/uv/) 0.10.2. Bootstrap checks both versions.
+
+Native builds link with the system linker and C library. A minimal Ubuntu
+image, such as the `ubuntu:24.04` container, also needs these packages:
+
+```sh
+sudo apt-get install git ca-certificates zstd binutils libc6-dev libgcc-13-dev libedit2 libxml2
+```
 
 bendtorch uses one exact Bend2 commit, pinned in
 `verification/references.json`. Bootstrap fetches that commit, builds the
