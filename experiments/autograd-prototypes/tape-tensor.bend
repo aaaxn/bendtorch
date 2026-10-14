@@ -6,7 +6,9 @@ import ../../src/tensor/core.bend as Core
 
 import ./tensor-ops.bend as Ops
 
-# In the backward sweep, both contributions of x*x go to the original node id.
+# Taking an empty slot answers Missing, so an alias cannot be formed: x*x
+# clones the operand once, and both contributions go to the original node id in
+# the backward sweep.
 
 type Node is Data:
   Input{}
@@ -24,7 +26,7 @@ type Aux is Type:
 type Sweep is Type:
   Sweep{slots: List<&1, Ops.Slot()>, grads: List<&1, Ops.Slot()>, aux: Aux}
 
-# Each input's (value, gradient), oldest first.
+# `leaves` holds each input's (value, gradient), oldest first.
 type Outcome is Type:
   Outcome{value: Core.Dynamic, leaves: List<&1, Leaf()>, forward_clones: Nat, backward_clones: Nat, saved: Nat}
 
