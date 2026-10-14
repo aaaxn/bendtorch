@@ -156,24 +156,6 @@ def allocated(+operation: Operation, +plan: Shape.BroadcastPlan, left: Core.Dyna
     case Done{output}:
       loop(Shape.elements(Shape.output_shape(plan)), operation, plan, 0n, State{left, right, output})
 
-def planned(operation: Operation, left: Core.Dynamic, right: Core.Dynamic,
-  result: Result<&2, &2, Shape.Error, Shape.BroadcastPlan>) ->
-  (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>:
-  match result:
-    case Fail{error}:
-      ((left, right), Fail{Core.ShapeError{error}})
-    case Done{+plan}:
-      allocated(operation, plan, left, right, Core.new(Shape.output_shape(plan), 0.0))
-
-# The sequential operation: one loop writes the output cells in increasing
-# index order. `binary` writes the same cells in parallel.
-def sequential(operation: Operation, left: Core.Dynamic, right: Core.Dynamic) ->
-  (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>:
-  Core.Packed{+left_shape, left_tensor} = left
-  Core.Packed{+right_shape, right_tensor} = right
-  planned(operation, Core.pack(left_shape, left_tensor), Core.pack(right_shape, right_tensor),
-    Shape.broadcast_checked(left_shape, right_shape))
-
 def left_walk(-left: List<&2, Nat>, -right: List<&2, Nat>, -output: List<&2, Nat>,
   map: Shape.Index<left, right, output>, +position: Nat) -> Nat:
   match map:

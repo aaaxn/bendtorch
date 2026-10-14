@@ -20,12 +20,12 @@ import ./elementwise-totality.bend as Totality
 import ./word-conversion.bend as WordConversion
 
 # Proofs that the parallel elementwise build writes, at every output index,
-# the word the sequential loop writes there.
+# the value `Elementwise.expected` names there.
 
 type Fact<-P: Type> is Data:
   Fact{-proof: P}
 
-# The value both loops write from the observed input cells.
+# The value a cell gets from the two observed input cells.
 def pick(operation: Elementwise.Operation, left: Maybe<&2, F32>, right: Maybe<&2, F32>) -> Maybe<&2, F32>:
   match left:
     case None{}:
