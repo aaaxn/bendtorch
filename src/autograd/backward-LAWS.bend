@@ -166,10 +166,14 @@ def program_binary(kind: Backward.Binary, x: F32, y: F32) -> Backward.Tape:
 def program_neg(x: F32) -> Backward.Tape:
   recorded(Backward.neg(tape_of(Backward.leaf(Backward.empty(), x)), 0n))
 
+# x = 0, y = 1, z = 2, x * y = 3, z + z = 4. Node 4 is newer than the output
+# 3 and uses z twice; z is not used by 3.
 def program_unused(x: F32, y: F32, z: F32) -> Backward.Tape:
   recorded(Backward.add(recorded(Backward.mul(
     tape_of(Backward.leaf(tape_of(Backward.leaf(tape_of(Backward.leaf(Backward.empty(), x)), y)), z)), 0n, 1n)), 2n, 2n))
 
+# x = 0, a = 1, b = 2, c = 3, p = x * a = 4, q = x * b = 5, r = x * c = 6,
+# s = p + q = 7, t = s + r = 8. x has three consumers.
 def program_fan_out(x: F32, a: F32, b: F32, c: F32) -> Backward.Tape:
   recorded(Backward.add(recorded(Backward.add(recorded(Backward.mul(recorded(Backward.mul(recorded(Backward.mul(
     tape_of(Backward.leaf(tape_of(Backward.leaf(tape_of(Backward.leaf(tape_of(Backward.leaf(Backward.empty(), x)), a)), b)), c)),
