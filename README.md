@@ -13,8 +13,7 @@ bendtorch is early research code. It is used from Bend programs; it has no
 Python API and is not a drop-in replacement for PyTorch. It runs on the CPU,
 with F32 tensors only, and it cannot train a model yet.
 
-> **Disclaimer.** bendtorch is an experiment. Most of its code was vibe-coded:
-> AI models wrote it.
+> **Disclaimer.** bendtorch is an experiment. Most of its code was vibe-coded
 
 ## What works today
 
