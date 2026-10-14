@@ -8,6 +8,8 @@ Law, Site, Value, Witness = (
     controls.Witness,
 )
 SRC = controls.SRC
+TENSOR = "_2e_._2f_.._2f_.._2f_src_2f_tensor_2f_"
+MATMUL = "src/tensor/contracts/matmul-proof.bend"
 
 ZERO, ONE, TWO, THREE = (
     "F32.lit0",
@@ -36,29 +38,38 @@ def some(source: str, kernel: str) -> Value:
 
 FAMILY = controls.Family(
     name="fold",
-    entry=tuple(
-        f"src/tensor/contracts/{name}.bend" for name in ("broadcast", "sum", "dot")
+    entry=(
+        *(f"src/tensor/contracts/{name}.bend" for name in ("broadcast", "sum", "dot")),
+        "src/tensor/matmul.bend",
     ),
     operations=frozenset(
         {
             "src/tensor/contracts/fold.bend",
             "src/tensor/contracts/sum.bend",
             "src/tensor/contracts/dot.bend",
+            "src/tensor/matmul.bend",
         }
     ),
     laws={
         f"{SRC}LAWS.sum_ordered": Law(
-            "∀+x0 : _2e_._2f_.._2f_.._2f_src_2f_shape_2f_core.Shape -> ", "sum.sum"
+            "∀+x0 : _2e_._2f_.._2f_.._2f_src_2f_shape_2f_core.Shape -> ",
+            "contracts_2f_sum.sum",
         ),
         f"{SRC}LAWS.dot_ordered": Law(
-            "∀+x0 : Nat -> ∀+x1 : Nat -> ∀+x2 : Nat -> ", "dot.dot"
+            "∀+x0 : Nat -> ∀+x1 : Nat -> ∀+x2 : Nat -> ", "contracts_2f_dot.dot"
+        ),
+        f"{SRC}LAWS.matmul_ordered": Law(
+            "∀+x0 : _2e_._2f_.._2f_.._2f_src_2f_shape_2f_core.Shape -> ",
+            "matmul.matmul",
         ),
     },
     live_records=(
         f"{SRC}fold_2d_records.FoldContract.arms",
         f"{SRC}fold_2d_records.PairFoldContract.arms",
+        f"{SRC}fold_2d_records.MatmulContract.arms",
         "consumers.SumCase.arms",
         "consumers.DotCase.arms",
+        "consumers.MatmulCase.arms",
         "consumers.FailCase.arms",
         "consumers.PairFailCase.arms",
     ),
@@ -73,6 +84,8 @@ FAMILY = controls.Family(
             "dot_lower_left",
             "dot_upper_right",
             "dot_empty",
+            "matmul_lower_left",
+            "matmul_upper_right",
             "pair_fails_left",
             "pair_fails_right",
         )
@@ -82,6 +95,7 @@ FAMILY = controls.Family(
         "start_witness": Witness("expected_start", "unstarted"),
         "dot_witness": Witness("expected_dot", "untransposed_dot"),
         "kept_witness": Witness("expected_kept", "swapped_kept"),
+        "matmul_witness": Witness("expected_dot", "untransposed_dot"),
     },
     values={
         "expected_sum": some(
@@ -109,96 +123,127 @@ FAMILY = controls.Family(
         "expected_kept": some("Some{6.0}", SIX),
         "swapped_kept": some("Some{60.0}", SIXTY),
     },
-    subjects=("sum_result", "dot_result"),
+    subjects=("sum_result", "dot_result", "product"),
     mutants=controls.load_mutants("fold"),
     sites={
         "negative-zero-start": Site(
             "contract",
             "F32.neg(0.0)",
-            "fold_2d_proof.contract.qvvvvv",
-            ("fold.run.qvvvvv", "fold.run.qvvvvv_1"),
+            "contracts_2f_fold_2d_proof.contract.qvvvvv",
+            ("contracts_2f_fold.run.qvvvvv", "contracts_2f_fold.run.qvvvvv_1"),
         ),
         "swapped-accumulator": Site(
             "step_lift",
             "step_lift~keep(plan, cursor), StorageLaws.expected(",
-            "fold_2d_proof.step_lift.qvvvvv",
-            ("fold.step.qvv", "fold.step.qvv_1"),
+            "contracts_2f_fold_2d_proof.step_lift.qvvvvv",
+            ("contracts_2f_fold.step.qvv", "contracts_2f_fold.step.qvv_1"),
         ),
         "dropped-word": Site(
             "step_lift",
             "after}}, Fold.total(",
-            "fold_2d_proof.step_lift.qvvvvv",
-            ("fold.step.qvv", "fold.step.qvv_1"),
+            "contracts_2f_fold_2d_proof.step_lift.qvvvvv",
+            ("contracts_2f_fold.step.qvv", "contracts_2f_fold.step.qvv_1"),
         ),
         "ignored-mask": Site(
             "step_lift",
             "operation, True{}, input =>",
-            "fold_2d_proof.step_lift.qvvvvv",
-            ("fold.loop.qvvvvv", "fold.loop.qvvvvv_1"),
+            "contracts_2f_fold_2d_proof.step_lift.qvvvvv",
+            ("contracts_2f_fold.loop.qvvvvv", "contracts_2f_fold.loop.qvvvvv_1"),
         ),
         "cursor-off-by-one": Site(
             "contract",
             "plan, 1n, Core.Packed{",
-            "fold_2d_proof.contract.qvvvvv",
-            ("fold.run.qvvvvv", "fold.run.qvvvvv_1"),
+            "contracts_2f_fold_2d_proof.contract.qvvvvv",
+            ("contracts_2f_fold.run.qvvvvv", "contracts_2f_fold.run.qvvvvv_1"),
         ),
         "pair-swapped-operands": Site(
             "pair_step_lift",
             "right_ops, cursor), "
             "StorageLaws.expected(List.append(&2, StorageLaws.Op, right_ops",
-            "fold_2d_proof.pair_step_lift.qvvvvv",
-            ("fold.pair_right.qvv", "fold.pair_right.qvv_1"),
+            "contracts_2f_fold_2d_proof.pair_step_lift.qvvvvv",
+            ("contracts_2f_fold.pair_right.qvv", "contracts_2f_fold.pair_right.qvv_1"),
         ),
         "pair-wrong-map": Site(
             "pair_step_lift",
             "left_fits, U32.from_nat(pair_step_lift~ib(plan, cursor))",
-            "fold_2d_proof.pair_step_lift.qvvvvv",
-            ("fold.pair_loop.qvvvvv", "fold.pair_loop.qvvvvv_1"),
+            "contracts_2f_fold_2d_proof.pair_step_lift.qvvvvv",
+            (
+                "contracts_2f_fold.pair_loop.qvvvvv",
+                "contracts_2f_fold.pair_loop.qvvvvv_1",
+            ),
         ),
         "pair-negative-zero-start": Site(
             "pair_contract",
             "F32.neg(0.0)",
-            "fold_2d_proof.pair_contract.qvvvvv",
-            ("fold.pair_run.qvvvvv", "fold.pair_run.qvvvvv_1"),
+            "contracts_2f_fold_2d_proof.pair_contract.qvvvvv",
+            (
+                "contracts_2f_fold.pair_run.qvvvvv",
+                "contracts_2f_fold.pair_run.qvvvvv_1",
+            ),
         ),
         "pair-cursor-off-by-one": Site(
             "pair_contract",
             "plan, 1n, Core.Packed{left,",
-            "fold_2d_proof.pair_contract.qvvvvv",
-            ("fold.pair_run.qvvvvv", "fold.pair_run.qvvvvv_1"),
+            "contracts_2f_fold_2d_proof.pair_contract.qvvvvv",
+            (
+                "contracts_2f_fold.pair_run.qvvvvv",
+                "contracts_2f_fold.pair_run.qvvvvv_1",
+            ),
         ),
         "failed-step-done": Site(
             "sum_fails",
             "OutOfBounds",
             "consumers.sum_fails",
-            ("fold.step.qvv", "fold.step.qvv_1"),
+            ("contracts_2f_fold.step.qvv", "contracts_2f_fold.step.qvv_1"),
             consumer=True,
         ),
         "pair-left-failed-done": Site(
             "pair_fails_left",
             "OutOfBounds",
             "consumers.pair_fails_left",
-            ("fold.pair_left.qvv", "fold.pair_left.qvv_1"),
+            ("contracts_2f_fold.pair_left.qvv", "contracts_2f_fold.pair_left.qvv_1"),
             consumer=True,
         ),
         "pair-right-failed-swapped": Site(
             "pair_fails_right",
             "Some{10.0}",
             "consumers.pair_fails_right",
-            ("fold.pair_right.qvv", "fold.pair_right.qvv_1"),
+            ("contracts_2f_fold.pair_right.qvv", "contracts_2f_fold.pair_right.qvv_1"),
             consumer=True,
         ),
         "sum-swapped-add": Site(
             "total_words",
             "{F32.add(StorageLaws.expected(",
-            "sum_2d_proof.total_words",
-            ("sum.add",),
+            "contracts_2f_sum_2d_proof.total_words",
+            ("contracts_2f_sum.add",),
         ),
         "dot-untransposed-right": Site(
             "total_factors",
             "Nat.mul(column, inner)",
-            "dot_2d_proof.total_factors",
-            ("dot.right_index",),
+            "contracts_2f_dot_2d_proof.total_factors",
+            ("contracts_2f_dot.right_index",),
+        ),
+        "matmul-reversed-order": Site(
+            "dot_step_lift",
+            "row, column, rest, U32.from_nat(rest)",
+            "matmul_2d_LAWS.successful_dot_interpretation",
+            ("matmul.natural_dot",),
+            module=MATMUL,
+        ),
+        "matmul-negative-zero-start": Site(
+            "product_step_lift",
+            "F32.neg(0.0)",
+            "matmul_2d_PROOF.product_coordinates_proof",
+            ("matmul.product_coordinates",),
+            module=MATMUL,
+        ),
+        "matmul-transposed-right": Site(
+            "dot_decided_lift",
+            "[column, U32.from_nat(cursor)]",
+            "matmul_2d_PROOF.dot_decision",
+            ("matmul.dot_decided",),
+            module=MATMUL,
         ),
     },
+    prefix=TENSOR,
 )
