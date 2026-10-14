@@ -23,7 +23,7 @@ class OracleTests(unittest.TestCase):
         cls.identity = generate.observed_identity()
         generate.verify_identity(cls.identity)
         generate.configure_cpu()
-        cls.fixture_path = generate.ORACLE_DIR / "fixtures" / "s0.json"
+        cls.fixture_path = generate.ORACLE_DIR / "fixtures" / "toolchain.json"
         cls.document = json.loads(cls.fixture_path.read_text())
         cls.cases = {
             case["id"]: case
@@ -258,10 +258,11 @@ class OracleTests(unittest.TestCase):
                     completed.returncode, 0, completed.stdout + completed.stderr
                 )
                 self.assertEqual(
-                    (directory / "s0.json").read_bytes(), self.fixture_path.read_bytes()
+                    (directory / "toolchain.json").read_bytes(),
+                    self.fixture_path.read_bytes(),
                 )
                 self.assertTrue((directory / "cpu_config.json").is_file())
-            fixture = root / "first" / "s0.json"
+            fixture = root / "first" / "toolchain.json"
             fixture.write_bytes(b"stale\n")
             completed = subprocess.run(
                 [
