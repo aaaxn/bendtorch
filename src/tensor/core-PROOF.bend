@@ -13,6 +13,7 @@ import ./elementwise.bend as Elementwise
 import ./core-LAWS.bend as Laws
 import ./projection-LAWS.bend as Projection
 import ./projection-PROOF.bend as ProjectionProof
+import ./elementwise-parallel-proof.bend as Parallel
 
 def Laws.scalar_add(left, right):
   {==}
@@ -1172,9 +1173,7 @@ def planned_mapping(+operation: Elementwise.Operation, result: Result<&2, &2, Sh
 
 def successful_binary_mapping(+operation: Elementwise.Operation, left: Core.Dynamic, right: Core.Dynamic) ->
   Elementwise.BinaryModel<operation, left, right, Elementwise.binary(operation, left, right)>:
-  Core.Packed{+left_shape, left_tensor} = left
-  Core.Packed{+right_shape, right_tensor} = right
-  planned_mapping(operation, Shape.broadcast_checked(left_shape, right_shape), Core.Packed{left_shape, left_tensor}, Core.Packed{right_shape, right_tensor}, {==})
+  Parallel.binary_mapping(operation, left, right)
 
 def Laws.successful_elementwise_cached_loop(operation, plan, left, right, output):
   successful_cached_loop_mapping(operation, plan, left, right, output)
