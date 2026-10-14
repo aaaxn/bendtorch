@@ -141,7 +141,7 @@ already uses, not against `Fold.total`:
 | --- | --- | --- |
 | `sum_ordered` | `Sum.sum(input)` in `sum.bend` folds all `numel` words with `F32.add(acc, word)`, reading word `k` at step `k`. | `Reduction.sequential_sum(words(..., numel), 0.0)` |
 | `dot_ordered` | `Dot.dot(Cell{row, column, inner, columns}, left, right)` in `dot.bend` folds `inner` pairs with `F32.add(acc, F32.mul(x, y))`, reading `left[row * inner + k]` and `right[k * columns + column]`. | `MatmulLaws.dot_fold(factors(..., inner), 0.0)` |
-| `reduce_fold_fiber` | `ReduceFold.cell(plan, index, contribution)` in `src/autograd/reduce-fold.bend` folds the `numel` words of the contribution with `F32.add(acc, word)`, reading `contribution[right_map(plan, k)]` at step `k` and keeping it where `left_map(plan, k) == index`. | `ReduceLaws.fiber(plan, words(..., numel), index, numel)`, the specification of one `reduce_to` cell |
+| `reduce_fold_fiber` | `ReduceFold.cell(plan, index, contribution)` in `src/autograd/reduce-fold.bend` folds the `numel` words of the contribution with `F32.add(acc, word)`, reading `contribution[contribution_offset(plan, k)]` at step `k` and keeping it where `target_offset(plan, k) == index`; the two offsets are `right_map` and `left_map`. | `ReduceLaws.fiber(plan, words(..., numel), index, numel)`, the specification of one `reduce_to` cell |
 
 `sum_ordered` passes the mask `Sum.every`, which is always true, so its
 statement is the one it had before the mask existed.

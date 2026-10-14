@@ -1,23 +1,23 @@
 [lands-on-source]
 file = "src/autograd/reduce-fold.bend"
 before = '''
-  Nat.is_eq(Broadcast.left_map(plan, position), U32.to_nat(index))'''
+  Nat.is_eq(target_offset(plan, position), U32.to_nat(index))'''
 after = '''
-  Nat.is_eq(Broadcast.right_map(plan, position), U32.to_nat(index))'''
+  Nat.is_eq(contribution_offset(plan, position), U32.to_nat(index))'''
 
 [inverted-mask]
 file = "src/autograd/reduce-fold.bend"
 before = '''
-  Nat.is_eq(Broadcast.left_map(plan, position), U32.to_nat(index))'''
+  Nat.is_eq(target_offset(plan, position), U32.to_nat(index))'''
 after = '''
-  Bool.not(Nat.is_eq(Broadcast.left_map(plan, position), U32.to_nat(index)))'''
+  Bool.not(Nat.is_eq(target_offset(plan, position), U32.to_nat(index)))'''
 
 [reads-target-offset]
 file = "src/autograd/reduce-fold.bend"
 before = '''
-  Broadcast.right_map(plan, position)'''
+  contribution_offset(plan, position)'''
 after = '''
-  Broadcast.left_map(plan, position)'''
+  target_offset(plan, position)'''
 
 [target-count]
 file = "src/autograd/reduce-fold.bend"

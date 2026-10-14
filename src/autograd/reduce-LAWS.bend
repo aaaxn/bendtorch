@@ -48,8 +48,8 @@ def contribute(+values: List<&2, F32>, +target_index: U32, total: Maybe<&2, F32>
 
 # The specified accumulation: start at +0.0 and visit contribution positions
 # 0, 1, ..., count - 1 in ascending order; each position whose independent
-# broadcast projection (Projection.offset_spec, with the target as the left
-# operand) lands on target_index adds its word with one F32 add.
+# broadcast projection, Projection.offset_spec, has target_offset equal to
+# target_index adds the word at its source_offset with one F32 add.
 def fiber(+plan: Shape.BroadcastPlan, +values: List<&2, F32>, +target_index: U32, +count: Nat) -> Maybe<&2, F32>:
   match count:
     case 0n:
