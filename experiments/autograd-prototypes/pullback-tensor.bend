@@ -9,20 +9,13 @@ import ./tensor-ops.bend as Ops
 type Env is Type:
   Env{grads: List<&1, Ops.Slot()>, clones: Nat}
 
-# Forward state: next slot, forward clones, saved tensors, and the caller's
-# copies of the inputs (newest first).
+# The caller's copies of the inputs, newest first.
 type St is Type:
   St{slots: Nat, clones: Nat, saved: Nat, kept: List<&1, Core.Dynamic>}
 
 type Outcome is Type:
   Outcome{value: Core.Dynamic, inputs: List<&1, Core.Dynamic>, grads: List<&1, Ops.Slot()>,
     forward_clones: Nat, backward_clones: Nat, saved: Nat}
-
-# Prototype B (tensor part): one-shot affine pullback closures over tensors.
-# A value is its forward tensor and an affine closure that sends a cotangent
-# back into a gradient environment indexed by input and share slots. A closure
-# owns the tensors it saved and frees them when it runs. A value used twice goes
-# through `share`, which clones the forward tensor and opens a fresh slot.
 
 def R(-A: Type) -> Type:
   Result<&2, &1, Ops.Error, A>
@@ -66,7 +59,6 @@ def input_split(st: St, pair: Core.Dynamic & Core.Dynamic) -> R(St & V()):
   (copy, value) = pair
   Done{(St{1n+slots, 1n+clones, saved, copy <> kept}, (value, g => env => deposit(slots, g, env)))}
 
-# The caller keeps one copy of each input; the graph owns the other.
 def input(value: Core.Dynamic) -> Gen(V()):
   st => input_split(st, Core.clone_dynamic(value))
 
@@ -120,7 +112,7 @@ def mul_done(ab: Back(), bb: Back(), st: St, result: R((Core.Dynamic & Core.Dyna
       (av, bv) = operands
       Done{(saved_two(st), mul_shapes(ab, bb, Core.shape(av), Core.shape(bv), out))}
 
-# The closure saves both operands: d(a*b) = (g*b, g*a).
+# d(a*b) = (g*b, g*a).
 def mul(a: V(), b: V()) -> Gen(V()):
   (av, ab) = a
   (bv, bb) = b
@@ -145,7 +137,6 @@ def add_done(ab: Back(), bb: Back(), st: St, result: R((Core.Dynamic & Core.Dyna
       (av, bv) = operands
       Done{(st, add_shapes(ab, bb, Core.shape(av), Core.shape(bv), out))}
 
-# The closure keeps only the operand shapes; the operands are freed here.
 def add(a: V(), b: V()) -> Gen(V()):
   (av, ab) = a
   (bv, bb) = b
@@ -203,8 +194,6 @@ def share_split(back: Back(), k: V() -> V() -> Gen(V()), st: St, pair: Core.Dyna
   share_after(back, slots,
     k((first, g => env => deposit(slots, g, env)), (second, g => env => deposit(slots, g, env)))(St{1n+slots, 1n+clones, saved, kept}))
 
-# Two handles on one value: clone its tensor, give both handles a fresh slot,
-# and after the continuation's pullback runs, send the slot's sum to the original.
 def share(a: V(), k: V() -> V() -> Gen(V())) -> Gen(V()):
   (av, ab) = a
   st => share_split(ab, k, st, Core.clone_dynamic(av))
@@ -245,6 +234,6 @@ def run_built(result: R(St & V())) -> R(Outcome):
       (yv, yb) = y
       shaped(yb, st, Core.shape(yv))
 
-# Runs a program and pulls a ones seed back. Input k owns slot k.
+# Input k owns slot k.
 def run(program: Gen(V())) -> R(Outcome):
   run_built(program(St{0n, 0n, 0n, Nil{}}))

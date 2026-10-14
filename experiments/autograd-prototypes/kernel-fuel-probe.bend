@@ -1,10 +1,8 @@
 import Base
 
-# Probe, not a law file: whole-run facts about case 4 and rank-0 case 1, stated
-# by evaluation (input count, forward clones, backward clones, saved values).
 # `--check-only` accepts all three. `--verdict` fails: the BendTT kernel reports
 # "out of fuel" (its FUEL budget is 400000000 steps) on each one separately.
-# Upstream: bendlang/bend #1322 and #1193; see kernel-fuel-adds.bend.
+# See kernel-fuel-adds.bend.
 import ./tensor-ops.bend as Ops
 import ./tape-tensor.bend as Tape
 import ./tape-tensor-cases.bend as TapeCases

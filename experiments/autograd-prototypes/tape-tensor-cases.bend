@@ -4,7 +4,6 @@ import ./tensor-ops.bend as Ops
 import ./tape-tensor.bend as Tape
 
 # Case 4 on the tensor tape, y = sum(W*x + b) with W:[2,3], x:[3], b:[3].
-# Case 1 again on rank-0 tensors, to exercise the x*x operand clone.
 
 def case4_program(w: Core.Dynamic, x: Core.Dynamic, b: Core.Dynamic) -> Tape.Build(Nat):
   do Tape.Build<Nat>:
@@ -23,7 +22,6 @@ def case1_program(x: Core.Dynamic) -> Tape.Build(Nat):
     y : Nat <- Tape.add(sq, x)
     return y
 
-# Negative control: an operand id with no stored value answers Missing (code 400).
 def dangling_program(x: Core.Dynamic) -> Tape.Build(Nat):
   do Tape.Build<Nat>:
     +x : Nat <- Tape.input(x)

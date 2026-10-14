@@ -106,9 +106,6 @@ def start_cast(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> 
     Shaped(~O, ~g, ~P, ~ia, ~keep, fuel, operation, plan, shape, 0n, _, 0.0, Q)
   start
 
-# The family result: for a replayed input whose index map stays in bounds,
-# the loop returns the input with the reads it made appended to its history,
-# and the fold of the words it read.
 def run_lift(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~keep: P -> Nat -> Bool,
   +operation: O, +plan: P, +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +count: Nat,
   +inside: {Pointwise.inside(~P, ~ia, plan, count, Shape.logical_numel(Shape.dimensions(shape))) == True{} : Bool},
@@ -118,8 +115,6 @@ def run_lift(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Na
   start_cast(~O, ~g, ~P, ~ia, ~keep, count, operation, plan, shape, fill, ops, Q,
     loop_lift(~O, ~g, ~P, ~ia, ~keep, count, operation, plan, shape, fill, ops, 0n, count, {==}, inside, Q, h))
 
-# The generic fold contract: one proof for every step function and every
-# in-bounds index map.
 def contract(~O: Data, ~g: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~keep: P -> Nat -> Bool,
   +operation: O, +plan: P, +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +count: Nat,
   +inside: {Pointwise.inside(~P, ~ia, plan, count, Shape.logical_numel(Shape.dimensions(shape))) == True{} : Bool},
@@ -285,8 +280,6 @@ def pair_start_cast(~O: Data, ~g: O -> F32 -> F32 -> F32 -> F32, ~P: Data, ~ia: 
       PointwiseProof.input_storage(~P, ~ia, plan, left, left_fill, left_ops, 0n), _, 0.0, Q)
   start
 
-# The pair result: both inputs come back with the reads appended to their
-# histories, and the fold of the pairs of words read.
 def pair_run_lift(~O: Data, ~g: O -> F32 -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~ib: P -> Nat -> Nat,
   +operation: O, +plan: P, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
   +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +count: Nat,
@@ -300,8 +293,6 @@ def pair_run_lift(~O: Data, ~g: O -> F32 -> F32 -> F32 -> F32, ~P: Data, ~ia: P 
     pair_loop_lift(~O, ~g, ~P, ~ia, ~ib, count, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, 0n, count,
       {==}, left_inside, right_inside, Q, h))
 
-# The generic pair fold contract: one proof for every step function and
-# every pair of in-bounds index maps.
 def pair_contract(~O: Data, ~g: O -> F32 -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~ib: P -> Nat -> Nat,
   +operation: O, +plan: P, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
   +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +count: Nat,

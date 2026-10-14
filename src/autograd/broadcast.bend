@@ -6,10 +6,6 @@ import ../tensor/layout.bend as Layout
 
 # Materialized broadcast: an owned tensor of the requested shape whose every
 # position holds the input value at its right-aligned broadcast projection.
-# It plans the broadcast of the input shape against the target, requires the
-# planned output to be the target itself, and runs the tensor elementwise loop
-# with KeepLeft against a zero tensor of the target shape. Each output position
-# is one checked read and one write; no view or stride is created.
 
 type Error is Data:
   TensorError{error: Core.Error}

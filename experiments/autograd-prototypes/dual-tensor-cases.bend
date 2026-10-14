@@ -36,7 +36,6 @@ def clone_dual(d: Dual.D()) -> Dual.D() & Dual.D():
   (v, t) = d
   clone_parts(Core.clone_dynamic(v), Core.clone_dynamic(t))
 
-# Case 1 on a rank-0 dual: x is read three times, so the dual is cloned twice.
 def case1_square(x1: Dual.D(), rest: Dual.D() & Dual.D()) -> Dual.R(Dual.D()):
   (x2, x3) = rest
   do Result<&2, &1, Ops.Error, Dual.D()>:

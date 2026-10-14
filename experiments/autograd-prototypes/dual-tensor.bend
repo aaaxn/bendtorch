@@ -4,11 +4,6 @@ import ../../src/tensor/core.bend as Core
 
 import ./tensor-ops.bend as Ops
 
-# Prototype C (tensor part): forward-mode dual tensors, the independent reference.
-# A dual is a value tensor and a tangent tensor of the same shape. One forward
-# pass gives one directional derivative, so a full gradient needs one pass per
-# parameter element, each seeded with a one-hot tangent.
-
 def R(-A: Type) -> Type:
   Result<&2, &1, Ops.Error, A>
 
@@ -42,7 +37,7 @@ def mul_cloned(ad: Core.Dynamic, bd: Core.Dynamic, ac: Core.Dynamic & Core.Dynam
     t : Core.Dynamic <- out(Ops.add(left, right))
     return (v, t)
 
-# d(a*b) = da*b + a*db: both values are read twice, so each is cloned once.
+# d(a*b) = da*b + a*db.
 def mul(a: D(), b: D()) -> R(D()):
   (av, ad) = a
   (bv, bd) = b

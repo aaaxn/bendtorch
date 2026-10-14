@@ -304,9 +304,6 @@ def high_sum(+p: Nat, +i: U32, +hp: {Nat.is_le(p, 20n) == True{} : Bool},
   %high_split(p, i, hp, le) : {Nat.is_lt(_, Nat.add(Model.capacity(p), Model.capacity(p))) == True{} : Bool}
   inside
 
-# Refinement.trace walks the bits of i from the top: a set top bit goes right
-# and subtracts the half, so the path's offset is i itself.
-
 def high_inside(+p: Nat, +i: U32, +hp: {Nat.is_le(p, 20n) == True{} : Bool},
   +le: {Nat.is_le(U32.to_nat(Size.capacity(p)), U32.to_nat(i)) == True{} : Bool},
   +inside: {Nat.is_lt(U32.to_nat(i), Model.capacity(1n+p)) == True{} : Bool}) ->

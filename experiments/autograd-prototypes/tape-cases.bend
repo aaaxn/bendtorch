@@ -1,7 +1,6 @@
 import Base
 import ./tape.bend as Tape
 
-# Cases 1-3 on the explicit tape. Each program answers (input ids, output id).
 # x*x and u+u name one node twice; the sweep adds both contributions to it.
 
 def Program(-T: Data) -> Type:

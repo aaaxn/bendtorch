@@ -32,7 +32,6 @@ def source_of(request: Request, index: Nat) -> Nat:
   Request{+input, +axes} = request
   U32.to_nat(Maybe.default(&2, U32, Values.permute_source(input, axes, U32.from_nat(index)), 0))
 
-# The input after `count` loop steps, and the output after `count` cells.
 def read_source(+input: Shape.Shape, +axes: List<&2, U32>, +values: List<&2, F32>, +count: Nat) -> Storage.Storage:
   IndexMap.source(~Request, ~source_of, Request{input, axes}, input, 0.0, FromValues.writes(values, 0n), count)
 
@@ -57,8 +56,6 @@ def Final(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, a
     Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))) : Nat} ->
     Q((Core.TTensor{read_source(input, axes, values, count), source_fits}, Done{Core.TTensor{written(input, axes, plan, values, count), target_fits}}))
 
-# The mapping the loop computes at output index `index` reads the input at
-# the reference source index.
 def reference(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +index: U32,
   +mapping: Layout.Mapping<input, axes, plan, index>) ->
   {Some{Layout.source_index(input, axes, plan, index, mapping)} == Values.permute_source(input, axes, index) : Maybe<&2, U32>}:
@@ -116,8 +113,6 @@ def cursor_same(+cursor: Nat, exact: {U32.to_nat(U32.from_nat(cursor)) == cursor
   %Equal.sym(Nat, U32.to_nat(U32.from_nat(cursor)), cursor, exact) : {Nat.is_eq(_, cursor) == True{} : Bool}
   Arith.eq_refl(cursor)
 
-# One loop step on the mapping it computed: read input[source], write it at
-# the cursor, continue with both histories one step longer.
 def read_step(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +values: List<&2, F32>, +rest: Nat, +cursor: Nat,
   +below: {Nat.is_lt(cursor, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan)))) == True{} : Bool},
   +mapping: Layout.Mapping<input, axes, plan, U32.from_nat(cursor)>,
@@ -236,8 +231,6 @@ def start_cast(+fuel: Nat, +input: Shape.Shape, +axes: List<&2, U32>, +plan: Lay
     Shaped(fuel, input, axes, plan, 0n, _, Replayed.storage(Layout.output(input, axes, plan), 0.0, Nil{}), Q)
   start
 
-# The public copy on a `Core.from_values` input: allocate the `+0.0` output,
-# run every step, pack the result.
 def run_lift(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +values: List<&2, F32>,
   -Q: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Dynamic> -> Type,
   h: Final(input, axes, plan, values, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))),
@@ -268,7 +261,6 @@ def planned_lift(+input: Shape.Shape, +axes: List<&2, U32>, +values: List<&2, F3
     case Done{+plan}:
       run_lift(input, axes, plan, values, Q, h(plan), source_fits)
 
-# `permute_copy` on a `Core.from_values` input with a valid permutation.
 def permute_lift(+input: Shape.Shape, +values: List<&2, F32>, +axes: List<&2, U32>, +valid: {True{} == Layout.bijective(input, axes) : Bool},
   -Q: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Dynamic> -> Type,
   h: @+plan: Layout.Plan<input, axes> -> Final(input, axes, plan, values, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))),
@@ -300,8 +292,6 @@ def output_inside(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<
     plan_numel(input, axes, plan)) : {Nat.is_lt(U32.to_nat(index), _) == True{} : Bool}
   inside
 
-# The word the loop copies to output index `index` is the value that
-# `permute_source` names.
 def found_value(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +values: List<&2, F32>,
   +counted: {List.length(&2, F32, values) == Shape.logical_numel(Shape.dimensions(input)) : Nat},
   +index: U32, +mapping: Layout.Mapping<input, axes, plan, index>) ->
@@ -416,7 +406,6 @@ def permuted_kept(+input: Shape.Shape, +values: List<&2, F32>,
         IndexMap.kept(~Request, ~source_of, Request{input, axes}, total, input, 0.0, history, source_fits, other, inside),
         IndexMap.stored_at(input, values, counted, other, inside)), fits)
 
-# `permute_copy` of a `Core.from_values` tensor by a valid permutation.
 def permute_contract(+input: Shape.Shape, +values: List<&2, F32>,
   counted: {List.length(&2, F32, values) == Shape.logical_numel(Shape.dimensions(input)) : Nat},
   +axes: List<&2, U32>, valid: {True{} == Layout.bijective(input, axes) : Bool}) -> Records.PermuteContract<input, values, axes>:
@@ -450,7 +439,6 @@ def permute_contract(+input: Shape.Shape, +values: List<&2, F32>,
           List.get(&2, F32, values, U32.to_nat(other)) : Maybe<&2, F32>},
         fits => permuted_kept(input, values, counted, axes, valid, other, inside, fits))}
 
-# Transpose is the permute instance with the axes that swap `a` and `b`.
 def requested(+input: Shape.Shape, +a: U32, +b: U32) -> List<&2, U32>:
   Transpose.requested_axes(Shape.rank_dimensions(Shape.dimensions(input)), U32.to_nat(a), U32.to_nat(b))
 
@@ -483,7 +471,6 @@ def transpose_lift(+input: Shape.Shape, +values: List<&2, F32>, +a: U32, +b: U32
     Q(Transforms.permute_copy(input, Core.TTensor{Replayed.storage(input, 0.0, FromValues.writes(values, 0n)), fits}, _))
   h
 
-# `transpose_copy` of a `Core.from_values` tensor with both axes in range.
 def transpose_contract(+input: Shape.Shape, +values: List<&2, F32>,
   counted: {List.length(&2, F32, values) == Shape.logical_numel(Shape.dimensions(input)) : Nat},
   +a: U32, +b: U32, inside: {True{} == Transpose.valid(input, a, b) : Bool}) -> Records.TransposeContract<input, values, a, b>:

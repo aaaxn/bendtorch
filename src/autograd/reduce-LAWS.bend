@@ -38,8 +38,6 @@ def matched(total: Maybe<&2, F32>, value: Maybe<&2, F32>, same: Bool) -> Maybe<&
     case True{}:
       add_word(total, value)
 
-# One contribution position: if its projection lands on the requested target
-# position, add the source word at the position's source offset.
 def contribute(+values: List<&2, F32>, +target_index: U32, total: Maybe<&2, F32>, offsets: Maybe<&1, U32 & U32>) -> Maybe<&2, F32>:
   match offsets:
     case None{}:

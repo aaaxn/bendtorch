@@ -3,9 +3,7 @@ import Base
 # Minimal repro of the kernel fuel limit: three chained rank-0 tensor adds,
 # evaluated by a law. `--check-only` accepts it; `--verdict` and `bendtt` on the
 # exported file answer "In probe: out of fuel" (bendtt.lean FUEL = 400000000).
-# Two chained adds pass both (~8 s in the kernel). Same result on 32d23b4, 63b2c0d, 0e14aa8 and 947db72.
-# Known upstream kernel limitation, not a new bug: bendlang/bend #1322 and #1193
-# (open); PR #1487 tried to address it and was withdrawn.
+# Two chained adds pass both. This is a kernel resource limit, not a Bend2 bug.
 import ../../src/tensor/core.bend as Core
 import ../../src/tensor/elementwise.bend as Elementwise
 

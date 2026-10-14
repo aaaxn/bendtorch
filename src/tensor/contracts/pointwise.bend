@@ -73,14 +73,11 @@ def allocated(~O: Data, ~f: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> N
     case Done{output}:
       loop(~O, ~f, ~P, ~ia, ~ib, Shape.elements(shape), operation, plan, shape, 0n, State{left, right, output})
 
-# Allocates a `+0.0` output of `shape` and writes every cell. Both inputs come
-# back to the caller, on success and on failure.
 def run(~O: Data, ~f: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~ib: P -> Nat -> Nat,
   +operation: O, +plan: P, +shape: Shape.Shape, left: Core.Dynamic, right: Core.Dynamic) ->
   (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>:
   allocated(~O, ~f, ~P, ~ia, ~ib, operation, plan, shape, left, right, Core.new(shape, 0.0))
 
-# True when `map(plan, i) < bound` for every `i < count`.
 def inside(~P: Data, ~map: P -> Nat -> Nat, +plan: P, +count: Nat, +bound: Nat) -> Bool:
   match count:
     case 0n:
@@ -88,14 +85,12 @@ def inside(~P: Data, ~map: P -> Nat -> Nat, +plan: P, +count: Nat, +bound: Nat) 
     case 1n+previous:
       Bool.and(inside(~P, ~map, plan, previous, bound), Nat.is_lt(map(plan, previous), bound))
 
-# The word the family writes at output index `index`.
 def cell(~O: Data, ~f: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~ib: P -> Nat -> Nat,
   +operation: O, +plan: P, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
   +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +index: Nat) -> F32:
   f(operation, Replayed.value(left, left_fill, left_ops, U32.from_nat(ia(plan, index))),
     Replayed.value(right, right_fill, right_ops, U32.from_nat(ib(plan, index))))
 
-# The reads the loop makes on one input before output index `count`.
 def reads(~P: Data, ~map: P -> Nat -> Nat, +plan: P, +count: Nat) -> List<&2, StorageLaws.Op>:
   match count:
     case 0n:
@@ -103,7 +98,6 @@ def reads(~P: Data, ~map: P -> Nat -> Nat, +plan: P, +count: Nat) -> List<&2, St
     case 1n+previous:
       Replayed.snoc(reads(~P, ~map, plan, previous), StorageLaws.Read{U32.from_nat(map(plan, previous))})
 
-# The writes the loop makes on the output before output index `count`.
 def writes(~O: Data, ~f: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~ib: P -> Nat -> Nat,
   +count: Nat, +operation: O, +plan: P, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
   +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>) -> List<&2, StorageLaws.Op>:

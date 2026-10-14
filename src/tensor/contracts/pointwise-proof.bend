@@ -52,7 +52,6 @@ def expected_reads(~P: Data, ~map: P -> Nat -> Nat, +plan: P, +count: Nat, +n: N
         Replayed.expected_snoc(Pointwise.reads(~P, ~map, plan, previous), StorageLaws.Read{U32.from_nat(map(plan, previous))}, n, index, word),
         expected_reads(~P, ~map, plan, previous, n, index, word))
 
-# The reads the loop makes leave every word of an input unchanged.
 def value_reads(~P: Data, ~map: P -> Nat -> Nat, +plan: P, +count: Nat, +shape: Shape.Shape, +fill: F32,
   +ops: List<&2, StorageLaws.Op>, +index: U32) ->
   {Replayed.value(shape, fill, List.append(&2, StorageLaws.Op, ops, Pointwise.reads(~P, ~map, plan, count)), index) ==
@@ -108,7 +107,6 @@ def lt_succ_le(+index: Nat, +bound: Nat, below: {Nat.is_lt(index, bound) == True
     case 1n+p 1n+q:
       lt_succ_le(p, q, below)
 
-# The bound `inside` promises at one index.
 def inside_split(~P: Data, ~map: P -> Nat -> Nat, +plan: P, +previous: Nat, +bound: Nat,
   all: {Pointwise.inside(~P, ~map, plan, 1n+previous, bound) == True{} : Bool}, +index: Nat,
   below: {Nat.is_lt(index, 1n+previous) == True{} : Bool},
@@ -222,7 +220,6 @@ def writes_split(~O: Data, ~f: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -
           step, write_miss(shape, previous, index, written, old, inside, earlier)),
         rec(earlier))
 
-# After `count` cells, the output holds cell(i) at every i < count.
 def writes_value(~O: Data, ~f: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~ib: P -> Nat -> Nat,
   +count: Nat, +operation: O, +plan: P, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
   +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +shape: Shape.Shape, +index: U32,
@@ -251,8 +248,6 @@ def output_storage(~O: Data, ~f: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat
   +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +shape: Shape.Shape) -> Storage.Storage:
   Replayed.storage(shape, 0.0, Pointwise.writes(~O, ~f, ~P, ~ia, ~ib, count, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops))
 
-# Every successful erased length proof for the three storages gives Q of the
-# loop state built from them.
 def Shaped(~O: Data, ~f: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~ib: P -> Nat -> Nat,
   +fuel: Nat, +operation: O, +plan: P, +left: Shape.Shape, +right: Shape.Shape, +shape: Shape.Shape, +cursor: Nat,
   -left_storage: Storage.Storage, -right_storage: Storage.Storage, -output_storage: Storage.Storage,
@@ -272,8 +267,6 @@ def Start(~O: Data, ~f: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, 
     input_storage(~P, ~ia, plan, left, left_fill, left_ops, cursor), input_storage(~P, ~ib, plan, right, right_fill, right_ops, cursor),
     output_storage(~O, ~f, ~P, ~ia, ~ib, cursor, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, shape), Q)
 
-# Q holds of the result the loop returns after `count` cells, for every
-# erased length proof.
 def Final(~O: Data, ~f: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~ib: P -> Nat -> Nat,
   +operation: O, +plan: P, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
   +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +shape: Shape.Shape, +count: Nat,
@@ -296,7 +289,6 @@ def final_at(~O: Data, ~f: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Na
   %same : Final(~O, ~f, ~P, ~ia, ~ib, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, shape, _, Q)
   h
 
-# The storages one step leaves, as the next step expects them.
 def shift(~O: Data, ~f: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~ib: P -> Nat -> Nat,
   +rest: Nat, +operation: O, +plan: P, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
   +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +shape: Shape.Shape, +cursor: Nat,
@@ -425,9 +417,6 @@ def start_cast(~O: Data, ~f: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> 
       input_storage(~P, ~ia, plan, left, left_fill, left_ops, 0n), _, Replayed.storage(shape, 0.0, Nil{}), Q)
   start
 
-# The family result: for replayed inputs whose index maps stay in bounds, the
-# loop returns both inputs with the reads it made appended to their histories
-# and an output whose history writes cell(i) at i for every i, in order.
 def run_lift(~O: Data, ~f: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~ib: P -> Nat -> Nat,
   +operation: O, +plan: P, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
   +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +shape: Shape.Shape,
@@ -481,8 +470,6 @@ def input_point(~P: Data, ~map: P -> Nat -> Nat, +plan: P, +count: Nat, +shape: 
     Equal.cong(F32, Maybe<&2, F32>, word => Some{word}, Replayed.value(shape, fill, seen, index), Replayed.value(shape, fill, ops, index),
       value_reads(~P, ~map, plan, count, shape, fill, ops, index)))
 
-# The generic pointwise contract: one proof for every scalar function and
-# every pair of in-bounds index maps.
 def contract(~O: Data, ~f: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~ib: P -> Nat -> Nat,
   +operation: O, +plan: P, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
   +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +shape: Shape.Shape,

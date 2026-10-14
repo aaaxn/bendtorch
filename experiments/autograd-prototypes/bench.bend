@@ -22,10 +22,6 @@ import ./dual-tensor.bend as Dual
 
 import ./dual-tensor-cases.bend as DualTensor
 
-# Repetition driver for the architecture comparison: `bench <job> <n>` runs one
-# job n times. Inputs depend on the iteration, and every value and gradient is
-# folded into the printed checksum, so no iteration can be skipped.
-
 type Job is Data:
   Construct{}
   TapeS{}

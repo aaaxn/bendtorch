@@ -23,7 +23,6 @@ BINARY = {"add": "Add", "sub": "Sub", "mul": "Mul"}
 
 
 def requests(corpus: dict) -> list[tuple[dict, dict]]:
-    """The tensor add, sub and mul cases that reach Bend, with their requests."""
     selected = []
     for case in corpus_cases(corpus):
         if case["op"] not in BINARY:
@@ -79,8 +78,8 @@ def input_words(encoded: dict) -> list[str]:
 
 
 def same_input(observed: dict, encoded: dict) -> bool:
-    """A retained input keeps its shape and words. A NaN input word may come
-    back as another NaN, as `verify_lane` allows for constructed NaNs."""
+    """A NaN input word may come back as another NaN, as `verify_lane` allows
+    for constructed NaNs."""
     expected = input_words(encoded)
     return (
         observed["shape"] == encoded["shape"]
@@ -120,7 +119,6 @@ def verify(selected: list[tuple[dict, dict]], observations: list[dict]) -> dict:
 
 
 def run_gate(tool_root: Path, output: Path, corpus_path: Path = CORPUS) -> dict:
-    """Runs the tensor binary corpus through `Broadcast.binary` in both lanes."""
     tool_root, output = tool_root.resolve(), output.resolve()
     check_sources(tool_root)
     evidence = Evidence(output, tool_root)

@@ -2,8 +2,6 @@ import Base
 import ./backward.bend as Backward
 import ./backward-LAWS.bend as Laws
 
-# Bool and Nat facts.
-
 def truth(value: Bool) -> Data:
   match value:
     case True{}:
@@ -47,7 +45,6 @@ def length_append(-A: Data, +xs: List<&2, A>, +ys: List<&2, A>) ->
       Equal.cong(Nat, Nat, number => 1n+number, List.length(&2, A, List.append(&2, A, tail, ys)),
         Nat.add(List.length(&2, A, tail), List.length(&2, A, ys)), length_append(A, tail, ys))
 
-# An element with older elements after it never has the id of one of them.
 def append_ne(-A: Data, +xs: List<&2, A>, +item: A, +rest: List<&2, A>) ->
   {False{} == Nat.is_eq(List.length(&2, A, List.append(&2, A, xs, item <> rest)), List.length(&2, A, rest)) : Bool}:
   %Equal.sym(Nat, List.length(&2, A, List.append(&2, A, xs, item <> rest)),
@@ -78,8 +75,6 @@ def not_lt_succ_lt(+id: Nat, +bound: Nat, outside: {Nat.is_lt(id, 1n+bound) == F
     case 1n+rest 1n+smaller:
       not_lt_succ_lt(rest, smaller, outside)
 
-# Vector-Jacobian products.
-
 def Laws.vjp_leaf(g):
   {==}
 
@@ -106,8 +101,6 @@ def Laws.backward_mul(x, y):
 
 def Laws.backward_neg(x):
   {==}
-
-# The seed.
 
 def Laws.seed_selected_output(newer, node, rest):
   match newer:
@@ -137,9 +130,6 @@ def Laws.seed_selected_output(newer, node, rest):
             Backward.contribute(node, Some{1.0}, List.length(&2, Backward.Node, rest), Backward.nones(List.length(&2, Backward.Node, rest))),
             List.length(&2, Backward.Node, rest))),
         Laws.seed_selected_output(tail, node, rest))
-
-# Reachability: a gradient is present exactly where the flags say the output
-# reaches.
 
 def is_some_accumulate(slot: Maybe<&2, F32>, +value: F32) ->
   {Maybe.is_some(&2, F32, Backward.accumulate(slot, Some{value})) == True{} : Bool}:
@@ -269,8 +259,6 @@ def Laws.reached_exactly(graph, output):
 def Laws.unused_leaf_none(x, y, z):
   {==}
 
-# Fan-out accumulation.
-
 def Laws.accumulate_moves_in(contribution):
   {==}
 
@@ -302,8 +290,6 @@ def Laws.bump_target(newer, slot, rest, value):
 
 def Laws.fan_out_arrival_order(x, a, b, c):
   {==}
-
-# Ids.
 
 def Laws.lookup_exact(A, newer, item, rest):
   match newer:
@@ -385,8 +371,6 @@ def Laws.neg_unknown(entries, a, outside):
       (Backward.Tape{entries}, Fail{Backward.UnknownNode{}}) : Backward.Tape & Result<&2, &2, Backward.Error, Nat>}
   {==}
 
-# backward's checks.
-
 def nodes_length(+entries: List<&2, Backward.Entry>) ->
   {List.length(&2, Backward.Entry, entries) == List.length(&2, Backward.Node, Backward.nodes(entries)) : Nat}:
   match entries:
@@ -435,8 +419,6 @@ def Laws.backward_success(entries, output, inside, sound):
       Done{Backward.Tape{Backward.merge(entries, Backward.pass(Backward.nodes(entries), List.length(&2, Backward.Entry, entries), output))}} :
       Result<&2, &2, Backward.Error, Backward.Tape>}
   {==}
-
-# Operand bounds.
 
 def and_true(+value: Bool) -> {Bool.and(value, True{}) == value : Bool}:
   match value:
@@ -524,8 +506,6 @@ def Laws.backward_accepts_bound_operands(entries, output, inside, bound):
     Equal.trans(Bool, Backward.wired(Backward.nodes(entries), List.length(&2, Backward.Entry, entries)),
       Laws.well_formed(Backward.nodes(entries)), True{}, wired_entries(entries), bound))
 
-# Repeated backward.
-
 def nodes_merge(+entries: List<&2, Backward.Entry>, +gradients: List<&2, Maybe<&2, F32>>) ->
   {Backward.nodes(entries) == Backward.nodes(Backward.merge(entries, gradients)) : List<&2, Backward.Node>}:
   match entries gradients:
@@ -551,8 +531,6 @@ def Laws.backward_twice_accumulates(entries, output, found, computed):
 
 def Laws.backward_twice_mul(x, y):
   {==}
-
-# zero_grad.
 
 def Laws.zero_grad_empties(entries):
   match entries:
