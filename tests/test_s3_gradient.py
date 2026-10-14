@@ -140,7 +140,7 @@ class StageRegistrationTests(unittest.TestCase):
     def test_s3_gate_registers_gradient_and_its_laws(self):
         self.assertEqual(
             list(SUBGATES),
-            ["broadcast", "reduce", "sum_to_size", "gradient", "lifecycle"],
+            ["broadcast", "reduce", "sum_to_size", "gradient", "lifecycle", "backward"],
         )
         required = json.loads((ROOT / "verification/s3.json").read_text())[
             "required_exports"

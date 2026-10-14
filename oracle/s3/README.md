@@ -36,6 +36,20 @@ All other rejections agree: PyTorch also rejects every request that bendtorch
 rejects with `IncompatibleBroadcast`, `NotBroadcastable`, `NotReducible` or
 `ShapeMismatch`.
 
+## Backward
+
+`backward.py` replays every script of the S3 backward subgate on PyTorch
+scalars and writes `fixtures/s3-backward-torch-v1.json`. Each script records
+leaves and `+`, `-`, `*` and unary `-` in order; every node keeps its gradient
+(`retain_grad()`), every `backward` keeps the graph (`retain_graph=True`), and
+`zero_grad` sets every `.grad` to `None`. `tests/test_s3_backward.py` in the
+root suite compares the gate's Python reference with this file. 76 scripts
+agree line for line. Three scripts use node ids that the tape does not hold;
+bendtorch reports `UnknownNode` where the replay raises `IndexError`. Four
+scripts forge tapes with dangling operands, which PyTorch cannot express, and
+are recorded as `unrepresentable`. [docs/s3-backward.md](../../docs/s3-backward.md)
+lists them.
+
 ## Reproduce
 
 Use the oracle environment from `oracle/s2/README.md`, with one CPU thread:
@@ -43,9 +57,10 @@ Use the oracle environment from `oracle/s2/README.md`, with one CPU thread:
 ```sh
 export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
 PYTHONDONTWRITEBYTECODE=1 uv run --project oracle --frozen --no-sync python oracle/s3/generate.py --check
+PYTHONDONTWRITEBYTECODE=1 uv run --project oracle --frozen --no-sync python oracle/s3/backward.py --check
 (cd oracle/s3 && PYTHONDONTWRITEBYTECODE=1 uv run --project .. --frozen --no-sync python -m unittest discover -s tests -v)
-uv run --locked python -m unittest tests.test_s3_torch -v
+uv run --locked python -m unittest tests.test_s3_torch tests.test_s3_backward.BackwardTorchOracleTests -v
 ```
 
 `--check` regenerates the file in memory and compares bytes. Without
-`--check` the generator refuses to overwrite an existing file.
+`--check` each generator refuses to overwrite an existing file.

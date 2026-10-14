@@ -21,6 +21,13 @@ ERROR_LAWS = {
             "reduce_2d_LAWS.reduce_shape_error",
             "reduce_2d_LAWS.reduce_not_reducible",
             "gradient_2d_LAWS.accumulate_wrong_shape_refused",
+            "backward_2d_LAWS.value_unknown",
+            "backward_2d_LAWS.grad_unknown",
+            "backward_2d_LAWS.record_unknown_left",
+            "backward_2d_LAWS.record_unknown_right",
+            "backward_2d_LAWS.neg_unknown",
+            "backward_2d_LAWS.backward_unknown",
+            "backward_2d_LAWS.backward_dangling",
         ],
     ),
 }
@@ -35,7 +42,7 @@ class ErrorLawTests(unittest.TestCase):
                     self.assertIn(prefix + name, required)
 
     def test_error_controls_apply_once_and_name_a_proof(self):
-        self.assertEqual(len(ERROR_CONTROLS), 10)
+        self.assertEqual(len(ERROR_CONTROLS), 12)
         for name, (path, original, mutated, root, location) in ERROR_CONTROLS.items():
             with self.subTest(control=name):
                 self.assertEqual((ROOT / path).read_text().count(original), 1)

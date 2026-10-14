@@ -12,6 +12,7 @@ from tools.common import (
     check_sources,
     digest,
 )
+from tools.s3_backward import run_stage as backward
 from tools.s3_broadcast import run_stage as broadcast
 from tools.s3_gradient import run_stage as gradient
 from tools.s3_lifecycle import run_stage as lifecycle
@@ -24,6 +25,7 @@ SUBGATES = {
     "sum_to_size": sum_to_size,
     "gradient": gradient,
     "lifecycle": lifecycle,
+    "backward": backward,
 }
 
 PROOF_CONTROLS = {
@@ -125,6 +127,46 @@ PROOF_CONTROLS = {
         "def reset(slot: Slot) -> Slot:\n  Unset{}",
         "def reset(slot: Slot) -> Slot:\n  slot",
     ),
+    "backward-seeds-newest-node": (
+        "src/autograd/backward.bend",
+        "unit => pass(rest, below, output), Nat.is_eq(below, output))",
+        "unit => pass(rest, below, output), True{})",
+    ),
+    "backward-lookup-aliases": (
+        "src/autograd/backward.bend",
+        "picked(A, head, unit => find(A, rest, below, id), Nat.is_eq(below, id))",
+        "picked(A, head, unit => find(A, rest, below, id), Nat.is_le(below, id))",
+    ),
+    "backward-bump-aliases": (
+        "src/autograd/backward.bend",
+        "unit => bump(rest, below, target, contribution), Nat.is_eq(below, target))",
+        "unit => bump(rest, below, target, contribution), Nat.is_le(below, target))",
+    ),
+    "backward-drops-later-contribution": (
+        "src/autograd/backward.bend",
+        "      Some{F32.add(held, value)}",
+        "      Some{held}",
+    ),
+    "backward-mul-vjp-swaps-operands": (
+        "src/autograd/backward.bend",
+        "[Contribution{a, F32.mul(g, right)}, Contribution{b, F32.mul(g, left)}]",
+        "[Contribution{a, F32.mul(g, left)}, Contribution{b, F32.mul(g, right)}]",
+    ),
+    "backward-sub-vjp-drops-sign": (
+        "src/autograd/backward.bend",
+        "[Contribution{a, g}, Contribution{b, F32.neg(g)}]",
+        "[Contribution{a, g}, Contribution{b, g}]",
+    ),
+    "backward-overwrites-slot": (
+        "src/autograd/backward.bend",
+        "Entry{node, value, accumulate(slot, gradient)} <> merge(rest, more)",
+        "Entry{node, value, gradient} <> merge(rest, more)",
+    ),
+    "backward-zero-grad-keeps-slot": (
+        "src/autograd/backward.bend",
+        "Entry{node, value, None{}} <> cleared(rest)",
+        "Entry{node, value, slot} <> cleared(rest)",
+    ),
 }
 
 
@@ -213,6 +255,20 @@ ERROR_CONTROLS = {
         "TensorError{Core.StorageError{Storage.InvalidIndex{}}}}",
         "src/autograd/PROOF.bend",
         "Location: checked_refusal",
+    ),
+    "backward-unknown-as-dangling": (
+        "src/autograd/backward.bend",
+        "    case False{} sound:\n      Fail{UnknownNode{}}",
+        "    case False{} sound:\n      Fail{DanglingOperand{}}",
+        "src/autograd/PROOF.bend",
+        "Laws.backward_unknown",
+    ),
+    "backward-dangling-as-unknown": (
+        "src/autograd/backward.bend",
+        "    case True{} False{}:\n      Fail{DanglingOperand{}}",
+        "    case True{} False{}:\n      Fail{UnknownNode{}}",
+        "src/autograd/PROOF.bend",
+        "Laws.backward_dangling",
     ),
 }
 
