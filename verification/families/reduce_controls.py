@@ -1,0 +1,108 @@
+import importlib
+
+controls = importlib.import_module("verification.families.controls")
+fold = importlib.import_module("verification.families.fold_controls")
+Law, Site, Value, Witness = (
+    controls.Law,
+    controls.Site,
+    controls.Value,
+    controls.Witness,
+)
+SRC = "_2e_._2f_.._2f_.._2f_src_2f_autograd_2f_"
+ZERO, ONE, TWO, THREE = fold.ZERO, fold.ONE, fold.TWO, fold.THREE
+FOUR, FIVE, SIX = fold.FOUR, fold.FIVE, fold.SIX
+
+
+def some(source: str, kernel: str) -> Value:
+    return Value(source, f"(.Some, ({kernel}, ()))")
+
+
+FAMILY = controls.Family(
+    name="reduce",
+    entry=(
+        "src/tensor/contracts/broadcast.bend",
+        "src/tensor/contracts/sum.bend",
+        "src/autograd/reduce-fold.bend",
+    ),
+    operations=frozenset({"src/autograd/reduce-fold.bend"}),
+    laws={
+        f"{SRC}reduce_2d_fold_2d_LAWS.reduce_fold_fiber": Law(
+            "∀+x0 : _2e_._2f_.._2f_.._2f_src_2f_shape_2f_core.BroadcastPlan -> ",
+            "reduce_2d_fold.cell",
+        ),
+    },
+    live_records=(
+        f"{SRC}reduce_2d_fold_2d_LAWS.FiberContract.arms",
+        "consumers.ReduceCase.arms",
+    ),
+    consumers=tuple(
+        f"consumers.{name}"
+        for name in (
+            "reduce_columns",
+            "reduce_rows",
+            "reduce_scalar",
+            "reduce_same",
+            "reduce_empty",
+        )
+    ),
+    witnesses={
+        "column_witness": Witness("expected_column", "unmasked_column"),
+        "row_witness": Witness("expected_row", "first_row"),
+        "same_witness": Witness("expected_same", "uncopied_same"),
+        "word_witness": Witness("expected_word", "shifted_word"),
+    },
+    values={
+        "expected_column": some(
+            "Some{F32.add(F32.add(0.0, 2.0), 5.0)}",
+            f"(F32.add (F32.add {ZERO} {TWO}) {FIVE})",
+        ),
+        "unmasked_column": some(
+            "Some{F32.add(F32.add(F32.add(F32.add(F32.add(F32.add(0.0, 1.0), "
+            "2.0), 3.0), 4.0), 5.0), 6.0)}",
+            f"(F32.add (F32.add (F32.add (F32.add (F32.add (F32.add {ZERO} {ONE}) "
+            f"{TWO}) {THREE}) {FOUR}) {FIVE}) {SIX})",
+        ),
+        "expected_row": some(
+            "Some{F32.add(F32.add(F32.add(0.0, 4.0), 5.0), 6.0)}",
+            f"(F32.add (F32.add (F32.add {ZERO} {FOUR}) {FIVE}) {SIX})",
+        ),
+        "first_row": some(
+            "Some{F32.add(F32.add(F32.add(0.0, 1.0), 2.0), 3.0)}",
+            f"(F32.add (F32.add (F32.add {ZERO} {ONE}) {TWO}) {THREE})",
+        ),
+        "expected_same": some("Some{F32.add(0.0, 5.0)}", f"(F32.add {ZERO} {FIVE})"),
+        "uncopied_same": some("Some{5.0}", FIVE),
+        "expected_word": some("Some{5.0}", FIVE),
+        "shifted_word": some("Some{6.0}", SIX),
+    },
+    subjects=("result",),
+    mutants=controls.load_mutants("reduce"),
+    sites={
+        "lands-on-source": Site(
+            "fiber_total",
+            "Broadcast.right_map(plan, position)",
+            "reduce_2d_fold_2d_proof.fiber_total",
+            ("reduce_2d_fold.lands",),
+        ),
+        "inverted-mask": Site(
+            "fiber_total",
+            "Bool.not(",
+            "reduce_2d_fold_2d_proof.fiber_total",
+            ("reduce_2d_fold.lands",),
+        ),
+        "reads-target-offset": Site(
+            "fiber_total",
+            "Broadcast.left_map(plan, position)",
+            "reduce_2d_fold_2d_proof.fiber_total",
+            ("reduce_2d_fold.source",),
+        ),
+        "target-count": Site(
+            "fiber_contract",
+            "Shape.left_shape(plan)",
+            "reduce_2d_fold_2d_proof.fiber_contract",
+            ("reduce_2d_fold.cell",),
+        ),
+    },
+    proof="src/autograd/PROOF.bend",
+    prefix=SRC,
+)

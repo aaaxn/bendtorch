@@ -12,10 +12,9 @@ from tools.common import GateError, check_sources
 
 r1b = importlib.import_module("verification.r1-b.run")
 reads = importlib.import_module("verification.r1-b.reads_controls")
-controls = importlib.import_module("verification.families.controls")
 FAMILIES = tuple(
     importlib.import_module(f"verification.families.{name}_controls").FAMILY
-    for name in ("pointwise", "fold")
+    for name in ("pointwise", "fold", "reduce")
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -58,7 +57,7 @@ def family_controls(family, snapshot, output, bend, kernel, parallel, reasons) -
             *(
                 (
                     f"{name}/source-{label}",
-                    [*bend, copies[label] / controls.PROOF, "--check-only"],
+                    [*bend, copies[label] / family.proof, "--check-only"],
                     1,
                 )
                 for label in family.mutants
@@ -121,7 +120,7 @@ def family_controls(family, snapshot, output, bend, kernel, parallel, reasons) -
     }
     for label in family.mutants:
         artifacts[label] = reads.transplant(
-            text, exports[label].read_text(), r1b.catalog, controls.SRC
+            text, exports[label].read_text(), r1b.catalog, family.prefix
         )
         reasons[f"{name}/kernel-replaced-{label}"] = family.replaced(
             text, artifacts[label], r1b.catalog, label

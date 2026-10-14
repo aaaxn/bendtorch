@@ -36,7 +36,9 @@ def some(source: str, kernel: str) -> Value:
 
 FAMILY = controls.Family(
     name="fold",
-    entry=("broadcast", "sum", "dot"),
+    entry=tuple(
+        f"src/tensor/contracts/{name}.bend" for name in ("broadcast", "sum", "dot")
+    ),
     operations=frozenset(
         {
             "src/tensor/contracts/fold.bend",
@@ -113,7 +115,7 @@ FAMILY = controls.Family(
         ),
         "swapped-accumulator": Site(
             "step_lift",
-            "step_lift~g(operation, StorageLaws.expected(",
+            "step_lift~keep(plan, cursor), StorageLaws.expected(",
             "fold_2d_proof.step_lift.qvvvv",
             ("fold.step.qvv", "fold.step.qvv_1"),
         ),
@@ -122,6 +124,12 @@ FAMILY = controls.Family(
             "after}}, Fold.total(",
             "fold_2d_proof.step_lift.qvvvv",
             ("fold.step.qvv", "fold.step.qvv_1"),
+        ),
+        "ignored-mask": Site(
+            "step_lift",
+            "operation, True{}, input =>",
+            "fold_2d_proof.step_lift.qvvvv",
+            ("fold.loop.qvvvv",),
         ),
         "cursor-off-by-one": Site(
             "contract",

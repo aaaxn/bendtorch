@@ -23,7 +23,7 @@ def sequential_snoc(+values: List<&2, F32>, +word: F32, +accumulator: F32) ->
       sequential_snoc(rest, word, F32.add(accumulator, value))
 
 def total_words(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +count: Nat) ->
-  {Fold.total(~Unit, ~Sum.add, ~Unit, ~Sum.position, Unit{}, Unit{}, shape, fill, ops, count) ==
+  {Fold.total(~Unit, ~Sum.add, ~Unit, ~Sum.position, ~Sum.every, Unit{}, Unit{}, shape, fill, ops, count) ==
     Reduction.sequential_sum(Laws.words(shape, fill, ops, count), 0.0) : F32}:
   match count:
     case 0n:
@@ -33,9 +33,9 @@ def total_words(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>,
       %Equal.sym(F32, Reduction.sequential_sum(List.append(&2, F32, Laws.words(shape, fill, ops, previous), [word]), 0.0),
         F32.add(Reduction.sequential_sum(Laws.words(shape, fill, ops, previous), 0.0), word),
         sequential_snoc(Laws.words(shape, fill, ops, previous), word, 0.0)) :
-        {F32.add(Fold.total(~Unit, ~Sum.add, ~Unit, ~Sum.position, Unit{}, Unit{}, shape, fill, ops, previous), word) == _ : F32}
+        {F32.add(Fold.total(~Unit, ~Sum.add, ~Unit, ~Sum.position, ~Sum.every, Unit{}, Unit{}, shape, fill, ops, previous), word) == _ : F32}
       Equal.cong(F32, F32, total => F32.add(total, word),
-        Fold.total(~Unit, ~Sum.add, ~Unit, ~Sum.position, Unit{}, Unit{}, shape, fill, ops, previous),
+        Fold.total(~Unit, ~Sum.add, ~Unit, ~Sum.position, ~Sum.every, Unit{}, Unit{}, shape, fill, ops, previous),
         Reduction.sequential_sum(Laws.words(shape, fill, ops, previous), 0.0),
         total_words(shape, fill, ops, previous))
 
@@ -67,12 +67,12 @@ def sum_ordered(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>,
   %Shape.elements_exact(shape) :
     Records.FoldContract<shape, Reduction.sequential_sum(Laws.words(shape, fill, ops, _), 0.0),
       other => Replayed.value(shape, fill, ops, other),
-      Fold.run(~Unit, ~Sum.add, ~Unit, ~Sum.position, Unit{}, Unit{}, count,
+      Fold.run(~Unit, ~Sum.add, ~Unit, ~Sum.position, ~Sum.every, Unit{}, Unit{}, count,
         Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}})>
   %total_words(shape, fill, ops, count) :
     Records.FoldContract<shape, _,
       other => Replayed.value(shape, fill, ops, other),
-      Fold.run(~Unit, ~Sum.add, ~Unit, ~Sum.position, Unit{}, Unit{}, count,
+      Fold.run(~Unit, ~Sum.add, ~Unit, ~Sum.position, ~Sum.every, Unit{}, Unit{}, count,
         Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}})>
-  Proof.contract(~Unit, ~Sum.add, ~Unit, ~Sum.position, Unit{}, Unit{}, shape, fill, ops, count,
+  Proof.contract(~Unit, ~Sum.add, ~Unit, ~Sum.position, ~Sum.every, Unit{}, Unit{}, shape, fill, ops, count,
     position_inside(count, Shape.logical_numel(Shape.dimensions(shape)), elements_room(shape)), fits)
