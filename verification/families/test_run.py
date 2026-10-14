@@ -9,7 +9,8 @@ r1b = importlib.import_module("verification.r1-b.run")
 controls = importlib.import_module("verification.families.controls")
 pointwise = importlib.import_module("verification.families.pointwise_controls").FAMILY
 fold = importlib.import_module("verification.families.fold_controls").FAMILY
-FAMILIES = (pointwise, fold)
+reduce = importlib.import_module("verification.families.reduce_controls").FAMILY
+FAMILIES = (pointwise, fold, reduce)
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -50,7 +51,7 @@ class PointwiseControlTests(unittest.TestCase):
                             (target / name).read_text(), (ROOT / name).read_text()
                         )
 
-    def test_failure_mutants_are_checked_by_the_consumers(self):
+    def test_each_mutant_is_checked_by_its_module(self):
         checked = {label: fold.checked(label) for label in fold.mutants}
         failures = {"failed-step-done", "pair-left-failed-done"}
         failures.add("pair-right-failed-swapped")
@@ -62,6 +63,8 @@ class PointwiseControlTests(unittest.TestCase):
             )
             self.assertEqual(path, expected, label)
         self.assertTrue(all(not site.consumer for site in pointwise.sites.values()))
+        for label in reduce.mutants:
+            self.assertEqual(reduce.checked(label), "src/autograd/PROOF.bend", label)
 
     def test_false_twin_changes_only_the_statement(self):
         for family in FAMILIES:
