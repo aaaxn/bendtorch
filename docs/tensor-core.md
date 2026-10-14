@@ -300,7 +300,9 @@ broadcasting, non-power-of-two lengths, incompatible shapes with retained
 inputs, rank four, invalid coordinates/count/rank/capacity, maximum-U32 index
 rejection, retained reads/writes, independent clones and empty access. No
 PyTorch runtime or widened numerical tolerance is involved. The emitted-C
-packed-array audit must report `STORAGE_COPY_AUDIT 0 0`.
+packed-array audit must report no split and no join other than those of the
+parallel elementwise build, `2^depth - 1` per output of `n > 0` cells at depth
+`ceil(log2 n)` (see `docs/runtime-corpus.md`).
 
 Negative controls require their intended type/equality diagnostic as well as
 exit status. Old invalid-import parser failures remain preserved separately and

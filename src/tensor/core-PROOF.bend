@@ -13,6 +13,7 @@ import ./elementwise.bend as Elementwise
 import ./core-LAWS.bend as Laws
 import ./projection-LAWS.bend as Projection
 import ./projection-PROOF.bend as ProjectionProof
+import ./elementwise-parallel-proof.bend as Parallel
 
 def Laws.scalar_add(left, right):
   {==}
@@ -1154,27 +1155,9 @@ def successful_allocated_mapping(+operation: Elementwise.Operation, +plan: Shape
       Elementwise.MappingModel<operation, plan, left, right, Elementwise.allocated(operation, plan, left, right, Core.new(Shape.output_shape(plan), 0.0))> ->
       Elementwise.SuccessfulMapping(operation, plan, left, right, Elementwise.allocated(operation, plan, left, right, Core.new(Shape.output_shape(plan), 0.0)))}(allocated_mapping(operation, plan, Core.new(Shape.output_shape(plan), 0.0), left, right))}
 
-def planned_mapping(+operation: Elementwise.Operation, result: Result<&2, &2, Shape.Error, Shape.BroadcastPlan>,
-  left: Core.Dynamic, right: Core.Dynamic,
-  -same: {result == Elementwise.plan_for(left, right) : Result<&2, &2, Shape.Error, Shape.BroadcastPlan>}) ->
-  Elementwise.BinaryModel<operation, left, right, Elementwise.planned(operation, left, right, result)>:
-  match result:
-    case Fail{error}:
-      Elementwise.BinaryModel{
-        %same : Elementwise.PlannedMeaning(operation, left, right, Elementwise.planned(operation, left, right, Fail{error}), _)
-        Unit{}}
-    case Done{+plan}:
-      Elementwise.BinaryModel{
-        %same : Elementwise.PlannedMeaning(operation, left, right, Elementwise.planned(operation, left, right, Done{plan}), _)
-        {\{Elementwise.MappingModel: mapping => mapping} :
-          Elementwise.MappingModel<operation, plan, left, right, Elementwise.allocated(operation, plan, left, right, Core.new(Shape.output_shape(plan), 0.0))> ->
-          Elementwise.SuccessfulMapping(operation, plan, left, right, Elementwise.allocated(operation, plan, left, right, Core.new(Shape.output_shape(plan), 0.0)))}(successful_allocated_mapping(operation, plan, left, right))}
-
 def successful_binary_mapping(+operation: Elementwise.Operation, left: Core.Dynamic, right: Core.Dynamic) ->
   Elementwise.BinaryModel<operation, left, right, Elementwise.binary(operation, left, right)>:
-  Core.Packed{+left_shape, left_tensor} = left
-  Core.Packed{+right_shape, right_tensor} = right
-  planned_mapping(operation, Shape.broadcast_checked(left_shape, right_shape), Core.Packed{left_shape, left_tensor}, Core.Packed{right_shape, right_tensor}, {==})
+  Parallel.binary_mapping(operation, left, right)
 
 def Laws.successful_elementwise_cached_loop(operation, plan, left, right, output):
   successful_cached_loop_mapping(operation, plan, left, right, output)

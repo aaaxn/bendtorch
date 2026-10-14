@@ -20,6 +20,7 @@ import ./transform-totality.bend as TransformTotality
 import ./word-conversion.bend as Conversion
 import ./allocation-PROOF.bend as AllocationProof
 import ./allocation-spec.bend as Allocation
+import ./elementwise-parallel-proof.bend as Parallel
 
 def read_owner(pair: Storage.Storage & Result<&2, &2, Storage.Error, F32>) -> Storage.Storage:
   (owner, result) = pair
@@ -433,14 +434,40 @@ def allocated_retains(+operation: Elementwise.Operation, +plan: Shape.BroadcastP
     case Done{output}:
       loop_retains(Shape.elements(Shape.output_shape(plan)), operation, plan, 0n, left, right, Elementwise.State{left, right, output}, property => {==}, property => {==})
 
+def output_retains(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +depth: Nat, +length: Nat,
+  -valid: {Storage.bounds(depth, length) == True{} : Bool},
+  -exact: {length == Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))) : Nat},
+  -left: Core.Dynamic, -right: Core.Dynamic, taken_left: Core.Dynamic & Array<F32>, taken_right: Core.Dynamic & Array<F32>,
+  -left_taken: Parallel.Taken<left, taken_left>, -right_taken: Parallel.Taken<right, taken_right>) ->
+  Totality.Retention<left, right, Elementwise.parallel_output(operation, plan, depth, length, valid, exact, taken_left, taken_right)>:
+  (kept_left, la) = taken_left
+  (kept_right, ra) = taken_right
+  Totality.Retention{
+    {\{Parallel.Taken: depth => balanced => reads => same => same} : Parallel.Taken<left, (kept_left, la)> -> Totality.SameSource(left, kept_left)}(left_taken),
+    {\{Parallel.Taken: depth => balanced => reads => same => same} : Parallel.Taken<right, (kept_right, ra)> -> Totality.SameSource(right, kept_right)}(right_taken)}
+
+def parallel_allocated_retains(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, left: Core.Dynamic, right: Core.Dynamic,
+  result: Result<&2, &1, Core.Error, Core.Tensor<Shape.output_shape(plan)>>) ->
+  Totality.Retention<left, right, Elementwise.parallel_allocated(operation, plan, left, right, result)>:
+  match result:
+    case Fail{error}:
+      Totality.Retention{property => {==}, property => {==}}
+    case Done{Core.TTensor{storage, exact}}:
+      match storage:
+        case Storage.Empty{}:
+          Totality.Retention{property => {==}, property => {==}}
+        case Storage.Owned{+depth, +length, array, balanced, valid}:
+          output_retains(operation, plan, depth, length, valid, exact, left, right, Elementwise.take(left), Elementwise.take(right),
+            Parallel.taken(left), Parallel.taken(right))
+
 def planned_retains(+operation: Elementwise.Operation, left: Core.Dynamic, right: Core.Dynamic,
   result: Result<&2, &2, Shape.Error, Shape.BroadcastPlan>) ->
-  Totality.Retention<left, right, Elementwise.planned(operation, left, right, result)>:
+  Totality.Retention<left, right, Elementwise.parallel_planned(operation, left, right, result)>:
   match result:
     case Fail{error}:
       Totality.Retention{property => {==}, property => {==}}
     case Done{+plan}:
-      allocated_retains(operation, plan, left, right, Core.new(Shape.output_shape(plan), 0.0))
+      parallel_allocated_retains(operation, plan, left, right, Core.new(Shape.output_shape(plan), 0.0))
 
 def Laws.binary_retains_inputs(operation, left, right):
   Core.Packed{+left_shape, left_tensor} = left
@@ -515,19 +542,41 @@ def planned_output_dimensions(+left: Shape.Shape, +right: Shape.Shape, +plan: Sh
         Shape.Broadcast<Shape.extents(Shape.left_shape(plan)), _, Shape.extents(Shape.output_shape(plan))>
       Shape.alignment(plan), alignment))
 
+def output_dimensions(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +depth: Nat, +length: Nat,
+  -valid: {Storage.bounds(depth, length) == True{} : Bool},
+  -exact: {length == Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))) : Nat},
+  taken_left: Core.Dynamic & Array<F32>, taken_right: Core.Dynamic & Array<F32>) ->
+  Totality.DimensionsModel<Shape.dimensions(Shape.output_shape(plan)), Elementwise.parallel_output(operation, plan, depth, length, valid, exact, taken_left, taken_right)>:
+  (kept_left, la) = taken_left
+  (kept_right, ra) = taken_right
+  Totality.DimensionsModel{{==}}
+
+def parallel_allocated_dimensions(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, left: Core.Dynamic, right: Core.Dynamic,
+  result: Result<&2, &1, Core.Error, Core.Tensor<Shape.output_shape(plan)>>) ->
+  Totality.DimensionsModel<Shape.dimensions(Shape.output_shape(plan)), Elementwise.parallel_allocated(operation, plan, left, right, result)>:
+  match result:
+    case Fail{error}:
+      Totality.DimensionsModel{Unit{}}
+    case Done{Core.TTensor{storage, exact}}:
+      match storage:
+        case Storage.Empty{}:
+          Totality.DimensionsModel{{==}}
+        case Storage.Owned{+depth, +length, array, balanced, valid}:
+          output_dimensions(operation, plan, depth, length, valid, exact, Elementwise.take(left), Elementwise.take(right))
+
 def planned_dimensions(+operation: Elementwise.Operation, +left_shape: Shape.Shape, +right_shape: Shape.Shape, +output: List<&2, U32>,
   result: Result<&2, &2, Shape.Error, Shape.BroadcastPlan>, left: Core.Tensor<left_shape>, right: Core.Tensor<right_shape>,
   -sources: {ShapeLaws.planned_dimensions(left_shape, right_shape, result) == (Shape.dimensions(left_shape), Shape.dimensions(right_shape)) : List<&2, U32> & List<&2, U32>},
   -alignment: Shape.Broadcast<Shape.extents(left_shape), Shape.extents(right_shape), Shape.naturals(output)>) ->
-  Totality.DimensionsModel<output, Elementwise.planned(operation, Core.Packed{left_shape, left}, Core.Packed{right_shape, right}, result)>:
+  Totality.DimensionsModel<output, Elementwise.parallel_planned(operation, Core.Packed{left_shape, left}, Core.Packed{right_shape, right}, result)>:
   match result:
     case Fail{error}:
       Totality.DimensionsModel{Unit{}}
     case Done{+plan}:
-      dimensions_reify(output, Elementwise.allocated(operation, plan, Core.Packed{left_shape, left}, Core.Packed{right_shape, right}, Core.new(Shape.output_shape(plan), 0.0)),
+      dimensions_reify(output, Elementwise.parallel_allocated(operation, plan, Core.Packed{left_shape, left}, Core.Packed{right_shape, right}, Core.new(Shape.output_shape(plan), 0.0)),
         %planned_output_dimensions(left_shape, right_shape, plan, output, alignment, sources) :
-          Totality.DimensionsModel<_, Elementwise.allocated(operation, plan, Core.Packed{left_shape, left}, Core.Packed{right_shape, right}, Core.new(Shape.output_shape(plan), 0.0))>
-        allocated_dimensions(operation, plan, Core.Packed{left_shape, left}, Core.Packed{right_shape, right}, Core.new(Shape.output_shape(plan), 0.0)))
+          Totality.DimensionsModel<_, Elementwise.parallel_allocated(operation, plan, Core.Packed{left_shape, left}, Core.Packed{right_shape, right}, Core.new(Shape.output_shape(plan), 0.0))>
+        parallel_allocated_dimensions(operation, plan, Core.Packed{left_shape, left}, Core.Packed{right_shape, right}, Core.new(Shape.output_shape(plan), 0.0)))
 
 def Laws.binary_successful_output_dimensions(operation, left, right, output, alignment):
   Core.Packed{+left_shape, left_tensor} = left
@@ -813,23 +862,41 @@ def allocated_success(+operation: Elementwise.Operation, +plan: Shape.BroadcastP
           {Nat.is_le(_, Shape.elements(Shape.output_shape(plan))) == True{} : Bool}
         Conversion.le_reflexive(Shape.elements(Shape.output_shape(plan))))
 
+def output_success(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +depth: Nat, +length: Nat,
+  -valid: {Storage.bounds(depth, length) == True{} : Bool},
+  -exact: {length == Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))) : Nat},
+  taken_left: Core.Dynamic & Array<F32>, taken_right: Core.Dynamic & Array<F32>) ->
+  Totality.Success<Elementwise.parallel_output(operation, plan, depth, length, valid, exact, taken_left, taken_right)>:
+  (kept_left, la) = taken_left
+  (kept_right, ra) = taken_right
+  Totality.Success{{==}}
+
+def parallel_allocated_success(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, left: Core.Dynamic, right: Core.Dynamic,
+  result: Result<&2, &1, Core.Error, Core.Tensor<Shape.output_shape(plan)>>, -done: Allocation.TensorDone<Shape.output_shape(plan), result>) ->
+  Totality.Success<Elementwise.parallel_allocated(operation, plan, left, right, result)>:
+  match result:
+    case Fail{error}:
+      Totality.Success{Empty.absurd({False{} == True{} : Bool},
+        {\{Allocation.TensorDone: tensor => same => Arith.clash(Equal.cong(Result<&2, &1, Core.Error, Core.Tensor<Shape.output_shape(plan)>>, Bool,
+          result => Result.is_done(&2, &1, Core.Error, Core.Tensor<Shape.output_shape(plan)>, result), Fail{error}, Done{tensor},
+          Equal.sym(Result<&2, &1, Core.Error, Core.Tensor<Shape.output_shape(plan)>>, Done{tensor}, Fail{error}, same)))} :
+          Allocation.TensorDone<Shape.output_shape(plan), Fail{error}> -> Empty}(done))}
+    case Done{Core.TTensor{storage, exact}}:
+      match storage:
+        case Storage.Empty{}:
+          Totality.Success{{==}}
+        case Storage.Owned{+depth, +length, array, balanced, valid}:
+          output_success(operation, plan, depth, length, valid, exact, Elementwise.take(left), Elementwise.take(right))
+
 def planned_success(+operation: Elementwise.Operation, +left_shape: Shape.Shape, +right_shape: Shape.Shape,
   result: Result<&2, &2, Shape.Error, Shape.BroadcastPlan>, left: Core.Tensor<left_shape>, right: Core.Tensor<right_shape>,
-  -sources: {ShapeLaws.planned_dimensions(left_shape, right_shape, result) == (Shape.dimensions(left_shape), Shape.dimensions(right_shape)) : List<&2, U32> & List<&2, U32>},
   -built: {ShapeLaws.broadcast_built(result) == True{} : Bool}) ->
-  Totality.Success<Elementwise.planned(operation, Core.Packed{left_shape, left}, Core.Packed{right_shape, right}, result)>:
+  Totality.Success<Elementwise.parallel_planned(operation, Core.Packed{left_shape, left}, Core.Packed{right_shape, right}, result)>:
   match result:
     case Fail{error}:
       Totality.Success{Empty.absurd({False{} == True{} : Bool}, Arith.clash(built))}
     case Done{+plan}:
-      allocated_success(operation, plan, Core.Packed{left_shape, left}, Core.Packed{right_shape, right}, Core.new(Shape.output_shape(plan), 0.0),
-        FittingSources{
-          Equal.sym(List<&2, U32>, Shape.dimensions(Shape.left_shape(plan)), Shape.dimensions(left_shape),
-            Equal.cong(List<&2, U32> & List<&2, U32>, List<&2, U32>, Pair.fst(List<&2, U32>, List<&2, U32>),
-              (Shape.dimensions(Shape.left_shape(plan)), Shape.dimensions(Shape.right_shape(plan))), (Shape.dimensions(left_shape), Shape.dimensions(right_shape)), sources)),
-          Equal.sym(List<&2, U32>, Shape.dimensions(Shape.right_shape(plan)), Shape.dimensions(right_shape),
-            Equal.cong(List<&2, U32> & List<&2, U32>, List<&2, U32>, Pair.snd(List<&2, U32>, List<&2, U32>),
-              (Shape.dimensions(Shape.left_shape(plan)), Shape.dimensions(Shape.right_shape(plan))), (Shape.dimensions(left_shape), Shape.dimensions(right_shape)), sources))},
+      parallel_allocated_success(operation, plan, Core.Packed{left_shape, left}, Core.Packed{right_shape, right}, Core.new(Shape.output_shape(plan), 0.0),
         AllocationProof.core_new_done(Shape.output_shape(plan), 0.0))
 
 def Laws.binary_valid_success(operation, left, right, output, compatible):
@@ -837,5 +904,4 @@ def Laws.binary_valid_success(operation, left, right, output, compatible):
   Core.Packed{+right_shape, right_tensor} = right
   Totality.Compatible{+alignment, +rank, +capacity} = compatible
   planned_success(operation, left_shape, right_shape, Shape.broadcast_checked(left_shape, right_shape), left_tensor, right_tensor,
-    PlanProof.broadcast_checked_plan(left_shape, right_shape),
     PlanProof.broadcast_checked_complete(left_shape, right_shape, output, alignment, rank, capacity))

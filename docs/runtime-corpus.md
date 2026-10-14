@@ -265,11 +265,20 @@ checks. Runtime tests leave fresh run directories named `tensor-runtime-tests-*`
 under `.evidence/` for inspection.
 
 `tools.storage.instrument_copy_audit` instruments the emitted C without
-changing the shape and storage code. The audited executable must reproduce the
-same parsed observations and report exactly `STORAGE_COPY_AUDIT 0 0`: no live
-array splits or reconstructions, including construction, clone, transforms,
-numerical compute, and serialization. Sanctioned storage initialization/clone
-intrinsics do not increment these counters.
+changing the shape and storage code. It counts `blk_half` splits and
+`blk_node` joins. The audited executable must reproduce the same parsed
+observations and report exactly `STORAGE_COPY_AUDIT 0 <joins>`, where `<joins>`
+is what the parallel elementwise build must make for the requests the corpus
+runs. That build assembles each output as a balanced tree and joins every inner
+node once with `ANode`, so an output of `n > 0` cells, stored at depth
+`ceil(log2 n)`, costs `2^depth - 1` joins. Empty outputs and calls that fail at
+construction, broadcast or capacity cost none. `tools.tensor_runtime` computes
+the count from the request shapes alone (723 for the frozen corpus), so any
+split, and any join outside these builds, including in construction, clone,
+transforms, numerical compute, and serialization, still fails the gate.
+Sanctioned storage initialization/clone intrinsics do not increment these
+counters. The counters are incremented atomically, so the count is exact at
+any thread count.
 
 `--benchmark` runs a minimal separate native executable three times under
 `/usr/bin/time`, recording elapsed/user/system time and peak RSS. The screen

@@ -7,6 +7,7 @@ import shutil
 from pathlib import Path
 
 from tools.common import ROOT, Evidence, GateError, bend, check_sources, digest
+from tools.shape import broadcast_oracle, shape_oracle
 from tools.storage import instrument_copy_audit
 from tools.tensor_ordered import verify_ordered_case
 
@@ -460,6 +461,58 @@ def copy_sources(output: Path) -> dict:
     return source_hashes
 
 
+def constructs(encoded: dict) -> bool:
+    shape = shape_oracle(encoded["shape"])
+    return "count" in shape and (
+        "fill_zero" in encoded or len(encoded["f32_bits"]) == shape["count"]
+    )
+
+
+def built_cells(request: dict) -> int:
+    """Output cells of the elementwise build a request runs, 0 if none runs."""
+    op = request.get("op")
+    if op not in ("add", "sub", "mul", "matmul_add"):
+        return 0
+    inputs = request["inputs"]
+    if not all(constructs(encoded) for encoded in inputs.values()):
+        return 0
+    left, right = inputs["a"]["shape"], inputs["b"]["shape"]
+    if op == "matmul_add":
+        if len(left) != 2 or len(right) != 2 or left[1] != right[0]:
+            return 0
+        product = [left[0], right[1]]
+        if "count" not in shape_oracle(product):
+            return 0
+        left, right = product, inputs["bias"]["shape"]
+    return broadcast_oracle(left, right).get("count", 0)
+
+
+def build_joins(cells: int) -> int:
+    """`blk_node` calls of one elementwise build.
+
+    The build joins every inner node of its balanced output tree once, by
+    `ANode` in `fork` or `tree_join`. Storage of `cells` cells has depth
+    `ceil(log2(cells))`, so the tree has `2^depth - 1` inner nodes.
+    """
+    return 0 if cells == 0 else (1 << (cells - 1).bit_length()) - 1
+
+
+def expected_copy_audit(requests: list[dict]) -> tuple[int, int]:
+    return 0, sum(build_joins(built_cells(request)) for request in requests)
+
+
+def check_copy_audit(stderr: str, requests: list[dict]) -> None:
+    expected = expected_copy_audit(requests)
+    found = re.findall(r"^STORAGE_COPY_AUDIT (\d+) (\d+)$", stderr, re.MULTILINE)
+    if [tuple(map(int, row)) for row in found] != [expected]:
+        raise GateError(
+            "Native copy audit reported "
+            + (", ".join(" ".join(row) for row in found) or "nothing")
+            + f"; expected {expected[0]} splits and {expected[1]} joins, "
+            "exactly the joins of the elementwise output builds"
+        )
+
+
 def build_native(evidence: Evidence, cases: list[dict], name: str) -> Path:
     program = evidence.directory / f"{name}.bend"
     program.write_text(
@@ -575,10 +628,7 @@ def run_native_corpus(
         ],
     )
     audit = evidence.run("corpus-audit-run", native_command(audit_binary))
-    if re.findall(r"^STORAGE_COPY_AUDIT (\d+) (\d+)$", audit.stderr, re.MULTILINE) != [
-        ("0", "0")
-    ]:
-        raise GateError("Native corpus split or reconstructed live storage arrays")
+    check_copy_audit(audit.stderr, transported)
     if parse_native_output(audit.stdout, identifiers) != results:
         raise GateError("Copy-audit executable changed native observations")
     for request in negatives:
@@ -736,7 +786,10 @@ def run_native_corpus(
         "decoder_error_cases": 4,
         "compile_negative_cases": 7,
         "shape_cases": 7,
-        "copy_audit": {"live_splits": 0, "live_reconstructions": 0},
+        "copy_audit": {
+            "splits": 0,
+            "elementwise_build_joins": expected_copy_audit(transported)[1],
+        },
         "numerical_acceptance": (
             "not performed; root must call tools.tensor_numerics.verify_case "
             "and tools.tensor_ordered.verify_ordered_lane"
