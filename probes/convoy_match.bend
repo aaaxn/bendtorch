@@ -1,5 +1,5 @@
-# Known Bend2 bug fixed upstream in 8828cc19: on 947db722, --check-only passes
-# and --verdict fails with a TypeScript/BendTT kernel mismatch.
+# Known Bend2 bug fixed upstream in 8828cc19: on 947db722, `convoy_bind` dropped
+# a dependent parameter from a match's arms, so --check-only passed and --verdict failed.
 import Base
 
 type Owner is Type:
