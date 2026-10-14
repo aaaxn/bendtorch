@@ -4,9 +4,10 @@ Many tensor operations share one loop. `add`, `sub` and `mul`, with or
 without broadcasting, all write `out[i] = f(a[ia(i)], b[ib(i)])` for every
 output index `i`. A contract family proves that loop once, as a generic
 theorem over `f`, `ia` and `ib`, and each operation gets its contract by
-instantiating it. Reductions share a second loop: `sum` and the matmul dot
-product fold words into an accumulator in a fixed order. The code is in
-`src/tensor/contracts/`.
+instantiating it. Reductions share a second loop: `sum`, the matmul dot
+product and one cell of `reduce_to` fold words into an accumulator in a fixed
+order. The code is in `src/tensor/contracts/`, and the `reduce_to` instance is
+in `src/autograd/reduce-fold.bend`.
 
 ## Replayed tensors are the input class
 
@@ -96,13 +97,16 @@ output cell `i` holds
 
 ## The ordered-fold family
 
-`Fold.run` in `fold.bend` takes four templates: an operation type `O`, the
-step function `g: O -> F32 -> F32 -> F32`, a plan type `P`, and an index map
-`ia: P -> Nat -> Nat`. It starts at `+0.0` and, for `k` from 0 to `count - 1`
-in increasing order, reads `input[ia(plan, k)]` and sets
-`acc = g(operation, acc, word)`. `Fold.pair_run` reads `left[ia(plan, k)]` and
-`right[ib(plan, k)]` and takes `g: O -> F32 -> F32 -> F32 -> F32`. The inputs
-come back to the caller, on success and on failure.
+`Fold.run` in `fold.bend` takes five templates: an operation type `O`, the
+step function `g: O -> F32 -> F32 -> F32`, a plan type `P`, an index map
+`ia: P -> Nat -> Nat`, and a mask `keep: P -> Nat -> Bool`. It starts at
+`+0.0` and, for `k` from 0 to `count - 1` in increasing order, reads
+`input[ia(plan, k)]` and, where `keep(plan, k)` holds, sets
+`acc = g(operation, acc, word)`. Where the mask is false the word is still
+read, and the accumulator stays as it is. `Fold.pair_run` reads
+`left[ia(plan, k)]` and `right[ib(plan, k)]`, takes
+`g: O -> F32 -> F32 -> F32 -> F32`, and folds every pair. The inputs come back
+to the caller, on success and on failure.
 
 The order is part of the contract. F32 addition is not associative, so the
 same words summed in another order can round to another value. The checker and
@@ -119,7 +123,9 @@ are live:
 
 - `value`: the result is `Done` with `Fold.total(..., count)`. `Fold.total` is
   the specification of the loop: `+0.0` at `count = 0`, and
-  `g(operation, total(k), input[ia(plan, k)])` at `count = k + 1`.
+  `Fold.chosen(operation, keep(plan, k), total(k), input[ia(plan, k)])` at
+  `count = k + 1`, which is `g(operation, total(k), input[ia(plan, k)])` where
+  the mask holds and `total(k)` elsewhere.
 - `kept`: the returned input still holds every word it held before.
 
 `PairFoldContract` has `value`, `left_kept` and `right_kept`. The proof
@@ -135,6 +141,20 @@ already uses, not against `Fold.total`:
 | --- | --- | --- |
 | `sum_ordered` | `Sum.sum(input)` in `sum.bend` folds all `numel` words with `F32.add(acc, word)`, reading word `k` at step `k`. | `Reduction.sequential_sum(words(..., numel), 0.0)` |
 | `dot_ordered` | `Dot.dot(Cell{row, column, inner, columns}, left, right)` in `dot.bend` folds `inner` pairs with `F32.add(acc, F32.mul(x, y))`, reading `left[row * inner + k]` and `right[k * columns + column]`. | `MatmulLaws.dot_fold(factors(..., inner), 0.0)` |
+| `reduce_fold_fiber` | `ReduceFold.cell(plan, index, contribution)` in `src/autograd/reduce-fold.bend` folds the `numel` words of the contribution with `F32.add(acc, word)`, reading `contribution[right_map(plan, k)]` at step `k` and keeping it where `left_map(plan, k) == index`. | `ReduceLaws.fiber(plan, words(..., numel), index, numel)`, the specification of one `reduce_to` cell |
+
+`sum_ordered` passes the mask `Sum.every`, which is always true, so its
+statement is the one it had before the mask existed.
+
+`reduce_fold_fiber` takes the broadcast plan of the target (left) with the
+contribution (right), and requires that the plan's output has the
+contribution's extents, which is the case `reduce_to` uses. Its conclusion is a
+`FiberContract` in `src/autograd/reduce-fold-LAWS.bend`, with live fields
+`value` and `kept`. The proof walks the fold and the specification together:
+at step `k`, `Projection.offset_spec(plan, k)` is
+`Some{(left_map(plan, k), right_map(plan, k))}`, from the shape laws
+`project_left_index_refines` and `project_right_index_refines`, and the word
+the fold reads is the `k`-th entry of `words`.
 
 `words` and `factors` are in `src/tensor/contracts/LAWS.bend`. `words` lists
 the first `count` words of a replayed input in index order. `factors` lists
@@ -167,18 +187,17 @@ from `lt_mul_add`: `a * n + b < m * n` when `a < m` and `b < n`.
   `verification/families/fold/`.
 - F32 operations are opaque. A value is stated as the term
   `F32.sub(5.0, 20.0)`, not as `-15.0`.
-- `reduce_to` is not an instance yet. Its specification, `Laws.fiber` in
-  `src/autograd/reduce-LAWS.bend`, adds a word only when its position
-  projects onto the target index. `Fold.run` adds every word it reads, and its
-  step function does not see the position, so `reduce_to` needs a masked fold.
+- `Reduce.reduce_to` in `src/autograd/reduce.bend` runs its own loop.
+  `ReduceFold.cell` meets the same specification, `ReduceLaws.fiber`, but no
+  law yet says that `reduce_to` computes its cells with it.
 
 ## Controls
 
 `verification/families/` holds literal consumers of `broadcast_pointwise`,
 two of them on the actual `Core.from_values` and `Core.new` results, of
-`sum_ordered` and `dot_ordered`, and of failed folds, false twins of nine
-value statements, and twenty mutants of the family loops and of their
-instances. Its [README](../verification/families/README.md) lists each
+`sum_ordered` and `dot_ordered`, of failed folds, and of `reduce_fold_fiber`,
+false twins of thirteen value statements, and twenty-five mutants of the
+family loops and of their instances. Its [README](../verification/families/README.md) lists each
 control and the rejection it expects.
 
 The proofs and controls check what the laws state, not the compiled code.

@@ -14,7 +14,7 @@ TWENTY = "F32.lit1101004800"
 
 FAMILY = controls.Family(
     name="pointwise",
-    entry=("broadcast",),
+    entry=("src/tensor/contracts/broadcast.bend",),
     operations=frozenset(
         {"src/tensor/contracts/pointwise.bend", "src/tensor/contracts/broadcast.bend"}
     ),

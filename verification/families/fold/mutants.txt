@@ -1,22 +1,27 @@
 ### negative-zero-start before src/tensor/contracts/fold.bend
-  loop(~O, ~g, ~P, ~ia, count, operation, plan, 0n, input, 0.0)
+  loop(~O, ~g, ~P, ~ia, ~keep, count, operation, plan, 0n, input, 0.0)
 ### negative-zero-start after src/tensor/contracts/fold.bend
-  loop(~O, ~g, ~P, ~ia, count, operation, plan, 0n, input, F32.neg(0.0))
+  loop(~O, ~g, ~P, ~ia, ~keep, count, operation, plan, 0n, input, F32.neg(0.0))
 
 ### swapped-accumulator before src/tensor/contracts/fold.bend
-      rec(input, g(operation, accumulator, x))
+      rec(input, chosen(~O, ~g, operation, kept, accumulator, x))
 ### swapped-accumulator after src/tensor/contracts/fold.bend
-      rec(input, g(operation, x, accumulator))
+      rec(input, chosen(~O, ~g, operation, kept, x, accumulator))
 
 ### dropped-word before src/tensor/contracts/fold.bend
-      rec(input, g(operation, accumulator, x))
+      rec(input, chosen(~O, ~g, operation, kept, accumulator, x))
 ### dropped-word after src/tensor/contracts/fold.bend
       rec(input, accumulator)
 
+### ignored-mask before src/tensor/contracts/fold.bend
+      step(~O, ~g, operation, keep(plan, cursor), input =>
+### ignored-mask after src/tensor/contracts/fold.bend
+      step(~O, ~g, operation, True{}, input =>
+
 ### cursor-off-by-one before src/tensor/contracts/fold.bend
-  loop(~O, ~g, ~P, ~ia, count, operation, plan, 0n, input, 0.0)
+  loop(~O, ~g, ~P, ~ia, ~keep, count, operation, plan, 0n, input, 0.0)
 ### cursor-off-by-one after src/tensor/contracts/fold.bend
-  loop(~O, ~g, ~P, ~ia, count, operation, plan, 1n, input, 0.0)
+  loop(~O, ~g, ~P, ~ia, ~keep, count, operation, plan, 1n, input, 0.0)
 
 ### pair-swapped-operands before src/tensor/contracts/fold.bend
       rec(left, right, g(operation, accumulator, x, y))

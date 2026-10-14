@@ -12,6 +12,7 @@
     "_2e_._2f_.._2f_src_2f_autograd_2f_reduce_2d_LAWS.reduce_empty_zeros",
     "_2e_._2f_.._2f_src_2f_autograd_2f_reduce_2d_LAWS.reduce_shape_error",
     "_2e_._2f_.._2f_src_2f_autograd_2f_reduce_2d_LAWS.reduce_not_reducible",
+    "_2e_._2f_.._2f_src_2f_autograd_2f_reduce_2d_fold_2d_LAWS.reduce_fold_fiber",
     "_2e_._2f_.._2f_src_2f_autograd_2f_sum_2d_to_2d_size_2d_LAWS.sum_to_size_retains_input",
     "_2e_._2f_.._2f_src_2f_autograd_2f_sum_2d_to_2d_size_2d_LAWS.sum_to_size_identity",
     "_2e_._2f_.._2f_src_2f_autograd_2f_sum_2d_to_2d_size_2d_LAWS.sum_to_size_reduces",
