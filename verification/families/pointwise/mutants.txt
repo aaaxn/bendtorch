@@ -1,0 +1,29 @@
+### swapped-operands before src/tensor/contracts/pointwise.bend
+      write_step(shape, rec, left, right, Core.write_flat(shape, output, index, f(operation, x, y)))
+### swapped-operands after src/tensor/contracts/pointwise.bend
+      write_step(shape, rec, left, right, Core.write_flat(shape, output, index, f(operation, y, x)))
+
+### wrong-write-index before src/tensor/contracts/pointwise.bend
+      write_step(shape, rec, left, right, Core.write_flat(shape, output, index, f(operation, x, y)))
+### wrong-write-index after src/tensor/contracts/pointwise.bend
+      write_step(shape, rec, left, right, Core.write_flat(shape, output, U32.add(index, 1), f(operation, x, y)))
+
+### missing-write before src/tensor/contracts/pointwise.bend
+      write_step(shape, rec, left, right, Core.write_flat(shape, output, index, f(operation, x, y)))
+### missing-write after src/tensor/contracts/pointwise.bend
+      rec(State{left, right, output})
+
+### wrong-input-map before src/tensor/contracts/pointwise.bend
+    Core.read_dynamic(left, U32.from_nat(ia(plan, cursor))))
+### wrong-input-map after src/tensor/contracts/pointwise.bend
+    Core.read_dynamic(left, U32.from_nat(ib(plan, cursor))))
+
+### cursor-off-by-one before src/tensor/contracts/pointwise.bend
+      loop(~O, ~f, ~P, ~ia, ~ib, Shape.elements(shape), operation, plan, shape, 0n, State{left, right, output})
+### cursor-off-by-one after src/tensor/contracts/pointwise.bend
+      loop(~O, ~f, ~P, ~ia, ~ib, Shape.elements(shape), operation, plan, shape, 1n, State{left, right, output})
+
+### swapped-maps before src/tensor/contracts/broadcast.bend
+  Pointwise.run(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~left_map, ~right_map,
+### swapped-maps after src/tensor/contracts/broadcast.bend
+  Pointwise.run(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~right_map, ~left_map,
