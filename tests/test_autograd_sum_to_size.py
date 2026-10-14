@@ -85,8 +85,8 @@ class SumToSizeReferenceTests(unittest.TestCase):
         self.assertEqual(rows[0]["outcome"]["words"], [1])
 
 
-class StageRegistrationTests(unittest.TestCase):
-    def test_s3_gate_registers_sum_to_size_and_its_laws(self):
+class GateRegistrationTests(unittest.TestCase):
+    def test_autograd_gate_registers_sum_to_size_and_its_laws(self):
         self.assertIn("sum_to_size", SUBGATES)
         required = json.loads((ROOT / "verification/autograd.json").read_text())[
             "required_exports"

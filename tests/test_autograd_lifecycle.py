@@ -109,8 +109,8 @@ class LifecycleVerificationTests(unittest.TestCase):
             verify([row], parse(bad, ["case"]), "native")
 
 
-class StageRegistrationTests(unittest.TestCase):
-    def test_s3_gate_registers_lifecycle_and_its_controls(self):
+class GateRegistrationTests(unittest.TestCase):
+    def test_autograd_gate_registers_lifecycle_and_its_controls(self):
         self.assertIn("lifecycle", SUBGATES)
         controls = [
             name for name in PROOF_CONTROLS if name.startswith(("grad-", "reset-"))

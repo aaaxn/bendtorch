@@ -158,8 +158,8 @@ class BroadcastParserTests(unittest.TestCase):
         self.assertIn('IO.print("S3:begin:row_to_matrix")', text)
 
 
-class StageRegistrationTests(unittest.TestCase):
-    def test_s3_gate_registers_broadcast_and_its_laws(self):
+class GateRegistrationTests(unittest.TestCase):
+    def test_autograd_gate_registers_broadcast_and_its_laws(self):
         self.assertIn("broadcast", SUBGATES)
         required = json.loads((ROOT / "verification/autograd.json").read_text())[
             "required_exports"
