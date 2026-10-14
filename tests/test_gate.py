@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.common import Evidence, GateError, check_inventory
+from tools.common import Evidence, GateError, check_inventory, check_omissions
 from tools.toolchain import F32_PROBE
 
 
@@ -18,6 +18,13 @@ class GateTests(unittest.TestCase):
         with self.assertRaises(GateError):
             check_inventory("other : *1 =\n  law : *1\n", ["law"])
         check_inventory("law : *1 =\n  ()\n", ["law"])
+
+    def test_omissions_remove_the_declaration_not_a_longer_name(self):
+        text = "matmul_2d_core.construct : *1 =\n  ()\ncore.construct : *1 =\n  ()\n"
+        check_omissions(text, ["core.construct"])
+        twice = "core.construct : *1 =\n  ()\ncore.construct : *1 =\n  ()\n"
+        with self.assertRaises(GateError):
+            check_omissions(twice, ["core.construct"])
 
     def test_evidence_cannot_be_overwritten(self):
         with tempfile.TemporaryDirectory() as directory:

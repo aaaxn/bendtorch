@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import time
@@ -184,14 +185,22 @@ def check_laws(
         contains="ALL PROOFS CHECK",
         timeout=timeout,
     )
+    check_omissions(text, required)
+    return artifact
+
+
+def check_omissions(text: str, required: list[str]) -> None:
+    """Removes each required declaration from the export in turn, and requires
+    the inventory to reject every such copy."""
     for declaration in required:
-        missing = text.replace(declaration + " :", "omitted :", 1)
+        missing = re.sub(
+            rf"(?m)^{re.escape(declaration)} :", "omitted :", text, count=1
+        )
         try:
             check_inventory(missing, required)
         except GateError:
             continue
         raise GateError(f"The inventory accepted an omitted declaration: {declaration}")
-    return artifact
 
 
 def required_exports(path: Path) -> list[str]:
