@@ -913,6 +913,115 @@ def listed_empty(input: Core.Dynamic, -empty: {Shape.logical_numel(Totality.dime
         {Lifecycle.observe_allowed(depth, length, array, source, Nat.is_lt(U32.to_nat(source), length)) == None{} : Maybe<&2, F32>}}(
         empty_unlisted(depth, length, array, source, Equal.trans(Nat, length, Shape.logical_numel(Shape.dimensions(shape)), 0n, exact, empty)))}
 
+def below_self(+number: Nat) -> {Nat.is_lt(number, number) == False{} : Bool}:
+  match number:
+    case 0n:
+      {==}
+    case 1n+rest:
+      below_self(rest)
+
+def neither_below(+left: Nat, +right: Nat, first: {Nat.is_lt(left, right) == False{} : Bool},
+  second: {Nat.is_lt(right, left) == False{} : Bool}) -> {left == right : Nat}:
+  match left right:
+    case 0n 0n:
+      {==}
+    case 0n 1n+r:
+      Empty.absurd({0n == 1n+r : Nat}, Arith.clash_true(first))
+    case 1n+l 0n:
+      Empty.absurd({1n+l == 0n : Nat}, Arith.clash_true(second))
+    case 1n+l 1n+r:
+      Equal.cong(Nat, Nat, n => 1n+n, l, r, neither_below(l, r, first, second))
+
+def word_presence(+values: List<&2, F32>, +position: Nat) ->
+  {Nat.is_lt(position, List.length(&2, F32, values)) == TransformProof.maybe_present(Laws.word_at(values, position)) : Bool}:
+  match values position:
+    case Nil{} 0n:
+      {==}
+    case Nil{} 1n+next:
+      {==}
+    case value <> rest 0n:
+      {==}
+    case value <> rest 1n+next:
+      word_presence(rest, next)
+
+def absent_observation(+shape: Shape.Shape, tensor: Core.Tensor<shape>, +source: U32,
+  -outside: {Nat.is_lt(U32.to_nat(source), Shape.logical_numel(Shape.dimensions(shape))) == False{} : Bool}) ->
+  Holds<{Core.checked_observe(shape, tensor, source) == None{} : Maybe<&2, F32>}>:
+  Core.TTensor{storage, exact} = tensor
+  match storage:
+    case Storage.Empty{}:
+      Holds{{==}}
+    case Storage.Owned{+depth, +length, array, balanced, valid}:
+      Holds{
+        %Equal.sym(Bool, Nat.is_lt(U32.to_nat(source), length), False{},
+          %Equal.sym(Nat, length, Shape.logical_numel(Shape.dimensions(shape)), exact) : {Nat.is_lt(U32.to_nat(source), _) == False{} : Bool}
+          outside) : {Lifecycle.observe_allowed(depth, length, array, source, _) == None{} : Maybe<&2, F32>}
+        {==}}
+
+def observed_presence(+shape: Shape.Shape, tensor: Core.Tensor<shape>, +source: U32, +inside: Bool,
+  -decision: {inside == Nat.is_lt(U32.to_nat(source), Shape.logical_numel(Shape.dimensions(shape))) : Bool}) ->
+  Holds<{TransformProof.maybe_present(Core.checked_observe(shape, tensor, source)) == inside : Bool}>:
+  match inside:
+    case False{}:
+      Holds{Equal.cong(Maybe<&2, F32>, Bool, TransformProof.maybe_present, Core.checked_observe(shape, tensor, source), None{},
+        {\{Holds: proof => proof} : Holds<{Core.checked_observe(shape, tensor, source) == None{} : Maybe<&2, F32>}> -> {Core.checked_observe(shape, tensor, source) == None{} : Maybe<&2, F32>}}(
+          absent_observation(shape, tensor, source, Equal.sym(Bool, False{}, Nat.is_lt(U32.to_nat(source), Shape.logical_numel(Shape.dimensions(shape))), decision))))}
+    case True{}:
+      Holds{{\{TransformProof.PresentObservation: value => equal =>
+        Equal.cong(Maybe<&2, F32>, Bool, TransformProof.maybe_present, Core.checked_observe(shape, tensor, source), Some{value}, equal)} :
+        TransformProof.PresentObservation<shape, tensor, source> -> {TransformProof.maybe_present(Core.checked_observe(shape, tensor, source)) == True{} : Bool}}(
+        TransformProof.present_observation(shape, tensor, source, Equal.sym(Bool, True{}, Nat.is_lt(U32.to_nat(source), Shape.logical_numel(Shape.dimensions(shape))), decision)))}
+
+def same_presence(+shape: Shape.Shape, tensor: Core.Tensor<shape>, +values: List<&2, F32>,
+  -listed: Laws.Listed(Core.Packed{shape, tensor}, values), +source: U32) ->
+  Holds<{Nat.is_lt(U32.to_nat(source), List.length(&2, F32, values)) == Nat.is_lt(U32.to_nat(source), Shape.logical_numel(Shape.dimensions(shape))) : Bool}>:
+  Holds{Equal.trans(Bool, Nat.is_lt(U32.to_nat(source), List.length(&2, F32, values)), TransformProof.maybe_present(Laws.word_at(values, U32.to_nat(source))),
+    Nat.is_lt(U32.to_nat(source), Shape.logical_numel(Shape.dimensions(shape))),
+    word_presence(values, U32.to_nat(source)),
+    Equal.trans(Bool, TransformProof.maybe_present(Laws.word_at(values, U32.to_nat(source))),
+      TransformProof.maybe_present(Core.checked_observe(shape, tensor, source)), Nat.is_lt(U32.to_nat(source), Shape.logical_numel(Shape.dimensions(shape))),
+      Equal.cong(Maybe<&2, F32>, Bool, TransformProof.maybe_present, Laws.word_at(values, U32.to_nat(source)),
+        Core.checked_observe(shape, tensor, source),
+        Equal.sym(Maybe<&2, F32>, Core.checked_observe(shape, tensor, source), Laws.word_at(values, U32.to_nat(source)), listed(source))),
+      {\{Holds: proof => proof} : Holds<{TransformProof.maybe_present(Core.checked_observe(shape, tensor, source)) == Nat.is_lt(U32.to_nat(source), Shape.logical_numel(Shape.dimensions(shape))) : Bool}> -> {TransformProof.maybe_present(Core.checked_observe(shape, tensor, source)) == Nat.is_lt(U32.to_nat(source), Shape.logical_numel(Shape.dimensions(shape))) : Bool}}(
+        observed_presence(shape, tensor, source, Nat.is_lt(U32.to_nat(source), Shape.logical_numel(Shape.dimensions(shape))), {==}))))}
+
+def natural_presence(+shape: Shape.Shape, tensor: Core.Tensor<shape>, +values: List<&2, F32>,
+  -listed: Laws.Listed(Core.Packed{shape, tensor}, values), +position: Nat, -within: Shape.LE(position, 1048576n)) ->
+  Holds<{Nat.is_lt(position, List.length(&2, F32, values)) == Nat.is_lt(position, Shape.logical_numel(Shape.dimensions(shape))) : Bool}>:
+  Holds{
+    %Conversion.capacity_natural_word_exact(position, within) : {Nat.is_lt(_, List.length(&2, F32, values)) == Nat.is_lt(_, Shape.logical_numel(Shape.dimensions(shape))) : Bool}
+    {\{Holds: proof => proof} : Holds<{Nat.is_lt(U32.to_nat(U32.from_nat(position)), List.length(&2, F32, values)) == Nat.is_lt(U32.to_nat(U32.from_nat(position)), Shape.logical_numel(Shape.dimensions(shape))) : Bool}> -> {Nat.is_lt(U32.to_nat(U32.from_nat(position)), List.length(&2, F32, values)) == Nat.is_lt(U32.to_nat(U32.from_nat(position)), Shape.logical_numel(Shape.dimensions(shape))) : Bool}}(
+      same_presence(shape, tensor, values, listed, U32.from_nat(position)))}
+
+def length_decided(+shape: Shape.Shape, tensor: Core.Tensor<shape>, +values: List<&2, F32>,
+  -listed: Laws.Listed(Core.Packed{shape, tensor}, values), +below: Bool,
+  -decision: {below == Nat.is_lt(List.length(&2, F32, values), Shape.logical_numel(Shape.dimensions(shape))) : Bool}) -> Holds<{List.length(&2, F32, values) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}>:
+  match below:
+    case True{}:
+      Holds{Empty.absurd({List.length(&2, F32, values) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}, Arith.clash(
+        Equal.trans(Bool, False{}, Nat.is_lt(List.length(&2, F32, values), List.length(&2, F32, values)), True{},
+          Equal.sym(Bool, Nat.is_lt(List.length(&2, F32, values), List.length(&2, F32, values)), False{}, below_self(List.length(&2, F32, values))),
+          Equal.trans(Bool, Nat.is_lt(List.length(&2, F32, values), List.length(&2, F32, values)), Nat.is_lt(List.length(&2, F32, values), Shape.logical_numel(Shape.dimensions(shape))), True{},
+            {\{Holds: proof => proof} : Holds<{Nat.is_lt(List.length(&2, F32, values), List.length(&2, F32, values)) == Nat.is_lt(List.length(&2, F32, values), Shape.logical_numel(Shape.dimensions(shape))) : Bool}> -> {Nat.is_lt(List.length(&2, F32, values), List.length(&2, F32, values)) == Nat.is_lt(List.length(&2, F32, values), Shape.logical_numel(Shape.dimensions(shape))) : Bool}}(
+              natural_presence(shape, tensor, values, listed, List.length(&2, F32, values),
+              Shape.LE.from(List.length(&2, F32, values), 1048576n, Equal.sym(Bool, Nat.is_le(List.length(&2, F32, values), 1048576n), True{},
+                Conversion.le_trans(List.length(&2, F32, values), Shape.logical_numel(Shape.dimensions(shape)), 1048576n,
+                  Conversion.lt_le(List.length(&2, F32, values), Shape.logical_numel(Shape.dimensions(shape)), Equal.sym(Bool, True{}, Nat.is_lt(List.length(&2, F32, values), Shape.logical_numel(Shape.dimensions(shape))), decision)),
+                  Equal.sym(Bool, True{}, Nat.is_le(Shape.logical_numel(Shape.dimensions(shape)), 1048576n), Nats.le_true(Shape.logical_numel(Shape.dimensions(shape)), 1048576n, capacity_of(shape)))))))),
+            Equal.sym(Bool, True{}, Nat.is_lt(List.length(&2, F32, values), Shape.logical_numel(Shape.dimensions(shape))), decision)))))}
+    case False{}:
+      Holds{neither_below(List.length(&2, F32, values), Shape.logical_numel(Shape.dimensions(shape)), Equal.sym(Bool, False{}, Nat.is_lt(List.length(&2, F32, values), Shape.logical_numel(Shape.dimensions(shape))), decision),
+        Equal.trans(Bool, Nat.is_lt(Shape.logical_numel(Shape.dimensions(shape)), List.length(&2, F32, values)), Nat.is_lt(Shape.logical_numel(Shape.dimensions(shape)), Shape.logical_numel(Shape.dimensions(shape))), False{},
+          {\{Holds: proof => proof} : Holds<{Nat.is_lt(Shape.logical_numel(Shape.dimensions(shape)), List.length(&2, F32, values)) == Nat.is_lt(Shape.logical_numel(Shape.dimensions(shape)), Shape.logical_numel(Shape.dimensions(shape))) : Bool}> -> {Nat.is_lt(Shape.logical_numel(Shape.dimensions(shape)), List.length(&2, F32, values)) == Nat.is_lt(Shape.logical_numel(Shape.dimensions(shape)), Shape.logical_numel(Shape.dimensions(shape))) : Bool}}(
+            natural_presence(shape, tensor, values, listed, Shape.logical_numel(Shape.dimensions(shape)), capacity_of(shape))),
+          below_self(Shape.logical_numel(Shape.dimensions(shape)))))}
+
+def Laws.listed_length(input, values, listed):
+  Core.Packed{+shape, tensor} = input
+  Laws.Length{{\{Holds: proof => proof} : Holds<{List.length(&2, F32, values) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}> -> {List.length(&2, F32, values) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}}(
+    length_decided(shape, tensor, values, listed, Nat.is_lt(List.length(&2, F32, values), Shape.logical_numel(Shape.dimensions(shape))), {==}))}
+
 def zeros_from_mapping(-input: Core.Dynamic, +target: Shape.Shape, +plan: Shape.BroadcastPlan,
   pair: Core.Dynamic & Result<&2, &1, Reduce.Error, Core.Dynamic>,
   -mapping: Laws.MappingWith(input, target, Done{plan}, pair),
