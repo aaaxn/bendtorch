@@ -49,20 +49,30 @@ def word(+plan: Shape.BroadcastPlan, +index: U32, +values: List<&2, F32>,
   Laws.FiberContract{value, kept} = evidence
   kept(other, inside)
 
+# The kernel reports a false twin's mismatch against the type the body has, and
+# a law's total stays an unevaluated fiber there. Each value witness restates
+# it as the literal it evaluates to.
+def stated(+claim: Maybe<&2, F32>, +value: Maybe<&2, F32>, equal: {claim == value : Maybe<&2, F32>}) ->
+  {claim == value : Maybe<&2, F32>}:
+  equal
+
 def column_witness() ->
   {Fold.value(Cases.result(Cases.three_grid(), 1, Cases.grid_values(), {==})) == expected_column() : Maybe<&2, F32>}:
-  total(Cases.three_grid(), 1, Cases.grid_values(), {==},
-    Laws.reduce_fold_fiber(Cases.three_grid(), {==}, 1, 0.0, Cases.writes(Cases.grid_values()), {==}))
+  stated(Fold.value(Cases.result(Cases.three_grid(), 1, Cases.grid_values(), {==})), Some{F32.add(F32.add(0.0, 2.0), 5.0)},
+    total(Cases.three_grid(), 1, Cases.grid_values(), {==},
+      Laws.reduce_fold_fiber(Cases.three_grid(), {==}, 1, 0.0, Cases.writes(Cases.grid_values()), {==})))
 
 def row_witness() ->
   {Fold.value(Cases.result(Cases.column_grid(), 1, Cases.grid_values(), {==})) == expected_row() : Maybe<&2, F32>}:
-  total(Cases.column_grid(), 1, Cases.grid_values(), {==},
-    Laws.reduce_fold_fiber(Cases.column_grid(), {==}, 1, 0.0, Cases.writes(Cases.grid_values()), {==}))
+  stated(Fold.value(Cases.result(Cases.column_grid(), 1, Cases.grid_values(), {==})), Some{F32.add(F32.add(F32.add(0.0, 4.0), 5.0), 6.0)},
+    total(Cases.column_grid(), 1, Cases.grid_values(), {==},
+      Laws.reduce_fold_fiber(Cases.column_grid(), {==}, 1, 0.0, Cases.writes(Cases.grid_values()), {==})))
 
 def same_witness() ->
   {Fold.value(Cases.result(Cases.grid_grid(), 4, Cases.grid_values(), {==})) == expected_same() : Maybe<&2, F32>}:
-  total(Cases.grid_grid(), 4, Cases.grid_values(), {==},
-    Laws.reduce_fold_fiber(Cases.grid_grid(), {==}, 4, 0.0, Cases.writes(Cases.grid_values()), {==}))
+  stated(Fold.value(Cases.result(Cases.grid_grid(), 4, Cases.grid_values(), {==})), Some{F32.add(0.0, 5.0)},
+    total(Cases.grid_grid(), 4, Cases.grid_values(), {==},
+      Laws.reduce_fold_fiber(Cases.grid_grid(), {==}, 4, 0.0, Cases.writes(Cases.grid_values()), {==})))
 
 def word_witness() ->
   {Fold.input_point(Cases.result(Cases.three_grid(), 1, Cases.grid_values(), {==}), 4) == expected_word() : Maybe<&2, F32>}:

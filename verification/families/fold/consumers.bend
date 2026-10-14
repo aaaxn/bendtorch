@@ -216,7 +216,7 @@ def out_of_bounds() -> Maybe<&2, Core.Error>:
   Some{Core.StorageError{Storage.OutOfBounds{}}}
 
 def failed_sum() -> Core.Dynamic & Result<&2, &1, Core.Error, F32>:
-  Fold.run(~Unit, ~Sum.add, ~Unit, ~doubled, Unit{}, Unit{}, 3n, input(three_shape(), three_values(), {==}))
+  Fold.run(~Unit, ~Sum.add, ~Unit, ~doubled, ~Sum.every, Unit{}, Unit{}, 3n, input(three_shape(), three_values(), {==}))
 
 def failed_left() -> (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, F32>:
   Fold.pair_run(~Unit, ~Dot.multiply_add, ~Unit, ~doubled, ~Sum.position, Unit{}, Unit{}, 3n,
