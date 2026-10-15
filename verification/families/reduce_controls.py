@@ -158,7 +158,7 @@ FAMILY = controls.Family(
         ),
         "sum-to-size-identity-folds": Site(
             "sum_to_size_clone",
-            "reduce.planned(",
+            "Reduce.planned(",
             "sum_2d_to_2d_size_2d_fold_2d_PROOF.sum_to_size_clone",
             ("sum_2d_to_2d_size.decided",),
             module=SUM_TO_SIZE,
