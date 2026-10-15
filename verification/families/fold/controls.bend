@@ -3,7 +3,7 @@ import ../../../src/shape/core.bend as Shape
 import ../../../src/tensor/lifecycle.bend as Lifecycle
 import ../../../src/tensor/reduction.bend as Reduction
 import ../../../src/tensor/matmul.bend as Matrix
-import ../../../src/tensor/matmul-LAWS.bend as MatmulLaws
+import ../../../src/tensor/dot-fold.bend as DotFold
 import ../../../src/tensor/contracts/LAWS.bend as Contracts
 import ../../../src/tensor/contracts/PROOF.bend as ContractsProof
 import ../../../src/tensor/contracts/replayed.bend as Replayed
@@ -59,7 +59,7 @@ def dot_total(+row: Nat, +column: Nat, +inner: Nat, +columns: Nat,
   -right_fits: {Lifecycle.logical_length(Replayed.storage(right, 0.0, Cases.writes(right_values))) == Shape.logical_numel(Shape.dimensions(right)) : Nat},
   evidence: Cases.DotValues(row, column, inner, columns, left, left_values, left_fits, right, right_values, right_fits)) ->
   {Fold.pair_value(Cases.dot_result(row, column, inner, columns, left, left_values, left_fits, right, right_values, right_fits)) ==
-    Some{MatmulLaws.dot_fold(Contracts.factors(row, column, inner, columns, left, 0.0, Cases.writes(left_values), right, 0.0, Cases.writes(right_values), inner), 0.0)} :
+    Some{DotFold.dot_fold(Contracts.factors(row, column, inner, columns, left, 0.0, Cases.writes(left_values), right, 0.0, Cases.writes(right_values), inner), 0.0)} :
     Maybe<&2, F32>}:
   Records.PairFoldContract{value, left_kept, right_kept} = evidence
   value
@@ -99,12 +99,12 @@ def matmul_total(+left: Shape.Shape, +right: Shape.Shape, +plan: Matrix.Plan<lef
   +column: Nat, column_below: {Nat.is_lt(column, Contracts.matrix_columns(left, right, plan)) == True{} : Bool},
   -index: U32, at: {U32.from_nat(Nat.add(Nat.mul(row, Contracts.matrix_columns(left, right, plan)), column)) == index : U32}) ->
   {Records.product_point(Cases.product(left, left_values, left_fits, right, right_values, right_fits), index) ==
-    Some{MatmulLaws.dot_fold(Contracts.factors(row, column, Contracts.matrix_inner(left, right, plan),
+    Some{DotFold.dot_fold(Contracts.factors(row, column, Contracts.matrix_inner(left, right, plan),
       Contracts.matrix_columns(left, right, plan), left, 0.0, Cases.writes(left_values), right, 0.0, Cases.writes(right_values),
       Contracts.matrix_inner(left, right, plan)), 0.0)} : Maybe<&2, F32>}:
   Records.MatmulContract{successful, extents, value, left_kept, right_kept} = evidence
   %at : {Records.product_point(Cases.product(left, left_values, left_fits, right, right_values, right_fits), _) ==
-    Some{MatmulLaws.dot_fold(Contracts.factors(row, column, Contracts.matrix_inner(left, right, plan),
+    Some{DotFold.dot_fold(Contracts.factors(row, column, Contracts.matrix_inner(left, right, plan),
       Contracts.matrix_columns(left, right, plan), left, 0.0, Cases.writes(left_values), right, 0.0, Cases.writes(right_values),
       Contracts.matrix_inner(left, right, plan)), 0.0)} : Maybe<&2, F32>}
   value(row, row_below, column, column_below)

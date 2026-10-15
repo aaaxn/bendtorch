@@ -1,6 +1,5 @@
 import Base
 import ../from-values-contract.bend as FromValues
-import ../matmul-PROOF.bend as MatmulProof
 import ./LAWS.bend as Laws
 import ./replayed.bend as Replayed
 import ./pointwise-proof.bend as Proof

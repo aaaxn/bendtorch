@@ -143,7 +143,7 @@ already uses, not against `Fold.total`:
 | Law | Instance | Total |
 | --- | --- | --- |
 | `sum_ordered` | `Sum.sum(input)` in `sum.bend` folds all `numel` words with `F32.add(acc, word)`, reading word `k` at step `k`. | `Reduction.sequential_sum(words(..., numel), 0.0)` |
-| `dot_ordered` | `Dot.dot(Cell{row, column, inner, columns}, left, right)` in `dot.bend` folds `inner` pairs with `F32.add(acc, F32.mul(x, y))`, reading `left[row * inner + k]` and `right[k * columns + column]`. | `MatmulLaws.dot_fold(factors(..., inner), 0.0)` |
+| `dot_ordered` | `Dot.dot(Cell{row, column, inner, columns}, left, right)` in `dot.bend` folds `inner` pairs with `F32.add(acc, F32.mul(x, y))`, reading `left[row * inner + k]` and `right[k * columns + column]`. | `DotFold.dot_fold(factors(..., inner), 0.0)` |
 | `reduce_fold_fiber` | `ReduceFold.cell(plan, index, contribution)` in `src/autograd/reduce-fold.bend` folds the `numel` words of the contribution with `F32.add(acc, word)`, reading `contribution[contribution_offset(plan, k)]` at step `k` and keeping it where `target_offset(plan, k) == index`; the two offsets are `right_map` and `left_map`. | `ReduceLaws.fiber(plan, words(..., numel), index, numel)`, the specification of one `reduce_to` cell |
 
 `sum_ordered` passes the mask `Sum.every`, which is always true, so its
@@ -227,7 +227,7 @@ Its conclusion is a `MatmulContract` in `fold-records.bend`, with live fields:
 - `extents`: the output has the extents `[rows, columns]` of the plan.
 - `value`: for every `row < rows` and `column < columns`, the output word at
   `row * columns + column` is
-  `MatmulLaws.dot_fold(factors(row, column, inner, columns, ..., inner), 0.0)`,
+  `DotFold.dot_fold(factors(row, column, inner, columns, ..., inner), 0.0)`,
   the total that `dot_ordered` states for `Dot.dot`.
 - `left_kept` and `right_kept`: both returned inputs still hold every word.
 

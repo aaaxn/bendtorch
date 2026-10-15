@@ -6,7 +6,7 @@ import ../../../src/tensor/core.bend as Core
 import ../../../src/tensor/lifecycle.bend as Lifecycle
 import ../../../src/tensor/reduction.bend as Reduction
 import ../../../src/tensor/matmul.bend as Matrix
-import ../../../src/tensor/matmul-LAWS.bend as MatmulLaws
+import ../../../src/tensor/dot-fold.bend as DotFold
 import ../../../src/tensor/from-values-contract.bend as FromValues
 import ../../../src/tensor/contracts/LAWS.bend as Contracts
 import ../../../src/tensor/contracts/PROOF.bend as ContractsProof
@@ -70,7 +70,7 @@ def DotValues(+row: Nat, +column: Nat, +inner: Nat, +columns: Nat,
   +right: Shape.Shape, +right_values: List<&2, F32>,
   -right_fits: {Lifecycle.logical_length(Replayed.storage(right, 0.0, writes(right_values))) == Shape.logical_numel(Shape.dimensions(right)) : Nat}) -> Type:
   Records.PairFoldContract<left, right,
-    MatmulLaws.dot_fold(Contracts.factors(row, column, inner, columns, left, 0.0, writes(left_values), right, 0.0, writes(right_values), inner), 0.0),
+    DotFold.dot_fold(Contracts.factors(row, column, inner, columns, left, 0.0, writes(left_values), right, 0.0, writes(right_values), inner), 0.0),
     other => Replayed.value(left, 0.0, writes(left_values), other),
     other => Replayed.value(right, 0.0, writes(right_values), other),
     dot_result(row, column, inner, columns, left, left_values, left_fits, right, right_values, right_fits)>
@@ -122,7 +122,7 @@ def open_dot(+row: Nat, +column: Nat, +inner: Nat, +columns: Nat,
   +left_index: U32, left_inside: {Nat.is_lt(U32.to_nat(left_index), Shape.logical_numel(Shape.dimensions(left))) == True{} : Bool},
   +right_index: U32, right_inside: {Nat.is_lt(U32.to_nat(right_index), Shape.logical_numel(Shape.dimensions(right))) == True{} : Bool}) ->
   DotCase<dot_result(row, column, inner, columns, left, left_values, left_fits, right, right_values, right_fits),
-    MatmulLaws.dot_fold(Contracts.factors(row, column, inner, columns, left, 0.0, writes(left_values), right, 0.0, writes(right_values), inner), 0.0),
+    DotFold.dot_fold(Contracts.factors(row, column, inner, columns, left, 0.0, writes(left_values), right, 0.0, writes(right_values), inner), 0.0),
     left_index, Replayed.value(left, 0.0, writes(left_values), left_index),
     right_index, Replayed.value(right, 0.0, writes(right_values), right_index)>:
   Records.PairFoldContract{value, left_kept, right_kept} = evidence
@@ -137,7 +137,7 @@ def expose_dot(+rows: Nat, +inner: Nat, +columns: Nat, +row: Nat, row_below: {Na
   +left_index: U32, left_inside: {Nat.is_lt(U32.to_nat(left_index), Shape.logical_numel(Shape.dimensions(left))) == True{} : Bool},
   +right_index: U32, right_inside: {Nat.is_lt(U32.to_nat(right_index), Shape.logical_numel(Shape.dimensions(right))) == True{} : Bool}) ->
   DotCase<dot_result(row, column, inner, columns, left, left_values, left_fits, right, right_values, right_fits),
-    MatmulLaws.dot_fold(Contracts.factors(row, column, inner, columns, left, 0.0, writes(left_values), right, 0.0, writes(right_values), inner), 0.0),
+    DotFold.dot_fold(Contracts.factors(row, column, inner, columns, left, 0.0, writes(left_values), right, 0.0, writes(right_values), inner), 0.0),
     left_index, Replayed.value(left, 0.0, writes(left_values), left_index),
     right_index, Replayed.value(right, 0.0, writes(right_values), right_index)>:
   open_dot(row, column, inner, columns, left, left_values, left_fits, right, right_values, right_fits,
@@ -152,7 +152,7 @@ def open_empty_dot(+row: Nat, +column: Nat, +inner: Nat, +columns: Nat,
   -right_fits: {Lifecycle.logical_length(Replayed.storage(right, 0.0, writes(right_values))) == Shape.logical_numel(Shape.dimensions(right)) : Nat},
   evidence: DotValues(row, column, inner, columns, left, left_values, left_fits, right, right_values, right_fits)) ->
   {Fold.pair_value(dot_result(row, column, inner, columns, left, left_values, left_fits, right, right_values, right_fits)) ==
-    Some{MatmulLaws.dot_fold(Contracts.factors(row, column, inner, columns, left, 0.0, writes(left_values), right, 0.0, writes(right_values), inner), 0.0)} :
+    Some{DotFold.dot_fold(Contracts.factors(row, column, inner, columns, left, 0.0, writes(left_values), right, 0.0, writes(right_values), inner), 0.0)} :
     Maybe<&2, F32>}:
   Records.PairFoldContract{value, left_kept, right_kept} = evidence
   value
@@ -211,7 +211,7 @@ def MatmulValues(+left: Shape.Shape, +right: Shape.Shape, +plan: Matrix.Plan<lef
   +right_values: List<&2, F32>,
   -right_fits: {Lifecycle.logical_length(Replayed.storage(right, 0.0, writes(right_values))) == Shape.logical_numel(Shape.dimensions(right)) : Nat}) -> Type:
   Records.MatmulContract<left, right, Contracts.matrix_rows(left, right, plan), Contracts.matrix_columns(left, right, plan),
-    row => column => MatmulLaws.dot_fold(Contracts.factors(row, column, Contracts.matrix_inner(left, right, plan),
+    row => column => DotFold.dot_fold(Contracts.factors(row, column, Contracts.matrix_inner(left, right, plan),
       Contracts.matrix_columns(left, right, plan), left, 0.0, writes(left_values), right, 0.0, writes(right_values),
       Contracts.matrix_inner(left, right, plan)), 0.0),
     other => Replayed.value(left, 0.0, writes(left_values), other),
@@ -236,7 +236,7 @@ def open_matmul(+left: Shape.Shape, +right: Shape.Shape, +plan: Matrix.Plan<left
   MatmulCase<product(left, left_values, left_fits, right, right_values, right_fits),
     [Contracts.matrix_rows(left, right, plan), Contracts.matrix_columns(left, right, plan)],
     U32.from_nat(Nat.add(Nat.mul(row, Contracts.matrix_columns(left, right, plan)), column)),
-    MatmulLaws.dot_fold(Contracts.factors(row, column, Contracts.matrix_inner(left, right, plan),
+    DotFold.dot_fold(Contracts.factors(row, column, Contracts.matrix_inner(left, right, plan),
       Contracts.matrix_columns(left, right, plan), left, 0.0, writes(left_values), right, 0.0, writes(right_values),
       Contracts.matrix_inner(left, right, plan)), 0.0),
     index, Replayed.value(right, 0.0, writes(right_values), index)>:

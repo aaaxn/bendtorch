@@ -5,6 +5,7 @@ import ./core-PROOF.bend as CoreProof
 import ./lifecycle.bend as Lifecycle
 import ./matmul.bend as Matrix
 import ./matmul-LAWS.bend as Laws
+import ./dot-fold.bend as DotFold
 import ./math-totality.bend as Totality
 import ./reduction-PROOF.bend as MathProof
 import ./word-conversion.bend as Conversion
@@ -87,7 +88,7 @@ def coordinate_keeps(+shape: Shape.Shape, -original: Core.Tensor<shape>, -tensor
   coordinate_keeps_result(shape, original, tensor, Shape.flatten_checked(shape, coordinates), kept)
 
 def logical_dot_original(+fuel: Nat, +left: Shape.Shape, +right: Shape.Shape, -a: Core.Tensor<left>, -b: Core.Tensor<right>,
-  -ra: Core.Tensor<left>, -rb: Core.Tensor<right>, +row: U32, +column: U32, +cursor: Nat, values: List<&2, Laws.Factors>,
+  -ra: Core.Tensor<left>, -rb: Core.Tensor<right>, +row: U32, +column: U32, +cursor: Nat, values: List<&2, DotFold.Factors>,
   logical: Laws.LogicalDot(fuel, left, right, ra, rb, row, column, cursor, values),
   -left_kept: @+other: U32 -> {Core.checked_observe(left, ra, other) == Core.checked_observe(left, a, other) : Maybe<&2, F32>},
   -right_kept: @+other: U32 -> {Core.checked_observe(right, rb, other) == Core.checked_observe(right, b, other) : Maybe<&2, F32>}) ->
@@ -95,7 +96,7 @@ def logical_dot_original(+fuel: Nat, +left: Shape.Shape, +right: Shape.Shape, -a
   match fuel values:
     case 0n Nil{}:
       Unit{}
-    case 1n+tail Laws.Factors{+lv, +rv} <> rest:
+    case 1n+tail DotFold.Factors{+lv, +rv} <> rest:
       Laws.DotStep{exact, lo, ro, remaining} = logical
       Laws.DotStep{exact,
         Equal.trans(Maybe<&2, F32>, Laws.coordinate_observe(left, a, [row, U32.from_nat(cursor)]),
@@ -107,8 +108,8 @@ def logical_dot_original(+fuel: Nat, +left: Shape.Shape, +right: Shape.Shape, -a
           Equal.sym(Maybe<&2, F32>, Laws.coordinate_observe(right, rb, [U32.from_nat(cursor), column]),
             Laws.coordinate_observe(right, b, [U32.from_nat(cursor), column]), coordinate_keeps(right, b, rb, [U32.from_nat(cursor), column], right_kept)), ro),
         logical_dot_original(tail, left, right, a, b, ra, rb, row, column, 1n+cursor, rest, remaining, left_kept, right_kept)}
-    case 0n Laws.Factors{lv, rv} <> rest:
-      Empty.absurd(Laws.LogicalDot(0n, left, right, a, b, row, column, cursor, Laws.Factors{lv, rv} <> rest), logical)
+    case 0n DotFold.Factors{lv, rv} <> rest:
+      Empty.absurd(Laws.LogicalDot(0n, left, right, a, b, row, column, cursor, DotFold.Factors{lv, rv} <> rest), logical)
     case 1n+tail Nil{}:
       Empty.absurd(Laws.LogicalDot(1n+tail, left, right, a, b, row, column, cursor, Nil{}), logical)
 
@@ -128,7 +129,7 @@ def dot_extend(+fuel: Nat, +left: Shape.Shape, +right: Shape.Shape, -a: Core.Ten
     case Done{pair}:
       (final_a, final_b, value) = pair
       Laws.DotMeaning{values, logical, fold, lk, rk} = next
-      Laws.DotMeaning{Laws.Factors{lv, rv} <> values,
+      Laws.DotMeaning{DotFold.Factors{lv, rv} <> values,
         Laws.DotStep{exact, lo, ro, logical_dot_original(fuel, left, right, a, b, ra, rb, row, column, 1n+cursor, values, logical, left_kept, right_kept)}, fold,
         other => Equal.trans(Maybe<&2, F32>, Core.checked_observe(left, final_a, other),
           Core.checked_observe(left, ra, other), Core.checked_observe(left, a, other), lk(other), left_kept(other)),
@@ -616,12 +617,12 @@ def Laws.successful_matmul_interpretation(left, right):
   matmul_planned(left_shape, right_shape, a, b, Matrix.plan(left_shape, right_shape))
 
 def zero_fold(+left: Shape.Shape, +right: Shape.Shape, -a: Core.Tensor<left>, -b: Core.Tensor<right>, +row: U32, +column: U32,
-  values: List<&2, Laws.Factors>, logical: Laws.LogicalDot(0n, left, right, a, b, row, column, 0n, values)) -> {Laws.dot_fold(values, 0.0) == 0.0 : F32}:
+  values: List<&2, DotFold.Factors>, logical: Laws.LogicalDot(0n, left, right, a, b, row, column, 0n, values)) -> {DotFold.dot_fold(values, 0.0) == 0.0 : F32}:
   match values:
     case Nil{}:
       {==}
-    case Laws.Factors{lv, rv} <> rest:
-      Empty.absurd({Laws.dot_fold(Laws.Factors{lv, rv} <> rest, 0.0) == 0.0 : F32}, logical)
+    case DotFold.Factors{lv, rv} <> rest:
+      Empty.absurd({DotFold.dot_fold(DotFold.Factors{lv, rv} <> rest, 0.0) == 0.0 : F32}, logical)
 
 type ZeroCell<-output: Shape.Shape, -out: Core.Tensor<output>, -position: Nat> is Data:
   ZeroCell{-observed: {Core.checked_observe(output, out, U32.from_nat(position)) == Some{0.0} : Maybe<&2, F32>}}
@@ -631,7 +632,7 @@ def zero_cell(+left: Shape.Shape, +right: Shape.Shape, -a: Core.Tensor<left>, -b
   Laws.ProductCell{row, column, coordinate, decoded, coordinates, word_exact, factors, logical, value, fold, checked, observed} = cell
   ZeroCell{Equal.trans(Maybe<&2, F32>, Core.checked_observe(output, out, U32.from_nat(position)), Some{value}, Some{0.0}, observed,
     Equal.cong(F32, Maybe<&2, F32>, x => Some{x}, value, 0.0,
-      Equal.trans(F32, value, Laws.dot_fold(factors, 0.0), 0.0, fold, zero_fold(left, right, a, b, row, column, factors, logical))))}
+      Equal.trans(F32, value, DotFold.dot_fold(factors, 0.0), 0.0, fold, zero_fold(left, right, a, b, row, column, factors, logical))))}
 
 def zero_prefix(+left: Shape.Shape, +right: Shape.Shape, -a: Core.Tensor<left>, -b: Core.Tensor<right>, +output: Shape.Shape,
   -ra: Core.Tensor<left>, -rb: Core.Tensor<right>, -out: Core.Tensor<output>, +end: Nat,
