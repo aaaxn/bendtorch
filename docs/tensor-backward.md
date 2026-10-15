@@ -199,11 +199,13 @@ for shapes that broadcast, and the consumers in
 The values of the `Matmul` VJP are not stated by a law. They are checked by
 the runtime lanes and the PyTorch record. `g @ right^T` and `left^T @ g` read
 the transposed saved operands, and `Transforms.transpose_dynamic` has only
-erased laws: a live statement of its values needs the transpose copy loop
-re-proved as live code, the follow-up that
+erased laws. The copy loop already has a live value law, `transpose_contract`
+(`src/tensor/permute-values-contract-LAWS.bend`), but only for a
+`Core.from_values` input, as
 [proof boundary](proof-boundary.md#live-transform-contracts-what-is-live-and-what-is-not)
-describes. With that, `matmul_ordered` applies to the two products, since both
-take replayed inputs.
+describes. The saved operands are replayed tensors, so the missing piece is a
+transpose law over replayed inputs that exports a replayed result. With that,
+`matmul_ordered` applies to the two products, since both take replayed inputs.
 
 ## Runtime lanes
 

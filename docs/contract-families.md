@@ -338,7 +338,8 @@ half to another family law, which the tensor backward's
   `Sum`, `Add`, `Sub` and `Mul` VJPs have value laws
   ([tensor backward](tensor-backward.md#vjp-values)). The `Matmul` VJP has
   none, since its operands go through `Transforms.transpose_dynamic`, whose
-  values only erased laws state.
+  values only erased laws state. The live `transpose_contract` covers a
+  `Core.from_values` input, not a replayed one.
 - `broadcast_to_pointwise`, `sum_to_size_clone` and `sum_to_size_fiber` cover
   a successful call. A failed plan or target check keeps the existing erased
   laws in `broadcast-LAWS.bend`, `sum-to-size-LAWS.bend` and

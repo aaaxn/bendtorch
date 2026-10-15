@@ -318,7 +318,7 @@ The mutants change `src/autograd/tensor-backward.bend`, and the source check
 runs `src/autograd/PROOF.bend`. The structural laws in
 `tensor-backward-LAWS.bend` say nothing about the values the `Add`, `Sub` and
 `Mul` VJPs send, so only the value laws reject these mutants. The runtime controls of the autograd gate
-reject the `Mul` and `Sub` ones as well, in the native and JavaScript lanes.
+reject the `Mul` and `Sub` ones as well, in the JavaScript lane.
 `tensor_vjp/entry.bend` imports only `tensor-backward.bend`.
 
 ## Run
