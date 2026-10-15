@@ -10,15 +10,29 @@ import ../src/tensor/matmul.bend as Matrix
 # runs it at several thread counts and requires every count to print the same
 # bytes, with no differing word.
 
-def word(+index: Nat, +step: Nat) -> F32:
+# Multiples of 1/64: every product and partial sum of the small products below
+# is exact in F32, so these cells come out the same in any term order.
+def exact(+index: Nat, +step: Nat) -> F32:
   F32.sub(F32.div(F32.from_nat(Nat.mod(Nat.mul(index, step), 251n)), 64.0), 1.875)
 
-def words(fuel: Nat, +index: Nat, +step: Nat, acc: List<&2, F32>) -> List<&2, F32>:
+# Sevenths, every fourth one 4096 times larger: products and partial sums
+# round, large terms cancel and small ones get lost, so adding a cell's terms
+# in another order changes its bits. On the rounding product below, adding
+# them in decreasing k changes 3245 of its 4096 cells.
+def rough(+index: Nat, +step: Nat) -> F32:
+  +n = Nat.mod(Nat.mul(index, step), 251n)
+  +value = F32.div(F32.sub(F32.from_nat(n), 125.0), 7.0)
+  Bool.pick(F32, Nat.is_eq(Nat.mod(n, 4n), 0n), F32.mul(value, 4096.0), value)
+
+def word(+rounding: Bool, +index: Nat, +step: Nat) -> F32:
+  Bool.pick(F32, rounding, rough(index, step), exact(index, step))
+
+def words(fuel: Nat, +rounding: Bool, +index: Nat, +step: Nat, acc: List<&2, F32>) -> List<&2, F32>:
   match fuel:
     case 0n:
       acc
     case 1n+rest:
-      words(rest, 1n+index, step, word(index, step) <> acc)
+      words(rest, rounding, 1n+index, step, word(rounding, index, step) <> acc)
 
 def reversed(values: List<&2, F32>, acc: List<&2, F32>) -> List<&2, F32>:
   match values:
@@ -27,8 +41,9 @@ def reversed(values: List<&2, F32>, acc: List<&2, F32>) -> List<&2, F32>:
     case value <> rest:
       reversed(rest, value <> acc)
 
-def matrix(+rows: U32, +columns: U32, +step: Nat) -> Result<&2, &1, Core.Error, Core.Dynamic>:
-  Core.construct([rows, columns], reversed(words(Nat.mul(U32.to_nat(rows), U32.to_nat(columns)), 0n, step, Nil{}), Nil{}))
+def matrix(+rounding: Bool, +rows: U32, +columns: U32, +step: Nat) -> Result<&2, &1, Core.Error, Core.Dynamic>:
+  Core.construct([rows, columns],
+    reversed(words(Nat.mul(U32.to_nat(rows), U32.to_nat(columns)), rounding, 0n, step, Nil{}), Nil{}))
 
 # The sequential definition: Matrix.multiply, the cell loop the laws state.
 def sequential_result(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape,
@@ -110,12 +125,14 @@ def product_inputs(+name: String, +rows: U32, +inner: U32, +columns: U32, +depth
     case _ _ _ _:
       IO.print(name ++ " inputs failed")
 
-def product(+name: String, +rows: U32, +inner: U32, +columns: U32, +depth: Nat) -> IO(Unit):
+def product(+name: String, +rounding: Bool, +rows: U32, +inner: U32, +columns: U32, +depth: Nat) -> IO(Unit):
   product_inputs(name, rows, inner, columns, depth,
-    matrix(rows, inner, 7n), matrix(inner, columns, 11n), matrix(rows, inner, 7n), matrix(inner, columns, 11n))
+    matrix(rounding, rows, inner, 7n), matrix(rounding, inner, columns, 11n),
+    matrix(rounding, rows, inner, 7n), matrix(rounding, inner, columns, 11n))
 
 def main() -> IO(Unit):
   do IO<Unit>:
-    product("matmul-128x64x64", 128, 64, 64, 13n)
-    product("matmul-96x40x80", 96, 40, 80, 13n)
-    product("matmul-2x3x2", 2, 3, 2, 2n)
+    product("matmul-128x64x64", False{}, 128, 64, 64, 13n)
+    product("matmul-96x40x80", False{}, 96, 40, 80, 13n)
+    product("matmul-2x3x2", False{}, 2, 3, 2, 2n)
+    product("matmul-64x48x64-rounding", True{}, 64, 48, 64, 12n)

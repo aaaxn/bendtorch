@@ -22,12 +22,17 @@ def matmul_splits(depth: int, inner: int) -> int:
     return min(max(depth + halvings - 13, 0), 6, depth)
 
 
-# Each product the probe runs, its fork depth, and whether it must fork.
+# Each product the probe runs, as (rows, inner, columns).
 PRODUCTS = {
     "matmul-128x64x64": (128, 64, 64),
     "matmul-96x40x80": (96, 40, 80),
     "matmul-2x3x2": (2, 3, 2),
+    "matmul-64x48x64-rounding": (64, 48, 64),
 }
+# The product whose inputs round, so that adding a cell's terms in another
+# order changes its bits; the products of multiples of 1/64 above cannot show
+# a reordered sum. It must fork to check the forked build.
+ROUNDING = "matmul-64x48x64-rounding"
 
 
 def expected_splits(name: str) -> int:
@@ -60,6 +65,8 @@ def check_lines(stdout: str) -> dict[str, int]:
         raise GateError(f"Parallel probe omitted builds: {set(PRODUCTS) - set(splits)}")
     if not any(splits.values()):
         raise GateError("No parallel probe build forks")
+    if not splits[ROUNDING]:
+        raise GateError(f"{ROUNDING} does not fork")
     return splits
 
 

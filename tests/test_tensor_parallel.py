@@ -3,6 +3,7 @@ import unittest
 from tools.common import GateError
 from tools.tensor_parallel import (
     PRODUCTS,
+    ROUNDING,
     check_lines,
     depth,
     expected_splits,
@@ -42,6 +43,10 @@ class ParallelProbeTests(unittest.TestCase):
 
     def test_probe_builds_fork(self):
         self.assertTrue(any(expected_splits(name) for name in PRODUCTS))
+
+    def test_rounding_build_forks(self):
+        self.assertIn(ROUNDING, PRODUCTS)
+        self.assertEqual(expected_splits(ROUNDING), 4)
 
     def test_check_lines_accepts_the_expected_output(self):
         self.assertEqual(
