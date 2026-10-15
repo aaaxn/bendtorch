@@ -2,6 +2,7 @@ import Base
 import ../../../src/tensor/permute-values-contract-LAWS.bend as Contract
 import ../../../src/tensor/permute-values-records.bend as Records
 import ../../../src/tensor/permute-values-contract-PROOF.bend as ContractProof
+import ../../../src/tensor/contracts/PROOF.bend as ContractsProof
 import ../../../src/shape/core.bend as Shape
 import ../../../src/tensor/core.bend as Core
 import ../../../src/tensor/axis-spec.bend as Axis
