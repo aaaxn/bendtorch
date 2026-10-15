@@ -13,7 +13,9 @@ reduce = importlib.import_module("verification.families.reduce_controls").FAMILY
 broadcast_to = importlib.import_module(
     "verification.families.broadcast_to_controls"
 ).FAMILY
-FAMILIES = (pointwise, fold, reduce, broadcast_to)
+tensor_vjp = importlib.import_module("verification.families.tensor_vjp_controls").FAMILY
+binary = importlib.import_module("verification.families.binary_controls").FAMILY
+FAMILIES = (pointwise, fold, reduce, broadcast_to, tensor_vjp, binary)
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -79,6 +81,16 @@ class PointwiseControlTests(unittest.TestCase):
             self.assertEqual(
                 broadcast_to.rejecting_module(label),
                 "src/autograd/broadcast-pointwise-PROOF.bend",
+                label,
+            )
+        for label in tensor_vjp.mutants:
+            self.assertEqual(
+                tensor_vjp.rejecting_module(label), "src/autograd/PROOF.bend", label
+            )
+        for label in binary.mutants:
+            self.assertEqual(
+                binary.rejecting_module(label),
+                "src/tensor/contracts/binary-PROOF.bend",
                 label,
             )
 

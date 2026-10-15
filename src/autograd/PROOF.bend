@@ -9,3 +9,4 @@ import ./sum-to-size-fold-PROOF.bend as SumToSizeFold
 import ./gradient-PROOF.bend as Gradient
 import ./backward-PROOF.bend as Backward
 import ./tensor-backward-PROOF.bend as TensorBackward
+import ./tensor-vjp-PROOF.bend as TensorVjp

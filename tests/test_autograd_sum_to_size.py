@@ -95,7 +95,7 @@ class GateRegistrationTests(unittest.TestCase):
             sum("sum_2d_to_2d_size_2d_LAWS" in name for name in required), 3
         )
         self.assertEqual(
-            sum("sum_2d_to_2d_size_2d_fold_2d_LAWS" in name for name in required), 2
+            sum("sum_2d_to_2d_size_2d_fold_2d_LAWS" in name for name in required), 3
         )
         controls = [name for name in PROOF_CONTROLS if name.startswith("sum-to-size-")]
         self.assertEqual(len(controls), 3)

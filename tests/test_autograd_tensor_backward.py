@@ -281,6 +281,15 @@ class GateRegistrationTests(unittest.TestCase):
             sum(name.startswith("tensor_2d_backward_2d_LAWS.") for name in required),
             16,
         )
+        self.assertEqual(
+            [name for name in required if name.startswith("tensor_2d_vjp_2d_LAWS.")],
+            [
+                "tensor_2d_vjp_2d_LAWS.tensor_product_replayed",
+                "tensor_2d_vjp_2d_LAWS.tensor_add_vjp_values",
+                "tensor_2d_vjp_2d_LAWS.tensor_sub_vjp_values",
+                "tensor_2d_vjp_2d_LAWS.tensor_mul_vjp_values",
+            ],
+        )
         controls = [
             name for name in PROOF_CONTROLS if name.startswith("tensor-backward-")
         ]

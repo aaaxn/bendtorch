@@ -1,0 +1,34 @@
+[add-reduces-to-other-operand]
+file = "src/autograd/tensor-backward.bend"
+before = '''
+  added_first(b, right, reduced(a, left, g))'''
+after = '''
+  added_first(b, right, reduced(a, right, g))'''
+
+[add-sends-second-to-first]
+file = "src/autograd/tensor-backward.bend"
+before = '''
+  added_first(b, right, reduced(a, left, g))'''
+after = '''
+  added_first(a, right, reduced(a, left, g))'''
+
+[sub-keeps-sign]
+file = "src/autograd/tensor-backward.bend"
+before = '''
+      negated_pair(Elementwise.binary(Elementwise.NegateLeft{}, g,'''
+after = '''
+      negated_pair(Elementwise.binary(Elementwise.KeepLeft{}, g,'''
+
+[mul-swaps-operands]
+file = "src/autograd/tensor-backward.bend"
+before = '''
+      multiplied_first(a, b, left, right, x, Elementwise.mul(g, y))'''
+after = '''
+      multiplied_first(a, b, left, right, y, Elementwise.mul(g, x))'''
+
+[mul-product-swaps-inputs]
+file = "src/autograd/tensor-backward.bend"
+before = '''
+  multiplied_second(b, right, product_reduced(a, left, first), y, Elementwise.mul(g, x))'''
+after = '''
+  multiplied_second(b, right, product_reduced(a, left, first), y, Elementwise.mul(x, g))'''

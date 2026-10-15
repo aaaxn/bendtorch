@@ -72,10 +72,12 @@ operation can receive as an argument. The contract laws make these facts live:
 construction, `from_values`, reads and writes, clone and metadata, reshape,
 the values and failures of permute and transpose, the values of the pointwise
 and ordered-fold [contract families](docs/contract-families.md) with their
-broadcast, sum, dot and `matmul` instances, and the values of the autograd
-`broadcast_to`, `reduce_to` and `sum_to_size`. The public `Elementwise.binary`
-and `Reduction.sum` run their own loops, which no live law relates to the
-families yet, and the other autograd laws are erased. The
+broadcast, sum, dot and `matmul` instances, the values of the autograd
+`broadcast_to`, `reduce_to` and `sum_to_size`, and the values the tensor
+backward's `add`, `sub`, `mul` and `sum` VJPs send. The public
+`Elementwise.binary`, built in parallel halves, exports the pointwise family's
+words for replayed inputs; `Reduction.sum` runs its own loop, which no live
+law relates to the families yet, and the other autograd laws are erased. The
 [proof boundary](docs/proof-boundary.md) page explains the difference.
 
 **Tested.** The numerical results are tested, not proved. The frozen corpus in
@@ -124,9 +126,9 @@ NaN-payload and `None`-gradient differences.
   `Gradient.grad` reads a slot that received nothing as `None`, like
   PyTorch's `.grad`; `Gradient.gradient` is the separate read that gives zeros.
 - Tensor `backward` covers `add`, `sub`, `mul`, whole-tensor `sum` and 2-D
-  `matmul`. Its laws state the engine's structure and the `sum` VJP's values;
-  the values of the other VJPs are checked by the runtime lanes and the
-  PyTorch record. The prototype tape in `experiments/` is not checked by any
+  `matmul`. Its laws state the engine's structure and the values of the
+  `add`, `sub`, `mul` and `sum` VJPs; the `matmul` VJP's values are checked
+  only by the runtime lanes and the PyTorch record. The prototype tape in `experiments/` is not checked by any
   gate and is not used.
 - CPU only. The gates run native code on one thread, and no performance work
   has been done yet.
@@ -145,7 +147,7 @@ optimizers.
 | --- | --- | --- | --- |
 | 1 | Shapes and storage | Done | Validated shapes up to rank 4, row-major indexing, broadcast plans and bounds-checked F32 storage with one owner. |
 | 2 | Tensor core and operations | Done | Tensors with `add`, `sub`, `mul`, whole-tensor `sum`, 2-D `matmul`, `reshape`, `permute_copy` and `transpose_copy`, checked against frozen PyTorch outputs. |
-| 3 | Live proof contracts | Done | Laws that later proofs can take as inputs. Construction, `from_values`, reads and writes, clone, metadata, reshape, the permute and transpose values and failures, the pointwise and ordered-fold families with their broadcast, sum, dot and `matmul` instances, and the values of `broadcast_to`, `reduce_to` and `sum_to_size` are live. |
+| 3 | Live proof contracts | Done | Laws that later proofs can take as inputs. Construction, `from_values`, reads and writes, clone, metadata, reshape, the permute and transpose values and failures, the pointwise and ordered-fold families with their broadcast, sum, dot and `matmul` instances, the values of `broadcast_to`, `reduce_to` and `sum_to_size`, and the tensor backward's `add`, `sub`, `mul` and `sum` VJP values are live. |
 | 4 | Autograd building blocks | Done | `broadcast_to`, `reduce_to`, `sum_to_size` and gradient slots that accumulate in arrival order and read as `None` until they receive a value. |
 | 5 | Reverse-mode engine | Done | `backward` on a tape, built on the gradient slots: for scalars (`add`, `sub`, `mul`, `neg`) and for tensors (`add`, `sub`, `mul` with broadcasting, `sum`, `matmul`). |
 | 6 | Neural-network modules | Planned | `Linear`, activations and losses, each with its forward and backward pass. |

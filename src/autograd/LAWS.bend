@@ -7,3 +7,4 @@ import ./sum-to-size-fold-LAWS.bend as SumToSizeFold
 import ./gradient-LAWS.bend as Gradient
 import ./backward-LAWS.bend as Backward
 import ./tensor-backward-LAWS.bend as TensorBackward
+import ./tensor-vjp-LAWS.bend as TensorVjp

@@ -217,6 +217,10 @@ def tree(+depth: Nat, +operation: Operation, -le: List<&2, Nat>, -re: List<&2, N
       tree_node(l => r => tree(inner, operation, le, re, oe, map, count, Nat.add(Model.capacity(inner), base), l, r),
         tree(inner, operation, le, re, oe, map, count, base, la, ra))
 
+# The first cell of the high half of a node whose halves hold 2^inner cells.
+def upper(+inner: Nat, +base: Nat) -> Nat:
+  Nat.add(Model.capacity(inner), base)
+
 def fork(lp: Array<F32> & Array<F32>, rp: Array<F32> & Array<F32>,
   low: Array<F32> -> Array<F32> -> Array<F32>, high: Array<F32> -> Array<F32> -> Array<F32>) -> Array<F32>:
   (la, lb) = lp
@@ -233,7 +237,7 @@ def build(+depth: Nat, +splits: Nat, +operation: Operation, +plan: Shape.Broadca
   la: Array<F32>, ra: Array<F32>) -> Array<F32>:
   match depth splits:
     case 1n+inner 1n+rest:
-      +high = Nat.add(Model.capacity(inner), base)
+      +high = upper(inner, base)
       fork(Array.clone(F32, la), Array.clone(F32, ra),
         l => r => build(inner, rest, operation, plan, count, base, l, r),
         l => r => build(inner, rest, operation, plan, count, high, l, r))
@@ -248,69 +252,101 @@ def build(+depth: Nat, +splits: Nat, +operation: Operation, +plan: Shape.Broadca
 def splits(+depth: Nat) -> Nat:
   Nat.sub(depth, 15n)
 
-type BalancedModel<-depth: Nat, -array: Array<F32>> is Data:
-  BalancedModel{-valid: Model.Balanced(F32, depth, array)}
+# A run of the build next to its proof of balance: `result` is the term the
+# code computes, and its first component is balanced at `depth`. The proofs
+# below only follow the code, so they live in the erased certificate of the
+# output storage and cost nothing at runtime.
+type Certified<-depth: Nat, -expected: Array<F32> & (Array<F32> & Array<F32>)> is Type:
+  Certified{result: Array<F32> & (Array<F32> & Array<F32>), same: {result == expected : Array<F32> & (Array<F32> & Array<F32>)},
+    balanced: Model.Balanced(F32, depth, Pair.fst(Array<F32>, Array<F32> & Array<F32>, result))}
 
-def tree_join_balanced(+inner: Nat, a: Array<F32>, high: Array<F32> & (Array<F32> & Array<F32>),
-  -low_valid: Model.Balanced(F32, inner, a), -high_valid: BalancedModel<inner, Pair.fst(Array<F32>, Array<F32> & Array<F32>, high)>) ->
-  BalancedModel<1n+inner, Pair.fst(Array<F32>, Array<F32> & Array<F32>, tree_join(a, high))>:
-  (b, inputs) = high
-  BalancedModel{(low_valid, {\{BalancedModel: v => v} : BalancedModel<inner, b> -> Model.Balanced(F32, inner, b)}(high_valid))}
-
-def tree_node_balanced(+inner: Nat, rec: Array<F32> -> Array<F32> -> Array<F32> & (Array<F32> & Array<F32>),
-  low: Array<F32> & (Array<F32> & Array<F32>), -low_valid: BalancedModel<inner, Pair.fst(Array<F32>, Array<F32> & Array<F32>, low)>,
-  -next: @la: Array<F32> -> @ra: Array<F32> -> BalancedModel<inner, Pair.fst(Array<F32>, Array<F32> & Array<F32>, rec(la, ra))>) ->
-  BalancedModel<1n+inner, Pair.fst(Array<F32>, Array<F32> & Array<F32>, tree_node(rec, low))>:
-  (a, inputs) = low
-  (la, ra) = inputs
-  tree_join_balanced(inner, a, rec(la, ra), {\{BalancedModel: v => v} : BalancedModel<inner, a> -> Model.Balanced(F32, inner, a)}(low_valid), next(la)(ra))
-
-def cell_right_balanced(+operation: Operation, x: F32, la: Array<F32>, pair: Array<F32> & F32) ->
-  BalancedModel<0n, Pair.fst(Array<F32>, Array<F32> & Array<F32>, cell_right(operation, x, la, pair))>:
+def cell_right_certified(+operation: Operation, x: F32, la: Array<F32>, pair: Array<F32> & F32) ->
+  Certified<0n, cell_right(operation, x, la, pair)>:
   (ra, y) = pair
-  BalancedModel{Unit{}}
+  Certified{cell_right(operation, x, la, (ra, y)), {==}, Unit{}}
 
-def cell_left_balanced(+operation: Operation, ra: Array<F32>, +right_index: U32, pair: Array<F32> & F32) ->
-  BalancedModel<0n, Pair.fst(Array<F32>, Array<F32> & Array<F32>, cell_left(operation, ra, right_index, pair))>:
+def cell_left_certified(+operation: Operation, ra: Array<F32>, +right_index: U32, pair: Array<F32> & F32) ->
+  Certified<0n, cell_left(operation, ra, right_index, pair)>:
   (la, x) = pair
-  cell_right_balanced(operation, x, la, Array.get(F32, ra, right_index))
+  cell_right_certified(operation, x, la, Array.get(F32, ra, right_index))
 
-def cell_balanced(+operation: Operation, -le: List<&2, Nat>, -re: List<&2, Nat>, -oe: List<&2, Nat>,
+def cell_certified(+operation: Operation, -le: List<&2, Nat>, -re: List<&2, Nat>, -oe: List<&2, Nat>,
   +map: Shape.Index<le, re, oe>, +position: Nat, la: Array<F32>, ra: Array<F32>, inside: Bool) ->
-  BalancedModel<0n, Pair.fst(Array<F32>, Array<F32> & Array<F32>, cell(operation, le, re, oe, map, position, la, ra, inside))>:
+  Certified<0n, cell(operation, le, re, oe, map, position, la, ra, inside)>:
   match inside:
     case False{}:
-      BalancedModel{Unit{}}
+      Certified{cell(operation, le, re, oe, map, position, la, ra, False{}), {==}, Unit{}}
     case True{}:
-      cell_left_balanced(operation, ra, U32.from_nat(right_walk(le, re, oe, map, position)),
+      cell_left_certified(operation, ra, U32.from_nat(right_walk(le, re, oe, map, position)),
         Array.get(F32, la, U32.from_nat(left_walk(le, re, oe, map, position))))
 
-def tree_balanced(+depth: Nat, +operation: Operation, -le: List<&2, Nat>, -re: List<&2, Nat>, -oe: List<&2, Nat>,
+def node_joined(+inner: Nat, +operation: Operation, -le: List<&2, Nat>, -re: List<&2, Nat>, -oe: List<&2, Nat>,
+  +map: Shape.Index<le, re, oe>, +count: Nat, +base: Nat, -la: Array<F32>, -ra: Array<F32>, a: Array<F32>,
+  -l: Array<F32>, -r: Array<F32>,
+  same: {(a, (l, r)) == tree(inner, operation, le, re, oe, map, count, base, la, ra) : Array<F32> & (Array<F32> & Array<F32>)},
+  balanced: Model.Balanced(F32, inner, a),
+  high: Certified<inner, tree(inner, operation, le, re, oe, map, count, Nat.add(Model.capacity(inner), base), l, r)>) ->
+  Certified<1n+inner, tree(1n+inner, operation, le, re, oe, map, count, base, la, ra)>:
+  Certified{result, high_same, high_balanced} = high
+  (b, rest) = result
+  Certified{(ANode{a, b}, rest),
+    %same : {(ANode{a, b}, rest) == tree_node(x => y => tree(inner, operation, le, re, oe, map, count, Nat.add(Model.capacity(inner), base), x, y), _) : Array<F32> & (Array<F32> & Array<F32>)}
+    %high_same : {(ANode{a, b}, rest) == tree_join(a, _) : Array<F32> & (Array<F32> & Array<F32>)}
+    {==},
+    (balanced, high_balanced)}
+
+def node_split(+inner: Nat, +operation: Operation, -le: List<&2, Nat>, -re: List<&2, Nat>, -oe: List<&2, Nat>,
+  +map: Shape.Index<le, re, oe>, +count: Nat, +base: Nat, -la: Array<F32>, -ra: Array<F32>, result: Array<F32> & (Array<F32> & Array<F32>),
+  same: {result == tree(inner, operation, le, re, oe, map, count, base, la, ra) : Array<F32> & (Array<F32> & Array<F32>)},
+  balanced: Model.Balanced(F32, inner, Pair.fst(Array<F32>, Array<F32> & Array<F32>, result)),
+  next: @l: Array<F32> -> @r: Array<F32> -> Certified<inner, tree(inner, operation, le, re, oe, map, count, Nat.add(Model.capacity(inner), base), l, r)>) ->
+  Certified<1n+inner, tree(1n+inner, operation, le, re, oe, map, count, base, la, ra)>:
+  (a, inputs) = result
+  (l, r) = inputs
+  node_joined(inner, operation, le, re, oe, map, count, base, la, ra, a, l, r, same, balanced, next(l, r))
+
+def tree_node_certified(+inner: Nat, +operation: Operation, -le: List<&2, Nat>, -re: List<&2, Nat>, -oe: List<&2, Nat>,
+  +map: Shape.Index<le, re, oe>, +count: Nat, +base: Nat, -la: Array<F32>, -ra: Array<F32>,
+  low: Certified<inner, tree(inner, operation, le, re, oe, map, count, base, la, ra)>,
+  next: @l: Array<F32> -> @r: Array<F32> -> Certified<inner, tree(inner, operation, le, re, oe, map, count, Nat.add(Model.capacity(inner), base), l, r)>) ->
+  Certified<1n+inner, tree(1n+inner, operation, le, re, oe, map, count, base, la, ra)>:
+  Certified{result, same, balanced} = low
+  node_split(inner, operation, le, re, oe, map, count, base, la, ra, result, same, balanced, next)
+
+def tree_certified(+depth: Nat, +operation: Operation, -le: List<&2, Nat>, -re: List<&2, Nat>, -oe: List<&2, Nat>,
   +map: Shape.Index<le, re, oe>, +count: Nat, +base: Nat, la: Array<F32>, ra: Array<F32>) ->
-  BalancedModel<depth, Pair.fst(Array<F32>, Array<F32> & Array<F32>, tree(depth, operation, le, re, oe, map, count, base, la, ra))>:
+  Certified<depth, tree(depth, operation, le, re, oe, map, count, base, la, ra)>:
   match depth:
     case 0n:
-      cell_balanced(operation, le, re, oe, map, base, la, ra, Nat.is_lt(base, count))
+      cell_certified(operation, le, re, oe, map, base, la, ra, Nat.is_lt(base, count))
     case 1n+inner:
-      tree_node_balanced(inner, l => r => tree(inner, operation, le, re, oe, map, count, Nat.add(Model.capacity(inner), base), l, r),
-        tree(inner, operation, le, re, oe, map, count, base, la, ra),
-        tree_balanced(inner, operation, le, re, oe, map, count, base, la, ra),
-        l => r => tree_balanced(inner, operation, le, re, oe, map, count, Nat.add(Model.capacity(inner), base), l, r))
+      tree_node_certified(inner, operation, le, re, oe, map, count, base, la, ra,
+        tree_certified(inner, operation, le, re, oe, map, count, base, la, ra),
+        l => r => tree_certified(inner, operation, le, re, oe, map, count, Nat.add(Model.capacity(inner), base), l, r))
+
+def tree_balanced(+depth: Nat, +operation: Operation, -le: List<&2, Nat>, -re: List<&2, Nat>, -oe: List<&2, Nat>,
+  +map: Shape.Index<le, re, oe>, +count: Nat, +base: Nat, -la: Array<F32>, -ra: Array<F32>,
+  certified: Certified<depth, tree(depth, operation, le, re, oe, map, count, base, la, ra)>) ->
+  Model.Balanced(F32, depth, Pair.fst(Array<F32>, Array<F32> & Array<F32>, tree(depth, operation, le, re, oe, map, count, base, la, ra))):
+  Certified{result, same, balanced} = certified
+  %same : Model.Balanced(F32, depth, Pair.fst(Array<F32>, Array<F32> & Array<F32>, _))
+  balanced
 
 def fork_balanced(+inner: Nat, lp: Array<F32> & Array<F32>, rp: Array<F32> & Array<F32>,
   -low: Array<F32> -> Array<F32> -> Array<F32>, -high: Array<F32> -> Array<F32> -> Array<F32>,
-  -low_valid: @l: Array<F32> -> @r: Array<F32> -> BalancedModel<inner, low(l, r)>,
-  -high_valid: @l: Array<F32> -> @r: Array<F32> -> BalancedModel<inner, high(l, r)>) ->
-  BalancedModel<1n+inner, fork(lp, rp, low, high)>:
+  low_valid: @l: Array<F32> -> @r: Array<F32> -> Model.Balanced(F32, inner, low(l, r)),
+  high_valid: @l: Array<F32> -> @r: Array<F32> -> Model.Balanced(F32, inner, high(l, r))) ->
+  Model.Balanced(F32, 1n+inner, fork(lp, rp, low, high)):
   (la, lb) = lp
   (ra, rb) = rp
-  BalancedModel{({\{BalancedModel: v => v} : BalancedModel<inner, low(la, ra)> -> Model.Balanced(F32, inner, low(la, ra))}(low_valid(la)(ra)), {\{BalancedModel: v => v} : BalancedModel<inner, high(lb, rb)> -> Model.Balanced(F32, inner, high(lb, rb))}(high_valid(lb)(rb)))}
+  (low_valid(la, ra), high_valid(lb, rb))
 
+# The parallel build returns a balanced tree of its depth, whatever the split.
 def build_balanced(+depth: Nat, +splits: Nat, +operation: Operation, +plan: Shape.BroadcastPlan, +count: Nat, +base: Nat,
-  la: Array<F32>, ra: Array<F32>) -> BalancedModel<depth, build(depth, splits, operation, plan, count, base, la, ra)>:
+  la: Array<F32>, ra: Array<F32>) -> Model.Balanced(F32, depth, build(depth, splits, operation, plan, count, base, la, ra)):
   match depth splits:
     case 1n+inner 1n+rest:
-      +high = Nat.add(Model.capacity(inner), base)
+      +high = upper(inner, base)
       fork_balanced(inner, Array.clone(F32, la), Array.clone(F32, ra),
         l => r => build(inner, rest, operation, plan, count, base, l, r),
         l => r => build(inner, rest, operation, plan, count, high, l, r),
@@ -319,11 +355,15 @@ def build_balanced(+depth: Nat, +splits: Nat, +operation: Operation, +plan: Shap
     case 0n _:
       tree_balanced(0n, operation,
         Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan)),
-        Shape.index_map(plan), count, base, la, ra)
+        Shape.index_map(plan), count, base, la, ra, tree_certified(0n, operation,
+          Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan)),
+          Shape.index_map(plan), count, base, la, ra))
     case 1n+inner 0n:
       tree_balanced(1n+inner, operation,
         Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan)),
-        Shape.index_map(plan), count, base, la, ra)
+        Shape.index_map(plan), count, base, la, ra, tree_certified(1n+inner, operation,
+          Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan)),
+          Shape.index_map(plan), count, base, la, ra))
 
 # The input handed back to the caller and an array copy for the build. A
 # tensor with empty storage has no cell to read.
@@ -352,7 +392,7 @@ def parallel_output(+operation: Operation, +plan: Shape.BroadcastPlan, +depth: N
   (kept_right, ra) = right
   ((kept_left, kept_right), Done{Core.pack(Shape.output_shape(plan), Core.TTensor{Storage.Owned{depth, length,
     build(depth, splits(depth), operation, plan, length, 0n, la, ra),
-    {\{BalancedModel: v => v} : BalancedModel<depth, build(depth, splits(depth), operation, plan, length, 0n, la, ra)> -> Model.Balanced(F32, depth, build(depth, splits(depth), operation, plan, length, 0n, la, ra))}(build_balanced(depth, splits(depth), operation, plan, length, 0n, la, ra)),
+    build_balanced(depth, splits(depth), operation, plan, length, 0n, la, ra),
     valid}, exact})})
 
 def parallel_allocated(+operation: Operation, +plan: Shape.BroadcastPlan, left: Core.Dynamic, right: Core.Dynamic,

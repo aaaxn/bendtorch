@@ -33,6 +33,7 @@
     "contracts_2f_LAWS.sum_ordered",
     "contracts_2f_LAWS.dot_ordered",
     "contracts_2f_LAWS.matmul_ordered",
+    "contracts_2f_binary_2d_LAWS.binary_replayed",
     "elementwise_2d_LAWS.binary_retains_inputs",
     "elementwise_2d_LAWS.binary_successful_output_dimensions",
     "elementwise_2d_LAWS.binary_valid_success",

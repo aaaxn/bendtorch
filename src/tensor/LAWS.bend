@@ -16,3 +16,4 @@ import ./transform-contract-LAWS.bend as TransformContract
 import ./from-values-contract-LAWS.bend as FromValuesContract
 import ./permute-values-contract-LAWS.bend as PermuteValuesContract
 import ./contracts/LAWS.bend as Contracts
+import ./contracts/binary-LAWS.bend as ContractsBinary
