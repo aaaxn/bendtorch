@@ -103,29 +103,25 @@ after = '''
 [matmul-reversed-order]
 file = "src/tensor/matmul.bend"
 before = '''
-    case 1n+tail:
-      +index = U32.from_nat(cursor)
-      dot_decided(left, right,
-        a => b => value => natural_dot(tail, left, right, a, b, row, column, 1n+cursor, value),
-        a, b, row, column, cursor, index, accumulator, Shape.bool_case(Nat.is_eq(U32.to_nat(index), cursor)))'''
+    case 1n+rest:
+      term_left(value => l => r => cell_dot(rest, inner, columns, row, column, 1n+cursor, value, l, r),
+        accumulator, ra, right_index(columns, column, cursor), Array.get(F32, la, left_index(inner, row, cursor)))'''
 after = '''
-    case 1n+tail:
-      +back = tail
-      +index = U32.from_nat(back)
-      dot_decided(left, right,
-        a => b => value => natural_dot(back, left, right, a, b, row, column, 1n+cursor, value),
-        a, b, row, column, back, index, accumulator, Shape.bool_case(Nat.is_eq(U32.to_nat(index), back)))'''
+    case 1n+rest:
+      +back = rest
+      term_left(value => l => r => cell_dot(back, inner, columns, row, column, 1n+cursor, value, l, r),
+        accumulator, ra, right_index(columns, column, back), Array.get(F32, la, left_index(inner, row, back)))'''
 
 [matmul-negative-zero-start]
 file = "src/tensor/matmul.bend"
 before = '''
-      dotted(left, right, output, rec, out, index, natural_dot(U32.to_nat(inner), left, right, a, b, row, column, 0n, 0.0))'''
+  cell_dot(inner, inner, columns, row_of(columns, position), column_of(columns, position), 0n, 0.0, la, ra)'''
 after = '''
-      dotted(left, right, output, rec, out, index, natural_dot(U32.to_nat(inner), left, right, a, b, row, column, 0n, F32.neg(0.0)))'''
+  cell_dot(inner, inner, columns, row_of(columns, position), column_of(columns, position), 0n, F32.neg(0.0), la, ra)'''
 
 [matmul-transposed-right]
 file = "src/tensor/matmul.bend"
 before = '''
-      left_read(left, right, rec, b, [index, column], accumulator, Core.read_coordinate(left, a, [row, index]))'''
+  U32.from_nat(Nat.add(Nat.mul(k, columns), column))'''
 after = '''
-      left_read(left, right, rec, b, [column, index], accumulator, Core.read_coordinate(left, a, [row, index]))'''
+  U32.from_nat(Nat.add(Nat.mul(column, columns), k))'''
