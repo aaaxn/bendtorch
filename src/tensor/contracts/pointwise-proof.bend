@@ -180,41 +180,34 @@ def write_miss(+shape: Shape.Shape, +previous: Nat, +index: U32, +word: F32, +ol
     {Bool.pick(F32, _, word, old) == old : F32}
   {==}
 
-def writes_split(~O: Data, ~f: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -> Nat, ~ib: P -> Nat -> Nat,
-  +previous: Nat, +operation: O, +plan: P, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
-  +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +shape: Shape.Shape, +index: U32,
+# One write appended to a history: index `previous` now holds `written`, and
+# every earlier index keeps the word the history gave it.
+def write_split(+shape: Shape.Shape, +history: List<&2, StorageLaws.Op>, +previous: Nat, +written: F32, +index: U32, +target: F32,
   below: {Nat.is_lt(U32.to_nat(index), 1n+previous) == True{} : Bool},
   +room: {Nat.is_le(1n+previous, Shape.logical_numel(Shape.dimensions(shape))) == True{} : Bool},
-  rec: {Nat.is_lt(U32.to_nat(index), previous) == True{} : Bool} ->
-    {Replayed.value(shape, 0.0, Pointwise.writes(~O, ~f, ~P, ~ia, ~ib, previous, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops), index) ==
-      Pointwise.cell(~O, ~f, ~P, ~ia, ~ib, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, U32.to_nat(index)) : F32},
+  hit: @at: {U32.to_nat(index) == previous : Nat} -> {written == target : F32},
+  rec: @earlier: {Nat.is_lt(U32.to_nat(index), previous) == True{} : Bool} -> {Replayed.value(shape, 0.0, history, index) == target : F32},
   decision: Shape.BoolCase<Nat.is_eq(U32.to_nat(index), previous)>) ->
-  {Replayed.value(shape, 0.0, Pointwise.writes(~O, ~f, ~P, ~ia, ~ib, 1n+previous, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops), index) ==
-    Pointwise.cell(~O, ~f, ~P, ~ia, ~ib, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, U32.to_nat(index)) : F32}:
+  {Replayed.value(shape, 0.0, Replayed.snoc(history, StorageLaws.Write{U32.from_nat(previous), written}), index) == target : F32}:
   match decision:
     case Shape.BTrue{same}:
-      +written = Pointwise.cell(~O, ~f, ~P, ~ia, ~ib, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, previous)
-      +history = Pointwise.writes(~O, ~f, ~P, ~ia, ~ib, previous, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops)
       +old = Replayed.value(shape, 0.0, history, index)
       +step = Replayed.expected_snoc(history, StorageLaws.Write{U32.from_nat(previous), written}, U32.to_nat(Shape.count(shape)), index, 0.0)
       +inside = Conversion.le_successor_lt(previous, Shape.logical_numel(Shape.dimensions(shape)), room)
       +at = Lifecycle.natural_equal(U32.to_nat(index), previous, same)
       Equal.trans(F32, Replayed.value(shape, 0.0, Replayed.snoc(history, StorageLaws.Write{U32.from_nat(previous), written}), index),
-        written, Pointwise.cell(~O, ~f, ~P, ~ia, ~ib, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, U32.to_nat(index)),
+        written, target,
         Equal.trans(F32, Replayed.value(shape, 0.0, Replayed.snoc(history, StorageLaws.Write{U32.from_nat(previous), written}), index),
           StorageLaws.latest(U32.to_nat(Shape.count(shape)), StorageLaws.Write{U32.from_nat(previous), written}, index, old), written,
           step, write_hit(shape, previous, index, written, old, inside, at)),
-        Equal.cong(Nat, F32, position => Pointwise.cell(~O, ~f, ~P, ~ia, ~ib, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, position),
-          previous, U32.to_nat(index), Equal.sym(Nat, U32.to_nat(index), previous, at)))
+        hit(at))
     case Shape.BFalse{other}:
-      +written = Pointwise.cell(~O, ~f, ~P, ~ia, ~ib, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, previous)
-      +history = Pointwise.writes(~O, ~f, ~P, ~ia, ~ib, previous, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops)
       +old = Replayed.value(shape, 0.0, history, index)
       +step = Replayed.expected_snoc(history, StorageLaws.Write{U32.from_nat(previous), written}, U32.to_nat(Shape.count(shape)), index, 0.0)
       +inside = Conversion.le_successor_lt(previous, Shape.logical_numel(Shape.dimensions(shape)), room)
       +earlier = lt_succ_ne(U32.to_nat(index), previous, below, other)
       Equal.trans(F32, Replayed.value(shape, 0.0, Replayed.snoc(history, StorageLaws.Write{U32.from_nat(previous), written}), index),
-        old, Pointwise.cell(~O, ~f, ~P, ~ia, ~ib, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, U32.to_nat(index)),
+        old, target,
         Equal.trans(F32, Replayed.value(shape, 0.0, Replayed.snoc(history, StorageLaws.Write{U32.from_nat(previous), written}), index),
           StorageLaws.latest(U32.to_nat(Shape.count(shape)), StorageLaws.Write{U32.from_nat(previous), written}, index, old), old,
           step, write_miss(shape, previous, index, written, old, inside, earlier)),
@@ -233,8 +226,12 @@ def writes_value(~O: Data, ~f: O -> F32 -> F32 -> F32, ~P: Data, ~ia: P -> Nat -
         Pointwise.cell(~O, ~f, ~P, ~ia, ~ib, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, U32.to_nat(index)) : F32},
         Arith.lt_zero(U32.to_nat(index), below))
     case 1n+previous:
-      writes_split(~O, ~f, ~P, ~ia, ~ib, previous, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, shape, index,
+      write_split(shape, Pointwise.writes(~O, ~f, ~P, ~ia, ~ib, previous, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops),
+        previous, Pointwise.cell(~O, ~f, ~P, ~ia, ~ib, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, previous), index,
+        Pointwise.cell(~O, ~f, ~P, ~ia, ~ib, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, U32.to_nat(index)),
         below, room,
+        at => Equal.cong(Nat, F32, position => Pointwise.cell(~O, ~f, ~P, ~ia, ~ib, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, position),
+          previous, U32.to_nat(index), Equal.sym(Nat, U32.to_nat(index), previous, at)),
         earlier => writes_value(~O, ~f, ~P, ~ia, ~ib, previous, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops,
           shape, index, earlier, Conversion.le_predecessor(previous, Shape.logical_numel(Shape.dimensions(shape)), room)),
         Shape.bool_case(Nat.is_eq(U32.to_nat(index), previous)))
