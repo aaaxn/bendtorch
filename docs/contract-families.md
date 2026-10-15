@@ -10,7 +10,10 @@ order. The code is in `src/tensor/contracts/`, and the `reduce_to` instance is
 in `src/autograd/reduce-fold.bend`. The law `reduce_to_fiber` states that
 `reduce_to` itself computes every cell with the same total, and
 `matmul_ordered` states that `Matrix.matmul` computes every output cell with
-the total of `dot_ordered`.
+the total of `dot_ordered`. `broadcast_to_pointwise` states that
+`broadcast_to` writes every cell as the broadcast instance of the pointwise
+family does with `KeepLeft`, and `sum_to_size_clone` and `sum_to_size_fiber`
+state `sum_to_size` through the `reduce_to` contract.
 
 ## Replayed tensors are the input class
 
@@ -97,6 +100,45 @@ hypotheses from `Flat.left_bound` and `Flat.right_bound`. The law
 broadcast plan and every pair of replayed inputs of the plan's shapes:
 output cell `i` holds
 `Elementwise.scalar(operation, left[left_map(plan, i)], right[right_map(plan, i)])`.
+
+### `broadcast_to` meets the family specification
+
+`Broadcast.broadcast_to` in `src/autograd/broadcast.bend`, the materialized
+broadcast that autograd calls, does not call `Pointwise.run`. It runs the
+sequential elementwise loop `Elementwise.allocated` with `KeepLeft`, the input
+on the left and a `+0.0` tensor of the target on the right. The law
+`broadcast_to_pointwise` in `src/autograd/broadcast-pointwise-LAWS.bend` states
+what it computes. It takes:
+
+- an input and a target shape, and the plan with
+  `Shape.broadcast_checked(shape, target) == Done{plan}` and
+  `Shape.dimensions(Shape.output_shape(plan)) == Shape.dimensions(target)`,
+  the case where `broadcast_to` succeeds;
+- any replayed input of that shape.
+
+Its conclusion is a `BroadcastToContract`, with live fields `successful`,
+`dimensions` (the target's), `value` and `kept`. `value` states that every
+in-bounds output index `i` holds `input[left_map(plan, i)]`, the input's
+replayed word at its broadcast projection.
+
+`broadcast-pointwise-PROOF.bend` walks the loop with live code, without
+changing it. The zero tensor and the output come from `Core.new`, so they are
+replayed too. After `k` steps each input is the replayed tensor with its
+history plus `reads(k)` of its map, and the output is the replayed tensor over
+`+0.0` with the family history `Pointwise.writes(k)` of `Elementwise.scalar`
+with `left_map` and `right_map`. The loop's index check, `input_indices`, gives
+the two maps, through `Projection.input_indices_refines`. At the end
+`writes_value` gives cell `i` as `scalar(KeepLeft, input word, 0.0)`, which is
+the input word. A changed operation, swapped operands or another owner in
+`broadcast.bend` fails the walk or the contract.
+
+The walk also gives the replayed form of the result. The law
+`broadcast_to_replayed` exports it as a transport, like `new_replayed`: for
+every `P`, if `P` holds for the input with the history `ops ++ reads` and the
+output over `+0.0` with the family history `writes`, for any length proofs,
+then `P` holds for the `broadcast_to` result. So a law about a replayed
+tensor applies to the output, and a consumer can chain `broadcast_to` into
+`reduce_to` through laws alone.
 
 ## The ordered-fold family
 
@@ -243,6 +285,26 @@ and `Dot.right_index`. At the end `total_factors` turns each total into
 column. A wrong start, another order of `k` or a transposed read in
 `matmul.bend` fails a step of the walk.
 
+### `sum_to_size` through the `reduce_to` contract
+
+`SumToSize.sum_to_size` in `src/autograd/sum-to-size.bend` clones the
+contribution when the target has its dimensions and is `reduce_to` otherwise.
+Two laws in `src/autograd/sum-to-size-fold-LAWS.bend` state both cases as a
+`ReduceToContract`, the record of `reduce_to_fiber`, on any replayed
+contribution:
+
+- `sum_to_size_clone`: when the dimensions are equal, every in-bounds cell
+  holds the contribution's own word, not `F32.add(0.0, word)` as `reduce_to`
+  gives, so `-0.0` stays `-0.0`.
+- `sum_to_size_fiber`: when the dimensions differ and the target broadcasts to
+  exactly the contribution's dimensions, every cell holds the `ReduceLaws.fiber`
+  that `reduce_to_fiber` states.
+
+`sum-to-size-fold-PROOF.bend` proves the first through `Core.clone` on a
+replayed tensor: the storage laws model a clone's two halves as the histories
+`ops ++ [First]` and `ops ++ [Second]`, and neither changes a word. It proves
+the second by deciding the dimension check and calling `reduce_to_fiber`.
+
 ## What the families do not cover yet
 
 - `Elementwise.binary`, the public operation in `src/tensor/elementwise.bend`,
@@ -255,8 +317,14 @@ column. A wrong start, another order of `k` or a transposed read in
 - `matmul_ordered` covers a successful product. A failed plan or read keeps
   the existing erased laws in `matmul-LAWS.bend`.
 - The family output is itself a replayed tensor, with history `writes(n)` over
-  `+0.0`. The proof uses that fact, but no law exports it, so a consumer cannot
-  yet chain two family operations through laws alone.
+  `+0.0`. `broadcast_to_replayed` exports that fact for `broadcast_to`. No law
+  exports it yet for `Broadcast.binary`, `reduce_to` or `sum_to_size`, so a
+  consumer cannot yet chain their outputs into another family operation
+  through laws alone.
+- `broadcast_to_pointwise`, `sum_to_size_clone` and `sum_to_size_fiber` cover
+  a successful call. A failed plan or target check keeps the existing erased
+  laws in `broadcast-LAWS.bend`, `sum-to-size-LAWS.bend` and
+  `reduce-LAWS.bend`.
 - The laws require every index in bounds, so they say nothing about a failed
   read. What `Fold.run` and `Fold.pair_run` return then, the error and the
   inputs, is checked only by the failure consumers in
@@ -268,11 +336,15 @@ column. A wrong start, another order of `k` or a transposed read in
 
 `verification/families/` holds literal consumers of `broadcast_pointwise`,
 two of them on the actual `Core.from_values` and `Core.new` results, of
-`sum_ordered`, `dot_ordered` and `matmul_ordered`, of failed folds, and of
-`reduce_fold_fiber` and `reduce_to_fiber`, false twins of fifteen value
-statements, and thirty-one mutants of the family loops, of their instances and
-of the `reduce_to` and `matmul` loops. Its [README](../verification/families/README.md) lists each
-control and the rejection it expects.
+`sum_ordered`, `dot_ordered` and `matmul_ordered`, of failed folds, of
+`reduce_fold_fiber` and `reduce_to_fiber`, of `sum_to_size_clone` and
+`sum_to_size_fiber`, and of `broadcast_to_pointwise` and
+`broadcast_to_replayed`, one of them a `broadcast_to` output reduced by
+`reduce_to_fiber`. It also holds false twins of twenty-two value statements,
+and thirty-six mutants of the family loops, of their instances and of the
+`reduce_to`, `matmul`, `sum_to_size` and `broadcast_to` code. Its
+[README](../verification/families/README.md) lists each control and the
+rejection it expects.
 
 The proofs and controls check what the laws state, not the compiled code.
 `tools/tensor_families.py`, which the tensor gate runs, compiles

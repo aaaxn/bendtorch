@@ -6,6 +6,8 @@ import ../../../src/tensor/contracts/fold.bend as Fold
 import ../../../src/autograd/reduce-fold-LAWS.bend as Laws
 import ../../../src/autograd/reduce-fold-PROOF.bend as FoldProof
 import ../../../src/autograd/reduce-to-fold-PROOF.bend as ReduceToProof
+import ../../../src/autograd/sum-to-size-fold-LAWS.bend as SumLaws
+import ../../../src/autograd/sum-to-size-fold-PROOF.bend as SumProof
 import ./consumers.bend as Cases
 
 def expected_column() -> Maybe<&2, F32>:
@@ -31,6 +33,12 @@ def expected_word() -> Maybe<&2, F32>:
 
 def shifted_word() -> Maybe<&2, F32>:
   Some{6.0}
+
+def cloned_word() -> Maybe<&2, F32>:
+  Some{5.0}
+
+def folded_word() -> Maybe<&2, F32>:
+  Some{F32.add(0.0, 5.0)}
 
 def total(+plan: Shape.BroadcastPlan, +index: U32, +values: List<&2, F32>,
   -fits: {Lifecycle.logical_length(Replayed.storage(Shape.right_shape(plan), 0.0, Cases.writes(values))) ==
@@ -95,3 +103,27 @@ def reduce_to_witness() ->
     reduced_total(Cases.three_shape(), Cases.grid_shape(), Cases.three_grid(), Cases.grid_values(), {==},
       Laws.reduce_to_fiber(Cases.three_shape(), Cases.grid_shape(), Cases.three_grid(), {==}, {==}, 0.0, Cases.writes(Cases.grid_values()), {==}),
       1, {==}))
+
+def summed_point(+target: Shape.Shape, +shape: Shape.Shape, +values: List<&2, F32>, -expected: U32 -> Maybe<&2, F32>,
+  -fits: {Lifecycle.logical_length(Replayed.storage(shape, 0.0, Cases.writes(values))) == Shape.logical_numel(Shape.dimensions(shape)) : Nat},
+  evidence: Laws.ReduceToContract<target, shape, expected, other => Replayed.value(shape, 0.0, Cases.writes(values), other),
+    Cases.summed(target, shape, values, fits)>,
+  +cell: U32, inside: {Nat.is_lt(U32.to_nat(cell), Shape.logical_numel(Shape.dimensions(target))) == True{} : Bool}) ->
+  {Laws.output_point(Cases.summed(target, shape, values, fits), cell) == expected(cell) : Maybe<&2, F32>}:
+  Laws.ReduceToContract{successful, dimensions, value, kept} = evidence
+  value(cell, inside)
+
+def sum_to_size_witness() ->
+  {Laws.output_point(Cases.summed(Cases.grid_shape(), Cases.grid_shape(), Cases.grid_values(), {==}), 4) == cloned_word() : Maybe<&2, F32>}:
+  stated(Laws.output_point(Cases.summed(Cases.grid_shape(), Cases.grid_shape(), Cases.grid_values(), {==}), 4), Some{5.0},
+    summed_point(Cases.grid_shape(), Cases.grid_shape(), Cases.grid_values(), cell => Cases.kept_word(Cases.grid_shape(), Cases.grid_values(), cell),
+      {==}, SumLaws.sum_to_size_clone(Cases.grid_shape(), Cases.grid_shape(), {==}, 0.0, Cases.writes(Cases.grid_values()), {==}), 4, {==}))
+
+def sum_to_size_fiber_witness() ->
+  {Laws.output_point(Cases.summed(Cases.three_shape(), Cases.grid_shape(), Cases.grid_values(), {==}), 1) == expected_column() : Maybe<&2, F32>}:
+  stated(Laws.output_point(Cases.summed(Cases.three_shape(), Cases.grid_shape(), Cases.grid_values(), {==}), 1),
+    Some{F32.add(F32.add(0.0, 2.0), 5.0)},
+    summed_point(Cases.three_shape(), Cases.grid_shape(), Cases.grid_values(),
+      cell => Cases.reduce_to_total(Cases.three_grid(), Cases.grid_shape(), Cases.grid_values(), cell), {==},
+      SumLaws.sum_to_size_fiber(Cases.three_shape(), Cases.grid_shape(), Cases.three_grid(), {==}, {==}, Cases.grid_not_three(), 0.0,
+        Cases.writes(Cases.grid_values()), {==}), 1, {==}))

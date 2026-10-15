@@ -4,8 +4,10 @@ The family laws in `src/tensor/contracts/LAWS.bend` are proved in
 `src/tensor/contracts/PROOF.bend`, aggregated by `src/tensor/LAWS.bend`, and
 required by `verification/tensor.json`, so the root `PROOF.bend --verdict` and
 the tensor gate protect them. The `reduce_to` laws are stated in
-`src/autograd/reduce-fold-LAWS.bend` and required by
-`verification/autograd.json`. [Contract
+`src/autograd/reduce-fold-LAWS.bend`, the `sum_to_size` laws in
+`src/autograd/sum-to-size-fold-LAWS.bend` and the `broadcast_to` laws in
+`src/autograd/broadcast-pointwise-LAWS.bend`, and
+`verification/autograd.json` requires them. [Contract
 families](../../docs/contract-families.md) explains what they state. This
 directory holds literal consumers, false twins and implementation mutants,
 beside the runner that checks them.
@@ -177,7 +179,13 @@ declarations.
   itself. They reduce it to `[3]` and to `[2, 1]` and state the output
   dimensions, the values of cell 1 that `reduce_columns` and `reduce_rows`
   state, and one word of the returned contribution.
-- `controls.bend`: five value witnesses, each paired with one wrong value.
+
+  The last two take it through `sum_to_size`. `sum_to_size_same` uses
+  `sum_to_size_clone` with the target `[2, 3]` and states that cell 4 holds
+  `5.0` itself, where `reduce_same` states `F32.add(0.0, 5.0)` for the fold.
+  `sum_to_size_columns` uses `sum_to_size_fiber` with the target `[3]` and
+  states the cell 1 value of `reduce_to_columns`.
+- `controls.bend`: seven value witnesses, each paired with one wrong value.
   The kernel reports a mismatch against the type of the witness body, where
   the law's total is still an unevaluated fiber, so `stated` restates each
   total as the literal it evaluates to.
@@ -190,6 +198,8 @@ declarations.
 | False twin `same_witness` | `5.0` for `F32.add(0.0, 5.0)`, the word copied without the fold | the witness | the witness |
 | False twin `word_witness` | contribution word 4 read at word 5 | the witness | the witness |
 | False twin `reduce_to_witness` | every word of the grid in `reduce_to` cell 1, the landing ignored | the witness | the witness |
+| False twin `sum_to_size_witness` | `F32.add(0.0, 5.0)` for the cloned word `5.0`, the identity case folded | the witness | the witness |
+| False twin `sum_to_size_fiber_witness` | every word of the grid in `sum_to_size` cell 1, the landing ignored | the witness | the witness |
 | Lands on source | `lands` compares the contribution offset with the cell | `fiber_total` | `fiber_total` |
 | Inverted mask | `lands` keeps the words that do not land on the cell | `fiber_total` | `fiber_total` |
 | Reads target offset | `source` reads the word at the target offset | `fiber_total` | `fiber_total` |
@@ -197,10 +207,12 @@ declarations.
 | `reduce_to` lands on source | `step_indices` adds each word into the cell at its contribution offset | `step_lift` | `step_lift` |
 | `reduce_to` reversed order | `step` visits positions from the last to the first | `step_lift` | `step_lift` |
 | `reduce_to` swapped add | `step_output` writes `F32.add(value, accumulated)` | `step_lift` | `step_lift` |
+| `sum_to_size` identity folds | `decided` runs `reduce_to` when the dimensions are equal | `sum_to_size_clone` | `sum_to_size_clone` |
+| `sum_to_size` reduced clones | `decided` clones when the dimensions differ | `sum_to_size_fiber` | `sum_to_size_fiber` |
 
 The first four mutants change `src/autograd/reduce-fold.bend`, and the proofs
-in `src/autograd/reduce-fold-PROOF.bend` reject them. The last three change
-the `reduce_to` loop in `src/autograd/reduce.bend`. The erased proofs in
+in `src/autograd/reduce-fold-PROOF.bend` reject them. The three `reduce_to`
+mutants change the `reduce_to` loop in `src/autograd/reduce.bend`. The erased proofs in
 `src/autograd/reduce-PROOF.bend` reject them too, and each checker reports
 the first failure it meets. So the source check runs
 `src/autograd/reduce-to-fold-PROOF.bend`, the live proof of `reduce_to_fiber`,
@@ -210,9 +222,59 @@ instead of `src/autograd/PROOF.bend`. The kernel artifact still holds
 autograd proofs. `controls.bend` imports the two family proofs before
 `consumers.bend`, which imports `reduce-PROOF.bend`, so BendTT meets
 `step_lift` first. Both checkers then reject these mutants in `step_lift`.
+The two `sum_to_size` mutants change `src/autograd/sum-to-size.bend`. The
+erased `sum-to-size-PROOF.bend` would reject them too, so the source check runs
+`src/autograd/sum-to-size-fold-PROOF.bend`, and the kernel artifact holds no
+erased `sum_to_size` proof. Each mutant breaks one case and leaves the other
+case's law true, and both checkers reject it in the law of the case it breaks.
 `reduce/entry.bend` imports
-`broadcast.bend` and `sum.bend` before `reduce-fold.bend` and `reduce.bend`,
-for the same export names as `fold/entry.bend`.
+`broadcast.bend` and `sum.bend` before `reduce-fold.bend`, `reduce.bend` and
+`sum-to-size.bend`, for the same export names as `fold/entry.bend`.
+
+## Broadcast to
+
+`broadcast_to/` holds:
+
+- `consumers.bend`: six consumers of `broadcast_to_pointwise` and
+  `broadcast_to_replayed`. Each takes its input as the replayed tensor that
+  `Core.from_values` writes and its plan from `Shape.broadcast_checked`:
+  - `[3] = [1, 2, 3]` to `[2, 3]`: index 4, row 1 and column 1, holds input
+    word 1.
+  - `[2, 1] = [1, 2]` to `[2, 3]`: index 4, row 1, holds input word 1.
+  - A scalar `7` to `[2, 2]` at index 3.
+  - `[1] = [-0.0]` to `[2]` at index 1: the word is `F32.neg(0.0)` itself,
+    not `F32.add(F32.neg(0.0), 0.0)`, because `KeepLeft` copies it.
+  - The empty `[1, 3]` to `[0, 3]`, which states success and dimensions only.
+
+  Each value consumer also states one word of the returned input. The last,
+  `broadcast_then_reduce`, chains two laws: `broadcast_to_replayed` makes the
+  output of `[7]` to `[2]` a replayed tensor, `reduce_to_fiber` reduces it
+  back to `[1]`, and the cell is `F32.add(F32.add(0.0, 7.0), 7.0)`. BendTT
+  evaluates the broadcast history while it checks this consumer, and on a
+  `[2, 3]` grid it runs out of fuel, so the chain uses `[2]`.
+- `controls.bend`: five value witnesses, each paired with one wrong value.
+- `mutants.toml`: the before and after text of each mutation.
+
+| Control | Change | Source rejection | BendTT rejection |
+| --- | --- | --- | --- |
+| False twin `columns_witness` | `1.0` at index 4 of `[2, 1]` to `[2, 3]`, row 0 read | the witness | the witness |
+| False twin `rows_witness` | `2.0` at index 5 of `[3]` to `[2, 3]`, the row read as the column | the witness | the witness |
+| False twin `keep_witness` | `F32.add(7.0, 0.0)` for `7.0`, an add against the zero tensor | the witness | the witness |
+| False twin `kept_witness` | `0.0` for input word 2, the zero tensor returned as the owner | the witness | the witness |
+| False twin `chain_witness` | `F32.add(0.0, 7.0)`, one copy reduced | the witness | the witness |
+| Adds zero | `zeroed` runs `Add` instead of `KeepLeft` | `run_lift` | `run_lift` |
+| Swapped operands | `zeroed` passes the zero tensor on the left | `run_lift` | `run_lift` |
+| Returns zero owner | `finish` returns the zero tensor as the owner | `broadcast_to_pointwise` | `broadcast_to_pointwise` |
+
+The mutants change `src/autograd/broadcast.bend`. The erased
+`broadcast-PROOF.bend` would reject them too, so the source check runs
+`src/autograd/broadcast-pointwise-PROOF.bend`, the live proof, and the kernel
+artifact holds no erased `broadcast_to` proof. `run_lift` follows
+`broadcast_to` through the planner, the target check and both allocations into
+the loop, so a changed operation or operand order fails it. Another owner
+passes the walk and fails the `kept` field of the contract.
+`broadcast_to/entry.bend` imports only `broadcast.bend`, which declares no
+template constant.
 
 ## Run
 
@@ -221,7 +283,8 @@ uv run --locked python -m verification.families.run --output <fresh directory> -
 uv run --locked python -m unittest verification/families/test_run.py -v
 ```
 
-The runner snapshots `src/`, `pointwise/`, `fold/` and `reduce/`. For each family it
+The runner snapshots `src/`, `pointwise/`, `fold/`, `reduce/` and
+`broadcast_to/`. For each family it
 builds the false twins and the mutant copies, and runs the source checks,
 `--verdict` on the consumers and the controls, the exports, and BendTT on the
 positive and mutated exports. Each family writes its outputs to its own

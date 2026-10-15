@@ -165,6 +165,9 @@ class GateRegistrationTests(unittest.TestCase):
             "required_exports"
         ]
         self.assertEqual(sum("broadcast_2d_LAWS" in name for name in required), 6)
+        self.assertEqual(
+            sum("broadcast_2d_pointwise_2d_LAWS" in name for name in required), 2
+        )
         for path, original, _ in PROOF_CONTROLS.values():
             self.assertEqual((ROOT / path).read_text().count(original), 1)
 

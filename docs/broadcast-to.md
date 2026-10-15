@@ -69,10 +69,40 @@ output satisfies it vacuously. The two error laws fix the result of every
 request the planner or the target check rejects, so together with
 `broadcast_valid_success` every request has a specified outcome.
 
+### Live laws
+
+The six laws above use erased evidence, so a later proof cannot take their
+values as inputs. `src/autograd/broadcast-pointwise-LAWS.bend` states two live
+laws for a [replayed](contract-families.md#replayed-tensors-are-the-input-class)
+input, given the plan with `Shape.broadcast_checked(shape, target) == Done{plan}`
+and `Shape.dimensions(Shape.output_shape(plan)) == Shape.dimensions(target)`,
+the case where `broadcast_to` succeeds:
+
+- `broadcast_to_pointwise`: the call succeeds, the output has the target's
+  dimensions, every in-bounds output index `i` holds the input word at
+  `left_map(plan, i)`, its right-aligned broadcast projection, and the
+  returned input keeps every word. The fields of its `BroadcastToContract`
+  are live.
+- `broadcast_to_replayed`: the result is itself replayed. The returned input
+  is the input with the history `ops ++ reads`, and the output is the replayed
+  tensor over `+0.0` whose history `writes` is the pointwise family's history
+  of `KeepLeft` against the zero tensor. A law about a replayed tensor, such as
+  `reduce_to_fiber`, then applies to the output.
+
+`broadcast-pointwise-PROOF.bend` proves both by walking the sequential
+elementwise loop that `broadcast_to` runs, `Elementwise.allocated`, with live
+code and without changing it. Step `k` reads the input at `left_map(plan, k)`
+and the zero tensor at `right_map(plan, k)` and writes `scalar(KeepLeft, x, y)`
+at `k`, which is the pointwise family's step with the broadcast maps. So the
+output history is the family history `Pointwise.writes`, and each cell is
+`scalar(KeepLeft, input word, 0.0)`, the input word itself. The six laws above
+and `broadcast.bend` are unchanged.
+
 The autograd gate also checks three proof controls. Each one changes the source
 in the gate's copy, and the proofs must then fail: `KeepLeft` returning
 `right`, `finish` returning the zero tensor as the owner, and skipping the
-target check.
+target check. The live laws have their own consumers, false twins and mutants
+in [`verification/families/broadcast_to/`](../verification/families/README.md#broadcast-to).
 
 ## Runtime lanes
 
