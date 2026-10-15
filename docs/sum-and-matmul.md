@@ -11,10 +11,20 @@ output cells as a balanced tree with `Matrix.build`. Cell `p` sits at row
 inner - 1` from `+0.0`, the terms and order of `natural_dot`, so no output word
 depends on the split. The top `Matrix.splits(depth, inner)` levels of the tree
 fork, each half with its own clone of both inputs; a subtree below the forks
-is built in index order on one thread. The build splits by work: it forks
-`depth + log2(inner) - 13` levels, at most six and at most `depth`, so a
-subtree holds about `2^13` terms. An output of `[64, 784] @ [784, 128]` forks
-six levels although it has only 8192 cells.
+is built in index order on one thread. The build splits by work: an output
+stored at depth `depth` (at most `2^depth` cells) forks
+
+    min(max(depth + floor_log2(inner) - 13, 0), 6, depth)
+
+levels, with `floor_log2(0) = 0` (`Matrix.splits`; `Nat.sub` gives the
+`max(..., 0)`). While no bound binds, a subtree spans
+`2^(13 - floor_log2(inner))` cells, between `2^13` and `2^14` terms when all of
+them lie inside the output. A product of fewer than `2^13` terms does not
+fork; the six-level cap leaves bigger subtrees, and the `depth` cap leaves one
+cell per subtree.
+An output of `[64, 784] @ [784, 128]` forks six levels although it has only
+8192 cells; the cap binds there, and each of its 64 subtrees holds 128 cells
+of 784 terms, about `2^16.6` terms.
 
 `Matrix.multiply`, `natural_product_loop` and `natural_dot` stay as the
 sequential definition: their laws below still state them. The public laws
@@ -29,7 +39,10 @@ observations of the inputs that `take` copies. The replayed laws
 `contracts/matmul-parallel-proof.bend` (see
 [contract families](contract-families.md)). The tensor gate's parallel probe
 (`probes/parallel_builds.bend`) runs products that fork next to
-`Matrix.multiply` at 1, 8 and 24 threads and requires the same words.
+`Matrix.multiply` at 1, 8 and 24 threads and requires the same words. The
+inputs of `matmul-64x48x64-rounding`, which forks four levels, round in F32:
+adding its cells' terms in decreasing `k` changes 3245 of its 4096 words,
+where the other products, of multiples of `1/64`, add exactly in any order.
 
 ## Public math completeness supplement
 
