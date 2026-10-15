@@ -21,6 +21,7 @@ import ./fold-records.bend as Records
 import ./dot.bend as Dot
 import ./dot-proof.bend as DotProof
 import ./LAWS.bend as Laws
+import ./words-proof.bend as Words
 
 type MatrixFacts<-left: Shape.Shape, -right: Shape.Shape, -output: Shape.Shape, -rows: U32, -inner: U32, -right_inner: U32, -columns: U32> is Data:
   MatrixFacts{left_dimensions: {Shape.dimensions(left) == [rows, inner] : List<&2, U32>},
@@ -971,3 +972,81 @@ def matmul_ordered(+left: Shape.Shape, +right: Shape.Shape, +plan: Matrix.Plan<l
     case Matrix.Plan{+output, +rows, +inner, +right_inner, +columns, le, re, oe, compatible}:
       ordered(left, right, output, rows, inner, right_inner, columns, le, re, oe, compatible, planned,
         left_fill, left_ops, left_fits, right_fill, right_ops, right_fits)
+
+# The histories the product loop leaves on its inputs list the same words.
+def left_history_words(+inner: U32, +columns: U32, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
+  +reads: Nat, +count: Nat) ->
+  {Laws.words(left, left_fill, left_history(inner, columns, left_ops, reads), count) == Laws.words(left, left_fill, left_ops, count) : List<&2, F32>}:
+  match count:
+    case 0n:
+      {==}
+    case 1n+previous:
+      +position = U32.from_nat(previous)
+      +seen = left_history(inner, columns, left_ops, reads)
+      Words.words_snoc(left, left_fill, seen, previous, Replayed.value(left, left_fill, seen, position),
+        Replayed.value(left, left_fill, left_ops, position), Laws.words(left, left_fill, left_ops, previous),
+        left_history_words(inner, columns, left, left_fill, left_ops, reads, previous),
+        left_history_value(inner, columns, left, left_fill, left_ops, reads, position))
+
+def right_history_words(+inner: U32, +columns: U32, +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>,
+  +reads: Nat, +count: Nat) ->
+  {Laws.words(right, right_fill, right_history(inner, columns, right_ops, reads), count) == Laws.words(right, right_fill, right_ops, count) : List<&2, F32>}:
+  match count:
+    case 0n:
+      {==}
+    case 1n+previous:
+      +position = U32.from_nat(previous)
+      +seen = right_history(inner, columns, right_ops, reads)
+      Words.words_snoc(right, right_fill, seen, previous, Replayed.value(right, right_fill, seen, position),
+        Replayed.value(right, right_fill, right_ops, position), Laws.words(right, right_fill, right_ops, previous),
+        right_history_words(inner, columns, right, right_fill, right_ops, reads, previous),
+        right_history_value(inner, columns, right, right_fill, right_ops, reads, position))
+
+def replayed(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape, +rows: U32, +inner: U32, +right_inner: U32, +columns: U32,
+  -le: {Shape.dimensions(left) == [rows, inner] : List<&2, U32>},
+  -re: {Shape.dimensions(right) == [right_inner, columns] : List<&2, U32>},
+  -oe: {Shape.dimensions(output) == [rows, columns] : List<&2, U32>},
+  -compatible: {U32.to_nat(inner) == U32.to_nat(right_inner) : Nat},
+  +planned: {Matrix.plan(left, right) == Done{Matrix.Plan{output, rows, inner, right_inner, columns, le, re, oe, compatible}} :
+    Result<&2, &2, Matrix.Error, Matrix.Plan<left, right>>},
+  +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
+  -left_fits: {Lifecycle.logical_length(Replayed.storage(left, left_fill, left_ops)) == Shape.logical_numel(Shape.dimensions(left)) : Nat},
+  +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>,
+  -right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_ops)) == Shape.logical_numel(Shape.dimensions(right)) : Nat},
+  -P: Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic> -> Type,
+  h: Laws.MatmulWith(left, right, Matrix.Plan{output, rows, inner, right_inner, columns, le, re, oe, compatible},
+    left_fill, left_ops, right_fill, right_ops, P)) ->
+  P(Matrix.matmul(Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
+    Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}})):
+  +plan : Matrix.Plan<left, right> = Matrix.Plan{output, rows, inner, right_inner, columns, le, re, oe, compatible}
+  +facts : MatrixFacts<left, right, output, rows, inner, right_inner, columns> = plan_facts(left, right, plan, planned)
+  +oe_live = output_dimensions(left, right, output, rows, inner, right_inner, columns, facts)
+  +count = Shape.elements(output)
+  matmul_lift(left, left_fill, left_ops, left_fits, right, right_fill, right_ops, right_fits, plan, planned, P,
+    multiply_lift(left, left_fill, left_ops, left_fits, right, right_fill, right_ops, right_fits, output, rows, inner, right_inner, columns, facts,
+      result => P(Matrix.packed(left, right, output, result)),
+      a => b => o =>
+        h(left_history(inner, columns, left_ops, count),
+          left_history_words(inner, columns, left, left_fill, left_ops, count, Shape.logical_numel(Shape.dimensions(left))), a,
+          right_history(inner, columns, right_ops, count),
+          right_history_words(inner, columns, right, right_fill, right_ops, count, Shape.logical_numel(Shape.dimensions(right))), b,
+          products(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, count),
+          row => row_below => column => column_below =>
+            cell_value(left, left_fill, left_ops, right, right_fill, right_ops, output, rows, inner, columns, oe_live,
+              row, row_below, column, column_below),
+          o)))
+
+def matmul_replayed(+left: Shape.Shape, +right: Shape.Shape, +plan: Matrix.Plan<left, right>,
+  planned: {Matrix.plan(left, right) == Done{plan} : Result<&2, &2, Matrix.Error, Matrix.Plan<left, right>>},
+  +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
+  -left_fits: {Lifecycle.logical_length(Replayed.storage(left, left_fill, left_ops)) == Shape.logical_numel(Shape.dimensions(left)) : Nat},
+  +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>,
+  -right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_ops)) == Shape.logical_numel(Shape.dimensions(right)) : Nat},
+  -P: Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic> -> Type,
+  h: Laws.MatmulWith(left, right, plan, left_fill, left_ops, right_fill, right_ops, P)) ->
+  P(Matrix.matmul(Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
+    Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}})):
+  match plan:
+    case Matrix.Plan{+output, +rows, +inner, +right_inner, +columns, le, re, oe, compatible}:
+      replayed(left, right, output, rows, inner, right_inner, columns, le, re, oe, compatible, planned,
+        left_fill, left_ops, left_fits, right_fill, right_ops, right_fits, P, h)

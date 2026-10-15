@@ -20,6 +20,8 @@ import ./index-map.bend as IndexMap
 import ./observation.bend as Values
 import ./transform-observation.bend as Observation
 import ./permute-values-records.bend as Records
+import ./contracts/words-proof.bend as Words
+import ./contracts/LAWS.bend as Contracts
 
 # The permute copy as an index-map instance: output index i reads the input
 # at `Values.permute_source(input, axes, i)`, the row-major index of the
@@ -521,3 +523,75 @@ def transpose_contract(+input: Shape.Shape, +values: List<&2, F32>,
         fits => transpose_lift(input, values, a, b, inside, fits, pair => {Observation.kept_value_pair(input, other, pair) ==
             List.get(&2, F32, values, U32.to_nat(other)) : Maybe<&2, F32>},
           permuted_kept(input, values, counted, axes, valid, other, below, fits)))}
+
+# The words the copy loop writes, in index order, are `permuted_words`.
+def words_moved(+input: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>,
+  +count: Nat, +room: {Nat.is_le(count, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan)))) == True{} : Bool}) ->
+  {Contracts.words(Layout.output(input, axes, plan), 0.0,
+    IndexMap.writes(~Request, ~source_of, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))), Request{input, axes}, input, fill, ops),
+    count) == Records.permuted_words(input, fill, ops, axes, count) : List<&2, F32>}:
+  match count:
+    case 0n:
+      {==}
+    case 1n+previous:
+      +output = Layout.output(input, axes, plan)
+      +total = Shape.logical_numel(Shape.dimensions(output))
+      +request : Request = Request{input, axes}
+      +history = IndexMap.writes(~Request, ~source_of, total, request, input, fill, ops)
+      +below = Conversion.le_successor_lt(previous, total, room)
+      +position = U32.from_nat(previous)
+      Words.snoc_equal(Contracts.words(output, 0.0, history, previous), Records.permuted_words(input, fill, ops, axes, previous),
+        Replayed.value(output, 0.0, history, position),
+        Replayed.value(input, fill, ops, U32.from_nat(Values.permute_source_index(input, axes, previous))),
+        words_moved(input, fill, ops, axes, plan, previous, Conversion.le_predecessor(previous, total, room)),
+        Equal.trans(F32, Replayed.value(output, 0.0, history, position),
+          Replayed.value(input, fill, ops, U32.from_nat(Values.permute_source_index(input, axes, U32.to_nat(position)))),
+          Replayed.value(input, fill, ops, U32.from_nat(Values.permute_source_index(input, axes, previous))),
+          PointwiseProof.writes_value(~Unit, ~IndexMap.keep, ~Request, ~source_of, ~source_of, total, Unit{}, request, input, fill, ops,
+            input, fill, ops, output, position, PointwiseProof.word_inside(previous, output, below), Conversion.le_reflexive(total)),
+          Equal.cong(Nat, F32, number => Replayed.value(input, fill, ops, U32.from_nat(Values.permute_source_index(input, axes, number))),
+            U32.to_nat(position), previous, PointwiseProof.word_exact(previous, output, below))))
+
+# The copy loop on any replayed source, in transport form: once
+# `Layout.permutation` gives the plan, P holds for the permute if it holds for
+# every result of the form the loop's final state has.
+def replayed_final(+input: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>,
+  -P: Core.Dynamic & Result<&2, &1, Transforms.Error, Core.Dynamic> -> Type,
+  h: Records.PermutedWith(input, fill, ops, axes, plan, P)) ->
+  Final(input, axes, plan, fill, ops, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))),
+    pair => P(Transforms.dynamic_result(input, Transforms.copy_pack(input, axes, plan, pair)))):
+  +output = Layout.output(input, axes, plan)
+  +total = Shape.logical_numel(Shape.dimensions(output))
+  +request : Request = Request{input, axes}
+  source_fits => target_fits =>
+    h(List.append(&2, StorageLaws.Op, ops, Pointwise.reads(~Request, ~source_of, request, total)),
+      Words.words_reads(~Request, ~source_of, request, total, input, fill, ops, Shape.logical_numel(Shape.dimensions(input))),
+      source_fits,
+      IndexMap.writes(~Request, ~source_of, total, request, input, fill, ops),
+      words_moved(input, fill, ops, axes, plan, total, Conversion.le_reflexive(total)),
+      target_fits)
+
+def permute_replayed(+input: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>,
+  -fits: {Lifecycle.logical_length(Replayed.storage(input, fill, ops)) == Shape.logical_numel(Shape.dimensions(input)) : Nat},
+  +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>,
+  laid: {Layout.permutation(input, axes) == Done{plan} : Result<&2, &2, Layout.Error, Layout.Plan<input, axes>>},
+  -P: Core.Dynamic & Result<&2, &1, Transforms.Error, Core.Dynamic> -> Type,
+  h: Records.PermutedWith(input, fill, ops, axes, plan, P)) ->
+  P(Transforms.dynamic_result(input, Transforms.permute_copy(input, Core.TTensor{Replayed.storage(input, fill, ops), fits}, axes))):
+  %Equal.sym(Result<&2, &2, Layout.Error, Layout.Plan<input, axes>>, Layout.permutation(input, axes), Done{plan}, laid) :
+    P(Transforms.dynamic_result(input, Transforms.copy_planned(input, axes, Core.TTensor{Replayed.storage(input, fill, ops), fits}, _)))
+  run_lift(input, axes, plan, fill, ops, pair => P(Transforms.dynamic_result(input, pair)),
+    replayed_final(input, fill, ops, axes, plan, P, h), fits)
+
+def transpose_replayed(+input: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>,
+  -fits: {Lifecycle.logical_length(Replayed.storage(input, fill, ops)) == Shape.logical_numel(Shape.dimensions(input)) : Nat},
+  +a: U32, +b: U32, inside: {True{} == Transpose.valid(input, a, b) : Bool},
+  +plan: Layout.Plan<input, Transpose.swapped_axes(input, a, b)>,
+  laid: {Layout.permutation(input, Transpose.swapped_axes(input, a, b)) == Done{plan} :
+    Result<&2, &2, Layout.Error, Layout.Plan<input, Transpose.swapped_axes(input, a, b)>>},
+  -P: Core.Dynamic & Result<&2, &1, Transforms.Error, Core.Dynamic> -> Type,
+  h: Records.PermutedWith(input, fill, ops, Transpose.swapped_axes(input, a, b), plan, P)) ->
+  P(Transforms.dynamic_result(input, Transforms.transpose_copy(input, Core.TTensor{Replayed.storage(input, fill, ops), fits}, a, b))):
+  +inside = inside
+  transpose_cast(input, a, b, inside, Core.TTensor{Replayed.storage(input, fill, ops), fits}, pair => P(Transforms.dynamic_result(input, pair)),
+    permute_replayed(input, fill, ops, fits, requested(input, a, b), plan, laid, P, h))
