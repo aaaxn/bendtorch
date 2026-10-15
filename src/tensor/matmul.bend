@@ -222,25 +222,6 @@ def multiply(+left: Shape.Shape, +right: Shape.Shape, +plan: Plan<left, right>,
     case Plan{+output, rows, +inner, right_inner, +columns, le, re, oe, compatible}:
       created(left, right, output, inner, columns, a, b, Core.new(output, 0.0))
 
-def packed(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape,
-  result: Result<&2, &1, Error, Core.Tensor<left> & Core.Tensor<right> & Core.Tensor<output>>) ->
-  Result<&2, &1, Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>:
-  match result:
-    case Fail{error}:
-      Fail{error}
-    case Done{values}:
-      (a, b, out) = values
-      Done{(Core.pack(left, a), Core.pack(right, b), Core.pack(output, out))}
-
-def planned(+left: Shape.Shape, +right: Shape.Shape, a: Core.Tensor<left>, b: Core.Tensor<right>,
-  result: Result<&2, &2, Error, Plan<left, right>>) ->
-  Result<&2, &1, Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>:
-  match result:
-    case Fail{error}:
-      Fail{error}
-    case Done{+plan}:
-      packed(left, right, output_shape(left, right, plan), multiply(left, right, plan, a, b))
-
 # The parallel product. Output cell `position` of a rows x columns product
 # folds row `position / columns` of the left array with column
 # `position % columns` of the right array: it adds left[row, k] * right[k,
@@ -286,6 +267,10 @@ def cell_dot(fuel: Nat, +inner: Nat, +columns: Nat, +row: Nat, +column: Nat, +cu
       term_left(value => l => r => cell_dot(rest, inner, columns, row, column, 1n+cursor, value, l, r),
         accumulator, ra, right_index(columns, column, cursor), Array.get(F32, la, left_index(inner, row, cursor)))
 
+# Cell `position`: all `inner` terms, from +0.0.
+def dot_of(+inner: Nat, +columns: Nat, +position: Nat, la: Array<F32>, ra: Array<F32>) -> F32 & (Array<F32> & Array<F32>):
+  cell_dot(inner, inner, columns, row_of(columns, position), column_of(columns, position), 0n, 0.0, la, ra)
+
 def cell_leaf(pair: F32 & (Array<F32> & Array<F32>)) -> Array<F32> & (Array<F32> & Array<F32>):
   (value, inputs) = pair
   (ALeaf{value}, inputs)
@@ -297,7 +282,7 @@ def cell(+inner: Nat, +columns: Nat, +position: Nat, la: Array<F32>, ra: Array<F
     case False{}:
       (ALeaf{0.0}, (la, ra))
     case True{}:
-      cell_leaf(cell_dot(inner, inner, columns, row_of(columns, position), column_of(columns, position), 0n, 0.0, la, ra))
+      cell_leaf(dot_of(inner, columns, position, la, ra))
 
 # The cells `base .. base + 2^depth` as a balanced tree, built in index order
 # on one thread.
@@ -348,11 +333,13 @@ def at_most(+a: Nat, +b: Nat) -> Nat:
   least(a, b, Nat.is_lt(a, b))
 
 # Split by work, not by cell count: a cell costs one term per inner index.
-# The build forks until a subtree holds about 2^17 terms, and at most six
-# levels: 64 subtrees, each with its own copy of both inputs. An output of
-# 2^depth cells of `inner` terms forks depth + log2(inner) - 17 levels.
+# The build forks until a subtree holds about 2^13 terms, and at most six
+# levels, 64 subtrees, each with its own copy of both inputs: an output of
+# 2^depth cells of `inner` terms forks depth + log2(inner) - 13 levels. On
+# medusa2 at 8 threads a product of 2^15 terms or more ran faster with every
+# extra level up to six, and forking cost nothing measurable on one thread.
 def splits(+depth: Nat, +inner: Nat) -> Nat:
-  at_most(at_most(Nat.sub(Nat.add(depth, halvings(inner, inner)), 17n), 6n), depth)
+  at_most(at_most(Nat.sub(Nat.add(depth, halvings(inner, inner)), 13n), 6n), depth)
 
 # A run of the build next to its proof of balance, as `Elementwise.Certified`.
 def cell_leaf_certified(pair: F32 & (Array<F32> & Array<F32>)) -> Elementwise.Certified<0n, cell_leaf(pair)>:
@@ -365,7 +352,7 @@ def cell_certified(+inner: Nat, +columns: Nat, +position: Nat, la: Array<F32>, r
     case False{}:
       Elementwise.Certified{cell(inner, columns, position, la, ra, False{}), {==}, Unit{}}
     case True{}:
-      cell_leaf_certified(cell_dot(inner, inner, columns, row_of(columns, position), column_of(columns, position), 0n, 0.0, la, ra))
+      cell_leaf_certified(dot_of(inner, columns, position, la, ra))
 
 def node_joined(+lower: Nat, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat, -la: Array<F32>, -ra: Array<F32>, a: Array<F32>,
   -l: Array<F32>, -r: Array<F32>,
@@ -474,12 +461,10 @@ def parallel_planned(+left: Shape.Shape, +right: Shape.Shape, a: Core.Tensor<lef
     case Done{+plan}:
       parallel_multiply(left, right, plan, a, b)
 
-def parallel_matmul(left: Core.Dynamic, right: Core.Dynamic) -> Result<&2, &1, Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>:
-  Core.Packed{+left_shape, a} = left
-  Core.Packed{+right_shape, b} = right
-  parallel_planned(left_shape, right_shape, a, b, plan(left_shape, right_shape))
-
+# `matmul` builds its output in parallel. `multiply`, `natural_product_loop`
+# and `natural_dot` above are the sequential definition of the same cells,
+# which their own laws state.
 def matmul(left: Core.Dynamic, right: Core.Dynamic) -> Result<&2, &1, Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>:
   Core.Packed{+left_shape, a} = left
   Core.Packed{+right_shape, b} = right
-  planned(left_shape, right_shape, a, b, plan(left_shape, right_shape))
+  parallel_planned(left_shape, right_shape, a, b, plan(left_shape, right_shape))

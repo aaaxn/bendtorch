@@ -210,7 +210,7 @@ def cell_facts(+dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, 
         {==}))}
     case True{}:
       cell_leaf_facts(dl, dr, A, B, inner, columns, count, base,
-        Matrix.cell_dot(inner, inner, columns, Matrix.row_of(columns, base), Matrix.column_of(columns, base), 0n, 0.0, la, ra), decided,
+        Matrix.dot_of(inner, columns, base, la, ra), decided,
         dot_run(inner, dl, dr, A, B, inner, columns, Matrix.row_of(columns, base), Matrix.column_of(columns, base), 0n, 0.0, la, ra, el, er,
           left_valid, right_valid))
 

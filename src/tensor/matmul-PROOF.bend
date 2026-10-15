@@ -593,39 +593,6 @@ def Laws.successful_multiply_interpretation(left, right, plan, a, b):
     case Matrix.Plan{+output, rows, +inner, right_inner, +columns, le, re, oe, compatible}:
       created_product(left, right, output, inner, columns, a, b, Core.new(output, 0.0))
 
-def packed_source_product(+left: Shape.Shape, +right: Shape.Shape, +plan: Matrix.Plan<left, right>, -a: Core.Tensor<left>, -b: Core.Tensor<right>,
-  result: Result<&2, &1, Matrix.Error, Core.Tensor<left> & Core.Tensor<right> & Core.Tensor<Matrix.output_shape(left, right, plan)>>,
-  -source: Laws.SourceProduct<Laws.plan_inner(left, right, plan), left, right, a, b, Matrix.output_shape(left, right, plan),
-    Shape.logical_numel(Shape.dimensions(Matrix.output_shape(left, right, plan))), result>) ->
-  Laws.SourceMatmul<Core.Packed{left, a}, Core.Packed{right, b}, Matrix.packed(left, right, Matrix.output_shape(left, right, plan), result)>:
-  match result:
-    case Fail{error}:
-      Laws.SourceMatmul{unit => Unit{}}
-    case Done{pair}:
-      (ra, rb, out) = pair
-      Laws.SourceMatmul{unit =>
-        claim : @source: Laws.SourceProduct<Laws.plan_inner(left, right, plan), left, right, a, b, Matrix.output_shape(left, right, plan),
-          Shape.logical_numel(Shape.dimensions(Matrix.output_shape(left, right, plan))),
-          (Done{(ra, rb, out)} : Result<&2, &1, Matrix.Error, Core.Tensor<left> & Core.Tensor<right> & Core.Tensor<Matrix.output_shape(left, right, plan)>>)> ->
-          Laws.ProductPrefix<Laws.plan_inner(left, right, plan), left, right, a, b, Matrix.output_shape(left, right, plan), ra, rb, out,
-            Shape.logical_numel(Shape.dimensions(Matrix.output_shape(left, right, plan)))> = \{Laws.SourceProduct: meaning => meaning(Unit{})}
-        Laws.MatmulSuccess{left, right, plan, a, b, ra, rb, out, {==}, {==}, {==}, {==}, {==}, claim(source)}}
-
-def matmul_planned(+left: Shape.Shape, +right: Shape.Shape, a: Core.Tensor<left>, b: Core.Tensor<right>,
-  result: Result<&2, &2, Matrix.Error, Matrix.Plan<left, right>>) ->
-  Laws.SourceMatmul<Core.Packed{left, a}, Core.Packed{right, b}, Matrix.planned(left, right, a, b, result)>:
-  match result:
-    case Fail{error}:
-      Laws.SourceMatmul{unit => Unit{}}
-    case Done{+plan}:
-      packed_source_product(left, right, plan, a, b, Matrix.multiply(left, right, plan, a, b),
-        Laws.successful_multiply_interpretation(left, right, plan, a, b))
-
-def Laws.successful_matmul_interpretation(left, right):
-  Core.Packed{+left_shape, a} = left
-  Core.Packed{+right_shape, b} = right
-  matmul_planned(left_shape, right_shape, a, b, Matrix.plan(left_shape, right_shape))
-
 def zero_fold(+left: Shape.Shape, +right: Shape.Shape, -a: Core.Tensor<left>, -b: Core.Tensor<right>, +row: U32, +column: U32,
   values: List<&2, DotFold.Factors>, logical: Laws.LogicalDot(0n, left, right, a, b, row, column, 0n, values)) -> {DotFold.dot_fold(values, 0.0) == 0.0 : F32}:
   match values:
@@ -1165,34 +1132,6 @@ def plan_left_status(dimensions: List<&2, U32>, +left: Shape.Shape, +right: Shap
 def plan_status(+left: Shape.Shape, +right: Shape.Shape, -valid: Totality.MatrixInputs<left, right>) -> PlanStatus<left, right, Matrix.plan(left, right)>:
   plan_left_status(Shape.dimensions(left), left, right, {==}, valid)
 
-def packed_status(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape,
-  result: Result<&2, &1, Matrix.Error, Core.Tensor<left> & Core.Tensor<right> & Core.Tensor<output>>,
-  -status: Totality.Status<Matrix.Error, Core.Tensor<left> & Core.Tensor<right> & Core.Tensor<output>, result>) ->
-  Totality.Status<Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic, Matrix.packed(left, right, output, result)>:
-  match result:
-    case Fail{error}:
-      Totality.Status{{\{Totality.Status: successful => Empty.absurd({False{} == True{} : Bool}, Arith.clash(successful))} :
-        Totality.Status<Matrix.Error, Core.Tensor<left> & Core.Tensor<right> & Core.Tensor<output>, Fail{error}> -> {False{} == True{} : Bool}}(status)}
-    case Done{pair}:
-      (a, b, out) = pair
-      Totality.Status{{==}}
-
-def planned_status(+left: Shape.Shape, +right: Shape.Shape, result: Result<&2, &2, Matrix.Error, Matrix.Plan<left, right>>,
-  a: Core.Tensor<left>, b: Core.Tensor<right>, -status: PlanStatus<left, right, result>) ->
-  Totality.Status<Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic, Matrix.planned(left, right, a, b, result)>:
-  match result:
-    case Fail{error}:
-      Totality.Status{{\{PlanStatus: successful => Empty.absurd({False{} == True{} : Bool}, Arith.clash(successful))} :
-        PlanStatus<left, right, Fail{error}> -> {False{} == True{} : Bool}}(status)}
-    case Done{+plan}:
-      packed_status(left, right, Matrix.output_shape(left, right, plan), Matrix.multiply(left, right, plan, a, b), multiply_status(left, right, plan, a, b))
-
-def Laws.matmul_valid_success(left, right, a, b, valid):
-  Laws.TotalMatmul{
-    MathProof.success(Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic, Matrix.matmul(Core.Packed{left, a}, Core.Packed{right, b}),
-      planned_status(left, right, Matrix.plan(left, right), a, b, plan_status(left, right, valid))),
-    Laws.successful_matmul_interpretation(Core.Packed{left, a}, Core.Packed{right, b})}
-
 def plan_left_rank(+left: Shape.Shape, +right: Shape.Shape, +dims: List<&2, U32>,
   -same: {dims == Shape.dimensions(left) : List<&2, U32>},
   not_matrix: {Shape.rank_dimensions(dims) != 2n : Nat}) ->
@@ -1211,7 +1150,7 @@ def plan_left_rank(+left: Shape.Shape, +right: Shape.Shape, +dims: List<&2, U32>
 def Laws.matmul_left_rank_error(left, right, a, b, not_matrix):
   %Equal.sym(Result<&2, &2, Matrix.Error, Matrix.Plan<left, right>>, Matrix.plan_left(left, right, Shape.dimensions(left), {==}), Fail{Matrix.RankMismatch{}},
     plan_left_rank(left, right, Shape.dimensions(left), {==}, not_matrix)) :
-    {Matrix.planned(left, right, a, b, _) == Fail{Matrix.RankMismatch{}} : Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>}
+    {Matrix.parallel_planned(left, right, a, b, _) == Fail{Matrix.RankMismatch{}} : Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>}
   {==}
 
 def plan_right_rank(-left: Shape.Shape, +right: Shape.Shape, +rows: U32, +inner: U32,
@@ -1248,7 +1187,7 @@ def plan_left_right_rank(+left: Shape.Shape, +right: Shape.Shape, +dims: List<&2
 def Laws.matmul_right_rank_error(left, right, a, b, not_matrix):
   %Equal.sym(Result<&2, &2, Matrix.Error, Matrix.Plan<left, right>>, Matrix.plan_left(left, right, Shape.dimensions(left), {==}), Fail{Matrix.RankMismatch{}},
     plan_left_right_rank(left, right, Shape.dimensions(left), {==}, not_matrix)) :
-    {Matrix.planned(left, right, a, b, _) == Fail{Matrix.RankMismatch{}} : Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>}
+    {Matrix.parallel_planned(left, right, a, b, _) == Fail{Matrix.RankMismatch{}} : Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>}
   {==}
 
 def compatible_inner(-left: Shape.Shape, -right: Shape.Shape, +rows: U32, +inner: U32, +right_inner: U32, +columns: U32,
@@ -1329,7 +1268,7 @@ def inner_left(+left: Shape.Shape, +right: Shape.Shape, +dims: List<&2, U32>,
 def Laws.matmul_inner_error(left, right, a, b, rows, inner, right_inner, columns, left_matrix, right_matrix, mismatch):
   %Equal.sym(Result<&2, &2, Matrix.Error, Matrix.Plan<left, right>>, Matrix.plan_left(left, right, Shape.dimensions(left), {==}), Fail{Matrix.InnerDimensionMismatch{}},
     inner_left(left, right, Shape.dimensions(left), {==}, rows, inner, right_inner, columns, left_matrix, right_matrix, mismatch)) :
-    {Matrix.planned(left, right, a, b, _) == Fail{Matrix.InnerDimensionMismatch{}} : Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>}
+    {Matrix.parallel_planned(left, right, a, b, _) == Fail{Matrix.InnerDimensionMismatch{}} : Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>}
   {==}
 
 # The parallel product meets the same interpretation as the sequential one.
@@ -1683,11 +1622,6 @@ def planned_source(+left: Shape.Shape, +right: Shape.Shape, a: Core.Tensor<left>
     case Done{+plan}:
       multiply_source(left, right, plan, a, b)
 
-def parallel_interpretation(left: Core.Dynamic, right: Core.Dynamic) -> Laws.SourceMatmul<left, right, Matrix.parallel_matmul(left, right)>:
-  Core.Packed{+left_shape, a} = left
-  Core.Packed{+right_shape, b} = right
-  planned_source(left_shape, right_shape, a, b, Matrix.plan(left_shape, right_shape))
-
 # The parallel product succeeds on valid inputs: after the plan and the
 # allocation, nothing it does can fail.
 def output_status(+output: Shape.Shape, +inner: Nat, +columns: Nat, +depth: Nat, +length: Nat, -valid: {Storage.bounds(depth, length) == True{} : Bool},
@@ -1735,3 +1669,14 @@ def planned_parallel_status(+left: Shape.Shape, +right: Shape.Shape, result: Res
         PlanStatus<left, right, Fail{error}> -> {False{} == True{} : Bool}}(status)}
     case Done{+plan}:
       multiply_parallel_status(left, right, plan, a, b)
+
+def Laws.successful_matmul_interpretation(left, right):
+  Core.Packed{+left_shape, a} = left
+  Core.Packed{+right_shape, b} = right
+  planned_source(left_shape, right_shape, a, b, Matrix.plan(left_shape, right_shape))
+
+def Laws.matmul_valid_success(left, right, a, b, valid):
+  Laws.TotalMatmul{
+    MathProof.success(Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic, Matrix.matmul(Core.Packed{left, a}, Core.Packed{right, b}),
+      planned_parallel_status(left, right, Matrix.plan(left, right), a, b, plan_status(left, right, valid))),
+    Laws.successful_matmul_interpretation(Core.Packed{left, a}, Core.Packed{right, b})}
