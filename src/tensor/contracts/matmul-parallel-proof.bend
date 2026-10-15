@@ -18,7 +18,6 @@ import ./replayed.bend as Replayed
 import ./pointwise-proof.bend as PointwiseProof
 import ./dot-proof.bend as DotProof
 import ./LAWS.bend as Laws
-import ./tree-storage-proof.bend as Tree
 import ./binary-storage-proof.bend as Owned
 import ./binary-build-proof.bend as Build
 import ../../shape/index_proofs.bend as Index
