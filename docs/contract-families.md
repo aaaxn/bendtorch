@@ -285,6 +285,39 @@ and `Dot.right_index`. At the end `total_factors` turns each total into
 column. A wrong start, another order of `k` or a transposed read in
 `matmul.bend` fails a step of the walk.
 
+`matmul_replayed` exports the same walk in the transport form of
+`broadcast_to_replayed`: for every `P`, if `P` holds for every result that
+hands both inputs back with the same words, next to an output of the plan's
+shape, replayed over `+0.0`, whose cell `(row, column)` holds the total above,
+then `P` holds for the product. Its input histories are the walk's `ops ++`
+dot reads, and its output history is the walk's cell writes.
+
+### `permute_copy` and `transpose_copy` through the index-map copy
+
+`Transforms.copy_loop` in `src/tensor/transforms.bend` writes output index
+`i` from the source index `permute_source(input, axes, i)`, for `i` in
+increasing order. `src/tensor/index-map.bend` treats that as the pointwise
+family with a scalar function that keeps its first operand and the same map
+on both operands, and `permute-values.bend` walks the copy loop with live
+code, without changing it. The walk takes any replayed source, with any fill
+and history.
+
+Two laws in `src/tensor/permute-values-contract-LAWS.bend` export it in the
+transport form:
+
+- `permute_replayed`: once `Layout.permutation(input, axes)` gives a plan,
+  `P` holds for `permute_dynamic` of a replayed tensor if it holds for every
+  result that hands the source back with the same words, next to an output
+  of the plan's shape, replayed over `+0.0`, whose words are
+  `permuted_words`: word `i` is the source's word at
+  `permute_source(input, axes, i)`.
+- `transpose_replayed`: with both axes in range, `transpose_dynamic(a, b)` is
+  that permute by `swapped_axes(input, a, b)`.
+
+`permute_contract` and `transpose_contract` are the same walk on a
+`Core.from_values` source, stated as observations; their statements did not
+change.
+
 ### `sum_to_size` through the `reduce_to` contract
 
 `SumToSize.sum_to_size` in `src/autograd/sum-to-size.bend` clones the
@@ -331,15 +364,14 @@ half to another family law, which the tensor backward's
 - The family output is itself a replayed tensor, with history `writes(n)` over
   `+0.0`. `broadcast_to_replayed` exports that fact for `broadcast_to`,
   `sum_to_size_replayed` for `sum_to_size` (and so for `reduce_to`'s output
-  when axes are reduced), and `tensor_product_replayed` for
+  when axes are reduced), `tensor_product_replayed` for
   `TensorBackward.product`, the elementwise loop the tensor backward runs for
-  its products. No law exports it for `Broadcast.binary` or for the parallel
-  `Elementwise.binary`. The tensor backward chains the exported ones: the
-  `Sum`, `Add`, `Sub` and `Mul` VJPs have value laws
-  ([tensor backward](tensor-backward.md#vjp-values)). The `Matmul` VJP has
-  none, since its operands go through `Transforms.transpose_dynamic`, whose
-  values only erased laws state. The live `transpose_contract` covers a
-  `Core.from_values` input, not a replayed one.
+  its products, `permute_replayed` and `transpose_replayed` for the copy loop,
+  and `matmul_replayed` for `Matrix.matmul`. No law exports it for
+  `Broadcast.binary` or for the parallel `Elementwise.binary`. The tensor
+  backward chains the exported ones: the `Sum`, `Add`, `Sub`, `Mul` and
+  `Matmul` VJPs have value laws
+  ([tensor backward](tensor-backward.md#vjp-values)).
 - `broadcast_to_pointwise`, `sum_to_size_clone` and `sum_to_size_fiber` cover
   a successful call. A failed plan or target check keeps the existing erased
   laws in `broadcast-LAWS.bend`, `sum-to-size-LAWS.bend` and
@@ -359,9 +391,9 @@ two of them on the actual `Core.from_values` and `Core.new` results, of
 `reduce_fold_fiber` and `reduce_to_fiber`, of `sum_to_size_clone` and
 `sum_to_size_fiber`, of `broadcast_to_pointwise` and
 `broadcast_to_replayed`, one of them a `broadcast_to` output reduced by
-`reduce_to_fiber`, and of the tensor backward's `Add`, `Sub` and `Mul` VJP
-value laws. It also holds false twins of twenty-seven value statements,
-and forty-one mutants of the family loops, of their instances and of the
+`reduce_to_fiber`, and of the tensor backward's `Add`, `Sub`, `Mul` and
+`Matmul` VJP value laws. It also holds false twins of twenty-nine value
+statements, and forty-four mutants of the family loops, of their instances and of the
 `reduce_to`, `matmul`, `sum_to_size`, `broadcast_to` and tensor backward
 code. Its
 [README](../verification/families/README.md) lists each control and the

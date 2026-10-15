@@ -132,10 +132,11 @@ of slots, shape and tensor.
 - `tensor_zero_grad_empties` and `tensor_zero_grad_keeps_nodes`.
 
 These laws state the engine's structure and the `Sum` VJP's values. The
-[VJP values](#vjp-values) below state the `Add`, `Sub` and `Mul` VJPs' values.
+[VJP values](#vjp-values) below state the `Add`, `Sub`, `Mul` and `Matmul`
+VJPs' values.
 
 The family controls in [`verification/families/tensor_vjp/`](../verification/families/README.md#tensor-vjp)
-check the VJP value laws: literal consumers, five false twins and five
+check the VJP value laws: literal consumers, seven false twins and eight
 mutants of `tensor-backward.bend`, each rejected by the source checker and by
 BendTT. The autograd gate applies ten proof controls and two error controls to a copy
 of the sources, and the proofs reject each one: `NegateLeft` keeping the sign
@@ -150,10 +151,11 @@ a `zero_grad` that keeps the slot; and each refusal reported as the other.
 
 ## VJP values
 
-`src/autograd/tensor-vjp-LAWS.bend` states the values of the `Add`, `Sub` and
-`Mul` VJPs, and `tensor-vjp-PROOF.bend` proves them through laws alone: the
-pointwise family's product, then `sum_to_size`, each handing the next a
-replayed tensor. Each law takes a [replayed](contract-families.md#replayed-tensors-are-the-input-class)
+`src/autograd/tensor-vjp-LAWS.bend` states the values of the `Add`, `Sub`,
+`Mul` and `Matmul` VJPs, and `tensor-vjp-PROOF.bend` proves them through laws
+alone: the pointwise family's product, then `sum_to_size`, each handing the
+next a replayed tensor, and for `Matmul` the clone, the transpose and the
+ordered matmul. Each law takes a [replayed](contract-families.md#replayed-tensors-are-the-input-class)
 gradient `g` (and, for `Mul`, replayed saved operands `x` and `y`) and the
 broadcast plans the VJP uses, and concludes a `PairContract`: the VJP sends
 exactly two contributions, the first to `a` with the left operand's
@@ -196,16 +198,38 @@ pair of shapes that does not broadcast. A recording on the tape only exists
 for shapes that broadcast, and the consumers in
 `verification/families/tensor_vjp/` instantiate every law on literal shapes.
 
-The values of the `Matmul` VJP are not stated by a law. They are checked by
-the runtime lanes and the PyTorch record. `g @ right^T` and `left^T @ g` read
-the transposed saved operands, and `Transforms.transpose_dynamic` has only
-erased laws. The copy loop already has a live value law, `transpose_contract`
-(`src/tensor/permute-values-contract-LAWS.bend`), but only for a
-`Core.from_values` input, as
-[proof boundary](proof-boundary.md#live-transform-contracts-what-is-live-and-what-is-not)
-describes. The saved operands are replayed tensors, so the missing piece is a
-transpose law over replayed inputs that exports a replayed result. With that,
-`matmul_ordered` applies to the two products, since both take replayed inputs.
+`tensor_matmul_vjp_values` states the `Matmul` VJP. With the saved
+operands `x` (left) and `y` (right) and the gradient `g`, all replayed, it
+names as hypotheses the plans the VJP computes: the transpose plans of `y`
+and `x` from `Layout.permutation` by `swapped_axes(., 0, 1)`, with both axes
+in range, and the matmul plans `first` of `g @ y^T` and `second` of
+`x^T @ g`, whose outputs have the left and the right operand's dimensions.
+Its conclusion is a `MatmulPairContract`, stated per `(row, column)` as
+`matmul_ordered` is: the first contribution goes to `a` with the left
+operand's dimensions, the second to `b` with the right operand's, and
+
+- cell `(row, column)` of the first holds `DotFold.dot_fold` from `+0.0` of
+  `right_transposed_factors`: for `k` from 0 to `inner - 1`, the pair
+  `g[row * inner + k]` and the word of `y` at
+  `permute_source(y, swapped, k * columns + column)`;
+- cell `(row, column)` of the second holds `DotFold.dot_fold` from `+0.0` of
+  `left_transposed_factors`: the word of `x` at
+  `permute_source(x, swapped, row * inner + k)` and `g[k * columns + column]`.
+
+`inner` and `columns` are the plan's. For a `[k, n]` operand
+`permute_source` of a transposed index is the row-major index of the
+swapped coordinate, so the pairs are `g[row, l] * y[column, l]` and
+`x[l, row] * g[l, column]`, as PyTorch's `g @ y.T` and `x.T @ g`. No law
+states that index identity for every shape; the consumer in
+`verification/families/tensor_vjp/` checks it on literal words.
+
+The proof follows `vjp_matmul`. The clone halves of `g` are `ops ++ [First]`
+and `ops ++ [Second]`; `transpose_replayed` gives the transposed copy as a
+replayed tensor whose words are `permuted_words`; `matmul_replayed` gives the
+product's cells as the ordered totals over the copies; and `first_factors`
+and `second_factors` turn the factor pairs read on the copies into the pairs
+stated on `g`, `x` and `y`. No sum is reduced: each product already has its
+operand's dimensions.
 
 ## Runtime lanes
 

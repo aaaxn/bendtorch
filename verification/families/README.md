@@ -281,8 +281,9 @@ template constant.
 
 `tensor_vjp/` holds:
 
-- `consumers.bend`: three consumers, one for each of `tensor_add_vjp_values`,
-  `tensor_sub_vjp_values` and `tensor_mul_vjp_values`. Each runs the VJP of
+- `consumers.bend`: four consumers, one for each of `tensor_add_vjp_values`,
+  `tensor_sub_vjp_values`, `tensor_mul_vjp_values` and
+  `tensor_matmul_vjp_values`. The first three run the VJP of
   node 2 on a tape whose operands are node 0, of shape `[2]`, and node 1, of
   shape `[1]`, for the gradient `[3, 5]` of shape `[2]`, replayed as the
   writes of `Core.from_values`. It takes every plan from
@@ -298,7 +299,16 @@ template constant.
     0's cell 1 is `F32.mul(5.0, 10.0)`, from `g * y`; node 1's cell is
     `F32.add(F32.add(0.0, F32.mul(3.0, 2.0)), F32.mul(5.0, 7.0))`, from
     `g * x` summed.
-- `controls.bend`: five value witnesses, each paired with one wrong value.
+  - `matmul_values` runs the VJP of node 2 = `a @ b` with `a` = node 0 of
+    shape `[1, 2]` holding `[2, 7]`, `b` = node 1 of shape `[2, 2]` holding
+    `[10, 20, 30, 50]`, and the gradient `[3, 5]` of shape `[1, 2]`. It takes
+    the transpose plans from `Layout.permutation` and the two matmul plans
+    from `Matrix.plan` on the transposed shapes. `b` is square, so reading it
+    without the transpose gives other words. Node 0's cell `(0, 1)` is
+    `F32.add(F32.add(0.0, F32.mul(3.0, 30.0)), F32.mul(5.0, 50.0))`, from
+    `g @ b^T`; node 1's cell `(1, 0)` is `F32.add(0.0, F32.mul(7.0, 3.0))`,
+    from `a^T @ g`. Both dimensions are stated as well.
+- `controls.bend`: seven value witnesses, each paired with one wrong value.
 - `mutants.toml`: the before and after text of each mutation.
 
 | Control | Change | Source rejection | BendTT rejection |
@@ -313,12 +323,26 @@ template constant.
 | Sub keeps the sign | `negated` runs `KeepLeft` instead of `NegateLeft` | `Laws.tensor_sub_vjp_values` | `tensor_sub_vjp_values` |
 | Mul swaps operands | `vjp_mul` multiplies `g` by `x` for node `a` and by `y` for node `b` | `Laws.tensor_mul_vjp_values` | `tensor_mul_vjp_values` |
 | Product swaps inputs | `product_planned` passes the right input on the left | `product_replayed` | `product_replayed` |
+| False twin `matmul_front_witness` | `g @ b` instead of `g @ b^T`: `3.0 * 20.0` for `3.0 * 30.0` | the witness | the witness |
+| False twin `matmul_back_witness` | `F32.mul(3.0, 7.0)`, the product's operands swapped | the witness | the witness |
+| Matmul left untransposed | `matmul_first` transposes `b` by `(0, 0)`, which keeps it as it is | `matmul_values` | `matmul_values` |
+| Matmul right operands swapped | `right_product` multiplies `g @ a^T` instead of `a^T @ g` | `matmul_values` | `matmul_values` |
+| Matmul sends the second to the first | `vjp_matmul` passes `a` for `b` | `matmul_values` | `matmul_values` |
 
 The mutants change `src/autograd/tensor-backward.bend`, and the source check
 runs `src/autograd/PROOF.bend`. The structural laws in
-`tensor-backward-LAWS.bend` say nothing about the values the `Add`, `Sub` and
-`Mul` VJPs send, so only the value laws reject these mutants. The runtime controls of the autograd gate
-reject the `Mul` and `Sub` ones as well, in the JavaScript lane.
+`tensor-backward-LAWS.bend` say nothing about the values the VJPs send, so
+only the value laws reject these mutants. The `Matmul` mutants fail in
+`matmul_values`, the proof of `tensor_matmul_vjp_values` in
+`tensor-vjp-PROOF.bend`: the first hands `transpose_replayed` a call that
+law does not state, the other two produce a pass other than the stated one.
+The runtime controls of the autograd gate reject the `Mul` and `Sub` ones,
+and a `Matmul` VJP without the transpose, as well, in the JavaScript lane.
+
+`permute_replayed`, `transpose_replayed` and `matmul_replayed` reuse the
+walks of the copy loop and of the matmul loops. The permute value contract's
+mutants in `verification/contracts/permute-values/` and the `matmul` mutants
+of the fold family fail those walks, so they cover the transport laws too.
 `tensor_vjp/entry.bend` imports only `tensor-backward.bend`.
 
 ## Run
