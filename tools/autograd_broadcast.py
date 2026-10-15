@@ -8,7 +8,7 @@ import struct
 from collections.abc import Callable
 from pathlib import Path
 
-from tools.common import ROOT, Evidence, GateError, bend, check_sources
+from tools.common import ROOT, Evidence, GateError, bend, check_sources, native
 
 MAX_RANK = 4
 MAX_ELEMENTS = 1 << 20
@@ -336,7 +336,7 @@ def run_lanes(
                     str(target),
                 ],
             )
-            command = [str(target), "--threads", "1", "--gpu", "off"]
+            command = native(target)
         else:
             target = output / f"{call}.js"
             evidence.run(

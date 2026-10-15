@@ -10,6 +10,7 @@ from tools.common import (
     check_inventory,
     check_omissions,
     check_sources,
+    native,
 )
 
 # 0 / 0 is the x86 default NaN. JavaScript numbers are doubles, so loading the
@@ -130,7 +131,7 @@ def run_gate(tool_root: Path, output: Path) -> None:
         raise GateError("The native build linked the CUDA lane")
     evidence.run(
         "native-run",
-        [str(binary), "--threads", "1", "--gpu", "off"],
+        native(binary),
         expected_output="2147450880\n",
     )
     expected = "1088421888\n0\n1088421888\n1093664768\n"
@@ -141,9 +142,7 @@ def run_gate(tool_root: Path, output: Path) -> None:
             bend(tool_root, ROOT / "probes/owned_array.bend", "-o", target),
         )
         command = (
-            [str(target), "--threads", "1", "--gpu", "off"]
-            if lane == "native"
-            else [bend(tool_root)[0], str(target)]
+            native(target) if lane == "native" else [bend(tool_root)[0], str(target)]
         )
         evidence.run(f"array-{lane}-run", command, expected_output=expected)
     malformed = ROOT / "probes/unbalanced_array.bend"
@@ -158,7 +157,7 @@ def run_gate(tool_root: Path, output: Path) -> None:
     )
     evidence.run(
         "unbalanced-run",
-        [str(output / "unbalanced"), "--threads", "1", "--gpu", "off"],
+        native(output / "unbalanced"),
         expected_code=1,
         contains="runtime fail-stop",
     )
@@ -170,9 +169,7 @@ def run_gate(tool_root: Path, output: Path) -> None:
             bend(tool_root, ROOT / "probes/numbers.bend", "-o", target),
         )
         command = (
-            [str(target), "--threads", "1", "--gpu", "off"]
-            if lane == "native"
-            else [bend(tool_root)[0], str(target)]
+            native(target) if lane == "native" else [bend(tool_root)[0], str(target)]
         )
         result = evidence.run(f"numbers-{lane}-run", command)
         bits = [int(line) for line in result.stdout.splitlines()]

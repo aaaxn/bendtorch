@@ -107,7 +107,7 @@ in [`verification/families/broadcast_to/`](../verification/families/README.md#br
 ## Runtime lanes
 
 `tools/autograd_broadcast.py` runs 536 requests on native Bend CPU (`--threads
-1 --gpu off`) and on the generated-Bend JavaScript executable. There are 16
+N --gpu off`, N from `tools.check --threads`, default 8) and on the generated-Bend JavaScript executable. There are 16
 handwritten cases and every pair of an input shape with rank 0 to 2 and a
 target with rank 0 to 3, using extents 0, 1 and 2. It checks the retained input
 and each output word against a Python projection reference, bit for bit. The

@@ -1,5 +1,6 @@
 import json
 import shutil
+from functools import partial
 from pathlib import Path
 
 from tools.autograd_backward import run_gate as backward
@@ -17,6 +18,7 @@ from tools.common import (
     check_laws,
     check_sources,
     digest,
+    parallel,
     required_exports,
 )
 
@@ -347,34 +349,63 @@ ERROR_CONTROLS = {
 
 
 def proof_controls(evidence: Evidence, source: Path) -> None:
-    for name, (path, original, mutated) in PROOF_CONTROLS.items():
-        copy = evidence.directory / "controls" / name
-        shutil.copytree(source / "src", copy / "src")
-        target = copy / path
-        text = target.read_text()
-        if text.count(original) != 1:
-            raise GateError(f"{name}: control anchor is missing or ambiguous")
-        target.write_text(text.replace(original, mutated))
-        evidence.run(
-            f"control-{name}",
-            bend(evidence.tool_root, copy / "src/autograd/PROOF.bend", "--check-only"),
-            expected_code=1,
-            contains="SOME PROOFS FAIL",
-        )
-    for name, (path, original, mutated, root, location) in ERROR_CONTROLS.items():
-        copy = evidence.directory / "controls" / name
-        shutil.copytree(source / "src", copy / "src")
-        target = copy / path
-        text = target.read_text()
-        if text.count(original) != 1:
-            raise GateError(f"{name}: control anchor is missing or ambiguous")
-        target.write_text(text.replace(original, mutated))
-        evidence.run(
-            f"control-{name}",
-            bend(evidence.tool_root, copy / root, "--check-only"),
-            expected_code=1,
-            contains=("SOME PROOFS FAIL", location),
-        )
+    parallel(
+        *(
+            partial(
+                mutant_control,
+                evidence,
+                source,
+                name,
+                path,
+                original,
+                mutated,
+                "src/autograd/PROOF.bend",
+                ("SOME PROOFS FAIL",),
+            )
+            for name, (path, original, mutated) in PROOF_CONTROLS.items()
+        ),
+        *(
+            partial(
+                mutant_control,
+                evidence,
+                source,
+                name,
+                path,
+                original,
+                mutated,
+                root,
+                ("SOME PROOFS FAIL", location),
+            )
+            for name, (path, original, mutated, root, location) in (
+                ERROR_CONTROLS.items()
+            )
+        ),
+    )
+
+
+def mutant_control(
+    evidence: Evidence,
+    source: Path,
+    name: str,
+    path: str,
+    original: str,
+    mutated: str,
+    root: str,
+    contains: tuple[str, ...],
+) -> None:
+    copy = evidence.directory / "controls" / name
+    shutil.copytree(source / "src", copy / "src")
+    target = copy / path
+    text = target.read_text()
+    if text.count(original) != 1:
+        raise GateError(f"{name}: control anchor is missing or ambiguous")
+    target.write_text(text.replace(original, mutated))
+    evidence.run(
+        f"control-{name}",
+        bend(evidence.tool_root, copy / root, "--check-only"),
+        expected_code=1,
+        contains=contains[0] if len(contains) == 1 else contains,
+    )
 
 
 def run_gate(tool_root: Path, output: Path) -> None:
@@ -399,15 +430,20 @@ def run_gate(tool_root: Path, output: Path) -> None:
         shutil.copyfile(path, target)
         frozen[str(relative)] = digest(target)
     (output / "source-inventory.json").write_text(json.dumps(frozen, indent=2) + "\n")
-    check_laws(
-        evidence,
-        "autograd",
-        output / "source/src/autograd/PROOF.bend",
-        required_exports(output / "source/verification/autograd.json"),
-        timeout=1800,
+    names = list(SUBGATES)
+    _, _, *results = parallel(
+        partial(
+            check_laws,
+            evidence,
+            "autograd",
+            output / "source/src/autograd/PROOF.bend",
+            required_exports(output / "source/verification/autograd.json"),
+            timeout=1800,
+        ),
+        partial(proof_controls, evidence, output / "source"),
+        *(partial(SUBGATES[name], tool_root, output / name) for name in names),
     )
-    proof_controls(evidence, output / "source")
-    summary = {name: gate(tool_root, output / name) for name, gate in SUBGATES.items()}
+    summary = dict(zip(names, results, strict=True))
     (output / "subgates.json").write_text(json.dumps(summary, indent=2) + "\n")
     changed = [
         path for path, expected in frozen.items() if digest(ROOT / path) != expected

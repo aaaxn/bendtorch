@@ -1,4 +1,6 @@
 import importlib
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -198,6 +200,31 @@ class PointwiseControlTests(unittest.TestCase):
             pointwise.replaced(positive, instance, contracts.catalog, "wrong-input-map")
         with self.assertRaises(GateError):
             pointwise.replaced(positive, positive, contracts.catalog, "swapped-maps")
+
+
+class RunnerTests(unittest.TestCase):
+    def test_workers_below_one_are_rejected_before_any_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "families"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "verification.families.run",
+                    "--output",
+                    str(output),
+                    "--workers",
+                    "0",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("--workers needs at least one worker", result.stderr)
+            self.assertFalse(output.exists())
 
 
 if __name__ == "__main__":

@@ -1,11 +1,22 @@
+import json
 import struct
 import sys
 import tempfile
 import unittest
+from functools import partial
 from pathlib import Path
 
 from tools.check import SUITES
-from tools.common import ROOT, Evidence, GateError, check_inventory, check_omissions
+from tools.common import (
+    ROOT,
+    Evidence,
+    GateError,
+    check_inventory,
+    check_omissions,
+    omitted_inventory_by_rewrite,
+    parallel,
+    set_jobs,
+)
 from tools.toolchain import F32_PROBE
 
 
@@ -26,6 +37,29 @@ class GateTests(unittest.TestCase):
         twice = "core.construct : *1 =\n  ()\ncore.construct : *1 =\n  ()\n"
         with self.assertRaises(GateError):
             check_omissions(twice, ["core.construct"])
+
+    def test_omission_scan_decides_what_the_rewrite_decides(self):
+        texts = [
+            "a : *1 =\n  ()\nb : *1 =\n  ()\n",
+            "a : *1 =\na : *1 =\nb : *1 =\n",
+            "a :b : x\na : *1 =\nb : *1 =\n",
+            "a b : *1 =\na : *1 =\na b : *1 =\nb : *1",
+            "x\ra : *1\nb : *1 =\r\na : 2 : 3\x0bb : *1\n",
+            "a : a : *1\nb : *1\n a : *1\n",
+            "b : *1\na : *1\r\n",
+            "",
+        ]
+        for text in texts:
+            for required in (["a"], ["b"], ["a", "b"], ["a b", "a"], ["a", "a :b"]):
+                outcomes = []
+                for check in (check_omissions, omitted_inventory_by_rewrite):
+                    try:
+                        check(text, required)
+                        outcomes.append(None)
+                    except GateError as error:
+                        outcomes.append(str(error))
+                with self.subTest(text=text, required=required):
+                    self.assertEqual(outcomes[0], outcomes[1])
 
     def test_root_and_suites_cover_every_module(self):
         modules = sorted(path.parent.name for path in ROOT.glob("src/*/PROOF.bend"))
@@ -73,6 +107,49 @@ class GateTests(unittest.TestCase):
                     expected_code=1,
                     contains="unsafe",
                 )
+
+    def test_parallel_steps_keep_the_sequential_record_order(self):
+        def sleeper(evidence: Evidence, name: str, seconds: float) -> str:
+            evidence.run(
+                name, [sys.executable, "-c", f"import time; time.sleep({seconds})"]
+            )
+            return name
+
+        def chain(evidence: Evidence) -> list[str]:
+            # The slow first step makes "b" finish before this task's steps.
+            return [sleeper(evidence, "a1", 0.3), sleeper(evidence, "a2", 0)]
+
+        orders = {}
+        for jobs in (1, 4):
+            set_jobs(jobs)
+            try:
+                with tempfile.TemporaryDirectory() as directory:
+                    evidence = Evidence(Path(directory) / "run", Path(directory))
+                    sleeper(evidence, "first", 0)
+                    results = parallel(
+                        partial(chain, evidence),
+                        partial(sleeper, evidence, "b", 0),
+                    )
+                    sleeper(evidence, "last", 0)
+                    saved = evidence.directory / "report.json"
+                    report = json.loads(saved.read_text())
+            finally:
+                set_jobs(1)
+            self.assertEqual(results, [["a1", "a2"], "b"])
+            orders[jobs] = [row["name"] for row in report["commands"]]
+        self.assertEqual(orders[1], ["first", "a1", "a2", "b", "last"])
+        self.assertEqual(orders[4], orders[1])
+
+    def test_parallel_raises_the_first_failure_in_task_order(self):
+        def fail(message: str) -> None:
+            raise GateError(message)
+
+        set_jobs(3)
+        try:
+            with self.assertRaisesRegex(GateError, "^one$"):
+                parallel(lambda: None, lambda: fail("one"), lambda: fail("two"))
+        finally:
+            set_jobs(1)
 
     def test_every_required_reason_must_appear(self):
         with tempfile.TemporaryDirectory() as directory:

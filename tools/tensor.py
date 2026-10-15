@@ -3,6 +3,7 @@ import math
 import os
 import shutil
 import sys
+from functools import partial
 from pathlib import Path
 
 from tools.common import (
@@ -13,6 +14,7 @@ from tools.common import (
     check_laws,
     check_sources,
     digest,
+    parallel,
     required_exports,
 )
 from tools.tensor_families import run_gate as pointwise_family
@@ -340,36 +342,44 @@ def composed_word(+shape: Shape.Shape, +axes: List<&2, U32>,
             "1)) == Some{1} : Maybe<&2, U32>}:\n  {==}\n",
         ),
     }
-    for name, (accepted, rejected) in controls.items():
-        for label, body in (("accepted", accepted), ("rejected", rejected)):
-            source = evidence.directory / f"{name}-{label}.bend"
-            source.write_text(imports + shapes + "\n" + body)
-            for mode in ("--check-only", "--verdict"):
-                evidence.run(
-                    f"{name}-{label}-{mode[2:]}",
-                    bend(evidence.tool_root, source, mode),
-                    expected_code=0 if label == "accepted" else 1,
-                    contains=(
-                        "ALL PROOFS CHECK"
-                        if label == "accepted"
-                        else (
-                            "SOME PROOFS FAIL",
-                            "Location: witness",
-                            "expected :",
-                            "observed :",
-                        )
-                    ),
-                )
-            if label == "accepted":
-                artifact = source.with_suffix(".bendtt")
-                evidence.run(
-                    f"{name}-export", bend(evidence.tool_root, source, "-o", artifact)
-                )
-                evidence.run(
-                    f"{name}-direct-kernel",
-                    [str(evidence.tool_root / "kernel/bendtt"), str(artifact)],
-                    contains="ALL PROOFS CHECK",
-                )
+
+    def control(name: str, label: str, body: str) -> None:
+        source = evidence.directory / f"{name}-{label}.bend"
+        source.write_text(imports + shapes + "\n" + body)
+        for mode in ("--check-only", "--verdict"):
+            evidence.run(
+                f"{name}-{label}-{mode[2:]}",
+                bend(evidence.tool_root, source, mode),
+                expected_code=0 if label == "accepted" else 1,
+                contains=(
+                    "ALL PROOFS CHECK"
+                    if label == "accepted"
+                    else (
+                        "SOME PROOFS FAIL",
+                        "Location: witness",
+                        "expected :",
+                        "observed :",
+                    )
+                ),
+            )
+        if label == "accepted":
+            artifact = source.with_suffix(".bendtt")
+            evidence.run(
+                f"{name}-export", bend(evidence.tool_root, source, "-o", artifact)
+            )
+            evidence.run(
+                f"{name}-direct-kernel",
+                [str(evidence.tool_root / "kernel/bendtt"), str(artifact)],
+                contains="ALL PROOFS CHECK",
+            )
+
+    parallel(
+        *(
+            partial(control, name, label, body)
+            for name, (accepted, rejected) in controls.items()
+            for label, body in (("accepted", accepted), ("rejected", rejected))
+        )
+    )
     positive = evidence.directory / "accepted-f32.bend"
     positive.write_text(
         imports + "\ndef witness(values: List<&2, F32>) -> "
@@ -429,75 +439,109 @@ def run_gate(tool_root: Path, output: Path) -> None:
         shutil.copyfile(path, target)
         frozen[str(relative)] = digest(target)
     (output / "source-inventory.json").write_text(json.dumps(frozen, indent=2) + "\n")
-    check_laws(
-        evidence,
-        "tensor",
-        output / "source/src/tensor/PROOF.bend",
-        required_exports(output / "source/verification/tensor.json"),
-    )
-    evidence.run(
-        "pytorch-absent",
-        [
-            sys.executable,
-            "-c",
-            "import importlib.util; "
-            "assert importlib.util.find_spec('torch') is None; "
-            "print('PyTorch is absent from tensor execution')",
-        ],
-        expected_output="PyTorch is absent from tensor execution\n",
-    )
-    execution = run_native_corpus(tool_root, output / "runtime", javascript=True)
-    summary = execution["summary"]
-    if summary["javascript"]["status"] != "completed":
-        raise GateError(
-            "The generated-Bend JavaScript lane is mandatory for the tensor gate"
+
+    def runtime() -> None:
+        evidence.run(
+            "pytorch-absent",
+            [
+                sys.executable,
+                "-c",
+                "import importlib.util; "
+                "assert importlib.util.find_spec('torch') is None; "
+                "print('PyTorch is absent from tensor execution')",
+            ],
+            expected_output="PyTorch is absent from tensor execution\n",
         )
-    if summary["execution_mode"] != "source_frozen_run" or summary["live_source_drift"]:
-        raise GateError("A screening run is not final tensor evidence")
-    runtime_sources = json.loads((output / "runtime/identity.json").read_text())[
-        "source_sha256"
-    ]
-    mismatched = [
-        path
-        for path, expected in runtime_sources.items()
-        if frozen.get(path) != expected
-    ]
-    if mismatched:
-        raise GateError(f"Tensor proof and executable snapshots disagree: {mismatched}")
-    corpus = load_corpus(output / "source" / CORPUS.relative_to(ROOT))
-    records = json.loads(
-        (output / "source" / ORDERED_REFERENCE.relative_to(ROOT)).read_text()
-    )
-    acceptance = {}
-    for lane, observations, native in (
-        ("native", execution["results"], True),
-        ("javascript", execution["javascript_results"], False),
-    ):
-        acceptance[lane] = verify_lane(corpus, observations, native=native)
-        acceptance[lane]["ordered_reference"] = verify_ordered_lane(
-            corpus, records, observations
+
+        # Each task checks its own results before it returns, so the first
+        # failure in sequential order is the one the gate reports.
+        def corpus() -> dict:
+            execution = run_native_corpus(
+                tool_root, output / "runtime", javascript=True
+            )
+            summary = execution["summary"]
+            if summary["javascript"]["status"] != "completed":
+                raise GateError(
+                    "The generated-Bend JavaScript lane is mandatory "
+                    "for the tensor gate"
+                )
+            if (
+                summary["execution_mode"] != "source_frozen_run"
+                or summary["live_source_drift"]
+            ):
+                raise GateError("A screening run is not final tensor evidence")
+            runtime_sources = json.loads(
+                (output / "runtime/identity.json").read_text()
+            )["source_sha256"]
+            mismatched = [
+                path
+                for path, expected in runtime_sources.items()
+                if frozen.get(path) != expected
+            ]
+            if mismatched:
+                raise GateError(
+                    f"Tensor proof and executable snapshots disagree: {mismatched}"
+                )
+            corpus = load_corpus(output / "source" / CORPUS.relative_to(ROOT))
+            records = json.loads(
+                (output / "source" / ORDERED_REFERENCE.relative_to(ROOT)).read_text()
+            )
+            acceptance = {}
+            for lane, observations, native in (
+                ("native", execution["results"], True),
+                ("javascript", execution["javascript_results"], False),
+            ):
+                acceptance[lane] = verify_lane(corpus, observations, native=native)
+                acceptance[lane]["ordered_reference"] = verify_ordered_lane(
+                    corpus, records, observations
+                )
+                acceptance[lane]["ordered_controls"] = summary["ordered_controls"][lane]
+            return acceptance
+
+        def supplement() -> dict:
+            result = run_supplement(tool_root, output / "supplement")
+            return {
+                lane: verify_supplement(result["supplement"], observations)
+                for lane, observations in result["results"].items()
+            }
+
+        acceptance, supplement_acceptance, family = parallel(
+            corpus,
+            supplement,
+            partial(pointwise_family, tool_root, output / "pointwise-family"),
         )
-        acceptance[lane]["ordered_controls"] = summary["ordered_controls"][lane]
-    supplement = run_supplement(tool_root, output / "supplement")
-    for lane, observations in supplement["results"].items():
-        acceptance[lane]["supplement"] = verify_supplement(
-            supplement["supplement"], observations
+        for lane, accepted in supplement_acceptance.items():
+            acceptance[lane]["supplement"] = accepted
+        acceptance["pointwise_family"] = family
+        (output / "acceptance.json").write_text(json.dumps(acceptance, indent=2) + "\n")
+        links = evidence.run(
+            "native-dependencies", ["ldd", str(output / "runtime/corpus")]
         )
-    acceptance["pointwise_family"] = pointwise_family(
-        tool_root, output / "pointwise-family"
+        libraries = [
+            line.split()[0].lower()
+            for line in links.stdout.splitlines()
+            if line.split()
+        ]
+        if any(
+            name in library
+            for library in libraries
+            for name in ("cuda", "nvrtc", "libtorch", "libc10")
+        ):
+            raise GateError(
+                "Tensor native executable links a forbidden compute backend"
+            )
+        certificate_controls(evidence, output / "runtime/source")
+
+    parallel(
+        partial(
+            check_laws,
+            evidence,
+            "tensor",
+            output / "source/src/tensor/PROOF.bend",
+            required_exports(output / "source/verification/tensor.json"),
+        ),
+        runtime,
     )
-    (output / "acceptance.json").write_text(json.dumps(acceptance, indent=2) + "\n")
-    links = evidence.run("native-dependencies", ["ldd", str(output / "runtime/corpus")])
-    libraries = [
-        line.split()[0].lower() for line in links.stdout.splitlines() if line.split()
-    ]
-    if any(
-        name in library
-        for library in libraries
-        for name in ("cuda", "nvrtc", "libtorch", "libc10")
-    ):
-        raise GateError("Tensor native executable links a forbidden compute backend")
-    certificate_controls(evidence, output / "runtime/source")
     changed = [
         path for path, expected in frozen.items() if digest(ROOT / path) != expected
     ]

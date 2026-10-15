@@ -6,7 +6,16 @@ import re
 import shutil
 from pathlib import Path
 
-from tools.common import ROOT, Evidence, GateError, bend, check_sources, digest
+from tools import common
+from tools.common import (
+    ROOT,
+    Evidence,
+    GateError,
+    bend,
+    check_sources,
+    digest,
+    native,
+)
 from tools.shape import broadcast_oracle, shape_oracle
 from tools.storage import instrument_copy_audit
 from tools.tensor_ordered import verify_ordered_case
@@ -543,8 +552,8 @@ def build_native(evidence: Evidence, cases: list[dict], name: str) -> Path:
     return executable
 
 
-def native_command(executable: Path) -> list[str]:
-    return [str(executable), "--threads", "1", "--gpu", "off"]
+def native_command(executable: Path, threads: int | None = None) -> list[str]:
+    return native(executable, threads=threads)
 
 
 def run_native_corpus(
@@ -575,7 +584,7 @@ def run_native_corpus(
     identity = {
         "hostname": platform.node(),
         "workspace": str(ROOT),
-        "threads": 1,
+        "threads": common.THREADS,
         "gpu": "off",
         "execution_mode": "screening" if screening else "source_frozen_run",
         "bendtt_sha256": digest(tool_root / "kernel/bendtt"),
@@ -733,7 +742,7 @@ def run_native_corpus(
                     '{"elapsed_seconds":%e,"user_seconds":%U,"system_seconds":%S,"max_rss_kib":%M}',
                     "-o",
                     str(timing),
-                    *native_command(small),
+                    *native_command(small, threads=1),
                 ],
             )
             if parse_native_output(

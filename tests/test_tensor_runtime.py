@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tools import common
 from tools.common import ROOT, Evidence, GateError, bend, digest
 from tools.storage import instrument_copy_audit
 from tools.tensor_numerics import special, verify_envelope
@@ -319,9 +320,13 @@ class RuntimeAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(GateError, "inventory"):
             parse_native_output("", ["missing"])
 
-    def test_native_command_always_disables_gpu_and_sets_one_thread(self):
+    def test_native_command_disables_gpu_and_sets_the_thread_count(self):
         self.assertEqual(
             native_command(Path("/native")),
+            ["/native", "--threads", str(common.THREADS), "--gpu", "off"],
+        )
+        self.assertEqual(
+            native_command(Path("/native"), threads=1),
             ["/native", "--threads", "1", "--gpu", "off"],
         )
 

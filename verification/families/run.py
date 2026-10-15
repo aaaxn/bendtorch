@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -157,8 +158,10 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--bend-root", type=Path, default=ROOT / ".tools/bend")
     parser.add_argument("--kernel", type=Path, default=ROOT / ".tools/kernel/bendtt")
-    parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument("--workers", type=int, default=14)
     args = parser.parse_args()
+    if args.workers < 1:
+        parser.error("--workers needs at least one worker")
     output = args.output.resolve()
     bend_root = args.bend_root.resolve()
     kernel = args.kernel.resolve()
@@ -194,17 +197,23 @@ def main() -> None:
         "rejection_reasons": reasons,
     }
 
+    # The families run at once, and every command holds one of `workers`
+    # slots, so the run never has more than `workers` commands going.
+    slots = threading.BoundedSemaphore(args.workers)
+
     def run(name: str, command: list, expected_code: int) -> str:
-        start = time.monotonic()
-        result = subprocess.run(
-            command,
-            cwd=ROOT,
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=1500,
-            check=False,
-        )
+        with slots:
+            start = time.monotonic()
+            result = subprocess.run(
+                command,
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=1500,
+                check=False,
+            )
+            seconds = time.monotonic() - start
         text = result.stdout + result.stderr
         (output / f"{name}.out").write_text(text)
         records.append(
@@ -213,7 +222,7 @@ def main() -> None:
                 "command": [str(part) for part in command],
                 "exit_code": result.returncode,
                 "expected_code": expected_code,
-                "seconds": round(time.monotonic() - start, 1),
+                "seconds": round(seconds, 1),
             }
         )
         if result.returncode != expected_code:
@@ -229,7 +238,7 @@ def main() -> None:
         return text
 
     def parallel(jobs: list[tuple[str, list, int]]) -> dict[str, str]:
-        with ThreadPoolExecutor(args.workers) as pool:
+        with ThreadPoolExecutor(len(jobs)) as pool:
             return dict(
                 zip(
                     (name for name, _, _ in jobs),
@@ -248,8 +257,22 @@ def main() -> None:
             ignore=shutil.ignore_patterns("false-*", "entry.bend"),
         )
     try:
-        for family in FAMILIES:
-            family_controls(family, snapshot, output, bend, kernel, parallel, reasons)
+        # Each family fills its own reasons; they merge in family order, so
+        # summary.json lists them in the order a one-family-at-a-time run did.
+        found: list[dict[str, str]] = [{} for _ in FAMILIES]
+        try:
+            with ThreadPoolExecutor(len(FAMILIES)) as pool:
+                for _ in pool.map(
+                    lambda family, into: family_controls(
+                        family, snapshot, output, bend, kernel, parallel, into
+                    ),
+                    FAMILIES,
+                    found,
+                ):
+                    pass
+        finally:
+            for part in found:
+                reasons.update(part)
         summary["passed"] = True
     except (GateError, subprocess.TimeoutExpired) as error:
         summary["passed"] = False

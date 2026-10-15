@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from tools.common import ROOT, GateError, bend, environment
+from tools.common import native as native_command
 from tools.shape import (
     CAPACITY,
     MAX_U32,
@@ -105,14 +106,7 @@ class ShapeRuntimeTests(unittest.TestCase):
                 check=False,
             )
             for command in (
-                [
-                    str(self.output / "shapes"),
-                    "--threads",
-                    "1",
-                    "--gpu",
-                    "off",
-                    str(path),
-                ],
+                native_command(self.output / "shapes", str(path)),
                 [bend(ROOT / ".tools")[0], str(self.output / "shapes.js"), str(path)],
             )
         ]

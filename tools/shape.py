@@ -11,6 +11,7 @@ from tools.common import (
     bend,
     check_laws,
     check_sources,
+    native,
     required_exports,
 )
 
@@ -392,7 +393,7 @@ def run_gate(tool_root: Path, output: Path) -> None:
             bend(tool_root, ROOT / "src/shape/harness.bend", "-o", target),
         )
         command = (
-            [str(target), "--threads", "1", "--gpu", "off", str(path)]
+            native(target, str(path))
             if lane == "native"
             else [bend(tool_root)[0], str(target), str(path)]
         )
