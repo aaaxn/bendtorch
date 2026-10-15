@@ -988,7 +988,6 @@ def ordered(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape, +rows
         other => inside => kept_value(right, right_fill, right_ops, right_history(inner, columns, right_ops, count), b, other, inside,
           right_history_value(inner, columns, right, right_fill, right_ops, count, other))}))
 
-
 def matmul_ordered(+left: Shape.Shape, +right: Shape.Shape, +plan: Matrix.Plan<left, right>,
   planned: {Matrix.plan(left, right) == Done{plan} : Result<&2, &2, Matrix.Error, Matrix.Plan<left, right>>},
   +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
