@@ -53,6 +53,19 @@ In `nan_payloads_sub`, PyTorch's `NaN_a - NaN_b` keeps the second payload and
 bendtorch's native lane keeps the first.
 [docs/backward.md](../../docs/backward.md) lists them.
 
+## Tensor backward
+
+`tensor_backward.py` replays every script of the autograd tensor backward
+subgate on PyTorch tensors and writes `fixtures/tensor-backward-torch.json`.
+Each script records leaves and `+`, `-`, `*`, `@` and `.sum()` in order; every
+`backward` seeds `torch.ones_like(output)` and keeps the graph
+(`retain_graph=True`), every non-leaf keeps its gradient (`retain_grad()`), and
+`zero_grad` sets every `.grad` to `None`. Lines carry decimal F32 words in the
+gate's own format. `tests/test_autograd_tensor_backward.py` in the root suite
+compares the gate's Python reference with this file: 85 of 96 scripts agree
+line for line, and [docs/tensor-backward.md](../../docs/tensor-backward.md)
+lists the other 11.
+
 ## Reproduce
 
 Use the oracle environment from `oracle/tensor/README.md`, with one CPU thread:
@@ -61,8 +74,10 @@ Use the oracle environment from `oracle/tensor/README.md`, with one CPU thread:
 export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
 PYTHONDONTWRITEBYTECODE=1 uv run --project oracle --frozen --no-sync python oracle/autograd/generate.py --check
 PYTHONDONTWRITEBYTECODE=1 uv run --project oracle --frozen --no-sync python oracle/autograd/backward.py --check
+PYTHONDONTWRITEBYTECODE=1 uv run --project oracle --frozen --no-sync python oracle/autograd/tensor_backward.py --check
 (cd oracle/autograd && PYTHONDONTWRITEBYTECODE=1 uv run --project .. --frozen --no-sync python -m unittest discover -s tests -v)
-uv run --locked python -m unittest tests.test_autograd_torch tests.test_autograd_backward.BackwardTorchOracleTests -v
+uv run --locked python -m unittest tests.test_autograd_torch tests.test_autograd_backward.BackwardTorchOracleTests -v \
+  tests.test_autograd_tensor_backward.TensorBackwardTorchOracleTests
 ```
 
 `--check` regenerates the file in memory and compares bytes. Without

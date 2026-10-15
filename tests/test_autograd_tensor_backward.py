@@ -1,3 +1,4 @@
+import hashlib
 import json
 import tempfile
 import unittest
@@ -5,7 +6,7 @@ from pathlib import Path
 
 from tools.autograd import PROOF_CONTROLS, SUBGATES
 from tools.autograd_backward import DANGLING_OPERAND, NEGATIVE_ZERO, UNKNOWN_NODE
-from tools.autograd_broadcast import word
+from tools.autograd_broadcast import is_nan, word
 from tools.autograd_tensor_backward import (
     MATMUL_INNER,
     MATMUL_RANK,
@@ -23,6 +24,29 @@ from tools.autograd_tensor_backward import (
     verify,
 )
 from tools.common import ROOT, GateError
+
+FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
+FIXTURE_SHA256 = "8eb78291733d631c257e5dd76213b4a6782444e6a98685f9ec3fbaea018e8923"
+# The tape answers UnknownNode where the replay indexes past its Python list
+# (IndexError), and the tensor layer's error codes where PyTorch raises
+# RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
+# dimension (106) mismatch, and a leaf with the wrong number of values (10).
+REJECTIONS = {
+    "unknown_operands",
+    "unknown_output_empty",
+    "unknown_output",
+    "incompatible_shapes",
+    "invalid_leaf",
+}
+RUNTIME_ERROR_CODES = {6, MATMUL_RANK, MATMUL_INNER, 10}
+FORGED = {"dangling_self", "dangling_newer", "dangling_missing"}
+# NaN * NaN: the payload is not specified by the tensor layer.
+NAN_PAYLOAD = {"specials"}
+# The forward value differs, not the backward: rounding_09 sums six words in
+# ascending order where PyTorch's vectorized sum takes another order, and
+# rounding_14 has a matmul with inner dimension 1 whose only product is -0.0:
+# the ordered dot adds it to +0.0 and gives +0.0, PyTorch's gemm keeps -0.0.
+FORWARD_ORDER = {"rounding_09", "rounding_14"}
 
 
 def case(steps: list[dict]) -> dict:
@@ -175,6 +199,76 @@ class TensorBackwardVerificationTests(unittest.TestCase):
         for wrong in (changed, expected[:-1]):
             with self.assertRaises(GateError):
                 verify([row], parse(self.frame(wrong), ["case"]), "native")
+
+
+class TensorBackwardTorchOracleTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        data = FIXTURE.read_bytes()
+        cls.digest = hashlib.sha256(data).hexdigest()
+        cls.fixture = json.loads(data)
+
+    def test_fixture_is_pinned_and_covers_current_requests(self):
+        self.assertEqual(self.digest, FIXTURE_SHA256)
+        self.assertEqual(self.fixture["oracle"]["torch_version"], "2.14.1+cpu")
+        requests = json.dumps(cases(), sort_keys=True).encode()
+        self.assertEqual(self.fixture["requests"], hashlib.sha256(requests).hexdigest())
+        self.assertEqual(
+            [row["id"] for row in self.fixture["backward"]],
+            [row["id"] for row in cases()],
+        )
+
+    def test_reference_matches_pytorch_word_for_word(self):
+        exact = 0
+        for row, observed in zip(cases(), self.fixture["backward"], strict=True):
+            identifier = row["id"]
+            with self.subTest(case=identifier):
+                if identifier in FORGED:
+                    self.assertEqual(observed["unrepresentable"], "forge")
+                    continue
+                expected = reference(row)
+                seen = observed["lines"]
+                self.assertEqual(len(seen), len(expected))
+                differ = [(a, b) for a, b in zip(seen, expected, strict=True) if a != b]
+                if identifier in REJECTIONS:
+                    for a, b in differ:
+                        code = int(b.rsplit(":", 1)[1])
+                        if a.endswith("IndexError"):
+                            self.assertEqual(code, UNKNOWN_NODE)
+                        else:
+                            self.assertEqual(a, "autograd:rejected:RuntimeError")
+                            self.assertIn(code, RUNTIME_ERROR_CODES)
+                        self.assertEqual(
+                            a.split(":")[1],
+                            b.split(":")[1].replace("error", "rejected"),
+                        )
+                    continue
+                if identifier in NAN_PAYLOAD:
+                    self.assertTrue(differ)
+                    for a, b in differ:
+                        self.assertTrue(is_nan(int(a.removeprefix("tensor:word:"))))
+                        self.assertTrue(is_nan(int(b.removeprefix("tensor:word:"))))
+                    continue
+                if identifier in FORWARD_ORDER:
+                    self.assertTrue(differ)
+                    for a, b in differ:
+                        self.assertTrue(a.startswith("tensor:word:"))
+                        self.assertTrue(b.startswith("tensor:word:"))
+                    self.assertEqual(grads(seen), grads(expected))
+                    continue
+                self.assertEqual(seen, expected)
+                exact += 1
+        excluded = REJECTIONS | FORGED | NAN_PAYLOAD | FORWARD_ORDER
+        self.assertEqual(exact, len(cases()) - len(excluded))
+
+    def test_arrival_order_and_broadcast_folds_match_pytorch(self):
+        rows = {row["id"]: row for row in self.fixture["backward"]}
+        selected = {row["id"]: row for row in cases()}
+        for identifier in ("fan_out_arrival_order", "broadcast_fold_order", "linear"):
+            self.assertEqual(rows[identifier]["lines"], reference(selected[identifier]))
+        self.assertEqual(
+            grads(rows["fan_out_arrival_order"]["lines"])[0], values(1.0, 0.0)
+        )
 
 
 class GateRegistrationTests(unittest.TestCase):
