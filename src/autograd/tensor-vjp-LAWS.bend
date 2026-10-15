@@ -11,9 +11,8 @@ import ../tensor/dot-fold.bend as DotFold
 import ../tensor/transpose-spec.bend as Transpose
 import ../tensor/observation.bend as Values
 import ../tensor/contracts/replayed.bend as Replayed
-import ../tensor/contracts/pointwise.bend as Pointwise
-import ../tensor/contracts/broadcast.bend as PointwiseBroadcast
 import ../tensor/contracts/LAWS.bend as Contracts
+import ../tensor/contracts/binary-LAWS.bend as Binary
 import ./sum-to-size-fold-LAWS.bend as SumToSizeFold
 import ./tensor-backward.bend as Backward
 import ./tensor-backward-LAWS.bend as TensorBackward
@@ -25,17 +24,12 @@ import ./tensor-backward-LAWS.bend as TensorBackward
 
 # The words of a pointwise product in index order: word k is
 # scalar(operation, left[left_map(plan, k)], right[right_map(plan, k)]), the
-# value the pointwise family's broadcast instance writes at k.
+# value the pointwise family's broadcast instance writes at k
+# (`binary-LAWS.bend` in the tensor contracts).
 def cells(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan,
   +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
   +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +count: Nat) -> List<&2, F32>:
-  match count:
-    case 0n:
-      Nil{}
-    case 1n+previous:
-      List.append(&2, F32, cells(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, previous),
-        [Pointwise.cell(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~PointwiseBroadcast.left_map,
-          ~PointwiseBroadcast.right_map, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, previous)])
+  Binary.cells(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, count)
 
 # What sum_to_size(contribution, target) holds at target cell index, for a
 # contribution of `shape` whose words are `values`: the word itself when the
@@ -52,30 +46,16 @@ def ProductWith(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan,
   +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
   +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>,
   -P: (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic> -> Type) -> Type:
-  @+left_kept: List<&2, StorageLaws.Op> ->
-  @left_words: {Contracts.words(left, left_fill, left_kept, Shape.logical_numel(Shape.dimensions(left))) ==
-    Contracts.words(left, left_fill, left_ops, Shape.logical_numel(Shape.dimensions(left))) : List<&2, F32>} ->
-  @-left_fits: {Lifecycle.logical_length(Replayed.storage(left, left_fill, left_kept)) == Shape.logical_numel(Shape.dimensions(left)) : Nat} ->
-  @+right_kept: List<&2, StorageLaws.Op> ->
-  @right_words: {Contracts.words(right, right_fill, right_kept, Shape.logical_numel(Shape.dimensions(right))) ==
-    Contracts.words(right, right_fill, right_ops, Shape.logical_numel(Shape.dimensions(right))) : List<&2, F32>} ->
-  @-right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_kept)) == Shape.logical_numel(Shape.dimensions(right)) : Nat} ->
-  @+output_ops: List<&2, StorageLaws.Op> ->
-  @values: {Contracts.words(Shape.output_shape(plan), 0.0, output_ops, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan)))) ==
-    cells(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops,
-      Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan)))) : List<&2, F32>} ->
-  @-output_fits: {Lifecycle.logical_length(Replayed.storage(Shape.output_shape(plan), 0.0, output_ops)) ==
-    Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))) : Nat} ->
-    P(((Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_kept), left_fits}},
-      Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_kept), right_fits}}),
-      Done{Core.Packed{Shape.output_shape(plan), Core.TTensor{Replayed.storage(Shape.output_shape(plan), 0.0, output_ops), output_fits}}}))
+  Binary.BinaryWith(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, P)
 
-# The pointwise product the Sub and Mul VJPs compute is the pointwise family's
-# broadcast instance, in transport form: for two replayed inputs whose shapes
-# broadcast, for every P, if P holds for every result that hands back both
-# inputs with their words and gives an output of the plan's shape whose words
-# are `cells`, P holds for the product. The output is a replayed tensor, so
-# sum_to_size_replayed applies to it.
+# The pointwise product the Sub and Mul VJPs compute, `Elementwise.binary`
+# with its parallel build, writes the words of the pointwise family's broadcast
+# instance, in transport form: for two replayed inputs whose shapes broadcast,
+# for every P, if P holds for every result that hands back both inputs with
+# their words and gives an output of the plan's shape whose words are `cells`,
+# P holds for the product. The output is a replayed tensor, so
+# sum_to_size_replayed applies to it. This is the tensor law binary_replayed
+# stated for the backward.
 law tensor_product_replayed:
   for +operation: Elementwise.Operation
   for +left: Shape.Shape
@@ -90,7 +70,7 @@ law tensor_product_replayed:
   for -right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_ops)) == Shape.logical_numel(Shape.dimensions(right)) : Nat}
   for -P: (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic> -> Type
   for h: ProductWith(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, P)
-  P(Backward.product(operation, Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
+  P(Elementwise.binary(operation, Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
     Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}}))
 
 # The two contributions of a VJP, when it sends exactly two.

@@ -9,6 +9,7 @@ Law, Site, Value, Witness = (
     controls.Witness,
 )
 SRC = "_2e_._2f_.._2f_.._2f_src_2f_autograd_2f_"
+ELEMENTWISE_BINARY = "_2e_._2f_.._2f_.._2f_src_2f_tensor_2f_elementwise.binary"
 LAWS = f"{SRC}tensor_2d_vjp_2d_LAWS"
 NAT = "∀+x0 : Nat -> "
 OPERATION = "∀+x0 : _2e_._2f_.._2f_.._2f_src_2f_tensor_2f_elementwise.Operation -> "
@@ -44,7 +45,7 @@ FAMILY = controls.Family(
     entry=("src/autograd/tensor-backward.bend",),
     operations=frozenset({"src/autograd/tensor-backward.bend"}),
     laws={
-        f"{LAWS}.tensor_product_replayed": Law(OPERATION, "tensor_2d_backward.product"),
+        f"{LAWS}.tensor_product_replayed": Law(OPERATION, ELEMENTWISE_BINARY),
         f"{LAWS}.tensor_add_vjp_values": Law(NAT, "tensor_2d_backward.vjp"),
         f"{LAWS}.tensor_sub_vjp_values": Law(NAT, "tensor_2d_backward.vjp"),
         f"{LAWS}.tensor_mul_vjp_values": Law(NAT, "tensor_2d_backward.vjp"),
@@ -127,7 +128,7 @@ FAMILY = controls.Family(
         ),
         "sub-keeps-sign": Site(
             "Laws.tensor_sub_vjp_values",
-            "product_planned(Elementwise.KeepLeft{},",
+            "parallel_planned(Elementwise.KeepLeft{},",
             "tensor_2d_vjp_2d_LAWS.tensor_sub_vjp_values",
             ("tensor_2d_backward.negated",),
         ),
@@ -137,11 +138,11 @@ FAMILY = controls.Family(
             "tensor_2d_vjp_2d_LAWS.tensor_mul_vjp_values",
             ("tensor_2d_backward.vjp_mul",),
         ),
-        "product-swaps-inputs": Site(
-            "product_replayed",
-            "Elementwise.allocated(operation, plan, Core.Packed{right,",
-            "tensor_2d_vjp_2d_PROOF.product_replayed",
-            ("tensor_2d_backward.product_planned",),
+        "mul-product-swaps-inputs": Site(
+            "Laws.tensor_mul_vjp_values",
+            "parallel_planned(Elementwise.Mul{}, Core.Packed{left,",
+            "tensor_2d_vjp_2d_LAWS.tensor_mul_vjp_values",
+            ("tensor_2d_backward.multiplied_first",),
         ),
         "matmul-left-untransposed": Site(
             "matmul_values",

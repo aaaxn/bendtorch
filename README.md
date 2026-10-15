@@ -74,9 +74,10 @@ the values and failures of permute and transpose, the values of the pointwise
 and ordered-fold [contract families](docs/contract-families.md) with their
 broadcast, sum, dot and `matmul` instances, the values of the autograd
 `broadcast_to`, `reduce_to` and `sum_to_size`, and the values the tensor
-backward's `add`, `sub`, `mul`, `sum` and `matmul` VJPs send. The public `Elementwise.binary`
-and `Reduction.sum` run their own loops, which no live law relates to the
-families yet, and the other autograd laws are erased. The
+backward's `add`, `sub`, `mul`, `sum` and `matmul` VJPs send. The public
+`Elementwise.binary`, built in parallel halves, exports the pointwise family's
+words for replayed inputs; `Reduction.sum` runs its own loop, which no live
+law relates to the families yet, and the other autograd laws are erased. The
 [proof boundary](docs/proof-boundary.md) page explains the difference.
 
 **Tested.** The numerical results are tested, not proved. The frozen corpus in

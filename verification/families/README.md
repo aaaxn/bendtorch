@@ -318,13 +318,13 @@ template constant.
 | False twin `sub_witness` | the words added without their sign flipped | the witness | the witness |
 | False twin `mul_witness` | `F32.mul(5.0, 7.0)`, `g * x` sent to node 0 | the witness | the witness |
 | False twin `mul_sum_witness` | `g * y` summed for node 1 | the witness | the witness |
+| False twin `matmul_front_witness` | `g @ b` instead of `g @ b^T`: `3.0 * 20.0` for `3.0 * 30.0` | the witness | the witness |
+| False twin `matmul_back_witness` | `F32.mul(3.0, 7.0)`, the product's operands swapped | the witness | the witness |
 | Add reduces to the other operand | `vjp_add` reduces the first contribution to the right operand's shape | `Laws.tensor_add_vjp_values` | `tensor_add_vjp_values` |
 | Add sends the second to the first | `vjp_add` sends the second contribution to node `a` | `Laws.tensor_add_vjp_values` | `tensor_add_vjp_values` |
 | Sub keeps the sign | `negated` runs `KeepLeft` instead of `NegateLeft` | `Laws.tensor_sub_vjp_values` | `tensor_sub_vjp_values` |
 | Mul swaps operands | `vjp_mul` multiplies `g` by `x` for node `a` and by `y` for node `b` | `Laws.tensor_mul_vjp_values` | `tensor_mul_vjp_values` |
-| Product swaps inputs | `product_planned` passes the right input on the left | `product_replayed` | `product_replayed` |
-| False twin `matmul_front_witness` | `g @ b` instead of `g @ b^T`: `3.0 * 20.0` for `3.0 * 30.0` | the witness | the witness |
-| False twin `matmul_back_witness` | `F32.mul(3.0, 7.0)`, the product's operands swapped | the witness | the witness |
+| Mul product swaps inputs | `multiplied_first` computes `x * g` for node `b` instead of `g * x` | `Laws.tensor_mul_vjp_values` | `tensor_mul_vjp_values` |
 | Matmul left untransposed | `matmul_first` transposes `b` by `(0, 0)`, which keeps it as it is | `matmul_values` | `matmul_values` |
 | Matmul right operands swapped | `right_product` multiplies `g @ a^T` instead of `a^T @ g` | `matmul_values` | `matmul_values` |
 | Matmul sends the second to the first | `vjp_matmul` passes `a` for `b` | `matmul_values` | `matmul_values` |
@@ -345,6 +345,48 @@ mutants in `verification/contracts/permute-values/` and the `matmul` mutants
 of the fold family fail those walks, so they cover the transport laws too.
 `tensor_vjp/entry.bend` imports only `tensor-backward.bend`.
 
+## Binary
+
+`binary/` holds the controls of `binary_replayed`, the export of the parallel
+`Elementwise.binary` build:
+
+- `consumers.bend`: four consumers on inputs replayed as the writes of
+  `Core.from_values`, each taking its plan from `Shape.broadcast_checked`:
+  - `mul_broadcast`: `[3, 5] * [10]`, shapes `[2]` and `[1]`: output cell 1
+    is `F32.mul(5.0, 10.0)`, and the inputs come back with words `5.0` and
+    `10.0`.
+  - `sub_broadcast`: `[7] - [2, 3]`: output cell 1 is `F32.sub(7.0, 3.0)`.
+  - `negate_scalar`: `NegateLeft` of `[3, 5]` against a rank-0 `+0.0`, as the
+    `Sub` VJP runs it: output cell 0 is `F32.neg(3.0)`.
+  - `binary_then_reduce`: the product of `mul_broadcast` reduced back to `[1]`
+    through `reduce_to_fiber`, which applies because `binary_replayed` makes
+    the product a replayed tensor:
+    `F32.add(F32.add(0.0, F32.mul(3.0, 10.0)), F32.mul(5.0, 10.0))`.
+- `controls.bend`: five value witnesses, each paired with one wrong value.
+- `mutants.toml`: the before and after text of each mutation.
+
+| Control | Change | Source rejection | BendTT rejection |
+| --- | --- | --- | --- |
+| False twin `mul_witness` | `F32.mul(10.0, 5.0)`, the operands swapped | the witness | the witness |
+| False twin `sub_witness` | `F32.sub(3.0, 7.0)` | the witness | the witness |
+| False twin `negate_witness` | `3.0`, the sign kept | the witness | the witness |
+| False twin `kept_witness` | `3.0`, another word of the left input | the witness | the witness |
+| False twin `chain_witness` | only the second product, from `+0.0` | the witness | the witness |
+| High fork reuses the base | `upper` returns `base`, so both halves build the low cells | `build_eq` | `build_eq` |
+| Cell swaps operands | `cell_right` writes `scalar(operation, y, x)` | `cell_right_eq` | `cell_right_eq` |
+| Cell swaps returned inputs | `cell_right` hands the input arrays back swapped | `cell_right_eq` | `cell_right_eq` |
+| Padding not zero | a cell past the count holds `1.0` | `cell_eq` | `cell_eq` |
+
+The mutants change `src/tensor/elementwise.bend`. The erased
+`elementwise-parallel-proof.bend` would reject most of them too, so the source
+check runs `src/tensor/contracts/binary-PROOF.bend`, which imports only the
+live proof. The erased `BinaryModel` states only the cells below the count;
+`binary_replayed` states the whole output storage, so its statement, and not
+only its proof, excludes `padding-not-zero`. A change to `splits`, the number
+of forks, keeps every word and is not a mutant: `build_eq` holds for any
+number.
+`binary/entry.bend` imports only `elementwise.bend`.
+
 ## Run
 
 ```sh
@@ -353,7 +395,7 @@ uv run --locked python -m unittest verification/families/test_run.py -v
 ```
 
 The runner snapshots `src/`, `pointwise/`, `fold/`, `reduce/`,
-`broadcast_to/` and `tensor_vjp/`. For each family it
+`broadcast_to/`, `tensor_vjp/` and `binary/`. For each family it
 builds the false twins and the mutant copies, and runs the source checks,
 `--verdict` on the consumers and the controls, the exports, and BendTT on the
 positive and mutated exports. Each family writes its outputs to its own

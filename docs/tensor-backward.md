@@ -64,11 +64,11 @@ The sweep:
   `left` and `right` are the saved operand values (and shapes). `-g` uses the
   new `Elementwise.NegateLeft` operation, `scalar(NegateLeft, l, r) =
   F32.neg(l)`, which flips the sign bit like PyTorch's `neg`. The `Mul`
-  products and `-g` come from `TensorBackward.product`, which plans the
-  broadcast and runs the tensor layer's sequential elementwise loop, the loop
-  `broadcast_to` runs. `Elementwise.binary` builds the same words in parallel
-  halves, but only erased laws describe that build, and the
-  [value laws](#vjp-values) need the pointwise family's live statement.
+  products and `-g` come from `Elementwise.binary`, which builds its output in
+  parallel halves above 2^15 cells. The live law `binary_replayed`
+  ([contract families](contract-families.md#elementwisebinary-exports-its-replayed-result))
+  states that this build writes the pointwise family's words whatever the
+  split, so the [value laws](#vjp-values) chain through it.
   `sum_to_size`
   copies `g` when no axis is reduced, so `-0.0` stays `-0.0`, and otherwise
   folds each fiber in ascending flat order from `+0.0`. `@` is the ordered
@@ -94,8 +94,9 @@ every slot, like `zero_grad(set_to_none=True)`.
 contribution that `sum_to_size` does not reduce, allocates `-g` for `Sub`, and
 copies `g` twice and each saved matmul operand once (its transpose) for
 `Matmul`. The sweep is sequential: the order in which contributions reach a
-slot is part of the contract. The `Mul` and `Sub` products run on one thread,
-also above the 2^15 cells where `Elementwise.binary` would fork.
+slot is part of the contract. Within one VJP, the `Mul` and `Sub` products
+fork into parallel halves above 2^15 cells, as every `Elementwise.binary`
+does.
 
 ## Laws
 
@@ -153,11 +154,11 @@ a `zero_grad` that keeps the slot; and each refusal reported as the other.
 
 `src/autograd/tensor-vjp-LAWS.bend` states the values of the `Add`, `Sub`,
 `Mul` and `Matmul` VJPs, and `tensor-vjp-PROOF.bend` proves them. The `Add`,
-`Sub` and `Mul` proofs go through laws alone: the pointwise family's product,
-then `sum_to_size`, each handing the next a replayed tensor. The `Matmul`
-proof composes the clone, transpose and ordered-matmul transport laws with
-supporting value lemmas of the permute copy loop (see
-`tensor_matmul_vjp_values` below). Each `Add`/`Sub`/`Mul` law takes a [replayed](contract-families.md#replayed-tensors-are-the-input-class)
+`Sub` and `Mul` proofs go through laws alone: the parallel product, whose
+words are the pointwise family's, then `sum_to_size`, each handing the next a
+replayed tensor. The `Matmul` proof composes the clone, transpose and
+ordered-matmul transport laws with supporting value lemmas of the permute copy
+loop (see `tensor_matmul_vjp_values` below). Each `Add`/`Sub`/`Mul` law takes a [replayed](contract-families.md#replayed-tensors-are-the-input-class)
 gradient `g` (and, for `Mul`, replayed saved operands `x` and `y`) and the
 broadcast plans the VJP uses, and concludes a `PairContract`: the VJP sends
 exactly two contributions, the first to `a` with the left operand's
@@ -184,11 +185,11 @@ Two transport laws make the chain possible. Each has the form of
 `broadcast_to_replayed`: for every `P`, if `P` holds for every result of the
 stated form, `P` holds for the call.
 
-- `tensor_product_replayed` (`tensor-vjp-LAWS.bend`): `TensorBackward.product`
+- `tensor_product_replayed` (`tensor-vjp-LAWS.bend`): `Elementwise.binary`
   of two replayed inputs whose shapes broadcast hands both inputs back with
   the same words and gives a replayed output of the plan's shape whose words
-  are `cells`. Its proof is the broadcast instance of the pointwise family's
-  walk of the elementwise loop in `broadcast-pointwise-PROOF.bend`.
+  are `cells`. It restates the tensor law `binary_replayed` for the backward,
+  whose proof walks the parallel build with live code.
 - `sum_to_size_replayed` (`sum-to-size-fold-LAWS.bend`): `sum_to_size` of a
   replayed contribution whose words are `values` hands it back with the same
   words and gives a replayed output with the target's dimensions whose cells

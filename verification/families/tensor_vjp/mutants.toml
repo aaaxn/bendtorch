@@ -15,23 +15,23 @@ after = '''
 [sub-keeps-sign]
 file = "src/autograd/tensor-backward.bend"
 before = '''
-      negated_pair(product(Elementwise.NegateLeft{}, g,'''
+      negated_pair(Elementwise.binary(Elementwise.NegateLeft{}, g,'''
 after = '''
-      negated_pair(product(Elementwise.KeepLeft{}, g,'''
+      negated_pair(Elementwise.binary(Elementwise.KeepLeft{}, g,'''
 
 [mul-swaps-operands]
 file = "src/autograd/tensor-backward.bend"
 before = '''
-      multiplied_first(a, b, left, right, x, product(Elementwise.Mul{}, g, y))'''
+      multiplied_first(a, b, left, right, x, Elementwise.mul(g, y))'''
 after = '''
-      multiplied_first(a, b, left, right, y, product(Elementwise.Mul{}, g, x))'''
+      multiplied_first(a, b, left, right, y, Elementwise.mul(g, x))'''
 
-[product-swaps-inputs]
+[mul-product-swaps-inputs]
 file = "src/autograd/tensor-backward.bend"
 before = '''
-      Elementwise.allocated(operation, plan, left, right, Core.new(Shape.output_shape(plan), 0.0))'''
+  multiplied_second(b, right, product_reduced(a, left, first), y, Elementwise.mul(g, x))'''
 after = '''
-      Elementwise.allocated(operation, plan, right, left, Core.new(Shape.output_shape(plan), 0.0))'''
+  multiplied_second(b, right, product_reduced(a, left, first), y, Elementwise.mul(x, g))'''
 
 [matmul-left-untransposed]
 file = "src/autograd/tensor-backward.bend"

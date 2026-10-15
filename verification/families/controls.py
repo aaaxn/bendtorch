@@ -212,10 +212,10 @@ class Family:
                 raise GateError(f"Erased field in a LIVE evidence record: {name}")
         for name, (prefix, call) in self.laws.items():
             header = declarations[name][0]
-            if (
-                not header.startswith(f"{name} : {prefix}")
-                or f"{self.prefix}{call}" not in header
-            ):
+            # A call that starts with the export's path prefix names an
+            # operation outside the family's own directory.
+            called = call if call.startswith("_2e_") else f"{self.prefix}{call}"
+            if not header.startswith(f"{name} : {prefix}") or called not in header:
                 raise GateError(f"{name} is not stated for every {prefix} over {call}")
         for name, value in self.values.items():
             if declarations[name][1].strip() != value.kernel:

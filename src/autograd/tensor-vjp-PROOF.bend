@@ -11,9 +11,10 @@ import ../tensor/contracts/pointwise.bend as Pointwise
 import ../tensor/contracts/pointwise-proof.bend as PointwiseProof
 import ../tensor/contracts/broadcast.bend as PointwiseBroadcast
 import ../tensor/contracts/LAWS.bend as Contracts
-import ../tensor/contracts/words-proof.bend as Words
+import ../tensor/contracts/binary-proof.bend as BinaryProof
+# Proves binary_replayed, which importing the proof above would otherwise leave open.
+import ../tensor/contracts/binary-PROOF.bend as BinaryLaw
 import ./reduce-to-fold-PROOF.bend as ReduceTo
-import ./broadcast-pointwise-PROOF.bend as BroadcastPointwiseProof
 import ./sum-to-size-fold-LAWS.bend as SumToSizeFold
 import ./sum-to-size-fold-PROOF.bend as SumToSizeFoldProof
 import ./tensor-backward.bend as Backward
@@ -53,38 +54,6 @@ def cells_snoc(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan,
       value => List.append(&2, F32, Laws.cells(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, previous), [value]),
       word, other, last))
 
-# The words of the pointwise family's output history are `cells`.
-def words_cells(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan,
-  +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
-  +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +count: Nat,
-  +room: {Nat.is_le(count, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan)))) == True{} : Bool}) ->
-  {Contracts.words(Shape.output_shape(plan), 0.0,
-    BroadcastPointwiseProof.history(Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))), operation, plan,
-      left, left_fill, left_ops, right, right_fill, right_ops), count) ==
-    Laws.cells(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, count) : List<&2, F32>}:
-  match count:
-    case 0n:
-      {==}
-    case 1n+previous:
-      +output = Shape.output_shape(plan)
-      +total = Shape.logical_numel(Shape.dimensions(output))
-      +history = BroadcastPointwiseProof.history(total, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops)
-      +below = Conversion.le_successor_lt(previous, total, room)
-      +position = U32.from_nat(previous)
-      cells_snoc(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, previous,
-        Contracts.words(output, 0.0, history, previous), Replayed.value(output, 0.0, history, position),
-        cell(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, previous),
-        words_cells(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, previous,
-          Conversion.le_predecessor(previous, total, room)),
-        Equal.trans(F32, Replayed.value(output, 0.0, history, position),
-          cell(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, U32.to_nat(position)),
-          cell(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, previous),
-          PointwiseProof.writes_value(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~PointwiseBroadcast.left_map,
-            ~PointwiseBroadcast.right_map, total, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, output, position,
-            PointwiseProof.word_inside(previous, output, below), Conversion.le_reflexive(total)),
-          Equal.cong(Nat, F32, number => cell(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, number),
-            U32.to_nat(position), previous, PointwiseProof.word_exact(previous, output, below))))
-
 # `cells` reads the left input only at left_map(plan, k), which is in bounds,
 # so a left history that lists the same words gives the same cells.
 def cells_left(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan,
@@ -123,32 +92,10 @@ def product_replayed(+operation: Elementwise.Operation, +left: Shape.Shape, +rig
   h: Laws.ProductWith(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, P)) ->
   @-left_fits: {Lifecycle.logical_length(Replayed.storage(left, left_fill, left_ops)) == Shape.logical_numel(Shape.dimensions(left)) : Nat} ->
   @-right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_ops)) == Shape.logical_numel(Shape.dimensions(right)) : Nat} ->
-    P(Backward.product(operation, Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
+    P(Elementwise.binary(operation, Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
       Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}})):
-  +output = Shape.output_shape(plan)
-  +count = Shape.logical_numel(Shape.dimensions(output))
   left_fits => right_fits =>
-    -left_input = {Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}} : Core.Dynamic}
-    -right_input = {Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}} : Core.Dynamic}
-    %Equal.sym(Result<&2, &2, Shape.Error, Shape.BroadcastPlan>, Shape.broadcast_checked(left, right), Done{plan}, planned) :
-      P(Backward.product_planned(operation, left_input, right_input, _))
-    Replayed.new_lift(output, 0.0, result => P(Elementwise.allocated(operation, plan, left_input, right_input, result)),
-      output_fits => BroadcastPointwiseProof.start_cast(Shape.elements(output), operation, plan, left, left_fill, left_ops,
-        right, right_fill, right_ops, P,
-        BroadcastPointwiseProof.loop_lift(Shape.elements(output), operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, 0n,
-          Shape.elements_exact(output), ReduceTo.plan_left(left, right, plan, planned), ReduceTo.plan_right(left, right, plan, planned), P,
-          left_after => right_after => output_after =>
-            h(List.append(&2, StorageLaws.Op, left_ops, Pointwise.reads(~Shape.BroadcastPlan, ~PointwiseBroadcast.left_map, plan, count)),
-              Words.words_reads(~Shape.BroadcastPlan, ~PointwiseBroadcast.left_map, plan, count, left, left_fill, left_ops,
-                Shape.logical_numel(Shape.dimensions(left))),
-              left_after,
-              List.append(&2, StorageLaws.Op, right_ops, Pointwise.reads(~Shape.BroadcastPlan, ~PointwiseBroadcast.right_map, plan, count)),
-              Words.words_reads(~Shape.BroadcastPlan, ~PointwiseBroadcast.right_map, plan, count, right, right_fill, right_ops,
-                Shape.logical_numel(Shape.dimensions(right))),
-              right_after,
-              BroadcastPointwiseProof.history(count, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops),
-              words_cells(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, count, Conversion.le_reflexive(count)),
-              output_after)))(left_fits, right_fits, output_fits))
+    BinaryProof.binary_replayed(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, planned, P, h)(left_fits, right_fits)
 
 def Laws.tensor_product_replayed(operation, left, right, plan, planned, left_fill, left_ops, left_fits, right_fill, right_ops, right_fits, P, h):
   product_replayed(operation, left, right, plan, planned, left_fill, left_ops, right_fill, right_ops, P, h)(left_fits, right_fits)
@@ -282,7 +229,7 @@ def Laws.tensor_mul_vjp_values(a, b, left, right, shape, first, first_planned, l
         pair => Laws.PairContract<a, left, index => Laws.reduced(left, front, left_plan, front_values, index),
           b, right, index => Laws.reduced(right, back, right_plan, back_values, index),
           Backward.multiplied_second(b, right, Backward.contribution_of(Backward.delivered_as(a, left, pair)), y_kept,
-            Backward.product(Elementwise.Mul{}, g, x))>,
+            Elementwise.mul(g, x))>,
         reduced => reduced_words => reduced_fits => head => head_dimensions => head_fill => head_ops => head_values => head_fits =>
           -delivered = {Done{Backward.Contribution{a, left, Core.Packed{head, Core.TTensor{Replayed.storage(head, head_fill, head_ops), head_fits}}}} :
             Result<&2, &1, Backward.Error, Backward.Contribution>}
