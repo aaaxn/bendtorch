@@ -140,6 +140,51 @@ then `P` holds for the `broadcast_to` result. So a law about a replayed
 tensor applies to the output, and a consumer can chain `broadcast_to` into
 `reduce_to` through laws alone.
 
+### `Elementwise.binary` exports its replayed result
+
+`Elementwise.binary` in `src/tensor/elementwise.bend`, the public `add`,
+`sub` and `mul`, does not run a loop over the output. `build` allocates the
+output as a balanced tree of depth `d`: the top `d - 15` levels fork into two
+halves that run in parallel, each with its own clone of both input arrays,
+and below the forks one thread builds its subtree in index order. Cell `k`
+gets `scalar(operation, left[left_map(plan, k)], right[right_map(plan, k)])`
+below the count and `+0.0` above it, so no word depends on the split.
+
+The law `binary_replayed` in `src/tensor/contracts/binary-LAWS.bend` states
+that for replayed inputs whose shapes broadcast, in the transport form of
+`broadcast_to_replayed`: for every `P`, if `P` holds for every result that
+hands both inputs back with their words, next to an output replayed over
+`+0.0` whose words are `cells`, the words of the family's broadcast instance,
+then `P` holds for `Elementwise.binary`. The returned inputs are the First
+halves of their clones.
+
+The proof walks the build with live code; the older proof in
+`elementwise-parallel-proof.bend` follows the same build with erased evidence
+only.
+
+- `binary-storage-proof.bend` puts a replayed input in a normal form: the
+  owned storage whose array is `Api.arr` of a history of storage effects, the
+  form the storage proofs use. Every array the build reads or clones is then
+  a term of reusable data, and the proof can name it as often as it needs.
+- `binary-build-proof.bend` shows that `build` returns `spec`, the balanced
+  tree that holds each family cell below the count and `+0.0` above it, for
+  every number of forks: `build_eq` follows the forks, `tree_eq` the
+  sequential subtrees, and each read of a cell is the input word the history
+  names.
+- `binary-proof.bend` replays the family history `Pointwise.writes` on the
+  storage `Core.new` makes and shows it holds the same tree, by writing one
+  cell at a time into `out_spec`. Two owned storages with equal arrays are
+  equal, because a balanced certificate of an array is unique
+  (`balanced_unique`).
+
+The last step compares the output storages' erased certificates, so the
+certificate the code stores has to be a live term. `build_balanced` in
+`elementwise.bend` therefore follows the code with a `Certified` run that
+pairs each subtree with its proof of balance. It sits in the erased field of
+the output storage and does not run. A law cannot see an erased field, so no
+law's statement changes; `elementwise-parallel-proof.bend` and the erased
+laws that use it check as before.
+
 ## The ordered-fold family
 
 `Fold.run` in `fold.bend` takes five templates: an operation type `O`, the
@@ -319,11 +364,8 @@ half to another family law, which the tensor backward's
 
 ## What the families do not cover yet
 
-- `Elementwise.binary`, the public operation in `src/tensor/elementwise.bend`,
-  runs its own loop. `Broadcast.binary` is a separate function that runs the
-  family loop, and no law yet relates the two. Routing `Elementwise.binary`
-  through the family, or proving the two equal, comes after the open work on
-  `elementwise.bend` lands.
+- `binary_replayed` covers replayed inputs whose shapes broadcast. A failed
+  plan keeps the existing erased laws in `core-LAWS.bend`.
 - `Reduction.sum` in `src/tensor/reduction.bend` runs its own loop too.
   `Sum.sum` is a separate function, and no law yet relates the two.
 - `matmul_ordered` covers a successful product. A failed plan or read keeps
@@ -331,10 +373,10 @@ half to another family law, which the tensor backward's
 - The family output is itself a replayed tensor, with history `writes(n)` over
   `+0.0`. `broadcast_to_replayed` exports that fact for `broadcast_to`,
   `sum_to_size_replayed` for `sum_to_size` (and so for `reduce_to`'s output
-  when axes are reduced), and `tensor_product_replayed` for
-  `TensorBackward.product`, the elementwise loop the tensor backward runs for
-  its products. No law exports it for `Broadcast.binary` or for the parallel
-  `Elementwise.binary`. The tensor backward chains the exported ones: the
+  when axes are reduced), and `binary_replayed` for the parallel
+  `Elementwise.binary`, which `tensor_product_replayed` restates for the
+  tensor backward's products. No law exports it for `Broadcast.binary`. The
+  tensor backward chains the exported ones: the
   `Sum`, `Add`, `Sub` and `Mul` VJPs have value laws
   ([tensor backward](tensor-backward.md#vjp-values)). The `Matmul` VJP has
   none, since its operands go through `Transforms.transpose_dynamic`, whose
@@ -359,11 +401,12 @@ two of them on the actual `Core.from_values` and `Core.new` results, of
 `reduce_fold_fiber` and `reduce_to_fiber`, of `sum_to_size_clone` and
 `sum_to_size_fiber`, of `broadcast_to_pointwise` and
 `broadcast_to_replayed`, one of them a `broadcast_to` output reduced by
-`reduce_to_fiber`, and of the tensor backward's `Add`, `Sub` and `Mul` VJP
-value laws. It also holds false twins of twenty-seven value statements,
-and forty-one mutants of the family loops, of their instances and of the
-`reduce_to`, `matmul`, `sum_to_size`, `broadcast_to` and tensor backward
-code. Its
+`reduce_to_fiber`, of the tensor backward's `Add`, `Sub` and `Mul` VJP
+value laws, and of `binary_replayed`, one of them an `Elementwise.binary`
+product reduced by `reduce_to_fiber`. It also holds false twins of
+thirty-two value statements, and forty-five mutants of the family loops, of
+their instances and of the `reduce_to`, `matmul`, `sum_to_size`,
+`broadcast_to`, tensor backward and parallel elementwise code. Its
 [README](../verification/families/README.md) lists each control and the
 rejection it expects.
 
