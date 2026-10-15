@@ -14,7 +14,7 @@ contracts = importlib.import_module("verification.contracts.run")
 reads = importlib.import_module("verification.contracts.reads_controls")
 FAMILIES = tuple(
     importlib.import_module(f"verification.families.{name}_controls").FAMILY
-    for name in ("pointwise", "fold", "reduce", "broadcast_to")
+    for name in ("pointwise", "fold", "reduce", "broadcast_to", "tensor_vjp")
 )
 
 ROOT = Path(__file__).resolve().parents[2]

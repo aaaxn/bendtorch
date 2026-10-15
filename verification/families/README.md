@@ -5,9 +5,10 @@ The family laws in `src/tensor/contracts/LAWS.bend` are proved in
 required by `verification/tensor.json`, so the root `PROOF.bend --verdict` and
 the tensor gate protect them. The `reduce_to` laws are stated in
 `src/autograd/reduce-fold-LAWS.bend`, the `sum_to_size` laws in
-`src/autograd/sum-to-size-fold-LAWS.bend` and the `broadcast_to` laws in
-`src/autograd/broadcast-pointwise-LAWS.bend`, and
-`verification/autograd.json` requires them. [Contract
+`src/autograd/sum-to-size-fold-LAWS.bend`, the `broadcast_to` laws in
+`src/autograd/broadcast-pointwise-LAWS.bend` and the tensor VJP value laws in
+`src/autograd/tensor-vjp-LAWS.bend`, and `verification/autograd.json`
+requires them. [Contract
 families](../../docs/contract-families.md) explains what they state. This
 directory holds literal consumers, false twins and implementation mutants,
 beside the runner that checks them.
@@ -276,6 +277,50 @@ passes the walk and fails the `kept` field of the contract.
 `broadcast_to/entry.bend` imports only `broadcast.bend`, which declares no
 template constant.
 
+## Tensor VJP
+
+`tensor_vjp/` holds:
+
+- `consumers.bend`: three consumers, one for each of `tensor_add_vjp_values`,
+  `tensor_sub_vjp_values` and `tensor_mul_vjp_values`. Each runs the VJP of
+  node 2 on a tape whose operands are node 0, of shape `[2]`, and node 1, of
+  shape `[1]`, for the gradient `[3, 5]` of shape `[2]`, replayed as the
+  writes of `Core.from_values`. It takes every plan from
+  `Shape.broadcast_checked`, the plans that reduce a product from that
+  product's own output shape, and states both targets, both dimensions and
+  one cell of each contribution:
+  - `add_values`: node 0 has the gradient's dimensions, so its cell 1 is
+    `5.0` itself; node 1's cell is `F32.add(F32.add(0.0, 3.0), 5.0)`.
+  - `sub_values`: node 0's cell 0 is `3.0`; node 1's cell is
+    `F32.add(F32.add(0.0, F32.neg(3.0)), F32.neg(5.0))`, each word negated
+    before it is added.
+  - `mul_values`, with the saved operands `x = [2, 7]` and `y = [10]`: node
+    0's cell 1 is `F32.mul(5.0, 10.0)`, from `g * y`; node 1's cell is
+    `F32.add(F32.add(0.0, F32.mul(3.0, 2.0)), F32.mul(5.0, 7.0))`, from
+    `g * x` summed.
+- `controls.bend`: five value witnesses, each paired with one wrong value.
+- `mutants.toml`: the before and after text of each mutation.
+
+| Control | Change | Source rejection | BendTT rejection |
+| --- | --- | --- | --- |
+| False twin `add_kept_witness` | `F32.add(0.0, 5.0)` for `5.0`, the gradient folded where nothing is reduced | the witness | the witness |
+| False twin `add_sum_witness` | the two words added in reverse order | the witness | the witness |
+| False twin `sub_witness` | the words added without their sign flipped | the witness | the witness |
+| False twin `mul_witness` | `F32.mul(5.0, 7.0)`, `g * x` sent to node 0 | the witness | the witness |
+| False twin `mul_sum_witness` | `g * y` summed for node 1 | the witness | the witness |
+| Add reduces to the other operand | `vjp_add` reduces the first contribution to the right operand's shape | `Laws.tensor_add_vjp_values` | `tensor_add_vjp_values` |
+| Add sends the second to the first | `vjp_add` sends the second contribution to node `a` | `Laws.tensor_add_vjp_values` | `tensor_add_vjp_values` |
+| Sub keeps the sign | `negated` runs `KeepLeft` instead of `NegateLeft` | `Laws.tensor_sub_vjp_values` | `tensor_sub_vjp_values` |
+| Mul swaps operands | `vjp_mul` multiplies `g` by `x` for node `a` and by `y` for node `b` | `Laws.tensor_mul_vjp_values` | `tensor_mul_vjp_values` |
+| Product swaps inputs | `product_planned` passes the right input on the left | `product_replayed` | `product_replayed` |
+
+The mutants change `src/autograd/tensor-backward.bend`, and the source check
+runs `src/autograd/PROOF.bend`. The structural laws in
+`tensor-backward-LAWS.bend` say nothing about the values the `Add`, `Sub` and
+`Mul` VJPs send, so only the value laws reject these mutants. The runtime controls of the autograd gate
+reject the `Mul` and `Sub` ones as well, in the native and JavaScript lanes.
+`tensor_vjp/entry.bend` imports only `tensor-backward.bend`.
+
 ## Run
 
 ```sh
@@ -283,8 +328,8 @@ uv run --locked python -m verification.families.run --output <fresh directory> -
 uv run --locked python -m unittest verification/families/test_run.py -v
 ```
 
-The runner snapshots `src/`, `pointwise/`, `fold/`, `reduce/` and
-`broadcast_to/`. For each family it
+The runner snapshots `src/`, `pointwise/`, `fold/`, `reduce/`,
+`broadcast_to/` and `tensor_vjp/`. For each family it
 builds the false twins and the mutant copies, and runs the source checks,
 `--verdict` on the consumers and the controls, the exports, and BendTT on the
 positive and mutated exports. Each family writes its outputs to its own
