@@ -68,6 +68,30 @@ The autograd gate checks three proof controls, and the proofs must reject each:
 folding the identity case through `reduce_to`, skipping the dimension check
 (always cloning), and always folding.
 
+### Live laws
+
+The three laws above use erased evidence. `src/autograd/sum-to-size-fold-LAWS.bend`
+states `sum_to_size` on a [replayed](contract-families.md#replayed-tensors-are-the-input-class)
+contribution through `ReduceToContract`, the live record of
+[`reduce_to_fiber`](contract-families.md#reduce_to-meets-the-same-specification),
+so one record covers both cases:
+
+- `sum_to_size_clone`: if the contribution's dimensions equal the target's,
+  the call succeeds, the output has the target's dimensions, every in-bounds
+  cell holds the contribution's own word, so `-0.0` stays `-0.0`, and the
+  returned contribution keeps every word.
+- `sum_to_size_fiber`: if the dimensions differ and the target broadcasts to
+  exactly the contribution's dimensions, every target cell holds
+  `ReduceLaws.fiber` over the contribution's words in index order from `+0.0`,
+  the value that `reduce_to_fiber` states for `reduce_to`.
+
+`sum-to-size-fold-PROOF.bend` proves the first by cloning the replayed
+contribution. Cloning it gives two replayed tensors, the kept owner with the
+history `ops ++ [First]` and the copy with `ops ++ [Second]`, and neither
+operation changes a word. It proves the second from `reduce_to_fiber`, once the
+dimension check is false. Their consumers, false twins and mutants are in
+[`verification/families/reduce/`](../verification/families/README.md#reduce).
+
 ## Runtime lanes
 
 `tools/autograd_sum_to_size.py` runs 8 handwritten cases plus every `reduce_to`

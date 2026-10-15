@@ -67,11 +67,13 @@ lists the full boundary.
 evidence is checked and then removed, so other code cannot take it as an
 input. Live evidence is an ordinary value that another proof or a later
 operation can receive as an argument. The contract laws make these facts live:
-construction, reads and writes, clone and metadata, reshape, and the failures
-of permute and transpose. These live contracts cover tensors built by
-`Core.new` with one fill value. The values written by a successful permute,
-transpose, elementwise op, sum or matmul are proved only with erased evidence
-today. The autograd laws are erased too. The
+construction, `from_values`, reads and writes, clone and metadata, reshape,
+the values and failures of permute and transpose, the values of the pointwise
+and ordered-fold [contract families](docs/contract-families.md) with their
+broadcast, sum, dot and `matmul` instances, and the values of the autograd
+`broadcast_to`, `reduce_to` and `sum_to_size`. The public `Elementwise.binary`
+and `Reduction.sum` run their own loops, which no live law relates to the
+families yet, and the other autograd laws are erased. The
 [proof boundary](docs/proof-boundary.md) page explains the difference.
 
 **Tested.** The numerical results are tested, not proved. The frozen corpus in
@@ -139,7 +141,7 @@ scalars but not yet on tensors, so it cannot train a model.
 | --- | --- | --- | --- |
 | 1 | Shapes and storage | Done | Validated shapes up to rank 4, row-major indexing, broadcast plans and bounds-checked F32 storage with one owner. |
 | 2 | Tensor core and operations | Done | Tensors with `add`, `sub`, `mul`, whole-tensor `sum`, 2-D `matmul`, `reshape`, `permute_copy` and `transpose_copy`, checked against frozen PyTorch outputs. |
-| 3 | Live proof contracts | In progress | Laws that later proofs can take as inputs. Construction, `from_values`, reads and writes, clone, metadata, reshape and the permute and transpose failures are live. The values that permute and transpose write are in progress. The values that elementwise ops, `sum` and `matmul` compute come after them. |
+| 3 | Live proof contracts | Done | Laws that later proofs can take as inputs. Construction, `from_values`, reads and writes, clone, metadata, reshape, the permute and transpose values and failures, the pointwise and ordered-fold families with their broadcast, sum, dot and `matmul` instances, and the values of `broadcast_to`, `reduce_to` and `sum_to_size` are live. |
 | 4 | Autograd building blocks | Done | `broadcast_to`, `reduce_to`, `sum_to_size` and gradient slots that accumulate in arrival order and read as `None` until they receive a value. |
 | 5 | Reverse-mode engine | In progress (scalars done) | `backward` on a tape, first for scalars and then for tensors, built on the gradient slots. Scalar `backward` for `add`, `sub`, `mul` and `neg` is done. The tensor version comes next. |
 | 6 | Neural-network modules | Planned | `Linear`, activations and losses, each with its forward and backward pass. |
