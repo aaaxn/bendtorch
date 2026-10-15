@@ -8,6 +8,7 @@ from tools.autograd_gradient import run_gate as gradient
 from tools.autograd_lifecycle import run_gate as lifecycle
 from tools.autograd_reduce import run_gate as reduce
 from tools.autograd_sum_to_size import run_gate as sum_to_size
+from tools.autograd_tensor_backward import run_gate as tensor_backward
 from tools.common import (
     ROOT,
     Evidence,
@@ -26,6 +27,7 @@ SUBGATES = {
     "gradient": gradient,
     "lifecycle": lifecycle,
     "backward": backward,
+    "tensor_backward": tensor_backward,
 }
 
 PROOF_CONTROLS = {
@@ -172,6 +174,60 @@ PROOF_CONTROLS = {
         "Entry{node, value, None{}} <> cleared(rest)",
         "Entry{node, value, slot} <> cleared(rest)",
     ),
+    "negate-left-keeps-sign": (
+        "src/tensor/elementwise.bend",
+        "    case NegateLeft{}:\n      F32.neg(left)",
+        "    case NegateLeft{}:\n      left",
+    ),
+    "tensor-backward-seeds-newest-node": (
+        "src/autograd/tensor-backward.bend",
+        "ran(pass(entries, count, output, at_head(count, output)))",
+        "ran(pass(entries, count, output, True{}))",
+    ),
+    "tensor-backward-seeds-zeros": (
+        "src/autograd/tensor-backward.bend",
+        "seeded(node, shape, value, saved, slot, rest, below, Core.new(shape, 1.0))",
+        "seeded(node, shape, value, saved, slot, rest, below, Core.new(shape, 0.0))",
+    ),
+    "tensor-backward-head-aliases": (
+        "src/autograd/tensor-backward.bend",
+        "    case 1n+below:\n      Nat.is_eq(below, id)",
+        "    case 1n+below:\n      Nat.is_le(below, id)",
+    ),
+    "tensor-backward-bump-overwrites": (
+        "src/autograd/tensor-backward.bend",
+        "      placed(rest, Gradient.accumulate(shape, slot, gradient))",
+        "      placed(rest, Gradient.Accumulated{Gradient.Held{gradient}})",
+    ),
+    "tensor-backward-merge-overwrites-slot": (
+        "src/autograd/tensor-backward.bend",
+        "merged_entry(node, shape, value, saved, Gradient.accumulate(shape, slot, g), "
+        "merge(rest, more))",
+        "merged_entry(node, shape, value, saved, "
+        "Gradient.Accumulated{Gradient.Held{g}}, merge(rest, more))",
+    ),
+    "tensor-backward-unreached-skips-older": (
+        "src/autograd/tensor-backward.bend",
+        "finished(Entry{node, shape, value, saved, slot}, Gradient.Unset{}, "
+        "rec(Done{pending}))",
+        "finished(Entry{node, shape, value, saved, slot}, Gradient.Unset{}, "
+        "rec(Done{Nil{}}))",
+    ),
+    "tensor-backward-sum-vjp-wrong-target": (
+        "src/autograd/tensor-backward.bend",
+        "Done{[Contribution{a, input, expanded}]}",
+        "Done{[Contribution{0n, input, expanded}]}",
+    ),
+    "tensor-backward-wiring-check-bypassed": (
+        "src/autograd/tensor-backward.bend",
+        "      Bool.and(operands_below(node, below), wired(rest, below))",
+        "      wired(rest, below)",
+    ),
+    "tensor-backward-zero-grad-keeps-slot": (
+        "src/autograd/tensor-backward.bend",
+        "Entry{node, shape, value, saved, Gradient.reset(slot)} <> cleared(rest)",
+        "Entry{node, shape, value, saved, slot} <> cleared(rest)",
+    ),
 }
 
 
@@ -272,6 +328,20 @@ ERROR_CONTROLS = {
         "    case True{} False{}:\n      Fail{UnknownNode{}}",
         "src/autograd/PROOF.bend",
         "Laws.backward_dangling",
+    ),
+    "tensor-backward-unknown-as-dangling": (
+        "src/autograd/tensor-backward.bend",
+        "      (Tape{entries}, Fail{UnknownNode{}})\n    case True{} False{}:",
+        "      (Tape{entries}, Fail{DanglingOperand{}})\n    case True{} False{}:",
+        "src/autograd/PROOF.bend",
+        "Laws.tensor_backward_unknown",
+    ),
+    "tensor-backward-dangling-as-unknown": (
+        "src/autograd/tensor-backward.bend",
+        "      (Tape{entries}, Fail{DanglingOperand{}})",
+        "      (Tape{entries}, Fail{UnknownNode{}})",
+        "src/autograd/PROOF.bend",
+        "Laws.tensor_backward_dangling",
     ),
 }
 

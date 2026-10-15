@@ -12,6 +12,7 @@ type Operation is Data:
   Sub{}
   Mul{}
   KeepLeft{}
+  NegateLeft{}
 
 def scalar(operation: Operation, left: F32, right: F32) -> F32:
   match operation:
@@ -23,6 +24,8 @@ def scalar(operation: Operation, left: F32, right: F32) -> F32:
       F32.mul(left, right)
     case KeepLeft{}:
       left
+    case NegateLeft{}:
+      F32.neg(left)
 
 def flat_input_indices(+plan: Shape.BroadcastPlan,
   result: Result<&2, &2, Shape.Error, Shape.FlatIndex<Shape.output_shape(plan)>>) -> Result<&2, &1, Core.Error, U32 & U32>:

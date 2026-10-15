@@ -320,7 +320,11 @@ the second by deciding the dimension check and calling `reduce_to_fiber`.
   `+0.0`. `broadcast_to_replayed` exports that fact for `broadcast_to`. No law
   exports it yet for `Broadcast.binary`, `reduce_to` or `sum_to_size`, so a
   consumer cannot yet chain their outputs into another family operation
-  through laws alone.
+  through laws alone. The tensor backward meets this gap: its law
+  `tensor_sum_vjp_pointwise` takes `broadcast_to_pointwise` for the `Sum` VJP,
+  but the `Add`, `Sub`, `Mul` and `Matmul` VJPs chain `Broadcast.binary` and
+  `sum_to_size` and have no value law yet
+  ([tensor backward](tensor-backward.md)).
 - `broadcast_to_pointwise`, `sum_to_size_clone` and `sum_to_size_fiber` cover
   a successful call. A failed plan or target check keeps the existing erased
   laws in `broadcast-LAWS.bend`, `sum-to-size-LAWS.bend` and

@@ -88,3 +88,22 @@ NaN payloads, infinities, `-0.0` and subnormals. The differences:
 | `NaN_a - NaN_b` with two payloads | Native keeps `NaN_a`'s payload | Keeps `NaN_b`'s payload (1 script); `add` and `mul` agree |
 
 [docs/backward.md](backward.md) has the contract.
+
+## Tensor backward
+
+The tensor `backward` in `src/autograd/tensor-backward.bend` agrees with
+PyTorch's gradients word for word on every script of
+`oracle/autograd/fixtures/tensor-backward-torch.json` that PyTorch can
+represent, including arrival order, broadcast reductions, `-0.0`, infinities
+and subnormals. 85 of the 96 scripts agree line for line. The differences:
+
+| Behavior | bendtorch | PyTorch |
+| --- | --- | --- |
+| Seed | Ones of the output's shape, for any output | `backward()` needs a scalar output; the replay passes `torch.ones_like(output)` |
+| Node id the tape does not hold | `UnknownNode` (103) | `IndexError` from the replay's Python list (3 scripts) |
+| Shapes the operation refuses | The tensor layer's error code | `RuntimeError` (2 scripts) |
+| Operand that is the node itself, a newer node or a missing node | `DanglingOperand` (104) for a forged tape | Cannot be built (3 scripts) |
+| `NaN * NaN` | NaN | NaN with another payload (1 script) |
+| Forward `sum` and `matmul` | Ordered folds from `+0.0` (see above) | Another order, and `-0.0` from a one-term matmul (2 scripts; the gradients agree) |
+
+[docs/tensor-backward.md](tensor-backward.md) has the contract.

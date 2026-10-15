@@ -154,7 +154,15 @@ class GateRegistrationTests(unittest.TestCase):
     def test_autograd_gate_registers_gradient_and_its_laws(self):
         self.assertEqual(
             list(SUBGATES),
-            ["broadcast", "reduce", "sum_to_size", "gradient", "lifecycle", "backward"],
+            [
+                "broadcast",
+                "reduce",
+                "sum_to_size",
+                "gradient",
+                "lifecycle",
+                "backward",
+                "tensor_backward",
+            ],
         )
         required = json.loads((ROOT / "verification/autograd.json").read_text())[
             "required_exports"

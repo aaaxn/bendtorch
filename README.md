@@ -29,6 +29,7 @@ with F32 tensors only, and it cannot train a model yet.
 | Proved contracts | `src/tensor/*-contract-LAWS.bend`, `src/tensor/contracts/` | Laws that later proofs can use as inputs, for construction, reads and writes, clone and metadata, and reshape, plus the error cases of permute and transpose. A generic theorem for pointwise loops proves the values that a broadcast binary operation writes. A second one, for ordered folds, proves the total of a sum and of one matmul dot product, with its addition order. |
 | Autograd building blocks | `src/autograd/` | `broadcast_to` (copies a tensor to a larger shape), `reduce_to` (sums a gradient back to the shape of its input), `sum_to_size` (the PyTorch-facing form of `reduce_to`, which keeps the input unchanged when no axis is reduced) and gradient slots (`Gradient.accumulate`, `Gradient.grad`, `Gradient.reset`, `Gradient.gradient`) that add the contributions to a gradient in the order they arrive, read as `None` until they receive one, and reset to `None`. |
 | Scalar backward | `src/autograd/backward.bend` | Reverse-mode `backward` for F32 scalars on a tape of `add`, `sub`, `mul` and `neg`. It seeds the output the caller selects, gives `None` to every node that output does not reach, adds the contributions to a node used several times in a fixed order, accumulates repeated calls like PyTorch's `retain_graph=True`, and reports unknown node ids as errors. |
+| Tensor backward | `src/autograd/tensor-backward.bend` | Reverse-mode `backward` for tensors on a tape of `add`, `sub`, `mul` (with broadcasting), whole-tensor `sum` and 2-D `matmul`. It seeds ones at the output the caller selects, reduces each broadcast contribution to its operand's shape with `sum_to_size`, adds the contributions to a node in the order they arrive, and agrees with PyTorch's gradients word for word on its corpus. |
 | Experimental tape | `experiments/autograd-prototypes/` | Three autograd prototypes: a reverse tape, pullback closures and forward dual numbers. The reverse tape was chosen as the base for the real engine. |
 
 Every operation either consumes its inputs or gives them back to the caller
@@ -38,8 +39,9 @@ The [tensor core](docs/tensor-core.md), [construction and clone](docs/constructi
 [elementwise ops](docs/elementwise.md), [sum and matmul](docs/sum-and-matmul.md),
 [transforms](docs/transforms.md), [broadcast](docs/broadcast-to.md),
 [reduce to shape](docs/reduce-to.md), [sum to size](docs/sum-to-size.md),
-[gradient slots](docs/gradient-slots.md), [scalar backward](docs/backward.md)
-and [contract families](docs/contract-families.md)
+[gradient slots](docs/gradient-slots.md), [scalar backward](docs/backward.md),
+[tensor backward](docs/tensor-backward.md) and
+[contract families](docs/contract-families.md)
 pages document each capability. The [shape](docs/shapes.md) and
 [storage](docs/storage.md) pages document the layers below them. The
 [autograd design comparison](docs/autograd-design.md) explains why the reverse
@@ -121,10 +123,11 @@ NaN-payload and `None`-gradient differences.
   case only, and within the rounding bound when it reduces axes.
   `Gradient.grad` reads a slot that received nothing as `None`, like
   PyTorch's `.grad`; `Gradient.gradient` is the separate read that gives zeros.
-- There is no backward pass in `src/` yet. The tape in `experiments/` is not
-  checked by any gate and has known bugs: the scalar tape seeds the newest
-  node instead of a selected output, and the tensor tape does not reject node
-  ids that are out of range.
+- Tensor `backward` covers `add`, `sub`, `mul`, whole-tensor `sum` and 2-D
+  `matmul`. Its laws state the engine's structure and the `sum` VJP's values;
+  the values of the other VJPs are checked by the runtime lanes and the
+  PyTorch record. The prototype tape in `experiments/` is not checked by any
+  gate and is not used.
 - CPU only. The gates run native code on one thread, and no performance work
   has been done yet.
 
@@ -134,8 +137,9 @@ request that PyTorch accepts and bendtorch rejects.
 ## Roadmap
 
 The road from Bend to PyTorch has nine phases. bendtorch has finished the
-tensor layer and the pieces that autograd needs. Its backward pass works on
-scalars but not yet on tensors, so it cannot train a model.
+tensor layer, the pieces that autograd needs and a backward pass over
+tensors. It cannot train a model yet: it has no modules, losses or
+optimizers.
 
 | # | Phase | Status | What it delivers |
 | --- | --- | --- | --- |
@@ -143,7 +147,7 @@ scalars but not yet on tensors, so it cannot train a model.
 | 2 | Tensor core and operations | Done | Tensors with `add`, `sub`, `mul`, whole-tensor `sum`, 2-D `matmul`, `reshape`, `permute_copy` and `transpose_copy`, checked against frozen PyTorch outputs. |
 | 3 | Live proof contracts | Done | Laws that later proofs can take as inputs. Construction, `from_values`, reads and writes, clone, metadata, reshape, the permute and transpose values and failures, the pointwise and ordered-fold families with their broadcast, sum, dot and `matmul` instances, and the values of `broadcast_to`, `reduce_to` and `sum_to_size` are live. |
 | 4 | Autograd building blocks | Done | `broadcast_to`, `reduce_to`, `sum_to_size` and gradient slots that accumulate in arrival order and read as `None` until they receive a value. |
-| 5 | Reverse-mode engine | In progress (scalars done) | `backward` on a tape, first for scalars and then for tensors, built on the gradient slots. Scalar `backward` for `add`, `sub`, `mul` and `neg` is done. The tensor version comes next. |
+| 5 | Reverse-mode engine | Done | `backward` on a tape, built on the gradient slots: for scalars (`add`, `sub`, `mul`, `neg`) and for tensors (`add`, `sub`, `mul` with broadcasting, `sum`, `matmul`). |
 | 6 | Neural-network modules | Planned | `Linear`, activations and losses, each with its forward and backward pass. |
 | 7 | Optimizers and training | Planned | SGD-style optimizers and a training loop that trains a small model end to end. |
 | 8 | An API closer to PyTorch | Planned | More dtypes, views and strides, `dim` and `keepdim` on reductions, negative axes and indices, slicing and batched `matmul`. |
