@@ -20,6 +20,8 @@
     "sum_2d_to_2d_size_2d_LAWS.sum_to_size_retains_input",
     "sum_2d_to_2d_size_2d_LAWS.sum_to_size_identity",
     "sum_2d_to_2d_size_2d_LAWS.sum_to_size_reduces",
+    "sum_2d_to_2d_size_2d_fold_2d_LAWS.sum_to_size_clone",
+    "sum_2d_to_2d_size_2d_fold_2d_LAWS.sum_to_size_fiber",
     "gradient_2d_LAWS.gradient_unset_zeros",
     "gradient_2d_LAWS.gradient_held",
     "gradient_2d_LAWS.accumulate_mapping",
