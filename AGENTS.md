@@ -99,8 +99,8 @@ same tests as `python -m unittest discover -s tests`. `tools.check` runs up to
 (`--threads`). Neither changes what a passing gate accepts, its observations
 or the order of the commands in `report.json`; timings, the thread count in
 the recorded commands and `identity.json`, and the artifacts a failing gate
-leaves behind do change. The families run 14
-commands at once (`--workers`). The checks above are independent, so run them
+leaves behind do change. The families and the
+contracts run 14 commands at once (`--workers`). The checks above are independent, so run them
 at the same time, each with its own evidence directory. Gate runs refuse to
 overwrite an output directory. There is no CI: run the
 checks above locally, with the pinned Bend2, before you open a PR. Run the
