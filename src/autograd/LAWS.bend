@@ -6,3 +6,4 @@ import ./sum-to-size-LAWS.bend as SumToSize
 import ./sum-to-size-fold-LAWS.bend as SumToSizeFold
 import ./gradient-LAWS.bend as Gradient
 import ./backward-LAWS.bend as Backward
+import ./tensor-backward-LAWS.bend as TensorBackward

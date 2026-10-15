@@ -66,6 +66,22 @@
     "backward_2d_LAWS.zero_grad_keeps_nodes",
     "backward_2d_LAWS.wired_matches_operand_bounds",
     "backward_2d_LAWS.backward_rejects_unbound_operand",
-    "backward_2d_LAWS.backward_accepts_bound_operands"
+    "backward_2d_LAWS.backward_accepts_bound_operands",
+    "tensor_2d_backward_2d_LAWS.negate_left_scalar",
+    "tensor_2d_backward_2d_LAWS.tensor_vjp_leaf",
+    "tensor_2d_backward_2d_LAWS.tensor_backward_unknown",
+    "tensor_2d_backward_2d_LAWS.tensor_backward_dangling",
+    "tensor_2d_backward_2d_LAWS.tensor_backward_success",
+    "tensor_2d_backward_2d_LAWS.tensor_wired_matches_operand_bounds",
+    "tensor_2d_backward_2d_LAWS.tensor_seed_selected_output",
+    "tensor_2d_backward_2d_LAWS.tensor_seeded_sweep",
+    "tensor_2d_backward_2d_LAWS.tensor_unreached_sends_nothing",
+    "tensor_2d_backward_2d_LAWS.tensor_deliver_in_order",
+    "tensor_2d_backward_2d_LAWS.tensor_bump_target",
+    "tensor_2d_backward_2d_LAWS.tensor_merge_accumulates",
+    "tensor_2d_backward_2d_LAWS.tensor_merge_keeps_unreached",
+    "tensor_2d_backward_2d_LAWS.tensor_zero_grad_empties",
+    "tensor_2d_backward_2d_LAWS.tensor_zero_grad_keeps_nodes",
+    "tensor_2d_backward_2d_LAWS.tensor_sum_vjp_pointwise"
   ]
 }

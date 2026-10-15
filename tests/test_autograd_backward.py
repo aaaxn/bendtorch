@@ -218,7 +218,9 @@ class GateRegistrationTests(unittest.TestCase):
         required = json.loads((ROOT / "verification/autograd.json").read_text())[
             "required_exports"
         ]
-        self.assertEqual(sum("backward_2d_LAWS" in name for name in required), 35)
+        self.assertEqual(
+            sum(name.startswith("backward_2d_LAWS.") for name in required), 35
+        )
         controls = [name for name in PROOF_CONTROLS if name.startswith("backward-")]
         self.assertEqual(len(controls), 9)
         for path, original, _ in PROOF_CONTROLS.values():
