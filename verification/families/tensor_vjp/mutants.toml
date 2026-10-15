@@ -32,3 +32,24 @@ before = '''
       Elementwise.allocated(operation, plan, left, right, Core.new(Shape.output_shape(plan), 0.0))'''
 after = '''
       Elementwise.allocated(operation, plan, right, left, Core.new(Shape.output_shape(plan), 0.0))'''
+
+[matmul-left-untransposed]
+file = "src/autograd/tensor-backward.bend"
+before = '''
+  matmul_second(b, right, x, g, left_product(a, left, copy, Transforms.transpose_dynamic(y, 0, 1)))'''
+after = '''
+  matmul_second(b, right, x, g, left_product(a, left, copy, Transforms.transpose_dynamic(y, 0, 0)))'''
+
+[matmul-right-operands-swapped]
+file = "src/autograd/tensor-backward.bend"
+before = '''
+      (left, multiplied(target, shape, Matrix.matmul(flipped, copy)))'''
+after = '''
+      (left, multiplied(target, shape, Matrix.matmul(copy, flipped)))'''
+
+[matmul-sends-second-to-first]
+file = "src/autograd/tensor-backward.bend"
+before = '''
+      matmul_first(a, b, left, right, x, y, Core.clone_dynamic(g))'''
+after = '''
+      matmul_first(a, a, left, right, x, y, Core.clone_dynamic(g))'''

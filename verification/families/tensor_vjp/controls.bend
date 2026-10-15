@@ -82,3 +82,40 @@ def mul_sum_witness() ->
     Some{F32.add(F32.add(0.0, F32.mul(3.0, 2.0)), F32.mul(5.0, 7.0))},
     second_point(Cases.multiplied(Cases.gradient(), {==}), 1, Some{F32.mul(5.0, 10.0)}, 0,
       Some{F32.add(F32.add(0.0, F32.mul(3.0, 2.0)), F32.mul(5.0, 7.0))}, Cases.mul_values()))
+
+def front_product() -> Maybe<&2, F32>:
+  Some{F32.add(F32.add(0.0, F32.mul(3.0, 30.0)), F32.mul(5.0, 50.0))}
+
+def untransposed_product() -> Maybe<&2, F32>:
+  Some{F32.add(F32.add(0.0, F32.mul(3.0, 20.0)), F32.mul(5.0, 50.0))}
+
+def back_product() -> Maybe<&2, F32>:
+  Some{F32.add(0.0, F32.mul(7.0, 3.0))}
+
+def swapped_product() -> Maybe<&2, F32>:
+  Some{F32.add(0.0, F32.mul(3.0, 7.0))}
+
+def matmul_first_point(-pass: Backward.Pass, +first: U32, -first_word: F32, +second: U32, -second_word: F32,
+  evidence: Cases.MatmulCase<pass, first, first_word, second, second_word>) ->
+  {TensorBackward.sole_point(Laws.first_of(pass), first) == Some{first_word} : Maybe<&2, F32>}:
+  Cases.MatmulCase{first_target, first_dimensions, first_value, second_target, second_dimensions, second_value} = evidence
+  first_value
+
+def matmul_second_point(-pass: Backward.Pass, +first: U32, -first_word: F32, +second: U32, -second_word: F32,
+  evidence: Cases.MatmulCase<pass, first, first_word, second, second_word>) ->
+  {TensorBackward.sole_point(Laws.second_of(pass), second) == Some{second_word} : Maybe<&2, F32>}:
+  Cases.MatmulCase{first_target, first_dimensions, first_value, second_target, second_dimensions, second_value} = evidence
+  second_value
+
+def matmul_front_witness() ->
+  {TensorBackward.sole_point(Laws.first_of(Cases.matmul_pass(Cases.gradient(), {==})), 1) == front_product() : Maybe<&2, F32>}:
+  stated(TensorBackward.sole_point(Laws.first_of(Cases.matmul_pass(Cases.gradient(), {==})), 1),
+    Some{F32.add(F32.add(0.0, F32.mul(3.0, 30.0)), F32.mul(5.0, 50.0))},
+    matmul_first_point(Cases.matmul_pass(Cases.gradient(), {==}), 1, F32.add(F32.add(0.0, F32.mul(3.0, 30.0)), F32.mul(5.0, 50.0)),
+      2, F32.add(0.0, F32.mul(7.0, 3.0)), Cases.matmul_values()))
+
+def matmul_back_witness() ->
+  {TensorBackward.sole_point(Laws.second_of(Cases.matmul_pass(Cases.gradient(), {==})), 2) == back_product() : Maybe<&2, F32>}:
+  stated(TensorBackward.sole_point(Laws.second_of(Cases.matmul_pass(Cases.gradient(), {==})), 2), Some{F32.add(0.0, F32.mul(7.0, 3.0))},
+    matmul_second_point(Cases.matmul_pass(Cases.gradient(), {==}), 1, F32.add(F32.add(0.0, F32.mul(3.0, 30.0)), F32.mul(5.0, 50.0)),
+      2, F32.add(0.0, F32.mul(7.0, 3.0)), Cases.matmul_values()))
