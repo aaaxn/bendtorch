@@ -10,6 +10,7 @@ from tools.common import (
     bend,
     check_laws,
     check_sources,
+    native,
     required_exports,
 )
 
@@ -240,9 +241,7 @@ def check_storage(
         target = output / ("storage" if lane == "native" else "storage.js")
         evidence.run(f"storage-{lane}-build", bend(tool_root, program, "-o", target))
         command = (
-            [str(target), "--threads", "1", "--gpu", "off"]
-            if lane == "native"
-            else [bend(tool_root)[0], str(target)]
+            native(target) if lane == "native" else [bend(tool_root)[0], str(target)]
         )
         actual = evidence.run(f"storage-{lane}-run", command)
         verify_output(actual.stdout, golden, lane)
@@ -313,7 +312,7 @@ def check_storage(
     )
     audit = evidence.run(
         "storage-copy-audit-run",
-        [str(audit_binary), "--threads", "1", "--gpu", "off"],
+        native(audit_binary),
         contains="STORAGE_COPY_AUDIT 0 0",
     )
     verify_output(audit.stdout, golden, "native")

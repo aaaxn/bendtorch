@@ -34,6 +34,26 @@ PLACE: ContextVar[tuple[int, ...]] = ContextVar("PLACE", default=())
 NEXT: ContextVar[list[int] | None] = ContextVar("NEXT", default=None)
 
 
+# Native Bend programs run with `THREADS` worker threads. Their output does not
+# depend on the count: every native gate command, and a probe whose elementwise
+# builds fork, printed the same bytes at 1 to 24 threads. Timing runs pin one
+# thread so their numbers stay comparable.
+THREADS = 8
+
+
+def set_threads(threads: int) -> None:
+    global THREADS
+    if threads < 1:
+        raise GateError("--threads needs at least one thread")
+    THREADS = threads
+
+
+def native(target: Path | str, *args: str, threads: int | None = None) -> list[str]:
+    """The command that runs a native Bend executable on the CPU."""
+    count = THREADS if threads is None else threads
+    return [str(target), "--threads", str(count), "--gpu", "off", *args]
+
+
 def set_jobs(jobs: int) -> None:
     global JOBS, SLOTS
     if jobs < 1:

@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 
 from tools import autograd, shape, storage, tensor, toolchain
-from tools.common import ROOT, GateError, set_jobs
+from tools.common import ROOT, GateError, set_jobs, set_threads
 
 SUITES = {
     "toolchain": toolchain.run_gate,
@@ -23,11 +23,18 @@ def main() -> None:
     parser.add_argument(
         "--jobs",
         type=int,
-        default=1,
-        help="Run up to this many gate commands at once (default 1, one by one).",
+        default=8,
+        help="Gate commands to run at once (default 8; 1 runs them in order).",
+    )
+    parser.add_argument(
+        "--threads",
+        type=int,
+        default=8,
+        help="Threads for each native Bend run (default 8; output is the same).",
     )
     args = parser.parse_args()
     set_jobs(args.jobs)
+    set_threads(args.threads)
     names = list(SUITES) if "all" in args.suites else list(dict.fromkeys(args.suites))
     output = args.output.resolve()
     if output.exists():

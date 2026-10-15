@@ -158,7 +158,7 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--bend-root", type=Path, default=ROOT / ".tools/bend")
     parser.add_argument("--kernel", type=Path, default=ROOT / ".tools/kernel/bendtt")
-    parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument("--workers", type=int, default=14)
     args = parser.parse_args()
     output = args.output.resolve()
     bend_root = args.bend_root.resolve()

@@ -86,14 +86,20 @@ corpora, so run the gate of each module you touched too:
 
 ```sh
 bend PROOF.bend --verdict
-uv run --locked python -m unittest discover -s tests -v
+uv run --locked python -m tools.test
 uv run --locked ruff check tools tests verification experiments
 uv run --locked ruff format --check tools tests verification experiments
 uv run --locked ty check
 uv run --locked python -m tools.check <suite> --output .evidence/<new directory>
 ```
 
-Gate runs refuse to overwrite an output directory. There is no CI: run the
+`tools.test` runs each test module in its own process, 8 at once; it runs the
+same tests as `python -m unittest discover -s tests`. `tools.check` runs up to
+8 gate commands at once (`--jobs`) and each native Bend program on 8 threads
+(`--threads`); the evidence does not depend on either. The families run 14
+commands at once (`--workers`). The checks above are independent, so run them
+at the same time, each with its own evidence directory. Gate runs refuse to
+overwrite an output directory. There is no CI: run the
 checks above locally, with the pinned Bend2, before you open a PR. Run the
 PyTorch oracle recipes from `oracle/README.md` and `oracle/tensor/README.md` in
 their own environment, so PyTorch never enters the gate. Every PR description

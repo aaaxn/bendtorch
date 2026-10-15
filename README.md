@@ -128,8 +128,9 @@ NaN-payload and `None`-gradient differences.
   the values of the other VJPs are checked by the runtime lanes and the
   PyTorch record. The prototype tape in `experiments/` is not checked by any
   gate and is not used.
-- CPU only. The gates run native code on one thread, and no performance work
-  has been done yet.
+- CPU only. The gates run native code on 8 threads, but no gate case is large
+  enough to split the parallel elementwise build, and no performance work has
+  been done yet.
 
 The [differences from PyTorch](docs/torch-differences.md) page lists each
 request that PyTorch accepts and bendtorch rejects.
@@ -151,7 +152,7 @@ optimizers.
 | 6 | Neural-network modules | Planned | `Linear`, activations and losses, each with its forward and backward pass. |
 | 7 | Optimizers and training | Planned | SGD-style optimizers and a training loop that trains a small model end to end. |
 | 8 | An API closer to PyTorch | Planned | More dtypes, views and strides, `dim` and `keepdim` on reductions, negative axes and indices, slicing and batched `matmul`. |
-| 9 | Performance | Planned | Parallel CPU code and GPU kernels. Today the gates run native code on one thread. |
+| 9 | Performance | Planned | Parallel CPU code and GPU kernels. Today no gate case is large enough to run the parallel elementwise build. |
 
 Each phase lands as a series of capabilities, each with its laws, proofs and a
 gate. No step weakens an existing law, removes a test case or widens a
@@ -225,7 +226,7 @@ evidence to a new directory and refuses to overwrite an existing one.
 
 ```sh
 bend PROOF.bend --verdict
-uv run --locked python -m unittest discover -s tests -v
+uv run --locked python -m tools.test
 uv run --locked python -m tools.check all --output .evidence/<new directory>
 uv run --locked python -m verification.contracts.run --output <new directory>
 uv run --locked python -m verification.families.run --output <new directory>
