@@ -8,6 +8,7 @@ from tools.autograd_gradient import run_gate as gradient
 from tools.autograd_lifecycle import run_gate as lifecycle
 from tools.autograd_reduce import run_gate as reduce
 from tools.autograd_sum_to_size import run_gate as sum_to_size
+from tools.autograd_tensor_backward import run_gate as tensor_backward
 from tools.common import (
     ROOT,
     Evidence,
@@ -26,6 +27,7 @@ SUBGATES = {
     "gradient": gradient,
     "lifecycle": lifecycle,
     "backward": backward,
+    "tensor_backward": tensor_backward,
 }
 
 PROOF_CONTROLS = {
