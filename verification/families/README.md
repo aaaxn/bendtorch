@@ -211,8 +211,8 @@ declarations.
 | `sum_to_size` reduced clones | `decided` clones when the dimensions differ | `sum_to_size_fiber` | `sum_to_size_fiber` |
 
 The first four mutants change `src/autograd/reduce-fold.bend`, and the proofs
-in `src/autograd/reduce-fold-PROOF.bend` reject them. The last three change
-the `reduce_to` loop in `src/autograd/reduce.bend`. The erased proofs in
+in `src/autograd/reduce-fold-PROOF.bend` reject them. The three `reduce_to`
+mutants change the `reduce_to` loop in `src/autograd/reduce.bend`. The erased proofs in
 `src/autograd/reduce-PROOF.bend` reject them too, and each checker reports
 the first failure it meets. So the source check runs
 `src/autograd/reduce-to-fold-PROOF.bend`, the live proof of `reduce_to_fiber`,
