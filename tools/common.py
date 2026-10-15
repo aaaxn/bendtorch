@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import time
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -147,12 +148,16 @@ def check_sources(tool_root: Path) -> None:
             raise GateError(f"Pinned Bend source changed: {name}")
 
 
-def check_inventory(text: str, required: list[str]) -> None:
-    declarations = {
+def declaration_names(lines: list[str]) -> list[str]:
+    return [
         line.split(" : ", 1)[0]
-        for line in text.splitlines()
+        for line in lines
         if line and not line[0].isspace() and " : " in line
-    }
+    ]
+
+
+def check_inventory(text: str, required: list[str]) -> None:
+    declarations = set(declaration_names(text.splitlines()))
     if not required or len(set(required)) != len(required):
         raise GateError("The required law inventory must be nonempty and unique")
     missing = set(required) - declarations
@@ -186,6 +191,41 @@ def check_laws(
 
 
 def check_omissions(text: str, required: list[str]) -> None:
+    """Check that renaming each required declaration fails the inventory.
+
+    It decides what `omitted_inventory_by_rewrite` decides, which rewrites the
+    whole text once per declaration, but it scans the text once: renaming a
+    declaration's first `^name :` touches one line, so only that line's
+    declaration names change.
+    """
+    if not required or len(set(required)) != len(required):
+        return  # check_inventory rejects every renamed text
+    if any(len(name.splitlines()) != 1 or name.endswith("\r") for name in required):
+        return omitted_inventory_by_rewrite(text, required)
+    counts = Counter(declaration_names(text.splitlines()))
+    pattern = re.compile("(?m)^(?:" + "|".join(map(re.escape, required)) + ") :")
+    first: dict[str, int] = {}
+    for match in pattern.finditer(text):
+        start = match.start()
+        for name in required:
+            if name not in first and text.startswith(name + " :", start):
+                first[name] = start
+    for declaration in required:
+        remaining = counts.copy()
+        if declaration in first:
+            start = first[declaration]
+            end = text.find("\n", start)
+            line = text[start:] if end < 0 else text[start:end]
+            renamed = "omitted :" + line[len(declaration) + 2 :]
+            remaining.subtract(declaration_names(line.splitlines()))
+            remaining.update(declaration_names(renamed.splitlines()))
+        if all(remaining[name] > 0 for name in required):
+            raise GateError(
+                f"The inventory accepted an omitted declaration: {declaration}"
+            )
+
+
+def omitted_inventory_by_rewrite(text: str, required: list[str]) -> None:
     for declaration in required:
         missing = re.sub(
             rf"(?m)^{re.escape(declaration)} :", "omitted :", text, count=1

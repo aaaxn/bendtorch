@@ -5,7 +5,14 @@ import unittest
 from pathlib import Path
 
 from tools.check import SUITES
-from tools.common import ROOT, Evidence, GateError, check_inventory, check_omissions
+from tools.common import (
+    ROOT,
+    Evidence,
+    GateError,
+    check_inventory,
+    check_omissions,
+    omitted_inventory_by_rewrite,
+)
 from tools.toolchain import F32_PROBE
 
 
@@ -26,6 +33,29 @@ class GateTests(unittest.TestCase):
         twice = "core.construct : *1 =\n  ()\ncore.construct : *1 =\n  ()\n"
         with self.assertRaises(GateError):
             check_omissions(twice, ["core.construct"])
+
+    def test_omission_scan_decides_what_the_rewrite_decides(self):
+        texts = [
+            "a : *1 =\n  ()\nb : *1 =\n  ()\n",
+            "a : *1 =\na : *1 =\nb : *1 =\n",
+            "a :b : x\na : *1 =\nb : *1 =\n",
+            "a b : *1 =\na : *1 =\na b : *1 =\nb : *1",
+            "x\ra : *1\nb : *1 =\r\na : 2 : 3\x0bb : *1\n",
+            "a : a : *1\nb : *1\n a : *1\n",
+            "b : *1\na : *1\r\n",
+            "",
+        ]
+        for text in texts:
+            for required in (["a"], ["b"], ["a", "b"], ["a b", "a"], ["a", "a :b"]):
+                outcomes = []
+                for check in (check_omissions, omitted_inventory_by_rewrite):
+                    try:
+                        check(text, required)
+                        outcomes.append(None)
+                    except GateError as error:
+                        outcomes.append(str(error))
+                with self.subTest(text=text, required=required):
+                    self.assertEqual(outcomes[0], outcomes[1])
 
     def test_root_and_suites_cover_every_module(self):
         modules = sorted(path.parent.name for path in ROOT.glob("src/*/PROOF.bend"))
