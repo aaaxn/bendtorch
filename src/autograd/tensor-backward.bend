@@ -167,6 +167,26 @@ def added_first(+b: Nat, +right: Shape.Shape, pair: Core.Dynamic & Result<&2, &1
 def vjp_add(+a: Nat, +b: Nat, +left: Shape.Shape, +right: Shape.Shape, g: Core.Dynamic) -> Pass:
   added_first(b, right, reduced(a, left, g))
 
+def product_planned(+operation: Elementwise.Operation, left: Core.Dynamic, right: Core.Dynamic,
+  result: Result<&2, &2, Shape.Error, Shape.BroadcastPlan>) -> (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>:
+  match result:
+    case Fail{error}:
+      ((left, right), Fail{Core.ShapeError{error}})
+    case Done{+plan}:
+      Elementwise.allocated(operation, plan, left, right, Core.new(Shape.output_shape(plan), 0.0))
+
+# scalar(operation, left[i], right[j]) at every position of the broadcast of
+# the two shapes, computed by the tensor layer's sequential elementwise loop,
+# the loop broadcast_to runs. Elementwise.binary builds the same words in
+# parallel halves, but only erased laws describe that build, and the VJP value
+# laws are stated through the pointwise family's replayed tensors.
+def product(+operation: Elementwise.Operation, left: Core.Dynamic, right: Core.Dynamic) ->
+  (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>:
+  Core.Packed{+left_shape, left_tensor} = left
+  Core.Packed{+right_shape, right_tensor} = right
+  product_planned(operation, Core.Packed{left_shape, left_tensor}, Core.Packed{right_shape, right_tensor},
+    Shape.broadcast_checked(left_shape, right_shape))
+
 def negated_pair(pair: (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>) ->
   Core.Dynamic & Result<&2, &1, Core.Error, Core.Dynamic>:
   (operands, result) = pair
@@ -180,7 +200,7 @@ def negated(g: Core.Dynamic, zero: Result<&2, &1, Core.Error, Core.Tensor<Reduct
     case Fail{error}:
       (g, Fail{error})
     case Done{tensor}:
-      negated_pair(Elementwise.binary(Elementwise.NegateLeft{}, g, Core.pack(Reduction.scalar_shape(), tensor)))
+      negated_pair(product(Elementwise.NegateLeft{}, g, Core.Packed{Reduction.scalar_shape(), tensor}))
 
 def negate(g: Core.Dynamic) -> Core.Dynamic & Result<&2, &1, Core.Error, Core.Dynamic>:
   negated(g, Core.new(Reduction.scalar_shape(), 0.0))
@@ -208,7 +228,7 @@ def multiplied_first(+a: Nat, +b: Nat, +left: Shape.Shape, +right: Shape.Shape, 
   pair: (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>) -> Pass:
   (operands, first) = pair
   (g, y) = operands
-  multiplied_second(b, right, product_reduced(a, left, first), y, Elementwise.mul(g, x))
+  multiplied_second(b, right, product_reduced(a, left, first), y, product(Elementwise.Mul{}, g, x))
 
 # d(a*b)/da: g * right; d(a*b)/db: g * left, with the operand values saved
 # at record time, each product reduced to its operand's shape.
@@ -217,7 +237,7 @@ def vjp_mul(+a: Nat, +b: Nat, +left: Shape.Shape, +right: Shape.Shape, saved: Sa
     case Unsaved{}:
       Pass{Unsaved{}, g, Fail{TensorError{Core.StorageLengthMismatch{}}}}
     case Operands{x, y}:
-      multiplied_first(a, b, left, right, x, Elementwise.mul(g, y))
+      multiplied_first(a, b, left, right, x, product(Elementwise.Mul{}, g, y))
 
 def expanded(+a: Nat, +input: Shape.Shape, pair: Core.Dynamic & Result<&2, &1, Broadcast.Error, Core.Dynamic>) -> Pass:
   (g, result) = pair
