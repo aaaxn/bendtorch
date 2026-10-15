@@ -5,7 +5,7 @@ program records leaves and operations on a tape, then calls `backward` on the
 output it selects. The engine is promoted from the reverse-tape prototype in
 `experiments/autograd-prototypes/tape.bend` and fixes the prototype's known bugs: it seeds the
 selected output instead of the newest node, and it never reads an unknown id
-as another node. Tensors come later.
+as another node. [Tensor backward](tensor-backward.md) extends it to tensors.
 
 ## Tape and ids
 
