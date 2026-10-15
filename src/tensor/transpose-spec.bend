@@ -40,3 +40,8 @@ def natural_axes(+rank: Nat, +a: Nat, +b: Nat) -> List<&2, Nat>:
 
 def requested_axes(+rank: Nat, +a: Nat, +b: Nat) -> List<&2, U32>:
   Shape.words(natural_axes(rank, a, b))
+
+# The permutation `transpose_copy(input, a, b)` runs: the identity of the
+# input's rank with axes a and b swapped.
+def swapped_axes(+input: Shape.Shape, +a: U32, +b: U32) -> List<&2, U32>:
+  requested_axes(Shape.rank_dimensions(Shape.dimensions(input)), U32.to_nat(a), U32.to_nat(b))

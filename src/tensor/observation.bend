@@ -440,3 +440,8 @@ def permute_source(+input: Shape.Shape, +axes: List<&2, U32>, +index: U32) -> Ma
   Layout.reference_source_coordinates(Shape.dimensions(input),
     Axis.scatter(U32, Shape.rank_dimensions(Shape.dimensions(input)), Shape.naturals(axes),
       Shape.words(Shape.digits(Shape.naturals(Axis.order(U32, Shape.dimensions(input), Shape.naturals(axes))), U32.to_nat(index))), 0n))
+
+# The row-major source index that `permute_source` names for output index
+# `index`, as a natural (0 where it names none).
+def permute_source_index(+input: Shape.Shape, +axes: List<&2, U32>, +index: Nat) -> Nat:
+  U32.to_nat(Maybe.default(&2, U32, permute_source(input, axes, U32.from_nat(index)), 0))
