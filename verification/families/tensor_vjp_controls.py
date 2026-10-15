@@ -21,6 +21,7 @@ ZERO, TWO, THREE, FIVE, SEVEN, TEN = (
     fold.SEVEN,
     fold.TEN,
 )
+TWENTY, THIRTY, FIFTY = fold.TWENTY, fold.THIRTY, fold.FIFTY
 
 
 def some(source: str, kernel: str) -> Value:
@@ -48,10 +49,17 @@ FAMILY = controls.Family(
         f"{LAWS}.tensor_add_vjp_values": Law(NAT, "tensor_2d_backward.vjp"),
         f"{LAWS}.tensor_sub_vjp_values": Law(NAT, "tensor_2d_backward.vjp"),
         f"{LAWS}.tensor_mul_vjp_values": Law(NAT, "tensor_2d_backward.vjp"),
+        f"{LAWS}.tensor_matmul_vjp_values": Law(NAT, "tensor_2d_backward.vjp"),
     },
-    live_records=(f"{LAWS}.PairContract.arms", "consumers.PairCase.arms"),
+    live_records=(
+        f"{LAWS}.PairContract.arms",
+        f"{LAWS}.MatmulPairContract.arms",
+        "consumers.PairCase.arms",
+        "consumers.MatmulCase.arms",
+    ),
     consumers=tuple(
-        f"consumers.{name}" for name in ("add_values", "sub_values", "mul_values")
+        f"consumers.{name}"
+        for name in ("add_values", "sub_values", "mul_values", "matmul_values")
     ),
     witnesses={
         "add_kept_witness": Witness("kept_word", "folded_word"),
@@ -59,6 +67,8 @@ FAMILY = controls.Family(
         "sub_witness": Witness("negated_sum", "unsigned_sum"),
         "mul_witness": Witness("right_product", "left_product"),
         "mul_sum_witness": Witness("left_products", "right_products"),
+        "matmul_front_witness": Witness("front_product", "untransposed_product"),
+        "matmul_back_witness": Witness("back_product", "swapped_product"),
     },
     values={
         "kept_word": some("Some{5.0}", FIVE),
@@ -86,8 +96,22 @@ FAMILY = controls.Family(
             "Some{F32.add(F32.add(0.0, F32.mul(3.0, 10.0)), F32.mul(5.0, 10.0))}",
             add(add(ZERO, mul(THREE, TEN)), mul(FIVE, TEN)),
         ),
+        "front_product": some(
+            "Some{F32.add(F32.add(0.0, F32.mul(3.0, 30.0)), F32.mul(5.0, 50.0))}",
+            add(add(ZERO, mul(THREE, THIRTY)), mul(FIVE, FIFTY)),
+        ),
+        "untransposed_product": some(
+            "Some{F32.add(F32.add(0.0, F32.mul(3.0, 20.0)), F32.mul(5.0, 50.0))}",
+            add(add(ZERO, mul(THREE, TWENTY)), mul(FIVE, FIFTY)),
+        ),
+        "back_product": some(
+            "Some{F32.add(0.0, F32.mul(7.0, 3.0))}", add(ZERO, mul(SEVEN, THREE))
+        ),
+        "swapped_product": some(
+            "Some{F32.add(0.0, F32.mul(3.0, 7.0))}", add(ZERO, mul(THREE, SEVEN))
+        ),
     },
-    subjects=("added", "subtracted", "multiplied"),
+    subjects=("added", "subtracted", "multiplied", "matmul_pass"),
     mutants=controls.load_mutants("tensor_vjp"),
     sites={
         "add-reduces-to-other-operand": Site(
@@ -119,6 +143,24 @@ FAMILY = controls.Family(
             "parallel_planned(Elementwise.Mul{}, Core.Packed{left,",
             "tensor_2d_vjp_2d_LAWS.tensor_mul_vjp_values",
             ("tensor_2d_backward.multiplied_first",),
+        ),
+        "matmul-left-untransposed": Site(
+            "matmul_values",
+            "right_fits}, 0, 0, Shape.bool_case",
+            "tensor_2d_vjp_2d_PROOF.matmul_values",
+            ("tensor_2d_backward.matmul_first",),
+        ),
+        "matmul-right-operands-swapped": Site(
+            "matmul_values",
+            "Matrix.planned(shape, Layout.output(left,",
+            "tensor_2d_vjp_2d_PROOF.matmul_values",
+            ("tensor_2d_backward.right_product",),
+        ),
+        "matmul-sends-second-to-first": Site(
+            "matmul_values",
+            "Backward.matmul_first(a, a, left, right,",
+            "tensor_2d_vjp_2d_PROOF.matmul_values",
+            ("tensor_2d_backward.vjp_matmul",),
         ),
     },
     proof="src/autograd/PROOF.bend",

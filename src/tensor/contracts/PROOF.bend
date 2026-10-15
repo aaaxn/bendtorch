@@ -31,3 +31,6 @@ def Laws.dot_ordered(rows, inner, columns, row, row_below, column, column_below,
 
 def Laws.matmul_ordered(left, right, plan, planned, left_fill, left_ops, left_fits, right_fill, right_ops, right_fits):
   MatmulOrdered.matmul_ordered(left, right, plan, planned, left_fill, left_ops, left_fits, right_fill, right_ops, right_fits)
+
+def Laws.matmul_replayed(left, right, plan, planned, left_fill, left_ops, left_fits, right_fill, right_ops, right_fits, P, h):
+  MatmulOrdered.matmul_replayed(left, right, plan, planned, left_fill, left_ops, left_fits, right_fill, right_ops, right_fits, P, h)

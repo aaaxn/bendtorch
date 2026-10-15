@@ -168,3 +168,53 @@ law matmul_ordered:
     other => Replayed.value(right, right_fill, right_ops, other),
     Matrix.matmul(Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
       Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}})>
+
+# What the transport form of matmul_replayed asks of P: P holds for both
+# inputs, replayed with any histories that keep their words, next to the
+# output, of the plan's shape, replayed over +0.0 with any history whose cell
+# (row, column) holds the total `matmul_ordered` states.
+def MatmulWith(+left: Shape.Shape, +right: Shape.Shape, +plan: Matrix.Plan<left, right>,
+  +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>,
+  -P: Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic> -> Type) -> Type:
+  @+left_kept: List<&2, StorageLaws.Op> ->
+  @left_words: {words(left, left_fill, left_kept, Shape.logical_numel(Shape.dimensions(left))) ==
+    words(left, left_fill, left_ops, Shape.logical_numel(Shape.dimensions(left))) : List<&2, F32>} ->
+  @-left_fits: {Lifecycle.logical_length(Replayed.storage(left, left_fill, left_kept)) == Shape.logical_numel(Shape.dimensions(left)) : Nat} ->
+  @+right_kept: List<&2, StorageLaws.Op> ->
+  @right_words: {words(right, right_fill, right_kept, Shape.logical_numel(Shape.dimensions(right))) ==
+    words(right, right_fill, right_ops, Shape.logical_numel(Shape.dimensions(right))) : List<&2, F32>} ->
+  @-right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_kept)) == Shape.logical_numel(Shape.dimensions(right)) : Nat} ->
+  @+output_ops: List<&2, StorageLaws.Op> ->
+  @cells: (@+row: Nat -> @row_below: {Nat.is_lt(row, matrix_rows(left, right, plan)) == True{} : Bool} ->
+    @+column: Nat -> @column_below: {Nat.is_lt(column, matrix_columns(left, right, plan)) == True{} : Bool} ->
+    {Replayed.value(Matrix.output_shape(left, right, plan), 0.0, output_ops,
+      U32.from_nat(Nat.add(Nat.mul(row, matrix_columns(left, right, plan)), column))) ==
+      DotFold.dot_fold(factors(row, column, matrix_inner(left, right, plan), matrix_columns(left, right, plan),
+        left, left_fill, left_ops, right, right_fill, right_ops, matrix_inner(left, right, plan)), 0.0) : F32}) ->
+  @-output_fits: {Lifecycle.logical_length(Replayed.storage(Matrix.output_shape(left, right, plan), 0.0, output_ops)) ==
+    Shape.logical_numel(Shape.dimensions(Matrix.output_shape(left, right, plan))) : Nat} ->
+    P(Done{(Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_kept), left_fits}},
+      Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_kept), right_fits}},
+      Core.Packed{Matrix.output_shape(left, right, plan),
+        Core.TTensor{Replayed.storage(Matrix.output_shape(left, right, plan), 0.0, output_ops), output_fits}})})
+
+# matmul_ordered in the transport form of broadcast_to_replayed: for every P,
+# if P holds for every result that hands back both inputs with their words and
+# gives an output of the plan's shape whose cells hold the ordered totals,
+# then P holds for the product. The output is a replayed tensor, so a later
+# family law applies to it.
+law matmul_replayed:
+  for +left: Shape.Shape
+  for +right: Shape.Shape
+  for +plan: Matrix.Plan<left, right>
+  for planned: {Matrix.plan(left, right) == Done{plan} : Result<&2, &2, Matrix.Error, Matrix.Plan<left, right>>}
+  for +left_fill: F32
+  for +left_ops: List<&2, StorageLaws.Op>
+  for -left_fits: {Lifecycle.logical_length(Replayed.storage(left, left_fill, left_ops)) == Shape.logical_numel(Shape.dimensions(left)) : Nat}
+  for +right_fill: F32
+  for +right_ops: List<&2, StorageLaws.Op>
+  for -right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_ops)) == Shape.logical_numel(Shape.dimensions(right)) : Nat}
+  for -P: Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic> -> Type
+  for h: MatmulWith(left, right, plan, left_fill, left_ops, right_fill, right_ops, P)
+  P(Matrix.matmul(Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
+    Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}}))

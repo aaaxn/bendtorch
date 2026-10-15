@@ -6,6 +6,10 @@ import ../tensor/layout.bend as Layout
 import ../tensor/lifecycle.bend as Lifecycle
 import ../tensor/elementwise.bend as Elementwise
 import ../tensor/reduction.bend as Reduction
+import ../tensor/matmul.bend as Matrix
+import ../tensor/dot-fold.bend as DotFold
+import ../tensor/transpose-spec.bend as Transpose
+import ../tensor/observation.bend as Values
 import ../tensor/contracts/replayed.bend as Replayed
 import ../tensor/contracts/LAWS.bend as Contracts
 import ../tensor/contracts/binary-LAWS.bend as Binary
@@ -13,8 +17,8 @@ import ./sum-to-size-fold-LAWS.bend as SumToSizeFold
 import ./tensor-backward.bend as Backward
 import ./tensor-backward-LAWS.bend as TensorBackward
 
-# The values of the tensor VJPs, stated through the pointwise and ordered-fold
-# families: each law takes a replayed gradient (and replayed saved operands),
+# The values of the tensor VJPs, stated through the pointwise, ordered-fold
+# and index-map copy families: each law takes a replayed gradient (and replayed saved operands),
 # and states, for both contributions, the target, the dimensions and the word
 # at every in-bounds position.
 
@@ -209,6 +213,121 @@ law tensor_mul_vjp_values:
       cells(Elementwise.Mul{}, second, shape, fill, ops, left, left_fill, left_ops, Shape.logical_numel(Shape.dimensions(Shape.output_shape(second)))),
       index),
     Backward.vjp(Backward.Mul{a, b, left, right},
+      Backward.Operands{Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
+        Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}}},
+      Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}})>
+
+# The axes transpose_dynamic(t, 0, 1) permutes t by, and the shape of the
+# copy the plan gives.
+def swapped(+shape: Shape.Shape) -> List<&2, U32>:
+  Transpose.swapped_axes(shape, 0, 1)
+
+def transposed(+shape: Shape.Shape, +plan: Layout.Plan<shape, swapped(shape)>) -> Shape.Shape:
+  Layout.output(shape, swapped(shape), plan)
+
+# The first `count` factor pairs of cell (row, column) of left @ right^T,
+# where right^T is right permuted by `axes`: left[row * inner + k] and the
+# word of right at permute_source(right, axes, k * columns + column), in
+# increasing k. Contracts.factors reads the same pairs from the copy.
+def right_transposed_factors(+row: Nat, +column: Nat, +inner: Nat, +columns: Nat,
+  +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
+  +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +axes: List<&2, U32>, +count: Nat) ->
+  List<&2, DotFold.Factors>:
+  match count:
+    case 0n:
+      Nil{}
+    case 1n+previous:
+      List.append(&2, DotFold.Factors,
+        right_transposed_factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, axes, previous),
+        [DotFold.Factors{Replayed.value(left, left_fill, left_ops, U32.from_nat(Nat.add(Nat.mul(row, inner), previous))),
+          Replayed.value(right, right_fill, right_ops,
+            U32.from_nat(Values.permute_source_index(right, axes, Nat.add(Nat.mul(previous, columns), column))))}])
+
+# The first `count` factor pairs of cell (row, column) of left^T @ right,
+# where left^T is left permuted by `axes`: the word of left at
+# permute_source(left, axes, row * inner + k) and right[k * columns + column],
+# in increasing k.
+def left_transposed_factors(+row: Nat, +column: Nat, +inner: Nat, +columns: Nat,
+  +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>, +axes: List<&2, U32>,
+  +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +count: Nat) -> List<&2, DotFold.Factors>:
+  match count:
+    case 0n:
+      Nil{}
+    case 1n+previous:
+      List.append(&2, DotFold.Factors,
+        left_transposed_factors(row, column, inner, columns, left, left_fill, left_ops, axes, right, right_fill, right_ops, previous),
+        [DotFold.Factors{Replayed.value(left, left_fill, left_ops,
+            U32.from_nat(Values.permute_source_index(left, axes, Nat.add(Nat.mul(row, inner), previous)))),
+          Replayed.value(right, right_fill, right_ops, U32.from_nat(Nat.add(Nat.mul(previous, columns), column)))}])
+
+# What the Matmul VJP promises: the first contribution goes to node a with
+# left's dimensions and holds left_cell(row, column) at row * left_columns +
+# column for every row < left_rows and column < left_columns; the second goes
+# to node b with right's dimensions and holds right_cell(row, column) likewise.
+type MatmulPairContract<-a: Nat, -left: Shape.Shape, -left_rows: Nat, -left_columns: Nat, -left_cell: Nat -> Nat -> F32,
+  -b: Nat, -right: Shape.Shape, -right_rows: Nat, -right_columns: Nat, -right_cell: Nat -> Nat -> F32, -pass: Backward.Pass> is Type:
+  MatmulPairContract{
+    first_target: {TensorBackward.sole_target(first_of(pass)) == Some{a} : Maybe<&2, Nat>},
+    first_dimensions: {TensorBackward.sole_dimensions(first_of(pass)) == Some{Shape.dimensions(left)} : Maybe<&2, List<&2, U32>>},
+    first_value: @+row: Nat -> @row_below: {Nat.is_lt(row, left_rows) == True{} : Bool} ->
+      @+column: Nat -> @column_below: {Nat.is_lt(column, left_columns) == True{} : Bool} ->
+      {TensorBackward.sole_point(first_of(pass), U32.from_nat(Nat.add(Nat.mul(row, left_columns), column))) ==
+        Some{left_cell(row, column)} : Maybe<&2, F32>},
+    second_target: {TensorBackward.sole_target(second_of(pass)) == Some{b} : Maybe<&2, Nat>},
+    second_dimensions: {TensorBackward.sole_dimensions(second_of(pass)) == Some{Shape.dimensions(right)} : Maybe<&2, List<&2, U32>>},
+    second_value: @+row: Nat -> @row_below: {Nat.is_lt(row, right_rows) == True{} : Bool} ->
+      @+column: Nat -> @column_below: {Nat.is_lt(column, right_columns) == True{} : Bool} ->
+      {TensorBackward.sole_point(second_of(pass), U32.from_nat(Nat.add(Nat.mul(row, right_columns), column))) ==
+        Some{right_cell(row, column)} : Maybe<&2, F32>}}
+
+# d(a@b)/da and d(a@b)/db: with the saved operand values x (left) and y
+# (right), the Matmul VJP sends g @ y^T to a, then x^T @ g to b. y^T and x^T
+# are transpose_dynamic(., 0, 1), the copies whose plans right_plan and
+# left_plan name; first and second are the plans of the two products. Cell
+# (row, column) of the first holds the ordered dot product of g's row with the
+# words of y that the transposed column reads, added in increasing k from
+# +0.0, and likewise for the second; each contribution has its operand's
+# dimensions. Nothing is reduced: the products already have them.
+law tensor_matmul_vjp_values:
+  for +a: Nat
+  for +b: Nat
+  for +left: Shape.Shape
+  for +right: Shape.Shape
+  for +shape: Shape.Shape
+  for right_inside: {True{} == Transpose.valid(right, 0, 1) : Bool}
+  for +right_plan: Layout.Plan<right, swapped(right)>
+  for right_laid: {Layout.permutation(right, swapped(right)) == Done{right_plan} : Result<&2, &2, Layout.Error, Layout.Plan<right, swapped(right)>>}
+  for +first: Matrix.Plan<shape, transposed(right, right_plan)>
+  for first_planned: {Matrix.plan(shape, transposed(right, right_plan)) == Done{first} :
+    Result<&2, &2, Matrix.Error, Matrix.Plan<shape, transposed(right, right_plan)>>}
+  for first_same: {Shape.dimensions(Matrix.output_shape(shape, transposed(right, right_plan), first)) == Shape.dimensions(left) : List<&2, U32>}
+  for left_inside: {True{} == Transpose.valid(left, 0, 1) : Bool}
+  for +left_plan: Layout.Plan<left, swapped(left)>
+  for left_laid: {Layout.permutation(left, swapped(left)) == Done{left_plan} : Result<&2, &2, Layout.Error, Layout.Plan<left, swapped(left)>>}
+  for +second: Matrix.Plan<transposed(left, left_plan), shape>
+  for second_planned: {Matrix.plan(transposed(left, left_plan), shape) == Done{second} :
+    Result<&2, &2, Matrix.Error, Matrix.Plan<transposed(left, left_plan), shape>>}
+  for second_same: {Shape.dimensions(Matrix.output_shape(transposed(left, left_plan), shape, second)) == Shape.dimensions(right) : List<&2, U32>}
+  for +fill: F32
+  for +ops: List<&2, StorageLaws.Op>
+  for -fits: {Lifecycle.logical_length(Replayed.storage(shape, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}
+  for +left_fill: F32
+  for +left_ops: List<&2, StorageLaws.Op>
+  for -left_fits: {Lifecycle.logical_length(Replayed.storage(left, left_fill, left_ops)) == Shape.logical_numel(Shape.dimensions(left)) : Nat}
+  for +right_fill: F32
+  for +right_ops: List<&2, StorageLaws.Op>
+  for -right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_ops)) == Shape.logical_numel(Shape.dimensions(right)) : Nat}
+  MatmulPairContract<a, left,
+    Contracts.matrix_rows(shape, transposed(right, right_plan), first), Contracts.matrix_columns(shape, transposed(right, right_plan), first),
+    row => column => DotFold.dot_fold(right_transposed_factors(row, column,
+      Contracts.matrix_inner(shape, transposed(right, right_plan), first), Contracts.matrix_columns(shape, transposed(right, right_plan), first),
+      shape, fill, ops, right, right_fill, right_ops, swapped(right), Contracts.matrix_inner(shape, transposed(right, right_plan), first)), 0.0),
+    b, right,
+    Contracts.matrix_rows(transposed(left, left_plan), shape, second), Contracts.matrix_columns(transposed(left, left_plan), shape, second),
+    row => column => DotFold.dot_fold(left_transposed_factors(row, column,
+      Contracts.matrix_inner(transposed(left, left_plan), shape, second), Contracts.matrix_columns(transposed(left, left_plan), shape, second),
+      left, left_fill, left_ops, swapped(left), shape, fill, ops, Contracts.matrix_inner(transposed(left, left_plan), shape, second)), 0.0),
+    Backward.vjp(Backward.Matmul{a, b, left, right},
       Backward.Operands{Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
         Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}}},
       Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}})>

@@ -20,6 +20,8 @@ import ./index-map.bend as IndexMap
 import ./observation.bend as Values
 import ./transform-observation.bend as Observation
 import ./permute-values-records.bend as Records
+import ./contracts/words-proof.bend as Words
+import ./contracts/LAWS.bend as Contracts
 
 # The permute copy as an index-map instance: output index i reads the input
 # at `Values.permute_source(input, axes, i)`, the row-major index of the
@@ -30,13 +32,13 @@ type Request is Data:
 
 def source_of(request: Request, index: Nat) -> Nat:
   Request{+input, +axes} = request
-  U32.to_nat(Maybe.default(&2, U32, Values.permute_source(input, axes, U32.from_nat(index)), 0))
+  Values.permute_source_index(input, axes, index)
 
-def read_source(+input: Shape.Shape, +axes: List<&2, U32>, +values: List<&2, F32>, +count: Nat) -> Storage.Storage:
-  IndexMap.source(~Request, ~source_of, Request{input, axes}, input, 0.0, FromValues.writes(values, 0n), count)
+def read_source(+input: Shape.Shape, +axes: List<&2, U32>, +fill: F32, +ops: List<&2, StorageLaws.Op>, +count: Nat) -> Storage.Storage:
+  IndexMap.source(~Request, ~source_of, Request{input, axes}, input, fill, ops, count)
 
-def written(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +values: List<&2, F32>, +count: Nat) -> Storage.Storage:
-  IndexMap.target(~Request, ~source_of, count, Request{input, axes}, input, 0.0, FromValues.writes(values, 0n), Layout.output(input, axes, plan))
+def written(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +fill: F32, +ops: List<&2, StorageLaws.Op>, +count: Nat) -> Storage.Storage:
+  IndexMap.target(~Request, ~source_of, count, Request{input, axes}, input, fill, ops, Layout.output(input, axes, plan))
 
 def Shaped(+fuel: Nat, +input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +cursor: Nat,
   -kept: Storage.Storage, -made: Storage.Storage,
@@ -45,16 +47,16 @@ def Shaped(+fuel: Nat, +input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.
   @-target_fits: {Lifecycle.logical_length(made) == Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))) : Nat} ->
     Q(Transforms.copy_loop(fuel, input, axes, plan, Core.TTensor{kept, source_fits}, Core.TTensor{made, target_fits}, cursor))
 
-def Start(+fuel: Nat, +input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +values: List<&2, F32>, +cursor: Nat,
+def Start(+fuel: Nat, +input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +fill: F32, +ops: List<&2, StorageLaws.Op>, +cursor: Nat,
   -Q: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Tensor<Layout.output(input, axes, plan)>> -> Type) -> Type:
-  Shaped(fuel, input, axes, plan, cursor, read_source(input, axes, values, cursor), written(input, axes, plan, values, cursor), Q)
+  Shaped(fuel, input, axes, plan, cursor, read_source(input, axes, fill, ops, cursor), written(input, axes, plan, fill, ops, cursor), Q)
 
-def Final(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +values: List<&2, F32>, +count: Nat,
+def Final(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +fill: F32, +ops: List<&2, StorageLaws.Op>, +count: Nat,
   -Q: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Tensor<Layout.output(input, axes, plan)>> -> Type) -> Type:
-  @-source_fits: {Lifecycle.logical_length(read_source(input, axes, values, count)) == Shape.logical_numel(Shape.dimensions(input)) : Nat} ->
-  @-target_fits: {Lifecycle.logical_length(written(input, axes, plan, values, count)) ==
+  @-source_fits: {Lifecycle.logical_length(read_source(input, axes, fill, ops, count)) == Shape.logical_numel(Shape.dimensions(input)) : Nat} ->
+  @-target_fits: {Lifecycle.logical_length(written(input, axes, plan, fill, ops, count)) ==
     Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))) : Nat} ->
-    Q((Core.TTensor{read_source(input, axes, values, count), source_fits}, Done{Core.TTensor{written(input, axes, plan, values, count), target_fits}}))
+    Q((Core.TTensor{read_source(input, axes, fill, ops, count), source_fits}, Done{Core.TTensor{written(input, axes, plan, fill, ops, count), target_fits}}))
 
 def reference(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +index: U32,
   +mapping: Layout.Mapping<input, axes, plan, index>) ->
@@ -113,61 +115,61 @@ def cursor_same(+cursor: Nat, exact: {U32.to_nat(U32.from_nat(cursor)) == cursor
   %Equal.sym(Nat, U32.to_nat(U32.from_nat(cursor)), cursor, exact) : {Nat.is_eq(_, cursor) == True{} : Bool}
   Arith.eq_refl(cursor)
 
-def read_step(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +values: List<&2, F32>, +rest: Nat, +cursor: Nat,
+def read_step(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +fill: F32, +ops: List<&2, StorageLaws.Op>, +rest: Nat, +cursor: Nat,
   +below: {Nat.is_lt(cursor, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan)))) == True{} : Bool},
   +mapping: Layout.Mapping<input, axes, plan, U32.from_nat(cursor)>,
   -Q: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Tensor<Layout.output(input, axes, plan)>> -> Type,
-  next: Start(rest, input, axes, plan, values, 1n+cursor, Q),
-  -source_fits: {Lifecycle.logical_length(read_source(input, axes, values, cursor)) == Shape.logical_numel(Shape.dimensions(input)) : Nat},
-  -target_fits: {Lifecycle.logical_length(written(input, axes, plan, values, cursor)) ==
+  next: Start(rest, input, axes, plan, fill, ops, 1n+cursor, Q),
+  -source_fits: {Lifecycle.logical_length(read_source(input, axes, fill, ops, cursor)) == Shape.logical_numel(Shape.dimensions(input)) : Nat},
+  -target_fits: {Lifecycle.logical_length(written(input, axes, plan, fill, ops, cursor)) ==
     Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))) : Nat}) ->
   Q(Transforms.copy_next(input, axes, plan, kept => made => Transforms.copy_loop(rest, input, axes, plan, kept, made, 1n+cursor),
     Transforms.copy_mapped(input, axes, plan, U32.from_nat(cursor), kept => made => (kept, Done{made}),
-      Core.TTensor{read_source(input, axes, values, cursor), source_fits}, Core.TTensor{written(input, axes, plan, values, cursor), target_fits},
+      Core.TTensor{read_source(input, axes, fill, ops, cursor), source_fits}, Core.TTensor{written(input, axes, plan, fill, ops, cursor), target_fits},
       Done{mapping}))):
   +index = U32.from_nat(cursor)
   +word = U32.from_nat(source_of(Request{input, axes}, cursor))
-  +history = FromValues.writes(values, 0n)
+  +history = ops
   +seen = List.append(&2, StorageLaws.Op, history, Pointwise.reads(~Request, ~source_of, Request{input, axes}, cursor))
-  +cells = IndexMap.writes(~Request, ~source_of, cursor, Request{input, axes}, input, 0.0, history)
+  +cells = IndexMap.writes(~Request, ~source_of, cursor, Request{input, axes}, input, fill, history)
   %Equal.sym(U32, Layout.source_index(input, axes, plan, index, mapping), word, mapped_index(input, axes, plan, index, mapping)) :
     Q(Transforms.copy_next(input, axes, plan, kept => made => Transforms.copy_loop(rest, input, axes, plan, kept, made, 1n+cursor),
       Transforms.copy_read(input, axes, plan, index, kept => made => (kept, Done{made}),
-        Core.TTensor{written(input, axes, plan, values, cursor), target_fits},
-        Core.read_flat(input, Core.TTensor{read_source(input, axes, values, cursor), source_fits}, _))))
-  Replayed.read_lift(input, 0.0, seen, source_fits, word, mapped_inside(input, axes, plan, index, mapping),
+        Core.TTensor{written(input, axes, plan, fill, ops, cursor), target_fits},
+        Core.read_flat(input, Core.TTensor{read_source(input, axes, fill, ops, cursor), source_fits}, _))))
+  Replayed.read_lift(input, fill, seen, source_fits, word, mapped_inside(input, axes, plan, index, mapping),
     pair => Q(Transforms.copy_next(input, axes, plan, kept => made => Transforms.copy_loop(rest, input, axes, plan, kept, made, 1n+cursor),
       Transforms.copy_read(input, axes, plan, index, kept => made => (kept, Done{made}),
-        Core.TTensor{written(input, axes, plan, values, cursor), target_fits}, pair))),
-    read_fits => Replayed.write_lift(Layout.output(input, axes, plan), 0.0, cells, target_fits, index, Replayed.value(input, 0.0, seen, word),
+        Core.TTensor{written(input, axes, plan, fill, ops, cursor), target_fits}, pair))),
+    read_fits => Replayed.write_lift(Layout.output(input, axes, plan), 0.0, cells, target_fits, index, Replayed.value(input, fill, seen, word),
       PointwiseProof.word_inside(cursor, Layout.output(input, axes, plan), below),
       pair => Q(Transforms.copy_next(input, axes, plan, kept => made => Transforms.copy_loop(rest, input, axes, plan, kept, made, 1n+cursor),
         Transforms.copy_written(input, axes, plan, kept => made => (kept, Done{made}),
-          Core.TTensor{Replayed.storage(input, 0.0, Replayed.snoc(seen, StorageLaws.Read{word})), read_fits}, pair))),
-      write_fits => IndexMap.shift(~Request, ~source_of, Request{input, axes}, input, 0.0, history, Layout.output(input, axes, plan), cursor,
+          Core.TTensor{Replayed.storage(input, fill, Replayed.snoc(seen, StorageLaws.Read{word})), read_fits}, pair))),
+      write_fits => IndexMap.shift(~Request, ~source_of, Request{input, axes}, input, fill, history, Layout.output(input, axes, plan), cursor,
         kept => made => Shaped(rest, input, axes, plan, 1n+cursor, kept, made, Q), next)(read_fits, write_fits)))
 
-def mapped_lift(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +values: List<&2, F32>, +rest: Nat, +cursor: Nat,
+def mapped_lift(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +fill: F32, +ops: List<&2, StorageLaws.Op>, +rest: Nat, +cursor: Nat,
   +below: {Nat.is_lt(cursor, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan)))) == True{} : Bool},
   -Q: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Tensor<Layout.output(input, axes, plan)>> -> Type,
-  next: Start(rest, input, axes, plan, values, 1n+cursor, Q),
-  -source_fits: {Lifecycle.logical_length(read_source(input, axes, values, cursor)) == Shape.logical_numel(Shape.dimensions(input)) : Nat},
-  -target_fits: {Lifecycle.logical_length(written(input, axes, plan, values, cursor)) ==
+  next: Start(rest, input, axes, plan, fill, ops, 1n+cursor, Q),
+  -source_fits: {Lifecycle.logical_length(read_source(input, axes, fill, ops, cursor)) == Shape.logical_numel(Shape.dimensions(input)) : Nat},
+  -target_fits: {Lifecycle.logical_length(written(input, axes, plan, fill, ops, cursor)) ==
     Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))) : Nat},
   result: Result<&2, &2, Layout.Error, Layout.Mapping<input, axes, plan, U32.from_nat(cursor)>>,
   done: {Result.is_done(&2, &2, Layout.Error, Layout.Mapping<input, axes, plan, U32.from_nat(cursor)>, result) == True{} : Bool}) ->
   Q(Transforms.copy_next(input, axes, plan, kept => made => Transforms.copy_loop(rest, input, axes, plan, kept, made, 1n+cursor),
     Transforms.copy_mapped(input, axes, plan, U32.from_nat(cursor), kept => made => (kept, Done{made}),
-      Core.TTensor{read_source(input, axes, values, cursor), source_fits}, Core.TTensor{written(input, axes, plan, values, cursor), target_fits},
+      Core.TTensor{read_source(input, axes, fill, ops, cursor), source_fits}, Core.TTensor{written(input, axes, plan, fill, ops, cursor), target_fits},
       result))):
   match result:
     case Fail{error}:
       Empty.absurd(Q(Transforms.copy_next(input, axes, plan, kept => made => Transforms.copy_loop(rest, input, axes, plan, kept, made, 1n+cursor),
         Transforms.copy_mapped(input, axes, plan, U32.from_nat(cursor), kept => made => (kept, Done{made}),
-          Core.TTensor{read_source(input, axes, values, cursor), source_fits}, Core.TTensor{written(input, axes, plan, values, cursor), target_fits},
+          Core.TTensor{read_source(input, axes, fill, ops, cursor), source_fits}, Core.TTensor{written(input, axes, plan, fill, ops, cursor), target_fits},
           Fail{error}))), Arith.clash(done))
     case Done{+mapping}:
-      read_step(input, axes, plan, values, rest, cursor, below, mapping, Q, next, source_fits, target_fits)
+      read_step(input, axes, plan, fill, ops, rest, cursor, below, mapping, Q, next, source_fits, target_fits)
 
 def decided_lift(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +rest: Nat, +cursor: Nat,
   -Q: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Tensor<Layout.output(input, axes, plan)>> -> Type,
@@ -186,88 +188,88 @@ def decided_lift(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<i
     case Shape.BTrue{equal}:
       h
 
-def step_lift(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +values: List<&2, F32>, +rest: Nat, +cursor: Nat,
+def step_lift(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +fill: F32, +ops: List<&2, StorageLaws.Op>, +rest: Nat, +cursor: Nat,
   +below: {Nat.is_lt(cursor, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan)))) == True{} : Bool},
   -Q: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Tensor<Layout.output(input, axes, plan)>> -> Type,
-  next: Start(rest, input, axes, plan, values, 1n+cursor, Q)) -> Start(1n+rest, input, axes, plan, values, cursor, Q):
+  next: Start(rest, input, axes, plan, fill, ops, 1n+cursor, Q)) -> Start(1n+rest, input, axes, plan, fill, ops, cursor, Q):
   source_fits => target_fits =>
     decided_lift(input, axes, plan, rest, cursor, Q,
-      Core.TTensor{read_source(input, axes, values, cursor), source_fits}, Core.TTensor{written(input, axes, plan, values, cursor), target_fits},
+      Core.TTensor{read_source(input, axes, fill, ops, cursor), source_fits}, Core.TTensor{written(input, axes, plan, fill, ops, cursor), target_fits},
       Shape.bool_case(Nat.is_eq(U32.to_nat(U32.from_nat(cursor)), cursor)),
       cursor_same(cursor, PointwiseProof.word_exact(cursor, Layout.output(input, axes, plan), below)),
-      mapped_lift(input, axes, plan, values, rest, cursor, below, Q, next, source_fits, target_fits,
+      mapped_lift(input, axes, plan, fill, ops, rest, cursor, below, Q, next, source_fits, target_fits,
         Layout.map_index(input, axes, plan, U32.from_nat(cursor)),
         mapping_done(input, axes, plan, U32.from_nat(cursor), PointwiseProof.word_inside(cursor, Layout.output(input, axes, plan), below))))
 
-def final_at(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +values: List<&2, F32>, -end: Nat, -count: Nat,
+def final_at(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +fill: F32, +ops: List<&2, StorageLaws.Op>, -end: Nat, -count: Nat,
   same: {end == count : Nat},
   -Q: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Tensor<Layout.output(input, axes, plan)>> -> Type,
-  h: Final(input, axes, plan, values, end, Q)) -> Final(input, axes, plan, values, count, Q):
-  %same : Final(input, axes, plan, values, _, Q)
+  h: Final(input, axes, plan, fill, ops, end, Q)) -> Final(input, axes, plan, fill, ops, count, Q):
+  %same : Final(input, axes, plan, fill, ops, _, Q)
   h
 
-def loop_lift(+fuel: Nat, +input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +values: List<&2, F32>, +cursor: Nat,
+def loop_lift(+fuel: Nat, +input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +fill: F32, +ops: List<&2, StorageLaws.Op>, +cursor: Nat,
   +steps: {Nat.add(cursor, fuel) == Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))) : Nat},
   -Q: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Tensor<Layout.output(input, axes, plan)>> -> Type,
-  h: Final(input, axes, plan, values, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))), Q)) ->
-  Start(fuel, input, axes, plan, values, cursor, Q):
+  h: Final(input, axes, plan, fill, ops, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))), Q)) ->
+  Start(fuel, input, axes, plan, fill, ops, cursor, Q):
   match fuel:
     case 0n:
       +total = Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan)))
-      final_at(input, axes, plan, values, total, cursor, Equal.sym(Nat, cursor, total, PointwiseProof.steps_done(cursor, total, steps)), Q, h)
+      final_at(input, axes, plan, fill, ops, total, cursor, Equal.sym(Nat, cursor, total, PointwiseProof.steps_done(cursor, total, steps)), Q, h)
     case 1n+rest:
       +total = Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan)))
-      step_lift(input, axes, plan, values, rest, cursor, PointwiseProof.cursor_below(cursor, rest, total, steps), Q,
-        loop_lift(rest, input, axes, plan, values, 1n+cursor, PointwiseProof.steps_next(cursor, rest, total, steps), Q, h))
+      step_lift(input, axes, plan, fill, ops, rest, cursor, PointwiseProof.cursor_below(cursor, rest, total, steps), Q,
+        loop_lift(rest, input, axes, plan, fill, ops, 1n+cursor, PointwiseProof.steps_next(cursor, rest, total, steps), Q, h))
 
-def start_cast(+fuel: Nat, +input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +values: List<&2, F32>,
+def start_cast(+fuel: Nat, +input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +fill: F32, +ops: List<&2, StorageLaws.Op>,
   -Q: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Tensor<Layout.output(input, axes, plan)>> -> Type,
-  start: Start(fuel, input, axes, plan, values, 0n, Q)) ->
-  Shaped(fuel, input, axes, plan, 0n, Replayed.storage(input, 0.0, FromValues.writes(values, 0n)),
+  start: Start(fuel, input, axes, plan, fill, ops, 0n, Q)) ->
+  Shaped(fuel, input, axes, plan, 0n, Replayed.storage(input, fill, ops),
     Replayed.storage(Layout.output(input, axes, plan), 0.0, Nil{}), Q):
-  %Equal.cong(List<&2, StorageLaws.Op>, Storage.Storage, ops => Replayed.storage(input, 0.0, ops),
-    List.append(&2, StorageLaws.Op, FromValues.writes(values, 0n), Nil{}), FromValues.writes(values, 0n),
-    PointwiseProof.append_nil(FromValues.writes(values, 0n))) :
+  %Equal.cong(List<&2, StorageLaws.Op>, Storage.Storage, ops => Replayed.storage(input, fill, ops),
+    List.append(&2, StorageLaws.Op, ops, Nil{}), ops,
+    PointwiseProof.append_nil(ops)) :
     Shaped(fuel, input, axes, plan, 0n, _, Replayed.storage(Layout.output(input, axes, plan), 0.0, Nil{}), Q)
   start
 
-def run_lift(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +values: List<&2, F32>,
+def run_lift(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +fill: F32, +ops: List<&2, StorageLaws.Op>,
   -Q: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Dynamic> -> Type,
-  h: Final(input, axes, plan, values, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))),
+  h: Final(input, axes, plan, fill, ops, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))),
     pair => Q(Transforms.copy_pack(input, axes, plan, pair))),
-  -source_fits: {Lifecycle.logical_length(Replayed.storage(input, 0.0, FromValues.writes(values, 0n))) == Shape.logical_numel(Shape.dimensions(input)) : Nat}) ->
-  Q(Transforms.copy_allocated(input, axes, plan, Core.TTensor{Replayed.storage(input, 0.0, FromValues.writes(values, 0n)), source_fits},
+  -source_fits: {Lifecycle.logical_length(Replayed.storage(input, fill, ops)) == Shape.logical_numel(Shape.dimensions(input)) : Nat}) ->
+  Q(Transforms.copy_allocated(input, axes, plan, Core.TTensor{Replayed.storage(input, fill, ops), source_fits},
     Core.new(Layout.output(input, axes, plan), 0.0))):
   Replayed.new_lift(Layout.output(input, axes, plan), 0.0,
     result => Q(Transforms.copy_allocated(input, axes, plan,
-      Core.TTensor{Replayed.storage(input, 0.0, FromValues.writes(values, 0n)), source_fits}, result)),
-    target_fits => start_cast(Shape.elements(Layout.output(input, axes, plan)), input, axes, plan, values,
+      Core.TTensor{Replayed.storage(input, fill, ops), source_fits}, result)),
+    target_fits => start_cast(Shape.elements(Layout.output(input, axes, plan)), input, axes, plan, fill, ops,
       pair => Q(Transforms.copy_pack(input, axes, plan, pair)),
-      loop_lift(Shape.elements(Layout.output(input, axes, plan)), input, axes, plan, values, 0n,
+      loop_lift(Shape.elements(Layout.output(input, axes, plan)), input, axes, plan, fill, ops, 0n,
         Shape.elements_exact(Layout.output(input, axes, plan)), pair => Q(Transforms.copy_pack(input, axes, plan, pair)), h))(source_fits, target_fits))
 
-def planned_lift(+input: Shape.Shape, +axes: List<&2, U32>, +values: List<&2, F32>,
+def planned_lift(+input: Shape.Shape, +axes: List<&2, U32>, +fill: F32, +ops: List<&2, StorageLaws.Op>,
   result: Result<&2, &2, Layout.Error, Layout.Plan<input, axes>>,
   done: {Result.is_done(&2, &2, Layout.Error, Layout.Plan<input, axes>, result) == True{} : Bool},
   -Q: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Dynamic> -> Type,
-  h: @+plan: Layout.Plan<input, axes> -> Final(input, axes, plan, values, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))),
+  h: @+plan: Layout.Plan<input, axes> -> Final(input, axes, plan, fill, ops, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))),
     pair => Q(Transforms.copy_pack(input, axes, plan, pair))),
-  -source_fits: {Lifecycle.logical_length(Replayed.storage(input, 0.0, FromValues.writes(values, 0n))) == Shape.logical_numel(Shape.dimensions(input)) : Nat}) ->
-  Q(Transforms.copy_planned(input, axes, Core.TTensor{Replayed.storage(input, 0.0, FromValues.writes(values, 0n)), source_fits}, result)):
+  -source_fits: {Lifecycle.logical_length(Replayed.storage(input, fill, ops)) == Shape.logical_numel(Shape.dimensions(input)) : Nat}) ->
+  Q(Transforms.copy_planned(input, axes, Core.TTensor{Replayed.storage(input, fill, ops), source_fits}, result)):
   match result:
     case Fail{error}:
-      Empty.absurd(Q(Transforms.copy_planned(input, axes, Core.TTensor{Replayed.storage(input, 0.0, FromValues.writes(values, 0n)), source_fits},
+      Empty.absurd(Q(Transforms.copy_planned(input, axes, Core.TTensor{Replayed.storage(input, fill, ops), source_fits},
         Fail{error})), Arith.clash(done))
     case Done{+plan}:
-      run_lift(input, axes, plan, values, Q, h(plan), source_fits)
+      run_lift(input, axes, plan, fill, ops, Q, h(plan), source_fits)
 
 def permute_lift(+input: Shape.Shape, +values: List<&2, F32>, +axes: List<&2, U32>, +valid: {True{} == Layout.bijective(input, axes) : Bool},
   -Q: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Dynamic> -> Type,
-  h: @+plan: Layout.Plan<input, axes> -> Final(input, axes, plan, values, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))),
+  h: @+plan: Layout.Plan<input, axes> -> Final(input, axes, plan, 0.0, FromValues.writes(values, 0n), Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))),
     pair => Q(Transforms.copy_pack(input, axes, plan, pair))),
   -source_fits: {Lifecycle.logical_length(Replayed.storage(input, 0.0, FromValues.writes(values, 0n))) == Shape.logical_numel(Shape.dimensions(input)) : Nat}) ->
   Q(Transforms.permute_copy(input, Core.TTensor{Replayed.storage(input, 0.0, FromValues.writes(values, 0n)), source_fits}, axes)):
-  planned_lift(input, axes, values, Layout.permutation(input, axes),
+  planned_lift(input, axes, 0.0, FromValues.writes(values, 0n), Layout.permutation(input, axes),
     Mapping.plan_ranked_success(input, axes,
       Shape.bool_case(Nat.is_eq(Shape.rank_dimensions(axes), Shape.rank_dimensions(Shape.dimensions(input)))), valid),
     Q, h, source_fits)
@@ -352,7 +354,7 @@ def permuted_length(+input: Shape.Shape, +values: List<&2, F32>, +axes: List<&2,
     plan => source_fits => target_fits =>
       +output = Layout.output(input, axes, plan)
       +total = Shape.logical_numel(Shape.dimensions(output))
-      -made = written(input, axes, plan, values, total)
+      -made = written(input, axes, plan, 0.0, FromValues.writes(values, 0n), total)
       Equal.cong(Nat, Maybe<&2, Nat>, number => Some{number}, Lifecycle.logical_length(made), Shape.logical_numel(Shape.dimensions(input)),
         Equal.trans(Nat, Lifecycle.logical_length(made), total, Shape.logical_numel(Shape.dimensions(input)),
           Replayed.fits(output, 0.0, IndexMap.writes(~Request, ~source_of, total, Request{input, axes}, input, 0.0, FromValues.writes(values, 0n))),
@@ -381,7 +383,7 @@ def permuted_value(+input: Shape.Shape, +values: List<&2, F32>,
       +history = FromValues.writes(values, 0n)
       +below = output_inside(input, axes, plan, index, inside)
       Equal.trans(Maybe<&2, F32>,
-        Core.dynamic_read_value(Core.read_dynamic(Core.Packed{output, Core.TTensor{written(input, axes, plan, values, total), target_fits}}, index)),
+        Core.dynamic_read_value(Core.read_dynamic(Core.Packed{output, Core.TTensor{written(input, axes, plan, 0.0, FromValues.writes(values, 0n), total), target_fits}}, index)),
         Some{Replayed.value(input, 0.0, history, U32.from_nat(source_of(Request{input, axes}, U32.to_nat(index))))},
         Values.listed(values, Values.permute_source(input, axes, index)),
         IndexMap.copied_point(~Request, ~source_of, Request{input, axes}, input, 0.0, history, output, target_fits, index, below),
@@ -401,7 +403,7 @@ def permuted_kept(+input: Shape.Shape, +values: List<&2, F32>,
       +total = Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan)))
       +history = FromValues.writes(values, 0n)
       Equal.trans(Maybe<&2, F32>,
-        Core.read_value(input, Core.read_flat(input, Core.TTensor{read_source(input, axes, values, total), source_fits}, other)),
+        Core.read_value(input, Core.read_flat(input, Core.TTensor{read_source(input, axes, 0.0, FromValues.writes(values, 0n), total), source_fits}, other)),
         Some{Replayed.value(input, 0.0, history, other)}, List.get(&2, F32, values, U32.to_nat(other)),
         IndexMap.kept(~Request, ~source_of, Request{input, axes}, total, input, 0.0, history, source_fits, other, inside),
         IndexMap.stored_at(input, values, counted, other, inside)), fits)
@@ -440,7 +442,7 @@ def permute_contract(+input: Shape.Shape, +values: List<&2, F32>,
         fits => permuted_kept(input, values, counted, axes, valid, other, inside, fits))}
 
 def requested(+input: Shape.Shape, +a: U32, +b: U32) -> List<&2, U32>:
-  Transpose.requested_axes(Shape.rank_dimensions(Shape.dimensions(input)), U32.to_nat(a), U32.to_nat(b))
+  Transpose.swapped_axes(input, a, b)
 
 def transpose_route(+input: Shape.Shape, +a: U32, +b: U32, source: Core.Tensor<input>,
   decision: Shape.BoolCase<Transpose.valid(input, a, b)>, +inside: {True{} == Transpose.valid(input, a, b) : Bool}) ->
@@ -459,17 +461,23 @@ def requested_valid(+input: Shape.Shape, +a: U32, +b: U32, +inside: {True{} == T
   %TransposeProof.transpose_axes_requested(input, a, b, inside) : {True{} == Layout.bijective(input, _) : Bool}
   TransposeProof.valid_axes(input, a, b, inside)
 
+# transpose_copy of any source with both axes in range is permute_copy by
+# the swapped axes.
+def transpose_cast(+input: Shape.Shape, +a: U32, +b: U32, +inside: {True{} == Transpose.valid(input, a, b) : Bool},
+  source: Core.Tensor<input>, -Q: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Dynamic> -> Type,
+  h: Q(Transforms.permute_copy(input, source, requested(input, a, b)))) -> Q(Transforms.transpose_copy(input, source, a, b)):
+  %transpose_route(input, a, b, source, Shape.bool_case(Transpose.valid(input, a, b)), inside) : Q(_)
+  %Equal.sym(List<&2, U32>, Layout.transpose_axes(Shape.dimensions(input), a, b, 0), requested(input, a, b),
+    TransposeProof.transpose_axes_requested(input, a, b, inside)) :
+    Q(Transforms.permute_copy(input, source, _))
+  h
+
 def transpose_lift(+input: Shape.Shape, +values: List<&2, F32>, +a: U32, +b: U32, +inside: {True{} == Transpose.valid(input, a, b) : Bool},
   -fits: {Lifecycle.logical_length(Replayed.storage(input, 0.0, FromValues.writes(values, 0n))) == Shape.logical_numel(Shape.dimensions(input)) : Nat},
   -Q: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Dynamic> -> Type,
   h: Permuted(input, values, requested(input, a, b), fits, Q)) ->
   Q(Transforms.transpose_copy(input, Core.TTensor{Replayed.storage(input, 0.0, FromValues.writes(values, 0n)), fits}, a, b)):
-  %transpose_route(input, a, b, Core.TTensor{Replayed.storage(input, 0.0, FromValues.writes(values, 0n)), fits},
-    Shape.bool_case(Transpose.valid(input, a, b)), inside) : Q(_)
-  %Equal.sym(List<&2, U32>, Layout.transpose_axes(Shape.dimensions(input), a, b, 0), requested(input, a, b),
-    TransposeProof.transpose_axes_requested(input, a, b, inside)) :
-    Q(Transforms.permute_copy(input, Core.TTensor{Replayed.storage(input, 0.0, FromValues.writes(values, 0n)), fits}, _))
-  h
+  transpose_cast(input, a, b, inside, Core.TTensor{Replayed.storage(input, 0.0, FromValues.writes(values, 0n)), fits}, Q, h)
 
 def transpose_contract(+input: Shape.Shape, +values: List<&2, F32>,
   counted: {List.length(&2, F32, values) == Shape.logical_numel(Shape.dimensions(input)) : Nat},
@@ -515,3 +523,75 @@ def transpose_contract(+input: Shape.Shape, +values: List<&2, F32>,
         fits => transpose_lift(input, values, a, b, inside, fits, pair => {Observation.kept_value_pair(input, other, pair) ==
             List.get(&2, F32, values, U32.to_nat(other)) : Maybe<&2, F32>},
           permuted_kept(input, values, counted, axes, valid, other, below, fits)))}
+
+# The words the copy loop writes, in index order, are `permuted_words`.
+def words_moved(+input: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>,
+  +count: Nat, +room: {Nat.is_le(count, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan)))) == True{} : Bool}) ->
+  {Contracts.words(Layout.output(input, axes, plan), 0.0,
+    IndexMap.writes(~Request, ~source_of, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))), Request{input, axes}, input, fill, ops),
+    count) == Records.permuted_words(input, fill, ops, axes, count) : List<&2, F32>}:
+  match count:
+    case 0n:
+      {==}
+    case 1n+previous:
+      +output = Layout.output(input, axes, plan)
+      +total = Shape.logical_numel(Shape.dimensions(output))
+      +request : Request = Request{input, axes}
+      +history = IndexMap.writes(~Request, ~source_of, total, request, input, fill, ops)
+      +below = Conversion.le_successor_lt(previous, total, room)
+      +position = U32.from_nat(previous)
+      Words.snoc_equal(Contracts.words(output, 0.0, history, previous), Records.permuted_words(input, fill, ops, axes, previous),
+        Replayed.value(output, 0.0, history, position),
+        Replayed.value(input, fill, ops, U32.from_nat(Values.permute_source_index(input, axes, previous))),
+        words_moved(input, fill, ops, axes, plan, previous, Conversion.le_predecessor(previous, total, room)),
+        Equal.trans(F32, Replayed.value(output, 0.0, history, position),
+          Replayed.value(input, fill, ops, U32.from_nat(Values.permute_source_index(input, axes, U32.to_nat(position)))),
+          Replayed.value(input, fill, ops, U32.from_nat(Values.permute_source_index(input, axes, previous))),
+          PointwiseProof.writes_value(~Unit, ~IndexMap.keep, ~Request, ~source_of, ~source_of, total, Unit{}, request, input, fill, ops,
+            input, fill, ops, output, position, PointwiseProof.word_inside(previous, output, below), Conversion.le_reflexive(total)),
+          Equal.cong(Nat, F32, number => Replayed.value(input, fill, ops, U32.from_nat(Values.permute_source_index(input, axes, number))),
+            U32.to_nat(position), previous, PointwiseProof.word_exact(previous, output, below))))
+
+# The copy loop on any replayed source, in transport form: once
+# `Layout.permutation` gives the plan, P holds for the permute if it holds for
+# every result of the form the loop's final state has.
+def replayed_final(+input: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>,
+  -P: Core.Dynamic & Result<&2, &1, Transforms.Error, Core.Dynamic> -> Type,
+  h: Records.PermutedWith(input, fill, ops, axes, plan, P)) ->
+  Final(input, axes, plan, fill, ops, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))),
+    pair => P(Transforms.dynamic_result(input, Transforms.copy_pack(input, axes, plan, pair)))):
+  +output = Layout.output(input, axes, plan)
+  +total = Shape.logical_numel(Shape.dimensions(output))
+  +request : Request = Request{input, axes}
+  source_fits => target_fits =>
+    h(List.append(&2, StorageLaws.Op, ops, Pointwise.reads(~Request, ~source_of, request, total)),
+      Words.words_reads(~Request, ~source_of, request, total, input, fill, ops, Shape.logical_numel(Shape.dimensions(input))),
+      source_fits,
+      IndexMap.writes(~Request, ~source_of, total, request, input, fill, ops),
+      words_moved(input, fill, ops, axes, plan, total, Conversion.le_reflexive(total)),
+      target_fits)
+
+def permute_replayed(+input: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>,
+  -fits: {Lifecycle.logical_length(Replayed.storage(input, fill, ops)) == Shape.logical_numel(Shape.dimensions(input)) : Nat},
+  +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>,
+  laid: {Layout.permutation(input, axes) == Done{plan} : Result<&2, &2, Layout.Error, Layout.Plan<input, axes>>},
+  -P: Core.Dynamic & Result<&2, &1, Transforms.Error, Core.Dynamic> -> Type,
+  h: Records.PermutedWith(input, fill, ops, axes, plan, P)) ->
+  P(Transforms.dynamic_result(input, Transforms.permute_copy(input, Core.TTensor{Replayed.storage(input, fill, ops), fits}, axes))):
+  %Equal.sym(Result<&2, &2, Layout.Error, Layout.Plan<input, axes>>, Layout.permutation(input, axes), Done{plan}, laid) :
+    P(Transforms.dynamic_result(input, Transforms.copy_planned(input, axes, Core.TTensor{Replayed.storage(input, fill, ops), fits}, _)))
+  run_lift(input, axes, plan, fill, ops, pair => P(Transforms.dynamic_result(input, pair)),
+    replayed_final(input, fill, ops, axes, plan, P, h), fits)
+
+def transpose_replayed(+input: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>,
+  -fits: {Lifecycle.logical_length(Replayed.storage(input, fill, ops)) == Shape.logical_numel(Shape.dimensions(input)) : Nat},
+  +a: U32, +b: U32, inside: {True{} == Transpose.valid(input, a, b) : Bool},
+  +plan: Layout.Plan<input, Transpose.swapped_axes(input, a, b)>,
+  laid: {Layout.permutation(input, Transpose.swapped_axes(input, a, b)) == Done{plan} :
+    Result<&2, &2, Layout.Error, Layout.Plan<input, Transpose.swapped_axes(input, a, b)>>},
+  -P: Core.Dynamic & Result<&2, &1, Transforms.Error, Core.Dynamic> -> Type,
+  h: Records.PermutedWith(input, fill, ops, Transpose.swapped_axes(input, a, b), plan, P)) ->
+  P(Transforms.dynamic_result(input, Transforms.transpose_copy(input, Core.TTensor{Replayed.storage(input, fill, ops), fits}, a, b))):
+  +inside = inside
+  transpose_cast(input, a, b, inside, Core.TTensor{Replayed.storage(input, fill, ops), fits}, pair => P(Transforms.dynamic_result(input, pair)),
+    permute_replayed(input, fill, ops, fits, requested(input, a, b), plan, laid, P, h))

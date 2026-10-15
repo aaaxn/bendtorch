@@ -218,3 +218,11 @@ keeps every value. The proof re-walks the copy loop with live code, as an
 instance of a generic index-map copy built on the pointwise contract family.
 The nine existing permute/transpose statements are unchanged and still hold
 erased evidence.
+
+The same walk takes any replayed source, not only a `Core.from_values` one.
+`permute_replayed` and `transpose_replayed` export it in the transport form of
+`broadcast_to_replayed`: once `Layout.permutation` gives the plan, the output
+is a replayed tensor of the plan's shape whose word `i` is the source's word
+at `permute_source(input, axes, i)`, and the source comes back with the same
+words. The tensor backward's `Matmul` VJP value law chains it into
+`matmul_replayed` ([contract families](contract-families.md)).
