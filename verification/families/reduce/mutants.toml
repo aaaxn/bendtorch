@@ -49,3 +49,21 @@ before = '''
 F32.add(accumulated, value)'''
 after = '''
 F32.add(value, accumulated)'''
+
+[sum-to-size-identity-folds]
+file = "src/autograd/sum-to-size.bend"
+before = '''
+    case True{}:
+      cloned(shape, Core.clone(shape, tensor))'''
+after = '''
+    case True{}:
+      Reduce.reduce_to(Core.Packed{shape, tensor}, target)'''
+
+[sum-to-size-reduced-clones]
+file = "src/autograd/sum-to-size.bend"
+before = '''
+    case False{}:
+      Reduce.reduce_to(Core.Packed{shape, tensor}, target)'''
+after = '''
+    case False{}:
+      cloned(shape, Core.clone(shape, tensor))'''

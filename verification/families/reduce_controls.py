@@ -10,6 +10,7 @@ Law, Site, Value, Witness = (
 )
 SRC = "_2e_._2f_.._2f_.._2f_src_2f_autograd_2f_"
 REDUCE_TO = "src/autograd/reduce-to-fold-PROOF.bend"
+SUM_TO_SIZE = "src/autograd/sum-to-size-fold-PROOF.bend"
 ZERO, ONE, TWO, THREE = fold.ZERO, fold.ONE, fold.TWO, fold.THREE
 FOUR, FIVE, SIX = fold.FOUR, fold.FIVE, fold.SIX
 
@@ -25,8 +26,15 @@ FAMILY = controls.Family(
         "src/tensor/contracts/sum.bend",
         "src/autograd/reduce-fold.bend",
         "src/autograd/reduce.bend",
+        "src/autograd/sum-to-size.bend",
     ),
-    operations=frozenset({"src/autograd/reduce-fold.bend", "src/autograd/reduce.bend"}),
+    operations=frozenset(
+        {
+            "src/autograd/reduce-fold.bend",
+            "src/autograd/reduce.bend",
+            "src/autograd/sum-to-size.bend",
+        }
+    ),
     laws={
         f"{SRC}reduce_2d_fold_2d_LAWS.reduce_fold_fiber": Law(
             "∀+x0 : _2e_._2f_.._2f_.._2f_src_2f_shape_2f_core.BroadcastPlan -> ",
@@ -35,6 +43,14 @@ FAMILY = controls.Family(
         f"{SRC}reduce_2d_fold_2d_LAWS.reduce_to_fiber": Law(
             "∀+x0 : _2e_._2f_.._2f_.._2f_src_2f_shape_2f_core.Shape -> ",
             "reduce.reduce_to",
+        ),
+        f"{SRC}sum_2d_to_2d_size_2d_fold_2d_LAWS.sum_to_size_clone": Law(
+            "∀+x0 : _2e_._2f_.._2f_.._2f_src_2f_shape_2f_core.Shape -> ",
+            "sum_2d_to_2d_size.sum_to_size",
+        ),
+        f"{SRC}sum_2d_to_2d_size_2d_fold_2d_LAWS.sum_to_size_fiber": Law(
+            "∀+x0 : _2e_._2f_.._2f_.._2f_src_2f_shape_2f_core.Shape -> ",
+            "sum_2d_to_2d_size.sum_to_size",
         ),
     },
     live_records=(
@@ -53,6 +69,8 @@ FAMILY = controls.Family(
             "reduce_empty",
             "reduce_to_columns",
             "reduce_to_rows",
+            "sum_to_size_same",
+            "sum_to_size_columns",
         )
     ),
     witnesses={
@@ -61,6 +79,8 @@ FAMILY = controls.Family(
         "same_witness": Witness("expected_same", "uncopied_same"),
         "word_witness": Witness("expected_word", "shifted_word"),
         "reduce_to_witness": Witness("expected_column", "unmasked_column"),
+        "sum_to_size_witness": Witness("cloned_word", "folded_word"),
+        "sum_to_size_fiber_witness": Witness("expected_column", "unmasked_column"),
     },
     values={
         "expected_column": some(
@@ -85,8 +105,10 @@ FAMILY = controls.Family(
         "uncopied_same": some("Some{5.0}", FIVE),
         "expected_word": some("Some{5.0}", FIVE),
         "shifted_word": some("Some{6.0}", SIX),
+        "cloned_word": some("Some{5.0}", FIVE),
+        "folded_word": some("Some{F32.add(0.0, 5.0)}", f"(F32.add {ZERO} {FIVE})"),
     },
-    subjects=("result", "reduced"),
+    subjects=("result", "reduced", "summed"),
     mutants=controls.load_mutants("reduce"),
     sites={
         "lands-on-source": Site(
@@ -133,6 +155,20 @@ FAMILY = controls.Family(
             "reduce_2d_to_2d_fold_2d_PROOF.step_lift",
             ("reduce.step_output",),
             module=REDUCE_TO,
+        ),
+        "sum-to-size-identity-folds": Site(
+            "sum_to_size_clone",
+            "reduce.planned(",
+            "sum_2d_to_2d_size_2d_fold_2d_PROOF.sum_to_size_clone",
+            ("sum_2d_to_2d_size.decided",),
+            module=SUM_TO_SIZE,
+        ),
+        "sum-to-size-reduced-clones": Site(
+            "sum_to_size_fiber",
+            "SumToSize.cloned(",
+            "sum_2d_to_2d_size_2d_fold_2d_PROOF.sum_to_size_fiber",
+            ("sum_2d_to_2d_size.decided",),
+            module=SUM_TO_SIZE,
         ),
     },
     proof="src/autograd/PROOF.bend",

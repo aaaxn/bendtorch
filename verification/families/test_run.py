@@ -10,7 +10,10 @@ controls = importlib.import_module("verification.families.controls")
 pointwise = importlib.import_module("verification.families.pointwise_controls").FAMILY
 fold = importlib.import_module("verification.families.fold_controls").FAMILY
 reduce = importlib.import_module("verification.families.reduce_controls").FAMILY
-FAMILIES = (pointwise, fold, reduce)
+broadcast_to = importlib.import_module(
+    "verification.families.broadcast_to_controls"
+).FAMILY
+FAMILIES = (pointwise, fold, reduce, broadcast_to)
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -66,12 +69,18 @@ class PointwiseControlTests(unittest.TestCase):
             self.assertEqual(path, expected, label)
         self.assertTrue(all(not site.consumer for site in pointwise.sites.values()))
         for label, (path, _, _) in reduce.mutants.items():
-            expected = (
-                "src/autograd/reduce-to-fold-PROOF.bend"
-                if path == "src/autograd/reduce.bend"
-                else "src/autograd/PROOF.bend"
-            )
+            live = {
+                "src/autograd/reduce.bend": "reduce-to-fold-PROOF.bend",
+                "src/autograd/sum-to-size.bend": "sum-to-size-fold-PROOF.bend",
+            }.get(path, "PROOF.bend")
+            expected = f"src/autograd/{live}"
             self.assertEqual(reduce.rejecting_module(label), expected, label)
+        for label in broadcast_to.mutants:
+            self.assertEqual(
+                broadcast_to.rejecting_module(label),
+                "src/autograd/broadcast-pointwise-PROOF.bend",
+                label,
+            )
 
     def test_false_twin_changes_only_the_statement(self):
         for family in FAMILIES:

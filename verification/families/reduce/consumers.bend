@@ -3,6 +3,7 @@ import ../../../src/shape/core.bend as Shape
 import ../../../src/storage/arith.bend as Arith
 import ../../../src/storage/LAWS.bend as StorageLaws
 import ../../../src/tensor/core.bend as Core
+import ../../../src/tensor/layout.bend as Layout
 import ../../../src/tensor/lifecycle.bend as Lifecycle
 import ../../../src/tensor/from-values-contract.bend as FromValues
 import ../../../src/tensor/contracts/LAWS.bend as Contracts
@@ -15,6 +16,9 @@ import ../../../src/autograd/reduce-fold-LAWS.bend as Laws
 import ../../../src/autograd/reduce-PROOF.bend as ReduceProof
 import ../../../src/autograd/reduce-fold-PROOF.bend as FoldProof
 import ../../../src/autograd/reduce-to-fold-PROOF.bend as ReduceToProof
+import ../../../src/autograd/sum-to-size.bend as SumToSize
+import ../../../src/autograd/sum-to-size-fold-LAWS.bend as SumLaws
+import ../../../src/autograd/sum-to-size-fold-PROOF.bend as SumProof
 
 def scalar_shape() -> Shape.Shape:
   Shape.SShape{[], 1n, {==}, Unit{}, Unit{}}
@@ -179,3 +183,38 @@ def reduce_to_rows() -> ReduceToCase<reduced(column_shape(), grid_shape(), grid_
   1, Some{F32.add(F32.add(F32.add(0.0, 4.0), 5.0), 6.0)}, 0, 1.0>:
   open_reduce_to(column_shape(), grid_shape(), column_grid(), grid_values(), {==},
     Laws.reduce_to_fiber(column_shape(), grid_shape(), column_grid(), {==}, {==}, 0.0, writes(grid_values()), {==}), 1, {==}, 0, {==})
+
+def summed(+target: Shape.Shape, +shape: Shape.Shape, +values: List<&2, F32>,
+  -fits: {Lifecycle.logical_length(Replayed.storage(shape, 0.0, writes(values))) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}) ->
+  Core.Dynamic & Result<&2, &1, Reduce.Error, Core.Dynamic>:
+  SumToSize.sum_to_size(input(shape, values, fits), target)
+
+def open_summed(+target: Shape.Shape, +shape: Shape.Shape, +values: List<&2, F32>, -expected: U32 -> Maybe<&2, F32>,
+  -fits: {Lifecycle.logical_length(Replayed.storage(shape, 0.0, writes(values))) == Shape.logical_numel(Shape.dimensions(shape)) : Nat},
+  evidence: Laws.ReduceToContract<target, shape, expected, other => Replayed.value(shape, 0.0, writes(values), other),
+    summed(target, shape, values, fits)>,
+  +cell: U32, cell_inside: {Nat.is_lt(U32.to_nat(cell), Shape.logical_numel(Shape.dimensions(target))) == True{} : Bool},
+  +other: U32, other_inside: {Nat.is_lt(U32.to_nat(other), Shape.logical_numel(Shape.dimensions(shape))) == True{} : Bool}) ->
+  ReduceToCase<summed(target, shape, values, fits), Shape.dimensions(target), cell, expected(cell),
+    other, Replayed.value(shape, 0.0, writes(values), other)>:
+  Laws.ReduceToContract{successful, dimensions, value, kept} = evidence
+  ReduceToCase{dimensions, value(cell, cell_inside), kept(other, other_inside)}
+
+def kept_word(+shape: Shape.Shape, +values: List<&2, F32>, +cell: U32) -> Maybe<&2, F32>:
+  Some{Replayed.value(shape, 0.0, writes(values), cell)}
+
+# sum_to_size to the contribution's own dimensions clones it: cell 4 holds
+# word 4 itself, not F32.add(0.0, 5.0) as reduce_to gives.
+def sum_to_size_same() -> ReduceToCase<summed(grid_shape(), grid_shape(), grid_values(), {==}), [2, 3], 4, Some{5.0}, 2, 3.0>:
+  open_summed(grid_shape(), grid_shape(), grid_values(), cell => kept_word(grid_shape(), grid_values(), cell), {==},
+    SumLaws.sum_to_size_clone(grid_shape(), grid_shape(), {==}, 0.0, writes(grid_values()), {==}), 4, {==}, 2, {==})
+
+def grid_not_three() -> {Shape.dimensions(grid_shape()) != Shape.dimensions(three_shape()) : List<&2, U32>}:
+  equal => Arith.clash(Equal.cong(List<&2, U32>, Bool, dimensions => Layout.words_same(dimensions, [3]), [2, 3], [3], equal))
+
+# sum_to_size to [3] reduces through reduce_to: cell 1 adds column 1.
+def sum_to_size_columns() -> ReduceToCase<summed(three_shape(), grid_shape(), grid_values(), {==}), [3],
+  1, Some{F32.add(F32.add(0.0, 2.0), 5.0)}, 4, 5.0>:
+  open_summed(three_shape(), grid_shape(), grid_values(), cell => reduce_to_total(three_grid(), grid_shape(), grid_values(), cell), {==},
+    SumLaws.sum_to_size_fiber(three_shape(), grid_shape(), three_grid(), {==}, {==}, grid_not_three(), 0.0, writes(grid_values()), {==}),
+    1, {==}, 4, {==})
