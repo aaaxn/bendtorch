@@ -77,7 +77,7 @@ instance copy, only the instance copy for the swapped maps, or only
 
 - `consumers.bend`: nine consumers of `sum_ordered`, `dot_ordered` and
   `matmul_ordered`, and three of failed folds. Each one takes its inputs as the replayed tensors
-  that `Core.from_values` returns. The first seven restate literal values:
+  that `Core.from_values` returns. The first nine restate literal values:
   - The sums of `[1, 2, 3]`, of a `[2, 3]` grid and of a rank-0 `[7]`.
   - The sum of the empty `[2, 0]`, which is `0.0`.
   - Cells `(1, 0)` and `(0, 1)` of the product of a `[2, 3]` and a `[3, 2]`
@@ -88,7 +88,8 @@ instance copy, only the instance copy for the swapped maps, or only
     `[3, 2]` inputs, with the output extents `[2, 2]`. `grid_tall` is the plan
     that `Matrix.plan` returns for them.
 
-  Each non-empty consumer also states one word of each returned input. A total
+  Each non-empty sum and dot consumer also states one word of each returned
+  input, and each `matmul` consumer one word of the returned right input. A total
   is stated as the term the fold builds: the sum of `[1, 2, 3]` is
   `F32.add(F32.add(F32.add(0.0, 1.0), 2.0), 3.0)`.
 
@@ -134,7 +135,7 @@ The first nine mutants change the generic loops in `fold.bend`, and the
 generic proofs reject them. The next three change what the loops return when
 a read fails. The proofs accept them, since no law covers a failed read, and
 the runner checks them against `fold/consumers.bend` instead, where the
-failure consumers reject them. The last two change one instance each. The
+failure consumers reject them. The next two change one instance each. The
 proof that relates the instance's `Fold.total` to its specification rejects
 them. The last three change the `matmul` loops in `src/tensor/matmul.bend`.
 The erased proofs in `src/tensor/matmul-PROOF.bend` reject them too, so the
@@ -203,9 +204,13 @@ the `reduce_to` loop in `src/autograd/reduce.bend`. The erased proofs in
 `src/autograd/reduce-PROOF.bend` reject them too, and each checker reports
 the first failure it meets. So the source check runs
 `src/autograd/reduce-to-fold-PROOF.bend`, the live proof of `reduce_to_fiber`,
-instead of `src/autograd/PROOF.bend`, and `controls.bend` imports only the two
-family proofs, so the kernel artifact holds no erased `reduce_to` proof. Both
-checkers then reject these mutants in `step_lift`. `reduce/entry.bend` imports
+instead of `src/autograd/PROOF.bend`. The kernel artifact still holds
+`reduce-PROOF.bend`, because `reduce-fold-LAWS.bend` imports the laws of
+`reduce-LAWS.bend` and the export needs their proofs, but none of the other
+autograd proofs. `controls.bend` imports the two family proofs before
+`consumers.bend`, which imports `reduce-PROOF.bend`, so BendTT meets
+`step_lift` first. Both checkers then reject these mutants in `step_lift`.
+`reduce/entry.bend` imports
 `broadcast.bend` and `sum.bend` before `reduce-fold.bend` and `reduce.bend`,
 for the same export names as `fold/entry.bend`.
 
