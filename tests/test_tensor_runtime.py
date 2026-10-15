@@ -748,7 +748,7 @@ class NativeCorpusTests(unittest.TestCase):
         evidence = self.directory / "run"
         self.assertEqual(
             (evidence / "corpus-audit-run.stderr").read_text(),
-            "STORAGE_COPY_AUDIT 0 723\n",
+            "STORAGE_COPY_AUDIT 0 771\n",
         )
         report = json.loads((evidence / "report.json").read_text())
         self.assertEqual(report["hostname"], platform.node())
