@@ -41,12 +41,12 @@ RUNTIME_CONTROLS = {
         "ran(pass(entries, count, output, True{}))",
     ),
     "mul-vjp-swaps-operands": (
-        "multiplied_first(a, b, left, right, x, product(Elementwise.Mul{}, g, y))",
-        "multiplied_first(a, b, left, right, y, product(Elementwise.Mul{}, g, x))",
+        "multiplied_first(a, b, left, right, x, Elementwise.mul(g, y))",
+        "multiplied_first(a, b, left, right, y, Elementwise.mul(g, x))",
     ),
     "sub-vjp-drops-sign": (
-        "product(Elementwise.NegateLeft{}, g,",
-        "product(Elementwise.KeepLeft{}, g,",
+        "Elementwise.binary(Elementwise.NegateLeft{}, g,",
+        "Elementwise.binary(Elementwise.KeepLeft{}, g,",
     ),
     "matmul-vjp-skips-transpose": (
         "matmul_second(b, right, x, g, left_product(a, left, copy, "
