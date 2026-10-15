@@ -1,5 +1,6 @@
 import ./LAWS.bend as Laws
 import ./broadcast-PROOF.bend as Broadcast
+import ./broadcast-pointwise-PROOF.bend as BroadcastPointwise
 import ./reduce-PROOF.bend as Reduce
 import ./reduce-fold-PROOF.bend as ReduceFold
 import ./reduce-to-fold-PROOF.bend as ReduceTo

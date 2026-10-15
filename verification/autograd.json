@@ -6,6 +6,8 @@
     "broadcast_2d_LAWS.broadcast_valid_success",
     "broadcast_2d_LAWS.broadcast_shape_error",
     "broadcast_2d_LAWS.broadcast_not_target",
+    "broadcast_2d_pointwise_2d_LAWS.broadcast_to_pointwise",
+    "broadcast_2d_pointwise_2d_LAWS.broadcast_to_replayed",
     "reduce_2d_LAWS.reduce_retains_input",
     "reduce_2d_LAWS.reduce_mapping",
     "reduce_2d_LAWS.listed_length",
