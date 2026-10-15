@@ -738,19 +738,6 @@ def coordinate_read_status(+shape: Shape.Shape, tensor: Core.Tensor<shape>, +coo
   coordinate_read_result_status(shape, Shape.flatten_checked(shape, coordinates), tensor,
     flatten_done(shape, coordinates, Shape.flatten_checked(shape, coordinates), fits, {==}))
 
-def pair_fits(+shape: Shape.Shape, +first: U32, +second: U32, +x: U32, +y: U32,
-  dimensions: {Shape.dimensions(shape) == [first, second] : List<&2, U32>},
-  first_inside: {Nat.is_lt(U32.to_nat(x), U32.to_nat(first)) == True{} : Bool},
-  second_inside: {Nat.is_lt(U32.to_nat(y), U32.to_nat(second)) == True{} : Bool}) -> Coordinates.Fits(Shape.extents(shape), [U32.to_nat(x), U32.to_nat(y)]):
-  Coordinates.fits_of(Shape.extents(shape), [U32.to_nat(x), U32.to_nat(y)],
-    %Equal.sym(List<&2, U32>, Shape.dimensions(shape), [first, second], dimensions) :
-      {True{} == Shape.fit(Shape.naturals(_), [U32.to_nat(x), U32.to_nat(y)]) : Bool}
-    %Equal.sym(Bool, Nat.is_lt(U32.to_nat(x), U32.to_nat(first)), True{}, first_inside) :
-      {True{} == Bool.and(_, Bool.and(Nat.is_lt(U32.to_nat(y), U32.to_nat(second)), True{})) : Bool}
-    %Equal.sym(Bool, Nat.is_lt(U32.to_nat(y), U32.to_nat(second)), True{}, second_inside) :
-      {True{} == Bool.and(True{}, Bool.and(_, True{})) : Bool}
-    {==})
-
 def dot_right_status(+fuel: Nat, +left: Shape.Shape, +right: Shape.Shape, +row: U32, +column: U32, +cursor: Nat,
   +left_value: F32, +accumulator: F32,
   pair: Core.Tensor<right> & Result<&2, &2, Core.Error, F32>, a: Core.Tensor<left>,
@@ -822,10 +809,10 @@ def dot_loop_status(fuel: Nat, +left: Shape.Shape, +right: Shape.Shape, +rows: U
     case 1n+tail:
       dot_decision_status(tail, left, right, row, column, cursor, accumulator,
         Shape.bool_case(Nat.is_eq(U32.to_nat(U32.from_nat(cursor)), cursor)), a, b, word_cursor_exact(tail, cursor, inner, bound),
-        pair_fits(left, rows, inner, row, U32.from_nat(cursor), le, row_inside,
+        Coordinates.pair_fits(left, rows, inner, row, U32.from_nat(cursor), le, row_inside,
           %Equal.sym(Nat, U32.to_nat(U32.from_nat(cursor)), cursor, word_cursor_exact(tail, cursor, inner, bound)) : {Nat.is_lt(_, U32.to_nat(inner)) == True{} : Bool}
           MathProof.cursor_bounds(tail, cursor, U32.to_nat(inner), bound)),
-        pair_fits(right, right_inner, columns, U32.from_nat(cursor), column, re,
+        Coordinates.pair_fits(right, right_inner, columns, U32.from_nat(cursor), column, re,
           %compatible : {Nat.is_lt(U32.to_nat(U32.from_nat(cursor)), _) == True{} : Bool}
           %Equal.sym(Nat, U32.to_nat(U32.from_nat(cursor)), cursor, word_cursor_exact(tail, cursor, inner, bound)) : {Nat.is_lt(_, U32.to_nat(inner)) == True{} : Bool}
           MathProof.cursor_bounds(tail, cursor, U32.to_nat(inner), bound), column_inside),

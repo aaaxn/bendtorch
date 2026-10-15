@@ -196,3 +196,16 @@ def horner_spec(+dims: List<&2, U32>, +values: List<&2, U32>, +acc: Nat, +fits: 
       match fits:
     case dh <> dt Nil{}:
       match fits:
+
+def pair_fits(+shape: Shape.Shape, +first: U32, +second: U32, +x: U32, +y: U32,
+  dimensions: {Shape.dimensions(shape) == [first, second] : List<&2, U32>},
+  first_inside: {Nat.is_lt(U32.to_nat(x), U32.to_nat(first)) == True{} : Bool},
+  second_inside: {Nat.is_lt(U32.to_nat(y), U32.to_nat(second)) == True{} : Bool}) -> Fits(Shape.extents(shape), [U32.to_nat(x), U32.to_nat(y)]):
+  fits_of(Shape.extents(shape), [U32.to_nat(x), U32.to_nat(y)],
+    %Equal.sym(List<&2, U32>, Shape.dimensions(shape), [first, second], dimensions) :
+      {True{} == Shape.fit(Shape.naturals(_), [U32.to_nat(x), U32.to_nat(y)]) : Bool}
+    %Equal.sym(Bool, Nat.is_lt(U32.to_nat(x), U32.to_nat(first)), True{}, first_inside) :
+      {True{} == Bool.and(_, Bool.and(Nat.is_lt(U32.to_nat(y), U32.to_nat(second)), True{})) : Bool}
+    %Equal.sym(Bool, Nat.is_lt(U32.to_nat(y), U32.to_nat(second)), True{}, second_inside) :
+      {True{} == Bool.and(True{}, Bool.and(_, True{})) : Bool}
+    {==})

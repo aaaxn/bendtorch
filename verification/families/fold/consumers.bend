@@ -5,6 +5,7 @@ import ../../../src/storage/main.bend as Storage
 import ../../../src/tensor/core.bend as Core
 import ../../../src/tensor/lifecycle.bend as Lifecycle
 import ../../../src/tensor/reduction.bend as Reduction
+import ../../../src/tensor/matmul.bend as Matrix
 import ../../../src/tensor/matmul-LAWS.bend as MatmulLaws
 import ../../../src/tensor/from-values-contract.bend as FromValues
 import ../../../src/tensor/contracts/LAWS.bend as Contracts
@@ -26,6 +27,9 @@ def grid_shape() -> Shape.Shape:
 
 def tall_shape() -> Shape.Shape:
   Shape.SShape{[3, 2], 6n, {==}, Unit{}, Unit{}}
+
+def square_shape() -> Shape.Shape:
+  Shape.SShape{[2, 2], 4n, {==}, Unit{}, Unit{}}
 
 def empty_grid_shape() -> Shape.Shape:
   Shape.SShape{[2, 0], 0n, {==}, Unit{}, Unit{}}
@@ -188,6 +192,68 @@ def dot_empty() -> {Fold.pair_value(dot_result(1n, 2n, 0n, 3n, empty_grid_shape(
   open_empty_dot(1n, 2n, 0n, 3n, empty_grid_shape(), [], {==}, empty_wide_shape(), [], {==},
     Contracts.dot_ordered(2n, 0n, 3n, 1n, {==}, 2n, {==}, empty_grid_shape(), {==}, 0.0, writes([]), {==},
       empty_wide_shape(), {==}, 0.0, writes([]), {==}))
+
+# The matrix product of the same grid and tall inputs: `grid_tall` is the
+# plan `Matrix.plan` returns for them, and each case states the output
+# extents, one cell and one word of the returned right input.
+def grid_tall() -> Matrix.Plan<grid_shape(), tall_shape()>:
+  Matrix.Plan{square_shape(), 2, 3, 3, 2, {==}, {==}, {==}, {==}}
+
+def product(+left: Shape.Shape, +left_values: List<&2, F32>,
+  -left_fits: {Lifecycle.logical_length(Replayed.storage(left, 0.0, writes(left_values))) == Shape.logical_numel(Shape.dimensions(left)) : Nat},
+  +right: Shape.Shape, +right_values: List<&2, F32>,
+  -right_fits: {Lifecycle.logical_length(Replayed.storage(right, 0.0, writes(right_values))) == Shape.logical_numel(Shape.dimensions(right)) : Nat}) ->
+  Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>:
+  Matrix.matmul(input(left, left_values, left_fits), input(right, right_values, right_fits))
+
+def MatmulValues(+left: Shape.Shape, +right: Shape.Shape, +plan: Matrix.Plan<left, right>, +left_values: List<&2, F32>,
+  -left_fits: {Lifecycle.logical_length(Replayed.storage(left, 0.0, writes(left_values))) == Shape.logical_numel(Shape.dimensions(left)) : Nat},
+  +right_values: List<&2, F32>,
+  -right_fits: {Lifecycle.logical_length(Replayed.storage(right, 0.0, writes(right_values))) == Shape.logical_numel(Shape.dimensions(right)) : Nat}) -> Type:
+  Records.MatmulContract<left, right, Contracts.matrix_rows(left, right, plan), Contracts.matrix_columns(left, right, plan),
+    row => column => MatmulLaws.dot_fold(Contracts.factors(row, column, Contracts.matrix_inner(left, right, plan),
+      Contracts.matrix_columns(left, right, plan), left, 0.0, writes(left_values), right, 0.0, writes(right_values),
+      Contracts.matrix_inner(left, right, plan)), 0.0),
+    other => Replayed.value(left, 0.0, writes(left_values), other),
+    other => Replayed.value(right, 0.0, writes(right_values), other),
+    product(left, left_values, left_fits, right, right_values, right_fits)>
+
+type MatmulCase<-result: Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>, -extents: List<&2, Nat>,
+  -cell: U32, -total: F32, -index: U32, -word: F32> is Data:
+  MatmulCase{
+    extents_exact: {Records.product_extents(result) == Some{extents} : Maybe<&2, List<&2, Nat>>},
+    value_exact: {Records.product_point(result, cell) == Some{total} : Maybe<&2, F32>},
+    right_exact: {Records.product_right_point(result, index) == Some{word} : Maybe<&2, F32>}}
+
+def open_matmul(+left: Shape.Shape, +right: Shape.Shape, +plan: Matrix.Plan<left, right>, +left_values: List<&2, F32>,
+  -left_fits: {Lifecycle.logical_length(Replayed.storage(left, 0.0, writes(left_values))) == Shape.logical_numel(Shape.dimensions(left)) : Nat},
+  +right_values: List<&2, F32>,
+  -right_fits: {Lifecycle.logical_length(Replayed.storage(right, 0.0, writes(right_values))) == Shape.logical_numel(Shape.dimensions(right)) : Nat},
+  evidence: MatmulValues(left, right, plan, left_values, left_fits, right_values, right_fits),
+  +row: Nat, row_below: {Nat.is_lt(row, Contracts.matrix_rows(left, right, plan)) == True{} : Bool},
+  +column: Nat, column_below: {Nat.is_lt(column, Contracts.matrix_columns(left, right, plan)) == True{} : Bool},
+  +index: U32, inside: {Nat.is_lt(U32.to_nat(index), Shape.logical_numel(Shape.dimensions(right))) == True{} : Bool}) ->
+  MatmulCase<product(left, left_values, left_fits, right, right_values, right_fits),
+    [Contracts.matrix_rows(left, right, plan), Contracts.matrix_columns(left, right, plan)],
+    U32.from_nat(Nat.add(Nat.mul(row, Contracts.matrix_columns(left, right, plan)), column)),
+    MatmulLaws.dot_fold(Contracts.factors(row, column, Contracts.matrix_inner(left, right, plan),
+      Contracts.matrix_columns(left, right, plan), left, 0.0, writes(left_values), right, 0.0, writes(right_values),
+      Contracts.matrix_inner(left, right, plan)), 0.0),
+    index, Replayed.value(right, 0.0, writes(right_values), index)>:
+  Records.MatmulContract{successful, extents, value, left_kept, right_kept} = evidence
+  MatmulCase{extents, value(row, row_below, column, column_below), right_kept(index, inside)}
+
+def matmul_lower_left() -> MatmulCase<product(grid_shape(), grid_values(), {==}, tall_shape(), tall_values(), {==}), [2n, 2n], 2,
+  F32.add(F32.add(F32.add(0.0, F32.mul(4.0, 10.0)), F32.mul(5.0, 30.0)), F32.mul(6.0, 50.0)), 2, 30.0>:
+  open_matmul(grid_shape(), tall_shape(), grid_tall(), grid_values(), {==}, tall_values(), {==},
+    Contracts.matmul_ordered(grid_shape(), tall_shape(), grid_tall(), {==}, 0.0, writes(grid_values()), {==}, 0.0, writes(tall_values()), {==}),
+    1n, {==}, 0n, {==}, 2, {==})
+
+def matmul_upper_right() -> MatmulCase<product(grid_shape(), grid_values(), {==}, tall_shape(), tall_values(), {==}), [2n, 2n], 1,
+  F32.add(F32.add(F32.add(0.0, F32.mul(1.0, 20.0)), F32.mul(2.0, 40.0)), F32.mul(3.0, 60.0)), 5, 60.0>:
+  open_matmul(grid_shape(), tall_shape(), grid_tall(), grid_values(), {==}, tall_values(), {==},
+    Contracts.matmul_ordered(grid_shape(), tall_shape(), grid_tall(), {==}, 0.0, writes(grid_values()), {==}, 0.0, writes(tall_values()), {==}),
+    0n, {==}, 1n, {==}, 5, {==})
 
 # Failure. The family laws require every index in bounds, so these consumers
 # run the generic loops directly with an index map that leaves the input.

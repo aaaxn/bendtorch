@@ -99,3 +99,33 @@ before = '''
 after = '''
       ((right, left), Fail{error})
     case Done{y}:'''
+
+[matmul-reversed-order]
+file = "src/tensor/matmul.bend"
+before = '''
+    case 1n+tail:
+      +index = U32.from_nat(cursor)
+      dot_decided(left, right,
+        a => b => value => natural_dot(tail, left, right, a, b, row, column, 1n+cursor, value),
+        a, b, row, column, cursor, index, accumulator, Shape.bool_case(Nat.is_eq(U32.to_nat(index), cursor)))'''
+after = '''
+    case 1n+tail:
+      +back = tail
+      +index = U32.from_nat(back)
+      dot_decided(left, right,
+        a => b => value => natural_dot(back, left, right, a, b, row, column, 1n+cursor, value),
+        a, b, row, column, back, index, accumulator, Shape.bool_case(Nat.is_eq(U32.to_nat(index), back)))'''
+
+[matmul-negative-zero-start]
+file = "src/tensor/matmul.bend"
+before = '''
+      dotted(left, right, output, rec, out, index, natural_dot(U32.to_nat(inner), left, right, a, b, row, column, 0n, 0.0))'''
+after = '''
+      dotted(left, right, output, rec, out, index, natural_dot(U32.to_nat(inner), left, right, a, b, row, column, 0n, F32.neg(0.0)))'''
+
+[matmul-transposed-right]
+file = "src/tensor/matmul.bend"
+before = '''
+      left_read(left, right, rec, b, [index, column], accumulator, Core.read_coordinate(left, a, [row, index]))'''
+after = '''
+      left_read(left, right, rec, b, [column, index], accumulator, Core.read_coordinate(left, a, [row, index]))'''

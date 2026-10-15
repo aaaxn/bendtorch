@@ -75,17 +75,21 @@ instance copy, only the instance copy for the swapped maps, or only
 
 `fold/` holds:
 
-- `consumers.bend`: seven consumers of `sum_ordered` and `dot_ordered`, and
-  three of failed folds. Each one takes its inputs as the replayed tensors
-  that `Core.from_values` returns. The first seven restate literal values:
+- `consumers.bend`: nine consumers of `sum_ordered`, `dot_ordered` and
+  `matmul_ordered`, and three of failed folds. Each one takes its inputs as the replayed tensors
+  that `Core.from_values` returns. The first nine restate literal values:
   - The sums of `[1, 2, 3]`, of a `[2, 3]` grid and of a rank-0 `[7]`.
   - The sum of the empty `[2, 0]`, which is `0.0`.
   - Cells `(1, 0)` and `(0, 1)` of the product of a `[2, 3]` and a `[3, 2]`
     matrix.
   - Cell `(1, 2)` of the product of a `[2, 0]` and a `[0, 3]` matrix, which is
     `0.0`.
+  - Cells `(1, 0)` and `(0, 1)` of `Matrix.matmul` on the same `[2, 3]` and
+    `[3, 2]` inputs, with the output extents `[2, 2]`. `grid_tall` is the plan
+    that `Matrix.plan` returns for them.
 
-  Each non-empty consumer also states one word of each returned input. A total
+  Each non-empty sum and dot consumer also states one word of each returned
+  input, and each `matmul` consumer one word of the returned right input. A total
   is stated as the term the fold builds: the sum of `[1, 2, 3]` is
   `F32.add(F32.add(F32.add(0.0, 1.0), 2.0), 3.0)`.
 
@@ -99,7 +103,7 @@ instance copy, only the instance copy for the swapped maps, or only
   of the same step succeeds. Each states the error,
   `StorageError{OutOfBounds}`, and the first and last word of each returned
   input.
-- `controls.bend`: four value witnesses, each paired with one wrong value.
+- `controls.bend`: five value witnesses, each paired with one wrong value.
 - `mutants.toml`: the before and after text of each mutation.
 
 | Control | Change | Source rejection | BendTT rejection |
@@ -108,6 +112,7 @@ instance copy, only the instance copy for the swapped maps, or only
 | False twin `start_witness` | `7.0` for `F32.add(0.0, 7.0)`, the fold starts at the first word | the witness | the witness |
 | False twin `dot_witness` | `F32.mul(5.0, 20.0)`, the right matrix read along a row | the witness | the witness |
 | False twin `kept_witness` | left word 5 reads the right input | the witness | the witness |
+| False twin `matmul_witness` | `F32.mul(5.0, 20.0)` in `matmul` cell `(1, 0)`, the right matrix read along a row | the witness | the witness |
 | Negative zero start | `run` starts at `F32.neg(0.0)` | `contract` | `contract.qvvvvv` |
 | Swapped accumulator | `step` folds `g(operation, x, accumulator)` | `step_lift` | `step_lift.qvvvvv` |
 | Dropped word | `step` keeps the accumulator | `step_lift` | `step_lift.qvvvvv` |
@@ -122,16 +127,30 @@ instance copy, only the instance copy for the swapped maps, or only
 | Pair right failed swapped | `pair_right` returns the inputs as `(right, left)` when the right read fails | `pair_fails_right` | `consumers.pair_fails_right` |
 | Sum swapped add | `Sum.add` returns `F32.add(word, accumulator)` | `total_words` | `total_words` |
 | Dot untransposed right | `Dot.right_index` reads `column * inner + k` | `total_factors` | `total_factors` |
+| `matmul` reversed order | `natural_dot` reads `k` from `inner - 1` down to 0 | `dot_step_lift` | `successful_dot_interpretation` |
+| `matmul` negative zero start | `product_coordinates` starts the dot at `F32.neg(0.0)` | `product_step_lift` | `product_coordinates_proof` |
+| `matmul` transposed right | `dot_decided` reads the right matrix at `[column, k]` | `dot_decided_lift` | `dot_decision` |
 
 The first nine mutants change the generic loops in `fold.bend`, and the
 generic proofs reject them. The next three change what the loops return when
 a read fails. The proofs accept them, since no law covers a failed read, and
 the runner checks them against `fold/consumers.bend` instead, where the
-failure consumers reject them. The last two change one instance each. The
+failure consumers reject them. The next two change one instance each. The
 proof that relates the instance's `Fold.total` to its specification rejects
-them.
+them. The last three change the `matmul` loops in `src/tensor/matmul.bend`.
+The erased proofs in `src/tensor/matmul-PROOF.bend` reject them too, so the
+source check runs `src/tensor/contracts/matmul-proof.bend`, the live proof of
+`matmul_ordered`, instead of `src/tensor/contracts/PROOF.bend`, and rejects
+them in a step of its walk. The kernel artifact holds the erased proofs too:
+`src/tensor/contracts/PROOF.bend` imports `matmul-PROOF.bend` to discharge the
+laws of `matmul-LAWS.bend`, which defines `dot_fold`. So BendTT reports each of
+these mutants first in an erased `matmul-LAWS.bend` or `matmul-PROOF.bend`
+declaration, and the table names that declaration. The fold family's BendTT
+prefix is `src/tensor/`, so the transplant also carries the mutated
+`matmul.bend` declarations.
 
-`fold/entry.bend` imports `broadcast.bend` before `sum.bend` and `dot.bend`.
+`fold/entry.bend` imports `broadcast.bend` before `sum.bend`, `dot.bend` and
+`matmul.bend`.
 The BendTT export names each opaque template constant after the first module
 that declares one of its type, and the positive export reaches `pointwise.bend`
 before `fold.bend`. With the same import order, the mutant export names the

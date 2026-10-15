@@ -8,7 +8,9 @@ instantiating it. Reductions share a second loop: `sum`, the matmul dot
 product and one cell of `reduce_to` fold words into an accumulator in a fixed
 order. The code is in `src/tensor/contracts/`, and the `reduce_to` instance is
 in `src/autograd/reduce-fold.bend`. The law `reduce_to_fiber` states that
-`reduce_to` itself computes every cell with the same total.
+`reduce_to` itself computes every cell with the same total, and
+`matmul_ordered` states that `Matrix.matmul` computes every output cell with
+the total of `dot_ordered`.
 
 ## Replayed tensors are the input class
 
@@ -205,6 +207,42 @@ an instance fails the proof instead of changing what the law means.
 `row < rows` and `column < columns`. `dot-proof.bend` derives the index bounds
 from `lt_mul_add`: `a * n + b < m * n` when `a < m` and `b < n`.
 
+### `matmul` meets the dot specification
+
+`Dot.dot` is a separate function. `Matrix.matmul` in `src/tensor/matmul.bend`,
+the public operation, runs its own loops. For each output position `p` in
+increasing order it decodes `p` into `(row, column)` with
+`Shape.unflatten_checked`, folds `left[row, k] * right[k, column]` for `k`
+from 0 to `inner - 1` from `+0.0`, reading each word through
+`Core.read_coordinate`, and writes the total at `p`. The law `matmul_ordered`
+in `src/tensor/contracts/LAWS.bend` states what those loops compute. It takes:
+
+- two shapes and the plan with `Matrix.plan(left, right) == Done{plan}`, the
+  case where `matmul` succeeds;
+- any replayed left and right inputs of those shapes.
+
+Its conclusion is a `MatmulContract` in `fold-records.bend`, with live fields:
+
+- `successful`: `matmul` succeeds.
+- `extents`: the output has the extents `[rows, columns]` of the plan.
+- `value`: for every `row < rows` and `column < columns`, the output word at
+  `row * columns + column` is
+  `MatmulLaws.dot_fold(factors(row, column, inner, columns, ..., inner), 0.0)`,
+  the total that `dot_ordered` states for `Dot.dot`.
+- `left_kept` and `right_kept`: both returned inputs still hold every word.
+
+The proof in `matmul-proof.bend` walks both loops with live code, without
+changing them. It first reads the dimension facts back from `Matrix.plan`,
+since the fields of `Matrix.Plan` are erased. After `p` cells each input is the
+replayed tensor whose history adds the dot reads of cells `0` to `p - 1`, and
+the output is the replayed tensor over `+0.0` that writes those cells' totals
+in order. The dot walk is the `Fold.pair_loop` walk with coordinate reads:
+`flatten_checked` of `[row, k]` and `[k, column]` lands on `Dot.left_index`
+and `Dot.right_index`. At the end `total_factors` turns each total into
+`dot_fold`, and `Nat.divmod` maps `row * columns + column` back to its row and
+column. A wrong start, another order of `k` or a transposed read in
+`matmul.bend` fails a step of the walk.
+
 ## What the families do not cover yet
 
 - `Elementwise.binary`, the public operation in `src/tensor/elementwise.bend`,
@@ -212,10 +250,10 @@ from `lt_mul_add`: `a * n + b < m * n` when `a < m` and `b < n`.
   family loop, and no law yet relates the two. Routing `Elementwise.binary`
   through the family, or proving the two equal, comes after the open work on
   `elementwise.bend` lands.
-- `Reduction.sum` in `src/tensor/reduction.bend` and `Matrix.dot` in
-  `src/tensor/matmul.bend` run their own loops too. `Sum.sum` and `Dot.dot`
-  are separate functions, and no law yet relates them to the public
-  operations. That work also waits for the open work on `matmul.bend`.
+- `Reduction.sum` in `src/tensor/reduction.bend` runs its own loop too.
+  `Sum.sum` is a separate function, and no law yet relates the two.
+- `matmul_ordered` covers a successful product. A failed plan or read keeps
+  the existing erased laws in `matmul-LAWS.bend`.
 - The family output is itself a replayed tensor, with history `writes(n)` over
   `+0.0`. The proof uses that fact, but no law exports it, so a consumer cannot
   yet chain two family operations through laws alone.
@@ -230,10 +268,10 @@ from `lt_mul_add`: `a * n + b < m * n` when `a < m` and `b < n`.
 
 `verification/families/` holds literal consumers of `broadcast_pointwise`,
 two of them on the actual `Core.from_values` and `Core.new` results, of
-`sum_ordered` and `dot_ordered`, of failed folds, and of `reduce_fold_fiber`
-and `reduce_to_fiber`, false twins of fourteen value statements, and
-twenty-eight mutants of the family loops, of their instances and of the
-`reduce_to` loop. Its [README](../verification/families/README.md) lists each
+`sum_ordered`, `dot_ordered` and `matmul_ordered`, of failed folds, and of
+`reduce_fold_fiber` and `reduce_to_fiber`, false twins of fifteen value
+statements, and thirty-one mutants of the family loops, of their instances and
+of the `reduce_to` and `matmul` loops. Its [README](../verification/families/README.md) lists each
 control and the rejection it expects.
 
 The proofs and controls check what the laws state, not the compiled code.

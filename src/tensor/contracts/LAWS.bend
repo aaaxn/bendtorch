@@ -6,6 +6,7 @@ import ../lifecycle.bend as Lifecycle
 import ../elementwise.bend as Elementwise
 import ../from-values-contract.bend as FromValues
 import ../reduction.bend as Reduction
+import ../matmul.bend as Matrix
 import ../matmul-LAWS.bend as MatmulLaws
 import ./replayed.bend as Replayed
 import ./broadcast.bend as Broadcast
@@ -130,4 +131,40 @@ law dot_ordered:
     other => Replayed.value(right, right_fill, right_ops, other),
     Dot.dot(Dot.Cell{row, column, inner, columns},
       Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
+      Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}})>
+
+def matrix_rows(-left: Shape.Shape, -right: Shape.Shape, plan: Matrix.Plan<left, right>) -> Nat:
+  Matrix.Plan{output, rows, inner, right_inner, columns, le, re, oe, compatible} = plan
+  U32.to_nat(rows)
+
+def matrix_inner(-left: Shape.Shape, -right: Shape.Shape, plan: Matrix.Plan<left, right>) -> Nat:
+  Matrix.Plan{output, rows, inner, right_inner, columns, le, re, oe, compatible} = plan
+  U32.to_nat(inner)
+
+def matrix_columns(-left: Shape.Shape, -right: Shape.Shape, plan: Matrix.Plan<left, right>) -> Nat:
+  Matrix.Plan{output, rows, inner, right_inner, columns, le, re, oe, compatible} = plan
+  U32.to_nat(columns)
+
+# Ordered-fold family, matmul: for every plan of a product of two replayed
+# matrices, matmul succeeds with a rows x columns output whose cell
+# (row, column) holds `MatmulLaws.dot_fold` of the cell's factor pairs in
+# increasing k, starting at +0.0, the value `dot_ordered` states for
+# `Dot.dot`, and both returned inputs keep every word.
+law matmul_ordered:
+  for +left: Shape.Shape
+  for +right: Shape.Shape
+  for +plan: Matrix.Plan<left, right>
+  for planned: {Matrix.plan(left, right) == Done{plan} : Result<&2, &2, Matrix.Error, Matrix.Plan<left, right>>}
+  for +left_fill: F32
+  for +left_ops: List<&2, StorageLaws.Op>
+  for -left_fits: {Lifecycle.logical_length(Replayed.storage(left, left_fill, left_ops)) == Shape.logical_numel(Shape.dimensions(left)) : Nat}
+  for +right_fill: F32
+  for +right_ops: List<&2, StorageLaws.Op>
+  for -right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_ops)) == Shape.logical_numel(Shape.dimensions(right)) : Nat}
+  FoldRecords.MatmulContract<left, right, matrix_rows(left, right, plan), matrix_columns(left, right, plan),
+    row => column => MatmulLaws.dot_fold(factors(row, column, matrix_inner(left, right, plan), matrix_columns(left, right, plan),
+      left, left_fill, left_ops, right, right_fill, right_ops, matrix_inner(left, right, plan)), 0.0),
+    other => Replayed.value(left, left_fill, left_ops, other),
+    other => Replayed.value(right, right_fill, right_ops, other),
+    Matrix.matmul(Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
       Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}})>

@@ -7,6 +7,7 @@ import ./pointwise-proof.bend as Proof
 import ./broadcast-proof.bend as BroadcastProof
 import ./sum-proof.bend as SumProof
 import ./dot-proof.bend as DotProof
+import ./matmul-proof.bend as MatmulOrdered
 
 def Laws.new_replayed(shape, fill, P, h):
   Replayed.new_lift(shape, fill, P, h)
@@ -28,3 +29,6 @@ def Laws.dot_ordered(rows, inner, columns, row, row_below, column, column_below,
   right, right_extents, right_fill, right_ops, right_fits):
   DotProof.dot_ordered(rows, inner, columns, row, row_below, column, column_below, left, left_extents, left_fill, left_ops, left_fits,
     right, right_extents, right_fill, right_ops, right_fits)
+
+def Laws.matmul_ordered(left, right, plan, planned, left_fill, left_ops, left_fits, right_fill, right_ops, right_fits):
+  MatmulOrdered.matmul_ordered(left, right, plan, planned, left_fill, left_ops, left_fits, right_fill, right_ops, right_fits)
