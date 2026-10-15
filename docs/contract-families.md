@@ -305,6 +305,18 @@ replayed tensor: the storage laws model a clone's two halves as the histories
 `ops ++ [First]` and `ops ++ [Second]`, and neither changes a word. It proves
 the second by deciding the dimension check and calling `reduce_to_fiber`.
 
+A third law, `sum_to_size_replayed`, exports the result in the transport form
+of `broadcast_to_replayed`. For a replayed contribution whose words are a list
+`values` and a target that broadcasts to exactly its dimensions, `P` holds for
+the call if it holds for every result that hands the contribution back
+replayed with the same words, next to a replayed output with the target's
+dimensions whose cells hold `summed`: `values[index]` when the dimensions are
+equal and `ReduceLaws.fiber(plan, values, index, numel)` otherwise. The proof
+runs the two cases above with the histories exposed: the clone halves, and
+`reduce_to`'s `ops ++ reads` and `history`. A consumer can then hand either
+half to another family law, which the tensor backward's
+[VJP value laws](tensor-backward.md#vjp-values) do.
+
 ## What the families do not cover yet
 
 - `Elementwise.binary`, the public operation in `src/tensor/elementwise.bend`,
@@ -317,14 +329,16 @@ the second by deciding the dimension check and calling `reduce_to_fiber`.
 - `matmul_ordered` covers a successful product. A failed plan or read keeps
   the existing erased laws in `matmul-LAWS.bend`.
 - The family output is itself a replayed tensor, with history `writes(n)` over
-  `+0.0`. `broadcast_to_replayed` exports that fact for `broadcast_to`. No law
-  exports it yet for `Broadcast.binary`, `reduce_to` or `sum_to_size`, so a
-  consumer cannot yet chain their outputs into another family operation
-  through laws alone. The tensor backward meets this gap: its law
-  `tensor_sum_vjp_pointwise` takes `broadcast_to_pointwise` for the `Sum` VJP,
-  but the `Add`, `Sub`, `Mul` and `Matmul` VJPs chain `Broadcast.binary` and
-  `sum_to_size` and have no value law yet
-  ([tensor backward](tensor-backward.md)).
+  `+0.0`. `broadcast_to_replayed` exports that fact for `broadcast_to`,
+  `sum_to_size_replayed` for `sum_to_size` (and so for `reduce_to`'s output
+  when axes are reduced), and `tensor_product_replayed` for
+  `TensorBackward.product`, the elementwise loop the tensor backward runs for
+  its products. No law exports it for `Broadcast.binary` or for the parallel
+  `Elementwise.binary`. The tensor backward chains the exported ones: the
+  `Sum`, `Add`, `Sub` and `Mul` VJPs have value laws
+  ([tensor backward](tensor-backward.md#vjp-values)). The `Matmul` VJP has
+  none, since its operands go through `Transforms.transpose_dynamic`, whose
+  values only erased laws state.
 - `broadcast_to_pointwise`, `sum_to_size_clone` and `sum_to_size_fiber` cover
   a successful call. A failed plan or target check keeps the existing erased
   laws in `broadcast-LAWS.bend`, `sum-to-size-LAWS.bend` and
@@ -342,11 +356,13 @@ the second by deciding the dimension check and calling `reduce_to_fiber`.
 two of them on the actual `Core.from_values` and `Core.new` results, of
 `sum_ordered`, `dot_ordered` and `matmul_ordered`, of failed folds, of
 `reduce_fold_fiber` and `reduce_to_fiber`, of `sum_to_size_clone` and
-`sum_to_size_fiber`, and of `broadcast_to_pointwise` and
+`sum_to_size_fiber`, of `broadcast_to_pointwise` and
 `broadcast_to_replayed`, one of them a `broadcast_to` output reduced by
-`reduce_to_fiber`. It also holds false twins of twenty-two value statements,
-and thirty-six mutants of the family loops, of their instances and of the
-`reduce_to`, `matmul`, `sum_to_size` and `broadcast_to` code. Its
+`reduce_to_fiber`, and of the tensor backward's `Add`, `Sub` and `Mul` VJP
+value laws. It also holds false twins of twenty-seven value statements,
+and forty-one mutants of the family loops, of their instances and of the
+`reduce_to`, `matmul`, `sum_to_size`, `broadcast_to` and tensor backward
+code. Its
 [README](../verification/families/README.md) lists each control and the
 rejection it expects.
 
