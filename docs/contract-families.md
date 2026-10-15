@@ -300,12 +300,14 @@ from `lt_mul_add`: `a * n + b < m * n` when `a < m` and `b < n`.
 ### `matmul` meets the dot specification
 
 `Dot.dot` is a separate function. `Matrix.matmul` in `src/tensor/matmul.bend`,
-the public operation, runs its own loops. For each output position `p` in
-increasing order it decodes `p` into `(row, column)` with
-`Shape.unflatten_checked`, folds `left[row, k] * right[k, column]` for `k`
-from 0 to `inner - 1` from `+0.0`, reading each word through
-`Core.read_coordinate`, and writes the total at `p`. The law `matmul_ordered`
-in `src/tensor/contracts/LAWS.bend` states what those loops compute. It takes:
+the public operation, builds its output in parallel. Each output position `p`
+sits at row `p / columns` and column `p % columns`; its cell folds
+`left[row * inner + k] * right[k * columns + column]` for `k` from 0 to
+`inner - 1` from `+0.0`, reading the words of a copy of each input with
+`Array.get`. The cells form a balanced tree: the top `Matrix.splits` levels
+fork, each half with its own clone of both input arrays, and a thread builds
+the cells below the forks in index order. The law `matmul_ordered` in
+`src/tensor/contracts/LAWS.bend` states what that build computes. It takes:
 
 - two shapes and the plan with `Matrix.plan(left, right) == Done{plan}`, the
   case where `matmul` succeeds;
@@ -321,24 +323,35 @@ Its conclusion is a `MatmulContract` in `fold-records.bend`, with live fields:
   the total that `dot_ordered` states for `Dot.dot`.
 - `left_kept` and `right_kept`: both returned inputs still hold every word.
 
-The proof in `matmul-proof.bend` walks both loops with live code, without
-changing them. It first reads the dimension facts back from `Matrix.plan`,
-since the fields of `Matrix.Plan` are erased. After `p` cells each input is the
-replayed tensor whose history adds the dot reads of cells `0` to `p - 1`, and
-the output is the replayed tensor over `+0.0` that writes those cells' totals
-in order. The dot walk is the `Fold.pair_loop` walk with coordinate reads:
-`flatten_checked` of `[row, k]` and `[k, column]` lands on `Dot.left_index`
-and `Dot.right_index`. At the end `total_factors` turns each total into
-`dot_fold`, and `Nat.divmod` maps `row * columns + column` back to its row and
-column. A wrong start, another order of `k` or a transposed read in
-`matmul.bend` fails a step of the walk.
+The proof in `matmul-parallel-proof.bend` walks the build with live code, as
+the elementwise export does. A replayed input with a cell is an owned storage
+whose array is `Api.arr` of its normalized history; `take` hands back the
+First half of its clone, which lists the same words, and the build reads the
+Second half. Every read of such an array keeps it and returns the word the
+history names, and every clone is two copies of it, so whatever the split the
+build returns `out_spec`, the tree whose cell `p` holds the total above below
+the output count and `+0.0` above it (`build_eq`). The writes of every cell in
+index order, replayed on the storage `Core.new` makes for the output, give the
+owned storage that holds `out_spec` (`chain`), so the output is a replayed
+tensor. `fold_factors` turns each cell's fold into `dot_fold` of `factors`,
+and `Nat.divmod` maps `row * columns + column` back to its row and column. A
+wrong start, another order of `k` or a transposed read in `matmul.bend` fails
+a step of the walk. An input with no cell (`inner == 0`) has no word to read;
+its copy is `Array.new` of depth 0 and every cell is the empty fold, `+0.0`.
 
 `matmul_replayed` exports the same walk in the transport form of
 `broadcast_to_replayed`: for every `P`, if `P` holds for every result that
 hands both inputs back with the same words, next to an output of the plan's
 shape, replayed over `+0.0`, whose cell `(row, column)` holds the total above,
-then `P` holds for the product. Its input histories are the walk's `ops ++`
-dot reads, and its output history is the walk's cell writes.
+then `P` holds for the product. Its input histories are the inputs' histories
+with a `First` clone half appended (or unchanged for an input with no cell),
+and its output history writes each cell's total in index order.
+
+The sequential loops `Matrix.multiply`, `natural_product_loop` and
+`natural_dot` remain the definition the laws in `src/tensor/matmul-LAWS.bend`
+state for them; the gate's parallel probe checks, at 1, 8 and 24 threads, that
+the public product returns the same words as `Matrix.multiply` on products
+that fork.
 
 ### `permute_copy` and `transpose_copy` through the index-map copy
 

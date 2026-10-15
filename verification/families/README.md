@@ -130,9 +130,9 @@ instance copy, only the instance copy for the swapped maps, or only
 | Pair right failed swapped | `pair_right` returns the inputs as `(right, left)` when the right read fails | `pair_fails_right` | `consumers.pair_fails_right` |
 | Sum swapped add | `Sum.add` returns `F32.add(word, accumulator)` | `total_words` | `total_words` |
 | Dot untransposed right | `Dot.right_index` reads `column * inner + k` | `total_factors` | `total_factors` |
-| `matmul` reversed order | `natural_dot` reads `k` from `inner - 1` down to 0 | `dot_step_lift` | `dot_step_lift` |
-| `matmul` negative zero start | `product_coordinates` starts the dot at `F32.neg(0.0)` | `product_step_lift` | `product_step_lift` |
-| `matmul` transposed right | `dot_decided` reads the right matrix at `[column, k]` | `dot_decided_lift` | `dot_decided_lift` |
+| `matmul` reversed order | `cell_dot` reads `k` from `inner - 1` down to 0 | `dot_run` | `dot_run` |
+| `matmul` negative zero start | `dot_of` starts the cell at `F32.neg(0.0)` | `cell_facts` | `cell_facts` |
+| `matmul` transposed right | `right_index` reads the right matrix at `column * columns + k` | `arr_fold` | `arr_fold` |
 
 The first nine mutants change the generic loops in `fold.bend`, and the
 generic proofs reject them. The next three change what the loops return when
@@ -140,15 +140,16 @@ a read fails. The proofs accept them, since no law covers a failed read, and
 the runner checks them against `fold/consumers.bend` instead, where the
 failure consumers reject them. The next two change one instance each. The
 proof that relates the instance's `Fold.total` to its specification rejects
-them. The last three change the `matmul` loops in `src/tensor/matmul.bend`.
-The erased proofs in `src/tensor/matmul-PROOF.bend` reject them too, so the
-source check runs `src/tensor/contracts/matmul-proof.bend`, the live proof of
-`matmul_ordered`, instead of `src/tensor/contracts/PROOF.bend`, and rejects
-them in a step of its walk. The contracts take `dot_fold` from
-`src/tensor/dot-fold.bend`, which holds no law, so the kernel artifact holds no
-erased matmul proof and BendTT rejects them in the same step. The fold family's BendTT
-prefix is `src/tensor/`, so the transplant also carries the mutated
-`matmul.bend` declarations.
+them. The last three change the parallel `matmul` build in
+`src/tensor/matmul.bend`. The source check of `src/tensor/contracts/PROOF.bend`
+reaches the cell proofs of the build first: `dot_run` and `cell_facts` in
+`src/tensor/matmul-parallel-proof.bend` reject the reversed order and the
+`-0.0` start, and `arr_fold` in `src/tensor/contracts/matmul-parallel-proof.bend`,
+the live proof of `matmul_ordered`, rejects the transposed read. The contracts
+take `dot_fold` from `src/tensor/dot-fold.bend`, which holds no law, so the
+kernel artifact holds no erased matmul proof and BendTT rejects them at the
+same declarations. The fold family's BendTT prefix is `src/tensor/`, so the
+transplant also carries the mutated `matmul.bend` declarations.
 
 `fold/entry.bend` imports `broadcast.bend` before `sum.bend`, `dot.bend` and
 `matmul.bend`.

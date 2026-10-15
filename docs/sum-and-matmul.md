@@ -1,5 +1,36 @@
 # Ordered reduction and rank-two matrix multiplication
 
+## Parallel product
+
+`Matrix.matmul` builds its output in parallel. It plans the product and
+allocates the output as before, takes a clone of each input array with
+`Elementwise.take` (the kept halves go back to the caller), and builds the
+output cells as a balanced tree with `Matrix.build`. Cell `p` sits at row
+`p / columns` and column `p % columns` and folds
+`left[row * inner + k] * right[k * columns + column]` for `k = 0, 1, ...,
+inner - 1` from `+0.0`, the terms and order of `natural_dot`, so no output word
+depends on the split. The top `Matrix.splits(depth, inner)` levels of the tree
+fork, each half with its own clone of both inputs; a subtree below the forks
+is built in index order on one thread. The build splits by work: it forks
+`depth + log2(inner) - 13` levels, at most six and at most `depth`, so a
+subtree holds about `2^13` terms. An output of `[64, 784] @ [784, 128]` forks
+six levels although it has only 8192 cells.
+
+`Matrix.multiply`, `natural_product_loop` and `natural_dot` stay as the
+sequential definition: their laws below still state them. The public laws
+about `Matrix.matmul` (`successful_matmul_interpretation`,
+`matmul_valid_success` and the three error laws) are proved for the parallel
+build. `matmul-parallel-proof.bend` proves, for any two balanced input arrays,
+that every cell of the build below the count folds the words the arrays hold
+at its row and column, and every cell above it is `+0.0`, whatever the split;
+`matmul-PROOF.bend` lifts that to `ProductPrefix` through the checked
+observations of the inputs that `take` copies. The replayed laws
+`matmul_ordered` and `matmul_replayed` are proved over the same build in
+`contracts/matmul-parallel-proof.bend` (see
+[contract families](contract-families.md)). The tensor gate's parallel probe
+(`probes/parallel_builds.bend`) runs products that fork next to
+`Matrix.multiply` at 1, 8 and 24 threads and requires the same words.
+
 ## Public math completeness supplement
 
 The original eight reduction laws and seven matrix laws, their definitions,
@@ -258,7 +289,8 @@ entrypoints for the private loops remain wrappers around the natural loops,
 and the public dynamic result signatures are unchanged.
 
 Successful sum returns the original input owner and a scalar owner.
-Successful matmul returns both original input owners and an output owner.
+Successful matmul returns the kept clone of each input owner and an output
+owner.
 The universal laws prove observation preservation of these retained owners.
 Errors in these APIs still consume their input owners because their existing
 `Result` signatures contain only the error in the failure branch. This differs
