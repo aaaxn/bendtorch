@@ -181,9 +181,12 @@ The last step compares the output storages' erased certificates, so the
 certificate the code stores has to be a live term. `build_balanced` in
 `elementwise.bend` therefore follows the code with a `Certified` run that
 pairs each subtree with its proof of balance. It sits in the erased field of
-the output storage and does not run. A law cannot see an erased field, so no
-law's statement changes; `elementwise-parallel-proof.bend` and the erased
-laws that use it check as before.
+the output storage and does not run. The declarations of the existing laws on
+`Elementwise.binary` and what they guarantee about values, dims and success
+are unchanged, and `elementwise-parallel-proof.bend` and the erased laws that
+use it check as before. The term those laws refer to does change in its
+erased field, which is still a change to a definition a law calls, so a PR
+that edits it names the affected laws as AGENTS.md requires.
 
 ## The ordered-fold family
 
