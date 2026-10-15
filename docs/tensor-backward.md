@@ -152,10 +152,12 @@ a `zero_grad` that keeps the slot; and each refusal reported as the other.
 ## VJP values
 
 `src/autograd/tensor-vjp-LAWS.bend` states the values of the `Add`, `Sub`,
-`Mul` and `Matmul` VJPs, and `tensor-vjp-PROOF.bend` proves them through laws
-alone: the pointwise family's product, then `sum_to_size`, each handing the
-next a replayed tensor, and for `Matmul` the clone, the transpose and the
-ordered matmul. Each law takes a [replayed](contract-families.md#replayed-tensors-are-the-input-class)
+`Mul` and `Matmul` VJPs, and `tensor-vjp-PROOF.bend` proves them. The `Add`,
+`Sub` and `Mul` proofs go through laws alone: the pointwise family's product,
+then `sum_to_size`, each handing the next a replayed tensor. The `Matmul`
+proof composes the clone, transpose and ordered-matmul transport laws with
+supporting value lemmas of the permute copy loop (see
+`tensor_matmul_vjp_values` below). Each `Add`/`Sub`/`Mul` law takes a [replayed](contract-families.md#replayed-tensors-are-the-input-class)
 gradient `g` (and, for `Mul`, replayed saved operands `x` and `y`) and the
 broadcast plans the VJP uses, and concludes a `PairContract`: the VJP sends
 exactly two contributions, the first to `a` with the left operand's
