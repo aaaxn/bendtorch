@@ -217,19 +217,6 @@ def position_fits(+output: Shape.Shape, +rows: Nat, +columns: Nat,
           Shape.indices(Shape.extents(output), coordinate), digits, position_digits(output, rows, columns, extents, position, fits)),
         Equal.cong(List<&2, Nat>, Bool, dims => Shape.fit(dims, digits), Shape.extents(output), [rows, columns], extents))))
 
-def pair_fits(+shape: Shape.Shape, +first: U32, +second: U32, +x: U32, +y: U32,
-  dimensions: {Shape.dimensions(shape) == [first, second] : List<&2, U32>},
-  first_inside: {Nat.is_lt(U32.to_nat(x), U32.to_nat(first)) == True{} : Bool},
-  second_inside: {Nat.is_lt(U32.to_nat(y), U32.to_nat(second)) == True{} : Bool}) -> Coordinates.Fits(Shape.extents(shape), [U32.to_nat(x), U32.to_nat(y)]):
-  Coordinates.fits_of(Shape.extents(shape), [U32.to_nat(x), U32.to_nat(y)],
-    %Equal.sym(List<&2, U32>, Shape.dimensions(shape), [first, second], dimensions) :
-      {True{} == Shape.fit(Shape.naturals(_), [U32.to_nat(x), U32.to_nat(y)]) : Bool}
-    %Equal.sym(Bool, Nat.is_lt(U32.to_nat(x), U32.to_nat(first)), True{}, first_inside) :
-      {True{} == Bool.and(_, Bool.and(Nat.is_lt(U32.to_nat(y), U32.to_nat(second)), True{})) : Bool}
-    %Equal.sym(Bool, Nat.is_lt(U32.to_nat(y), U32.to_nat(second)), True{}, second_inside) :
-      {True{} == Bool.and(True{}, Bool.and(_, True{})) : Bool}
-    {==})
-
 def offset_pair(+a: Nat, +b: Nat, +first: Nat, +second: Nat) ->
   {Shape.offset([first, second], [a, b]) == Nat.add(Nat.mul(a, second), b) : Nat}:
   %Equal.sym(Nat, Nat.mul(second, 1n), second, Nats.mul_one_right(second)) :
@@ -247,7 +234,7 @@ def flat_pair(+shape: Shape.Shape, +first: U32, +second: U32, +x: U32, +y: U32,
   {ShapeLaws.index_result(shape, Shape.flatten_checked(shape, [x, y])) ==
     Some{U32.from_nat(Nat.add(Nat.mul(U32.to_nat(x), U32.to_nat(second)), U32.to_nat(y)))} : Maybe<&2, U32>}:
   +values : List<&2, Nat> = [U32.to_nat(x), U32.to_nat(y)]
-  +fits = pair_fits(shape, first, second, x, y, dimensions, x_inside, y_inside)
+  +fits = Coordinates.pair_fits(shape, first, second, x, y, dimensions, x_inside, y_inside)
   +coordinate = Coordinates.coordinate_of(Shape.extents(shape), values, fits)
   +target : Maybe<&2, U32> = Some{U32.from_nat(Nat.add(Nat.mul(U32.to_nat(x), U32.to_nat(second)), U32.to_nat(y)))}
   Equal.trans(Maybe<&2, U32>, ShapeLaws.index_result(shape, Shape.flatten_checked(shape, [x, y])),
@@ -931,30 +918,26 @@ def ordered(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape, +rows
   +facts : MatrixFacts<left, right, output, rows, inner, right_inner, columns> = plan_facts(left, right, plan, planned)
   +oe_live = output_dimensions(left, right, output, rows, inner, right_inner, columns, facts)
   +count = Shape.elements(output)
-  Records.MatmulContract{
-    matmul_lift(left, left_fill, left_ops, left_fits, right, right_fill, right_ops, right_fits, plan, planned,
-      result => {Records.product_succeeded(result) == True{} : Bool},
-      multiply_lift(left, left_fill, left_ops, left_fits, right, right_fill, right_ops, right_fits, output, rows, inner, right_inner, columns, facts,
-        result => {Records.product_succeeded(Matrix.packed(left, right, output, result)) == True{} : Bool},
-        a => b => o => {==})),
-    matmul_lift(left, left_fill, left_ops, left_fits, right, right_fill, right_ops, right_fits, plan, planned,
-      result => {Records.product_extents(result) == Some{[U32.to_nat(rows), U32.to_nat(columns)]} : Maybe<&2, List<&2, Nat>>},
-      multiply_lift(left, left_fill, left_ops, left_fits, right, right_fill, right_ops, right_fits, output, rows, inner, right_inner, columns, facts,
-        result => {Records.product_extents(Matrix.packed(left, right, output, result)) == Some{[U32.to_nat(rows), U32.to_nat(columns)]} :
-          Maybe<&2, List<&2, Nat>>},
-        a => b => o => Equal.cong(List<&2, U32>, Maybe<&2, List<&2, Nat>>, dims => Some{Shape.naturals(dims)},
-          Shape.dimensions(output), [rows, columns], oe_live))),
-    row => row_below => column => column_below =>
-      +row_below = row_below
-      +column_below = column_below
-      +position = U32.from_nat(Nat.add(Nat.mul(row, U32.to_nat(columns)), column))
-      +cell = DotFold.dot_fold(Laws.factors(row, column, U32.to_nat(inner), U32.to_nat(columns),
-        left, left_fill, left_ops, right, right_fill, right_ops, U32.to_nat(inner)), 0.0)
-      matmul_lift(left, left_fill, left_ops, left_fits, right, right_fill, right_ops, right_fits, plan, planned,
-        result => {Records.product_point(result, position) == Some{cell} : Maybe<&2, F32>},
-        multiply_lift(left, left_fill, left_ops, left_fits, right, right_fill, right_ops, right_fits, output, rows, inner, right_inner, columns, facts,
-          result => {Records.product_point(Matrix.packed(left, right, output, result), position) == Some{cell} : Maybe<&2, F32>},
-          a => b => o => Equal.trans(Maybe<&2, F32>,
+  -contract : Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic> -> Type = result =>
+    Records.MatmulContract<left, right, U32.to_nat(rows), U32.to_nat(columns),
+      row => column => DotFold.dot_fold(Laws.factors(row, column, U32.to_nat(inner), U32.to_nat(columns),
+        left, left_fill, left_ops, right, right_fill, right_ops, U32.to_nat(inner)), 0.0),
+      other => Replayed.value(left, left_fill, left_ops, other),
+      other => Replayed.value(right, right_fill, right_ops, other), result>
+  matmul_lift(left, left_fill, left_ops, left_fits, right, right_fill, right_ops, right_fits, plan, planned, contract,
+    multiply_lift(left, left_fill, left_ops, left_fits, right, right_fill, right_ops, right_fits, output, rows, inner, right_inner, columns, facts,
+      result => contract(Matrix.packed(left, right, output, result)),
+      a => b => o => Records.MatmulContract{
+        {==},
+        Equal.cong(List<&2, U32>, Maybe<&2, List<&2, Nat>>, dims => Some{Shape.naturals(dims)},
+          Shape.dimensions(output), [rows, columns], oe_live),
+        row => row_below => column => column_below =>
+          +row_below = row_below
+          +column_below = column_below
+          +position = U32.from_nat(Nat.add(Nat.mul(row, U32.to_nat(columns)), column))
+          +cell = DotFold.dot_fold(Laws.factors(row, column, U32.to_nat(inner), U32.to_nat(columns),
+            left, left_fill, left_ops, right, right_fill, right_ops, U32.to_nat(inner)), 0.0)
+          Equal.trans(Maybe<&2, F32>,
             Core.dynamic_read_value(Core.read_dynamic(Core.Packed{output, Core.TTensor{Replayed.storage(output, 0.0,
               products(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, count)), o}}, position)),
             Some{Replayed.value(output, 0.0, products(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, count), position)},
@@ -965,23 +948,12 @@ def ordered(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape, +rows
             Equal.cong(F32, Maybe<&2, F32>, word => Some{word},
               Replayed.value(output, 0.0, products(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, count), position), cell,
               cell_value(left, left_fill, left_ops, right, right_fill, right_ops, output, rows, inner, columns, oe_live,
-                row, row_below, column, column_below))))),
-    other => inside =>
-      matmul_lift(left, left_fill, left_ops, left_fits, right, right_fill, right_ops, right_fits, plan, planned,
-        result => {Records.product_left_point(result, other) == Some{Replayed.value(left, left_fill, left_ops, other)} : Maybe<&2, F32>},
-        multiply_lift(left, left_fill, left_ops, left_fits, right, right_fill, right_ops, right_fits, output, rows, inner, right_inner, columns, facts,
-          result => {Records.product_left_point(Matrix.packed(left, right, output, result), other) ==
-            Some{Replayed.value(left, left_fill, left_ops, other)} : Maybe<&2, F32>},
-          a => b => o => kept_value(left, left_fill, left_ops, left_history(inner, columns, left_ops, count), a, other, inside,
-            left_history_value(inner, columns, left, left_fill, left_ops, count, other)))),
-    other => inside =>
-      matmul_lift(left, left_fill, left_ops, left_fits, right, right_fill, right_ops, right_fits, plan, planned,
-        result => {Records.product_right_point(result, other) == Some{Replayed.value(right, right_fill, right_ops, other)} : Maybe<&2, F32>},
-        multiply_lift(left, left_fill, left_ops, left_fits, right, right_fill, right_ops, right_fits, output, rows, inner, right_inner, columns, facts,
-          result => {Records.product_right_point(Matrix.packed(left, right, output, result), other) ==
-            Some{Replayed.value(right, right_fill, right_ops, other)} : Maybe<&2, F32>},
-          a => b => o => kept_value(right, right_fill, right_ops, right_history(inner, columns, right_ops, count), b, other, inside,
-            right_history_value(inner, columns, right, right_fill, right_ops, count, other))))}
+                row, row_below, column, column_below))),
+        other => inside => kept_value(left, left_fill, left_ops, left_history(inner, columns, left_ops, count), a, other, inside,
+          left_history_value(inner, columns, left, left_fill, left_ops, count, other)),
+        other => inside => kept_value(right, right_fill, right_ops, right_history(inner, columns, right_ops, count), b, other, inside,
+          right_history_value(inner, columns, right, right_fill, right_ops, count, other))}))
+
 
 def matmul_ordered(+left: Shape.Shape, +right: Shape.Shape, +plan: Matrix.Plan<left, right>,
   planned: {Matrix.plan(left, right) == Done{plan} : Result<&2, &2, Matrix.Error, Matrix.Plan<left, right>>},
