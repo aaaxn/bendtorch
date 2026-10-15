@@ -14,7 +14,6 @@ import ../word-conversion.bend as Conversion
 import ../read-contract.bend as Reads
 import ../from-values-contract.bend as FromValues
 import ../matrix-index-proof.bend as MatrixIndex
-import ../matmul-parallel-proof.bend as Cells
 import ./replayed.bend as Replayed
 import ./pointwise-proof.bend as PointwiseProof
 import ./dot-proof.bend as DotProof
@@ -117,74 +116,6 @@ def writes_zero(+inner: Nat, +columns: Nat, +left: Shape.Shape, +left_fill: F32,
           writes_zero(inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, output, previous, index,
             Conversion.le_predecessor(previous, U32.to_nat(index), above),
             Conversion.le_predecessor(previous, Shape.logical_numel(Shape.dimensions(output)), room))))
-
-def ReadsAs(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, -depth: Nat, -copy: Array<F32>) -> Type:
-  @+index: U32 -> @inside: {Nat.is_lt(U32.to_nat(index), Shape.logical_numel(Shape.dimensions(shape))) == True{} : Bool} ->
-    {Model.observe(F32, depth, copy, Refinement.route(depth, index)) == Some{Replayed.value(shape, fill, ops, index)} : Maybe<&2, F32>}
-
-# The factor pairs a cell read from copies of two replayed inputs are the
-# pairs `matmul_ordered` folds.
-def arr_fold(+fuel: Nat, +dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +rows: Nat, +inner: Nat, +columns: Nat,
-  +row: Nat, +column: Nat, +cursor: Nat, values: List<&2, DotFold.Factors>,
-  -arr: Cells.LogicalArr(fuel, dl, dr, A, B, inner, columns, row, column, cursor, values),
-  +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
-  +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>,
-  -left_reads: ReadsAs(left, left_fill, left_ops, dl, A), -right_reads: ReadsAs(right, right_fill, right_ops, dr, B),
-  +row_below: {Nat.is_lt(row, rows) == True{} : Bool}, +left_extents: {Shape.extents(left) == [rows, inner] : List<&2, Nat>},
-  +column_below: {Nat.is_lt(column, columns) == True{} : Bool}, +right_extents: {Shape.extents(right) == [inner, columns] : List<&2, Nat>},
-  +steps: {Nat.add(cursor, fuel) == inner : Nat}) ->
-  Tree.Fact<{DotFold.dot_fold(values, DotFold.dot_fold(Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, cursor), 0.0)) ==
-    DotFold.dot_fold(Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, inner), 0.0) : F32}>:
-  match fuel values:
-    case 0n Nil{}:
-      Tree.Fact{Equal.cong(Nat, F32,
-        k => DotFold.dot_fold(Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, k), 0.0),
-        cursor, inner, PointwiseProof.steps_done(cursor, inner, steps))}
-    case 1n+tail DotFold.Factors{lv, rv} <> rest:
-      +below = MatrixIndex.cursor_below(cursor, tail, inner, steps)
-      +left_at = Nat.add(Nat.mul(row, inner), cursor)
-      +right_at = Nat.add(Nat.mul(cursor, columns), column)
-      +x = Replayed.value(left, left_fill, left_ops, U32.from_nat(left_at))
-      +y = Replayed.value(right, right_fill, right_ops, U32.from_nat(right_at))
-      +before = Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, cursor)
-      Tree.Fact{{\{Cells.ArrStep: left_observed => right_observed => remaining =>
-        %Equal.sym(F32, lv, x, Tree.some_word(lv, x, Equal.trans(Maybe<&2, F32>, Some{lv},
-          Model.observe(F32, dl, A, Refinement.route(dl, U32.from_nat(left_at))), Some{x},
-          Equal.sym(Maybe<&2, F32>, Model.observe(F32, dl, A, Refinement.route(dl, U32.from_nat(left_at))), Some{lv}, left_observed),
-          left_reads(U32.from_nat(left_at))(MatrixIndex.word_inside(left_at, left,
-            MatrixIndex.left_below(rows, inner, row, row_below, left, left_extents, cursor, below)))))) :
-          {DotFold.dot_fold(rest, F32.add(DotFold.dot_fold(before, 0.0), F32.mul(_, rv))) ==
-            DotFold.dot_fold(Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, inner), 0.0) : F32}
-        %Equal.sym(F32, rv, y, Tree.some_word(rv, y, Equal.trans(Maybe<&2, F32>, Some{rv},
-          Model.observe(F32, dr, B, Refinement.route(dr, U32.from_nat(right_at))), Some{y},
-          Equal.sym(Maybe<&2, F32>, Model.observe(F32, dr, B, Refinement.route(dr, U32.from_nat(right_at))), Some{rv}, right_observed),
-          right_reads(U32.from_nat(right_at))(MatrixIndex.word_inside(right_at, right,
-            MatrixIndex.right_below(inner, columns, column, column_below, right, right_extents, cursor, below)))))) :
-          {DotFold.dot_fold(rest, F32.add(DotFold.dot_fold(before, 0.0), F32.mul(x, _))) ==
-            DotFold.dot_fold(Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, inner), 0.0) : F32}
-        %DotProof.dot_snoc(before, x, y, 0.0) :
-          {DotFold.dot_fold(rest, _) ==
-            DotFold.dot_fold(Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, inner), 0.0) : F32}
-        {\{Tree.Fact: p => p} :
-          Tree.Fact<{DotFold.dot_fold(rest, DotFold.dot_fold(Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, 1n+cursor), 0.0)) ==
-            DotFold.dot_fold(Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, inner), 0.0) : F32}> ->
-          {DotFold.dot_fold(rest, DotFold.dot_fold(Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, 1n+cursor), 0.0)) ==
-            DotFold.dot_fold(Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, inner), 0.0) : F32}}(
-          arr_fold(tail, dl, dr, A, B, rows, inner, columns, row, column, 1n+cursor, rest, remaining, left, left_fill, left_ops,
-            right, right_fill, right_ops, left_reads, right_reads, row_below, left_extents, column_below, right_extents,
-            MatrixIndex.steps_next(cursor, tail, inner, steps)))} :
-        Cells.ArrStep<tail, dl, dr, A, B, inner, columns, row, column, cursor, lv, rv, rest> ->
-        {DotFold.dot_fold(DotFold.Factors{lv, rv} <> rest, DotFold.dot_fold(before, 0.0)) ==
-          DotFold.dot_fold(Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, inner), 0.0) : F32}}(arr)}
-    case 0n DotFold.Factors{lv, rv} <> rest:
-      Tree.Fact{Empty.absurd({DotFold.dot_fold(DotFold.Factors{lv, rv} <> rest, DotFold.dot_fold(Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, cursor), 0.0)) ==
-        DotFold.dot_fold(Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, inner), 0.0) : F32}, arr)}
-    case 1n+tail Nil{}:
-      Tree.Fact{Empty.absurd({DotFold.dot_fold(Nil{}, DotFold.dot_fold(Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, cursor), 0.0)) ==
-        DotFold.dot_fold(Laws.factors(row, column, inner, columns, left, left_fill, left_ops, right, right_fill, right_ops, inner), 0.0) : F32}, arr)}
-
-# Natural-number facts the output walk uses, as in the elementwise export.
-# Natural-number facts the output walk uses.
 
 def lt_zero_false(+x: Nat) -> {Nat.is_lt(x, 0n) == False{} : Bool}:
   match x:

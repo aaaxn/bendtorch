@@ -299,7 +299,7 @@ def build(+depth: Nat, +splits: Nat, +inner: Nat, +columns: Nat, +count: Nat, +b
   la: Array<F32>, ra: Array<F32>) -> Array<F32>:
   match depth splits:
     case 1n+lower 1n+rest:
-      +high = Elementwise.upper(lower, base)
+      +high = Nat.add(Model.capacity(lower), base)
       Elementwise.fork(Array.clone(F32, la), Array.clone(F32, ra),
         l => r => build(lower, rest, inner, columns, count, base, l, r),
         l => r => build(lower, rest, inner, columns, count, high, l, r))
@@ -407,7 +407,7 @@ def build_balanced(+depth: Nat, +splits: Nat, +inner: Nat, +columns: Nat, +count
   la: Array<F32>, ra: Array<F32>) -> Model.Balanced(F32, depth, build(depth, splits, inner, columns, count, base, la, ra)):
   match depth splits:
     case 1n+lower 1n+rest:
-      +high = Elementwise.upper(lower, base)
+      +high = Nat.add(Model.capacity(lower), base)
       Elementwise.fork_balanced(lower, Array.clone(F32, la), Array.clone(F32, ra),
         l => r => build(lower, rest, inner, columns, count, base, l, r),
         l => r => build(lower, rest, inner, columns, count, high, l, r),
