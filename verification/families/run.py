@@ -160,6 +160,8 @@ def main() -> None:
     parser.add_argument("--kernel", type=Path, default=ROOT / ".tools/kernel/bendtt")
     parser.add_argument("--workers", type=int, default=14)
     args = parser.parse_args()
+    if args.workers < 1:
+        parser.error("--workers needs at least one worker")
     output = args.output.resolve()
     bend_root = args.bend_root.resolve()
     kernel = args.kernel.resolve()

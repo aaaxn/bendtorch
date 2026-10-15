@@ -139,7 +139,7 @@ the slot, and each error code reported as the other.
 ## Runtime lanes
 
 `tools/autograd_backward.py` runs 91 scripts on native Bend CPU
-(`--threads 1 --gpu off`) and on the generated JavaScript. Each script records
+(`--threads N --gpu off`, N from `tools.check --threads`, default 8) and on the generated JavaScript. Each script records
 leaves and operations, runs `backward` on chosen outputs, calls `zero_grad`,
 and reads the value and `grad` of every node. The harness
 (`src/autograd/backward-harness.bend`) calls the public functions and prints

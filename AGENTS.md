@@ -96,7 +96,10 @@ uv run --locked python -m tools.check <suite> --output .evidence/<new directory>
 `tools.test` runs each test module in its own process, 8 at once; it runs the
 same tests as `python -m unittest discover -s tests`. `tools.check` runs up to
 8 gate commands at once (`--jobs`) and each native Bend program on 8 threads
-(`--threads`); the evidence does not depend on either. The families run 14
+(`--threads`). Neither changes what a passing gate accepts, its observations
+or the order of the commands in `report.json`; timings, the thread count in
+the recorded commands and `identity.json`, and the artifacts a failing gate
+leaves behind do change. The families run 14
 commands at once (`--workers`). The checks above are independent, so run them
 at the same time, each with its own evidence directory. Gate runs refuse to
 overwrite an output directory. There is no CI: run the

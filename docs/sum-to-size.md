@@ -95,7 +95,7 @@ dimension check is false. Their consumers, false twins and mutants are in
 ## Runtime lanes
 
 `tools/autograd_sum_to_size.py` runs 8 handwritten cases plus every `reduce_to`
-case on native Bend CPU (`--threads 1 --gpu off`) and on the generated-Bend
+case on native Bend CPU (`--threads N --gpu off`, N from `tools.check --threads`, default 8) and on the generated-Bend
 JavaScript executable. Identity cases must keep every word exactly on the
 native lane, NaN payloads included; the JavaScript lane only needs NaN to stay
 NaN. The other cases use `reduce_to`'s Python reference.
