@@ -11,6 +11,7 @@ import ../tensor/contracts/pointwise.bend as Pointwise
 import ../tensor/contracts/pointwise-proof.bend as PointwiseProof
 import ../tensor/contracts/broadcast.bend as PointwiseBroadcast
 import ../tensor/contracts/LAWS.bend as Contracts
+import ../tensor/contracts/words-proof.bend as Words
 import ./reduce-to-fold-PROOF.bend as ReduceTo
 import ./broadcast-pointwise-PROOF.bend as BroadcastPointwiseProof
 import ./sum-to-size-fold-LAWS.bend as SumToSizeFold
@@ -127,11 +128,11 @@ def product_replayed(+operation: Elementwise.Operation, +left: Shape.Shape, +rig
           Shape.elements_exact(output), ReduceTo.plan_left(left, right, plan, planned), ReduceTo.plan_right(left, right, plan, planned), P,
           left_after => right_after => output_after =>
             h(List.append(&2, StorageLaws.Op, left_ops, Pointwise.reads(~Shape.BroadcastPlan, ~PointwiseBroadcast.left_map, plan, count)),
-              SumToSizeFoldProof.words_reads(~Shape.BroadcastPlan, ~PointwiseBroadcast.left_map, plan, count, left, left_fill, left_ops,
+              Words.words_reads(~Shape.BroadcastPlan, ~PointwiseBroadcast.left_map, plan, count, left, left_fill, left_ops,
                 Shape.logical_numel(Shape.dimensions(left))),
               left_after,
               List.append(&2, StorageLaws.Op, right_ops, Pointwise.reads(~Shape.BroadcastPlan, ~PointwiseBroadcast.right_map, plan, count)),
-              SumToSizeFoldProof.words_reads(~Shape.BroadcastPlan, ~PointwiseBroadcast.right_map, plan, count, right, right_fill, right_ops,
+              Words.words_reads(~Shape.BroadcastPlan, ~PointwiseBroadcast.right_map, plan, count, right, right_fill, right_ops,
                 Shape.logical_numel(Shape.dimensions(right))),
               right_after,
               BroadcastPointwiseProof.history(count, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops),

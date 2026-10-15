@@ -12,6 +12,7 @@ import ../tensor/contracts/replayed.bend as Replayed
 import ../tensor/contracts/pointwise.bend as Pointwise
 import ../tensor/contracts/pointwise-proof.bend as PointwiseProof
 import ../tensor/contracts/LAWS.bend as Contracts
+import ../tensor/contracts/words-proof.bend as Words
 import ./reduce.bend as Reduce
 import ./reduce-LAWS.bend as ReduceLaws
 import ./reduce-fold.bend as Cells
@@ -181,16 +182,6 @@ def half_keeps(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, 
     Replayed.value(shape, fill, ops, index),
     Replayed.expected_snoc(ops, half, U32.to_nat(Shape.count(shape)), index, fill), kept)
 
-def words_snoc(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +previous: Nat, +word: F32, +other: F32,
-  +before: List<&2, F32>, rest: {Contracts.words(shape, fill, ops, previous) == before : List<&2, F32>},
-  last: {word == other : F32}) ->
-  {List.append(&2, F32, Contracts.words(shape, fill, ops, previous), [word]) == List.append(&2, F32, before, [other]) : List<&2, F32>}:
-  Equal.trans(List<&2, F32>, List.append(&2, F32, Contracts.words(shape, fill, ops, previous), [word]),
-    List.append(&2, F32, before, [word]), List.append(&2, F32, before, [other]),
-    Equal.cong(List<&2, F32>, List<&2, F32>, values => List.append(&2, F32, values, [word]),
-      Contracts.words(shape, fill, ops, previous), before, rest),
-    Equal.cong(F32, List<&2, F32>, value => List.append(&2, F32, before, [value]), word, other, last))
-
 # The First half of a clone lists the same words.
 def words_first(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +count: Nat) ->
   {Contracts.words(shape, fill, Replayed.snoc(ops, StorageLaws.First{}), count) == Contracts.words(shape, fill, ops, count) : List<&2, F32>}:
@@ -199,25 +190,10 @@ def words_first(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>,
       {==}
     case 1n+previous:
       +position = U32.from_nat(previous)
-      words_snoc(shape, fill, Replayed.snoc(ops, StorageLaws.First{}), previous,
+      Words.words_snoc(shape, fill, Replayed.snoc(ops, StorageLaws.First{}), previous,
         Replayed.value(shape, fill, Replayed.snoc(ops, StorageLaws.First{}), position), Replayed.value(shape, fill, ops, position),
         Contracts.words(shape, fill, ops, previous), words_first(shape, fill, ops, previous),
         half_keeps(shape, fill, ops, StorageLaws.First{}, position, {==}))
-
-# Reads appended to a history list the same words.
-def words_reads(~P: Data, ~map: P -> Nat -> Nat, +plan: P, +reads: Nat, +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>,
-  +count: Nat) ->
-  {Contracts.words(shape, fill, List.append(&2, StorageLaws.Op, ops, Pointwise.reads(~P, ~map, plan, reads)), count) ==
-    Contracts.words(shape, fill, ops, count) : List<&2, F32>}:
-  match count:
-    case 0n:
-      {==}
-    case 1n+previous:
-      +position = U32.from_nat(previous)
-      +seen = List.append(&2, StorageLaws.Op, ops, Pointwise.reads(~P, ~map, plan, reads))
-      words_snoc(shape, fill, seen, previous, Replayed.value(shape, fill, seen, position), Replayed.value(shape, fill, ops, position),
-        Contracts.words(shape, fill, ops, previous), words_reads(~P, ~map, plan, reads, shape, fill, ops, previous),
-        PointwiseProof.value_reads(~P, ~map, plan, reads, shape, fill, ops, position))
 
 # A list equal to the words of a replayed tensor holds each in-bounds word at
 # its index.
@@ -291,7 +267,7 @@ def replayed_fiber(+target: Shape.Shape, +shape: Shape.Shape, +plan: Shape.Broad
       h(List.append(&2, StorageLaws.Op, ops, ReduceTo.reads(plan, count)),
         Equal.trans(List<&2, F32>, Contracts.words(shape, fill, List.append(&2, StorageLaws.Op, ops, ReduceTo.reads(plan, count)), count),
           Contracts.words(shape, fill, ops, count), values,
-          words_reads(~Shape.BroadcastPlan, ~Cells.contribution_offset, plan, count, shape, fill, ops, count), words),
+          Words.words_reads(~Shape.BroadcastPlan, ~Cells.contribution_offset, plan, count, shape, fill, ops, count), words),
         input_fits, target, {==}, 0.0, history,
         index => inside =>
           Equal.trans(Maybe<&2, F32>, Some{Replayed.value(target, 0.0, history, index)},
