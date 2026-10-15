@@ -25,3 +25,27 @@ before = '''
 Cell{plan, index}, Shape.elements(Shape.right_shape(plan)), input)'''
 after = '''
 Cell{plan, index}, Shape.elements(Shape.left_shape(plan)), input)'''
+
+[reduce-to-lands-on-source]
+file = "src/autograd/reduce.bend"
+before = '''
+      (+target_index, source_index) = indices
+      step_input(target, target_index, output, Core.read_dynamic(input, source_index))'''
+after = '''
+      (+target_index, +source_index) = indices
+      step_input(target, source_index, output, Core.read_dynamic(input, source_index))'''
+
+[reduce-to-reversed-order]
+file = "src/autograd/reduce.bend"
+before = '''
+  step_indices(target, state, Elementwise.input_indices(plan, index))'''
+after = '''
+  step_indices(target, state, Elementwise.input_indices(plan,
+    U32.from_nat(Nat.sub(Nat.sub(Shape.elements(Shape.output_shape(plan)), 1n), U32.to_nat(index)))))'''
+
+[reduce-to-swapped-add]
+file = "src/autograd/reduce.bend"
+before = '''
+F32.add(accumulated, value)'''
+after = '''
+F32.add(value, accumulated)'''

@@ -9,6 +9,7 @@ Law, Site, Value, Witness = (
     controls.Witness,
 )
 SRC = "_2e_._2f_.._2f_.._2f_src_2f_autograd_2f_"
+REDUCE_TO = "src/autograd/reduce-to-fold-PROOF.bend"
 ZERO, ONE, TWO, THREE = fold.ZERO, fold.ONE, fold.TWO, fold.THREE
 FOUR, FIVE, SIX = fold.FOUR, fold.FIVE, fold.SIX
 
@@ -23,17 +24,24 @@ FAMILY = controls.Family(
         "src/tensor/contracts/broadcast.bend",
         "src/tensor/contracts/sum.bend",
         "src/autograd/reduce-fold.bend",
+        "src/autograd/reduce.bend",
     ),
-    operations=frozenset({"src/autograd/reduce-fold.bend"}),
+    operations=frozenset({"src/autograd/reduce-fold.bend", "src/autograd/reduce.bend"}),
     laws={
         f"{SRC}reduce_2d_fold_2d_LAWS.reduce_fold_fiber": Law(
             "∀+x0 : _2e_._2f_.._2f_.._2f_src_2f_shape_2f_core.BroadcastPlan -> ",
             "reduce_2d_fold.cell",
         ),
+        f"{SRC}reduce_2d_fold_2d_LAWS.reduce_to_fiber": Law(
+            "∀+x0 : _2e_._2f_.._2f_.._2f_src_2f_shape_2f_core.Shape -> ",
+            "reduce.reduce_to",
+        ),
     },
     live_records=(
         f"{SRC}reduce_2d_fold_2d_LAWS.FiberContract.arms",
+        f"{SRC}reduce_2d_fold_2d_LAWS.ReduceToContract.arms",
         "consumers.ReduceCase.arms",
+        "consumers.ReduceToCase.arms",
     ),
     consumers=tuple(
         f"consumers.{name}"
@@ -43,6 +51,8 @@ FAMILY = controls.Family(
             "reduce_scalar",
             "reduce_same",
             "reduce_empty",
+            "reduce_to_columns",
+            "reduce_to_rows",
         )
     ),
     witnesses={
@@ -50,6 +60,7 @@ FAMILY = controls.Family(
         "row_witness": Witness("expected_row", "first_row"),
         "same_witness": Witness("expected_same", "uncopied_same"),
         "word_witness": Witness("expected_word", "shifted_word"),
+        "reduce_to_witness": Witness("expected_column", "unmasked_column"),
     },
     values={
         "expected_column": some(
@@ -75,7 +86,7 @@ FAMILY = controls.Family(
         "expected_word": some("Some{5.0}", FIVE),
         "shifted_word": some("Some{6.0}", SIX),
     },
-    subjects=("result",),
+    subjects=("result", "reduced"),
     mutants=controls.load_mutants("reduce"),
     sites={
         "lands-on-source": Site(
@@ -101,6 +112,27 @@ FAMILY = controls.Family(
             "ReduceFold.lands, Shape.elements(Shape.left_shape(plan))",
             "reduce_2d_fold_2d_PROOF.reduce_fold_fiber",
             ("reduce_2d_fold.cell",),
+        ),
+        "reduce-to-lands-on-source": Site(
+            "step_lift",
+            "step_input(target, U32.from_nat(../tensor/contracts/broadcast.right_walk(",
+            "reduce_2d_to_2d_fold_2d_PROOF.step_lift",
+            ("reduce.step_indices",),
+            module=REDUCE_TO,
+        ),
+        "reduce-to-reversed-order": Site(
+            "step_lift",
+            "Nat.sub(Nat.sub(Shape.elements(Shape.output_shape(plan)), 1n)",
+            "reduce_2d_to_2d_fold_2d_PROOF.step_lift",
+            ("reduce.step",),
+            module=REDUCE_TO,
+        ),
+        "reduce-to-swapped-add": Site(
+            "step_lift",
+            "F32.add(StorageLaws.expected(List.append(",
+            "reduce_2d_to_2d_fold_2d_PROOF.step_lift",
+            ("reduce.step_output",),
+            module=REDUCE_TO,
         ),
     },
     proof="src/autograd/PROOF.bend",

@@ -63,10 +63,13 @@ class PointwiseControlTests(unittest.TestCase):
             )
             self.assertEqual(path, expected, label)
         self.assertTrue(all(not site.consumer for site in pointwise.sites.values()))
-        for label in reduce.mutants:
-            self.assertEqual(
-                reduce.rejecting_module(label), "src/autograd/PROOF.bend", label
+        for label, (path, _, _) in reduce.mutants.items():
+            expected = (
+                "src/autograd/reduce-to-fold-PROOF.bend"
+                if path == "src/autograd/reduce.bend"
+                else "src/autograd/PROOF.bend"
             )
+            self.assertEqual(reduce.rejecting_module(label), expected, label)
 
     def test_false_twin_changes_only_the_statement(self):
         for family in FAMILIES:
