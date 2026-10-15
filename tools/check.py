@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 
 from tools import autograd, shape, storage, tensor, toolchain
-from tools.common import ROOT, GateError
+from tools.common import ROOT, GateError, set_jobs
 
 SUITES = {
     "toolchain": toolchain.run_gate,
@@ -20,7 +20,14 @@ def main() -> None:
     parser.add_argument("suites", nargs="+", choices=[*SUITES, "all"])
     parser.add_argument("--tool-root", type=Path, default=ROOT / ".tools")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=1,
+        help="Run up to this many gate commands at once (default 1, one by one).",
+    )
     args = parser.parse_args()
+    set_jobs(args.jobs)
     names = list(SUITES) if "all" in args.suites else list(dict.fromkeys(args.suites))
     output = args.output.resolve()
     if output.exists():
