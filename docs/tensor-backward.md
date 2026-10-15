@@ -63,7 +63,13 @@ The sweep:
 
   `left` and `right` are the saved operand values (and shapes). `-g` uses the
   new `Elementwise.NegateLeft` operation, `scalar(NegateLeft, l, r) =
-  F32.neg(l)`, which flips the sign bit like PyTorch's `neg`. `sum_to_size`
+  F32.neg(l)`, which flips the sign bit like PyTorch's `neg`. The `Mul`
+  products and `-g` come from `Elementwise.binary`, which builds its output in
+  parallel halves above 2^15 cells. The live law `binary_replayed`
+  ([contract families](contract-families.md#elementwisebinary-exports-its-replayed-result))
+  states that this build writes the pointwise family's words whatever the
+  split, so the [value laws](#vjp-values) chain through it.
+  `sum_to_size`
   copies `g` when no axis is reduced, so `-0.0` stays `-0.0`, and otherwise
   folds each fiber in ascending flat order from `+0.0`. `@` is the ordered
   matmul of the tensor layer.
@@ -88,7 +94,9 @@ every slot, like `zero_grad(set_to_none=True)`.
 contribution that `sum_to_size` does not reduce, allocates `-g` for `Sub`, and
 copies `g` twice and each saved matmul operand once (its transpose) for
 `Matmul`. The sweep is sequential: the order in which contributions reach a
-slot is part of the contract.
+slot is part of the contract. Within one VJP, the `Mul` and `Sub` products
+fork into parallel halves above 2^15 cells, as every `Elementwise.binary`
+does.
 
 ## Laws
 
@@ -124,14 +132,14 @@ of slots, shape and tensor.
   the wiring check equals a separate specification of operand bounds.
 - `tensor_zero_grad_empties` and `tensor_zero_grad_keeps_nodes`.
 
-The laws state the engine's structure and the `Sum` VJP's values. The values
-of the `Add`, `Sub`, `Mul` and `Matmul` VJPs are checked by the runtime lanes
-and the PyTorch record, not by a law: a law would need the pointwise family to
-export the replayed output of `Elementwise.binary` and of `sum_to_size`, as
-`broadcast_to_replayed` does for `broadcast_to`, and an ordered-fold export for
-`matmul`.
+These laws state the engine's structure and the `Sum` VJP's values. The
+[VJP values](#vjp-values) below state the `Add`, `Sub`, `Mul` and `Matmul`
+VJPs' values.
 
-The autograd gate applies ten proof controls and two error controls to a copy
+The family controls in [`verification/families/tensor_vjp/`](../verification/families/README.md#tensor-vjp)
+check the VJP value laws: literal consumers, seven false twins and eight
+mutants of `tensor-backward.bend`, each rejected by the source checker and by
+BendTT. The autograd gate applies ten proof controls and two error controls to a copy
 of the sources, and the proofs reject each one: `NegateLeft` keeping the sign
 (at `negate_left_scalar`), seeding the newest node (`tensor_backward_success`),
 seeding zeros and a head check that matches a larger id
@@ -141,6 +149,90 @@ an unreached entry that drops the older gradients
 (`tensor_unreached_sends_nothing`), a `Sum` VJP that sends to node 0
 (`tensor_sum_vjp_pointwise`), a wiring check that skips the operand bounds and
 a `zero_grad` that keeps the slot; and each refusal reported as the other.
+
+## VJP values
+
+`src/autograd/tensor-vjp-LAWS.bend` states the values of the `Add`, `Sub`,
+`Mul` and `Matmul` VJPs, and `tensor-vjp-PROOF.bend` proves them. The `Add`,
+`Sub` and `Mul` proofs go through laws alone: the parallel product, whose
+words are the pointwise family's, then `sum_to_size`, each handing the next a
+replayed tensor. The `Matmul` proof composes the clone, transpose and
+ordered-matmul transport laws with supporting value lemmas of the permute copy
+loop (see `tensor_matmul_vjp_values` below). Each `Add`/`Sub`/`Mul` law takes a [replayed](contract-families.md#replayed-tensors-are-the-input-class)
+gradient `g` (and, for `Mul`, replayed saved operands `x` and `y`) and the
+broadcast plans the VJP uses, and concludes a `PairContract`: the VJP sends
+exactly two contributions, the first to `a` with the left operand's
+dimensions, the second to `b` with the right operand's, and every in-bounds
+cell holds the stated word.
+
+The word of a reduced contribution is `reduced(target, shape, plan, values,
+index)`: the contribution's own word `values[index]` when the target has its
+dimensions (nothing is reduced, so `-0.0` stays `-0.0`), and otherwise
+`ReduceLaws.fiber`, the words that land on the cell added in index order from
+`+0.0`. `cells(operation, plan, ...)` lists the words of a pointwise product:
+word `k` is `scalar(operation, left[left_map(plan, k)], right[right_map(plan, k)])`.
+
+- `tensor_add_vjp_values`: for operand shapes that each broadcast to exactly
+  `g`'s shape, `a` receives `reduced` of `g`'s words to the left shape, and
+  `b` the same to the right shape.
+- `tensor_sub_vjp_values`: `a` receives what `Add` sends it; `b` receives
+  `reduced` of `cells(NegateLeft, ...)` of `g` against a rank-0 `+0.0`, so each
+  word of `g` has its sign flipped before any word is added.
+- `tensor_mul_vjp_values`: `a` receives `reduced` of `cells(Mul, ...)` of `g`
+  and `y`, and `b` of `g` and `x`.
+
+Two transport laws make the chain possible. Each has the form of
+`broadcast_to_replayed`: for every `P`, if `P` holds for every result of the
+stated form, `P` holds for the call.
+
+- `tensor_product_replayed` (`tensor-vjp-LAWS.bend`): `Elementwise.binary`
+  of two replayed inputs whose shapes broadcast hands both inputs back with
+  the same words and gives a replayed output of the plan's shape whose words
+  are `cells`. It restates the tensor law `binary_replayed` for the backward,
+  whose proof walks the parallel build with live code.
+- `sum_to_size_replayed` (`sum-to-size-fold-LAWS.bend`): `sum_to_size` of a
+  replayed contribution whose words are `values` hands it back with the same
+  words and gives a replayed output with the target's dimensions whose cells
+  hold `summed`, the value `reduced` names. The output is the clone's second
+  half or `reduce_to`'s output; the proof covers both.
+
+The hypotheses name the plans the VJP computes, so a law says nothing about a
+pair of shapes that does not broadcast. A recording on the tape only exists
+for shapes that broadcast, and the consumers in
+`verification/families/tensor_vjp/` instantiate every law on literal shapes.
+
+`tensor_matmul_vjp_values` states the `Matmul` VJP. With the saved
+operands `x` (left) and `y` (right) and the gradient `g`, all replayed, it
+names as hypotheses the plans the VJP computes: the transpose plans of `y`
+and `x` from `Layout.permutation` by `swapped_axes(., 0, 1)`, with both axes
+in range, and the matmul plans `first` of `g @ y^T` and `second` of
+`x^T @ g`, whose outputs have the left and the right operand's dimensions.
+Its conclusion is a `MatmulPairContract`, stated per `(row, column)` as
+`matmul_ordered` is: the first contribution goes to `a` with the left
+operand's dimensions, the second to `b` with the right operand's, and
+
+- cell `(row, column)` of the first holds `DotFold.dot_fold` from `+0.0` of
+  `right_transposed_factors`: for `k` from 0 to `inner - 1`, the pair
+  `g[row * inner + k]` and the word of `y` at
+  `permute_source(y, swapped, k * columns + column)`;
+- cell `(row, column)` of the second holds `DotFold.dot_fold` from `+0.0` of
+  `left_transposed_factors`: the word of `x` at
+  `permute_source(x, swapped, row * inner + k)` and `g[k * columns + column]`.
+
+`inner` and `columns` are the plan's. For a `[k, n]` operand
+`permute_source` of a transposed index is the row-major index of the
+swapped coordinate, so the pairs are `g[row, l] * y[column, l]` and
+`x[l, row] * g[l, column]`, as PyTorch's `g @ y.T` and `x.T @ g`. No law
+states that index identity for every shape; the consumer in
+`verification/families/tensor_vjp/` checks it on literal words.
+
+The proof follows `vjp_matmul`. The clone halves of `g` are `ops ++ [First]`
+and `ops ++ [Second]`; `transpose_replayed` gives the transposed copy as a
+replayed tensor whose words are `permuted_words`; `matmul_replayed` gives the
+product's cells as the ordered totals over the copies; and `first_factors`
+and `second_factors` turn the factor pairs read on the copies into the pairs
+stated on `g`, `x` and `y`. No sum is reduced: each product already has its
+operand's dimensions.
 
 ## Runtime lanes
 

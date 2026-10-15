@@ -84,6 +84,13 @@ so one record covers both cases:
   exactly the contribution's dimensions, every target cell holds
   `ReduceLaws.fiber` over the contribution's words in index order from `+0.0`,
   the value that `reduce_to_fiber` states for `reduce_to`.
+- `sum_to_size_replayed`: both cases in the transport form of
+  `broadcast_to_replayed`. If the contribution's words are `values` and the
+  target broadcasts to exactly its dimensions, `P` holds for the result when
+  it holds for every replayed contribution with the same words next to a
+  replayed output with the target's dimensions whose cells hold `summed`:
+  `values[index]` when nothing is reduced, the fiber sum otherwise. The tensor
+  backward's [VJP value laws](tensor-backward.md#vjp-values) chain it.
 
 `sum-to-size-fold-PROOF.bend` proves the first by cloning the replayed
 contribution. Cloning it gives two replayed tensors, the kept owner with the

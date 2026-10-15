@@ -1,0 +1,31 @@
+[high-fork-reuses-base]
+file = "src/tensor/elementwise.bend"
+before = '''
+def upper(+inner: Nat, +base: Nat) -> Nat:
+  Nat.add(Model.capacity(inner), base)'''
+after = '''
+def upper(+inner: Nat, +base: Nat) -> Nat:
+  base'''
+
+[cell-swaps-operands]
+file = "src/tensor/elementwise.bend"
+before = '''
+  (ALeaf{scalar(operation, x, y)}, (la, ra))'''
+after = '''
+  (ALeaf{scalar(operation, y, x)}, (la, ra))'''
+
+[cell-swaps-returned-inputs]
+file = "src/tensor/elementwise.bend"
+before = '''
+  (ALeaf{scalar(operation, x, y)}, (la, ra))'''
+after = '''
+  (ALeaf{scalar(operation, x, y)}, (ra, la))'''
+
+[padding-not-zero]
+file = "src/tensor/elementwise.bend"
+before = '''
+    case False{}:
+      (ALeaf{0.0}, (la, ra))'''
+after = '''
+    case False{}:
+      (ALeaf{1.0}, (la, ra))'''

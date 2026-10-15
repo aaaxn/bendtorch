@@ -22,6 +22,7 @@
     "sum_2d_to_2d_size_2d_LAWS.sum_to_size_reduces",
     "sum_2d_to_2d_size_2d_fold_2d_LAWS.sum_to_size_clone",
     "sum_2d_to_2d_size_2d_fold_2d_LAWS.sum_to_size_fiber",
+    "sum_2d_to_2d_size_2d_fold_2d_LAWS.sum_to_size_replayed",
     "gradient_2d_LAWS.gradient_unset_zeros",
     "gradient_2d_LAWS.gradient_held",
     "gradient_2d_LAWS.accumulate_mapping",
@@ -82,6 +83,11 @@
     "tensor_2d_backward_2d_LAWS.tensor_merge_keeps_unreached",
     "tensor_2d_backward_2d_LAWS.tensor_zero_grad_empties",
     "tensor_2d_backward_2d_LAWS.tensor_zero_grad_keeps_nodes",
-    "tensor_2d_backward_2d_LAWS.tensor_sum_vjp_pointwise"
+    "tensor_2d_backward_2d_LAWS.tensor_sum_vjp_pointwise",
+    "tensor_2d_vjp_2d_LAWS.tensor_product_replayed",
+    "tensor_2d_vjp_2d_LAWS.tensor_add_vjp_values",
+    "tensor_2d_vjp_2d_LAWS.tensor_sub_vjp_values",
+    "tensor_2d_vjp_2d_LAWS.tensor_mul_vjp_values",
+    "tensor_2d_vjp_2d_LAWS.tensor_matmul_vjp_values"
   ]
 }

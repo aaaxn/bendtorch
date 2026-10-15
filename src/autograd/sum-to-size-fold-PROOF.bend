@@ -6,11 +6,17 @@ import ../tensor/core.bend as Core
 import ../tensor/layout.bend as Layout
 import ../tensor/lifecycle.bend as Lifecycle
 import ../tensor/permutation-mapping.bend as Mapping
+import ../tensor/word-conversion.bend as Conversion
 import ../tensor/transform-PROOF.bend as TransformProof
 import ../tensor/contracts/replayed.bend as Replayed
+import ../tensor/contracts/pointwise.bend as Pointwise
 import ../tensor/contracts/pointwise-proof.bend as PointwiseProof
 import ../tensor/contracts/LAWS.bend as Contracts
+import ../tensor/contracts/words-proof.bend as Words
+import ./reduce.bend as Reduce
 import ./reduce-LAWS.bend as ReduceLaws
+import ./reduce-fold.bend as Cells
+import ./reduce-fold-PROOF.bend as FoldProof
 import ./reduce-fold-LAWS.bend as ReduceFold
 import ./reduce-to-fold-PROOF.bend as ReduceTo
 import ./sum-to-size.bend as SumToSize
@@ -165,3 +171,138 @@ def Laws.sum_to_size_clone(target, shape, same, fill, ops, fits):
 
 def Laws.sum_to_size_fiber(target, shape, plan, planned, same, differ, fill, ops, fits):
   sum_to_size_fiber(target, shape, plan, planned, same, differ, fill, ops, fits)
+
+# A First or Second half of a clone keeps every word.
+def half_keeps(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +half: StorageLaws.Op, +index: U32,
+  kept: {StorageLaws.latest(U32.to_nat(Shape.count(shape)), half, index, Replayed.value(shape, fill, ops, index)) ==
+    Replayed.value(shape, fill, ops, index) : F32}) ->
+  {Replayed.value(shape, fill, Replayed.snoc(ops, half), index) == Replayed.value(shape, fill, ops, index) : F32}:
+  Equal.trans(F32, Replayed.value(shape, fill, Replayed.snoc(ops, half), index),
+    StorageLaws.latest(U32.to_nat(Shape.count(shape)), half, index, Replayed.value(shape, fill, ops, index)),
+    Replayed.value(shape, fill, ops, index),
+    Replayed.expected_snoc(ops, half, U32.to_nat(Shape.count(shape)), index, fill), kept)
+
+# The First half of a clone lists the same words.
+def words_first(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +count: Nat) ->
+  {Contracts.words(shape, fill, Replayed.snoc(ops, StorageLaws.First{}), count) == Contracts.words(shape, fill, ops, count) : List<&2, F32>}:
+  match count:
+    case 0n:
+      {==}
+    case 1n+previous:
+      +position = U32.from_nat(previous)
+      Words.words_snoc(shape, fill, Replayed.snoc(ops, StorageLaws.First{}), previous,
+        Replayed.value(shape, fill, Replayed.snoc(ops, StorageLaws.First{}), position), Replayed.value(shape, fill, ops, position),
+        Contracts.words(shape, fill, ops, previous), words_first(shape, fill, ops, previous),
+        half_keeps(shape, fill, ops, StorageLaws.First{}, position, {==}))
+
+# A list equal to the words of a replayed tensor holds each in-bounds word at
+# its index.
+def value_at(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +values: List<&2, F32>,
+  +words: {Contracts.words(shape, fill, ops, Shape.logical_numel(Shape.dimensions(shape))) == values : List<&2, F32>},
+  +index: U32, inside: {Nat.is_lt(U32.to_nat(index), Shape.logical_numel(Shape.dimensions(shape))) == True{} : Bool}) ->
+  {Some{Replayed.value(shape, fill, ops, index)} == ReduceLaws.word_at(values, U32.to_nat(index)) : Maybe<&2, F32>}:
+  +count = Shape.logical_numel(Shape.dimensions(shape))
+  +position = U32.to_nat(index)
+  %Conversion.word_natural_exact(index) : {Some{Replayed.value(shape, fill, ops, _)} == ReduceLaws.word_at(values, position) : Maybe<&2, F32>}
+  %words : {Some{Replayed.value(shape, fill, ops, U32.from_nat(position))} == ReduceLaws.word_at(_, position) : Maybe<&2, F32>}
+  Equal.sym(Maybe<&2, F32>, ReduceLaws.word_at(Contracts.words(shape, fill, ops, count), position),
+    Some{Replayed.value(shape, fill, ops, U32.from_nat(position))}, FoldProof.words_at(shape, fill, ops, count, position, inside))
+
+# Two histories that list the same words agree at every in-bounds index.
+def agree_at(+shape: Shape.Shape, +fill: F32, +kept: List<&2, StorageLaws.Op>, +ops: List<&2, StorageLaws.Op>,
+  +same: {Contracts.words(shape, fill, kept, Shape.logical_numel(Shape.dimensions(shape))) ==
+    Contracts.words(shape, fill, ops, Shape.logical_numel(Shape.dimensions(shape))) : List<&2, F32>},
+  +index: U32, +inside: {Nat.is_lt(U32.to_nat(index), Shape.logical_numel(Shape.dimensions(shape))) == True{} : Bool}) ->
+  {Replayed.value(shape, fill, kept, index) == Replayed.value(shape, fill, ops, index) : F32}:
+  +values = Contracts.words(shape, fill, ops, Shape.logical_numel(Shape.dimensions(shape)))
+  Replayed.some_value(Replayed.value(shape, fill, kept, index), Replayed.value(shape, fill, ops, index),
+    Equal.trans(Maybe<&2, F32>, Some{Replayed.value(shape, fill, kept, index)}, ReduceLaws.word_at(values, U32.to_nat(index)),
+      Some{Replayed.value(shape, fill, ops, index)},
+      value_at(shape, fill, kept, values, same, index, inside),
+      Equal.sym(Maybe<&2, F32>, Some{Replayed.value(shape, fill, ops, index)}, ReduceLaws.word_at(values, U32.to_nat(index)),
+        value_at(shape, fill, ops, values, {==}, index, inside))))
+
+def replayed_clone(+target: Shape.Shape, +shape: Shape.Shape, +plan: Shape.BroadcastPlan, +fill: F32, +ops: List<&2, StorageLaws.Op>,
+  +values: List<&2, F32>,
+  +words: {Contracts.words(shape, fill, ops, Shape.logical_numel(Shape.dimensions(shape))) == values : List<&2, F32>},
+  -P: Core.Dynamic & Result<&2, &1, Reduce.Error, Core.Dynamic> -> Type,
+  equal: {True{} == Layout.words_same(Shape.dimensions(shape), Shape.dimensions(target)) : Bool},
+  h: Laws.ReducedWith(target, shape, plan, fill, values, True{}, P)) ->
+  @-fits: {Lifecycle.logical_length(Replayed.storage(shape, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat} ->
+    P(SumToSize.decided(shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}, target, True{})):
+  +count = Shape.logical_numel(Shape.dimensions(shape))
+  +dimensions = TransformProof.words_equal(Shape.dimensions(shape), Shape.dimensions(target), equal)
+  fits =>
+    clone_lift(shape, fill, ops, fits, pair => P(SumToSize.cloned(shape, pair)),
+      first_fits => second_fits =>
+        h(Replayed.snoc(ops, StorageLaws.First{}),
+          Equal.trans(List<&2, F32>, Contracts.words(shape, fill, Replayed.snoc(ops, StorageLaws.First{}), count),
+            Contracts.words(shape, fill, ops, count), values, words_first(shape, fill, ops, count), words),
+          first_fits, shape, dimensions, fill, Replayed.snoc(ops, StorageLaws.Second{}),
+          index => inside =>
+            +below = shape_below(shape, target, index, dimensions, inside)
+            Equal.trans(Maybe<&2, F32>, Some{Replayed.value(shape, fill, Replayed.snoc(ops, StorageLaws.Second{}), index)},
+              Some{Replayed.value(shape, fill, ops, index)}, ReduceLaws.word_at(values, U32.to_nat(index)),
+              Equal.cong(F32, Maybe<&2, F32>, value => Some{value},
+                Replayed.value(shape, fill, Replayed.snoc(ops, StorageLaws.Second{}), index), Replayed.value(shape, fill, ops, index),
+                half_keeps(shape, fill, ops, StorageLaws.Second{}, index, {==})),
+              value_at(shape, fill, ops, values, words, index, below)),
+          second_fits))
+
+def replayed_fiber(+target: Shape.Shape, +shape: Shape.Shape, +plan: Shape.BroadcastPlan,
+  +planned: {Shape.broadcast_checked(target, shape) == Done{plan} : Result<&2, &2, Shape.Error, Shape.BroadcastPlan>},
+  +same: {Shape.dimensions(Shape.output_shape(plan)) == Shape.dimensions(shape) : List<&2, U32>},
+  +fill: F32, +ops: List<&2, StorageLaws.Op>, +values: List<&2, F32>,
+  +words: {Contracts.words(shape, fill, ops, Shape.logical_numel(Shape.dimensions(shape))) == values : List<&2, F32>},
+  -P: Core.Dynamic & Result<&2, &1, Reduce.Error, Core.Dynamic> -> Type,
+  h: Laws.ReducedWith(target, shape, plan, fill, values, False{}, P)) ->
+  @-fits: {Lifecycle.logical_length(Replayed.storage(shape, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat} ->
+    P(SumToSize.decided(shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}, target, False{})):
+  +count = Shape.logical_numel(Shape.dimensions(shape))
+  +left = ReduceTo.plan_left(target, shape, plan, planned)
+  +room = ReduceTo.contribution_room(shape, plan, same)
+  +history = ReduceTo.history(plan, target, shape, fill, ops, count)
+  ReduceTo.run_lift(target, shape, plan, planned, same, fill, ops, P,
+    input_fits => output_fits =>
+      h(List.append(&2, StorageLaws.Op, ops, ReduceTo.reads(plan, count)),
+        Equal.trans(List<&2, F32>, Contracts.words(shape, fill, List.append(&2, StorageLaws.Op, ops, ReduceTo.reads(plan, count)), count),
+          Contracts.words(shape, fill, ops, count), values,
+          Words.words_reads(~Shape.BroadcastPlan, ~Cells.contribution_offset, plan, count, shape, fill, ops, count), words),
+        input_fits, target, {==}, 0.0, history,
+        index => inside =>
+          Equal.trans(Maybe<&2, F32>, Some{Replayed.value(target, 0.0, history, index)},
+            Some{ReduceTo.total(plan, shape, fill, ops, index, count)},
+            ReduceLaws.fiber(plan, values, index, count),
+            Equal.cong(F32, Maybe<&2, F32>, value => Some{value}, Replayed.value(target, 0.0, history, index),
+              ReduceTo.total(plan, shape, fill, ops, index, count),
+              ReduceTo.history_value(plan, target, shape, fill, ops, left, count, room, index)),
+            %words : {Some{ReduceTo.total(plan, shape, fill, ops, index, count)} == ReduceLaws.fiber(plan, _, index, count) : Maybe<&2, F32>}
+            ReduceTo.fiber_equation(target, shape, plan, planned, same, fill, ops, index)),
+        output_fits))
+
+def replayed_decided(+target: Shape.Shape, +shape: Shape.Shape, +plan: Shape.BroadcastPlan,
+  +planned: {Shape.broadcast_checked(target, shape) == Done{plan} : Result<&2, &2, Shape.Error, Shape.BroadcastPlan>},
+  +same: {Shape.dimensions(Shape.output_shape(plan)) == Shape.dimensions(shape) : List<&2, U32>},
+  +fill: F32, +ops: List<&2, StorageLaws.Op>, +values: List<&2, F32>,
+  +words: {Contracts.words(shape, fill, ops, Shape.logical_numel(Shape.dimensions(shape))) == values : List<&2, F32>},
+  -P: Core.Dynamic & Result<&2, &1, Reduce.Error, Core.Dynamic> -> Type,
+  decision: Shape.BoolCase<Layout.words_same(Shape.dimensions(shape), Shape.dimensions(target))>) ->
+  Laws.ReducedWith(target, shape, plan, fill, values, Layout.words_same(Shape.dimensions(shape), Shape.dimensions(target)), P) ->
+  @-fits: {Lifecycle.logical_length(Replayed.storage(shape, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat} ->
+    P(SumToSize.decided(shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}, target,
+      Layout.words_same(Shape.dimensions(shape), Shape.dimensions(target)))):
+  match decision:
+    case Shape.BTrue{+equal}:
+      %equal : (Laws.ReducedWith(target, shape, plan, fill, values, _, P) ->
+        @-fits: {Lifecycle.logical_length(Replayed.storage(shape, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat} ->
+          P(SumToSize.decided(shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}, target, _)))
+      h => replayed_clone(target, shape, plan, fill, ops, values, words, P, equal, h)
+    case Shape.BFalse{equal}:
+      %equal : (Laws.ReducedWith(target, shape, plan, fill, values, _, P) ->
+        @-fits: {Lifecycle.logical_length(Replayed.storage(shape, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat} ->
+          P(SumToSize.decided(shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}, target, _)))
+      h => replayed_fiber(target, shape, plan, planned, same, fill, ops, values, words, P, h)
+
+def Laws.sum_to_size_replayed(target, shape, plan, planned, same, fill, ops, fits, values, words, P, h):
+  replayed_decided(target, shape, plan, planned, same, fill, ops, values, words, P,
+    Shape.bool_case(Layout.words_same(Shape.dimensions(shape), Shape.dimensions(target))))(h)(fits)
