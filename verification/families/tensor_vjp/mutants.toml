@@ -117,6 +117,13 @@ after = '''
 [cross-entropy-vjp-drops-softmax]
 file = "src/autograd/tensor-backward.bend"
 before = '''
-  entropy_second(a, input, product_reduced(a, input, first), onehot, Elementwise.binary(Elementwise.SoftmaxGrad{count}, g, lp))'''
+  entropy_second(a, input, product_reduced(a, input, first), onehot, Elementwise.binary(Elementwise.SoftmaxGrad{count, single}, g, lp))'''
 after = '''
   entropy_second(a, input, product_reduced(a, input, first), onehot, Elementwise.binary(Elementwise.OneHotGrad{count}, g, lp))'''
+
+[cross-entropy-vjp-ignores-one-class]
+file = "src/autograd/tensor-backward.bend"
+before = '''
+      entropy_first(a, input, Loss.count_f32(Loss.rows(input)), Loss.one_class(input), lp,'''
+after = '''
+      entropy_first(a, input, Loss.count_f32(Loss.rows(input)), False{}, lp,'''
