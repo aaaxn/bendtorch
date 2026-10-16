@@ -20,6 +20,7 @@ import ./elementwise.bend as Elementwise
 import ./elementwise-totality.bend as Totality
 import ./word-conversion.bend as WordConversion
 import ./parallel-proof.bend as Generic
+import ./elementwise-walk-proof.bend as WalkProof
 
 # Proofs that the parallel elementwise build writes, at every output index,
 # the value `Elementwise.expected` names there.
@@ -150,6 +151,11 @@ def cell_of(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +posi
 def cell_out(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +dl: Nat, +dr: Nat, A: Array<F32>, B: Array<F32>, +position: Nat,
   -left_valid: Model.Balanced(F32, dl, A), -right_valid: Model.Balanced(F32, dr, B)) ->
   Fact<CellOut(operation, plan, dl, dr, A, B, position, cell_of(operation, plan, position, A, B, True{}))>:
+  %Equal.sym(F32 & (Array<F32> & Array<F32>), cell_of(operation, plan, position, A, B, True{}),
+    Elementwise.cell(operation, Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)),
+      Shape.extents(Shape.output_shape(plan)), Shape.index_map(plan), position, A, B, True{}),
+    WalkProof.cell_at_walk(operation, plan, position, A, B, True{})) :
+    Fact<CellOut(operation, plan, dl, dr, A, B, position, _)>
   left_out(operation, plan, dl, dr, A, B, position, Array.get(F32, A, left_at(plan, position)), {==}, left_valid, right_valid)
 
 # Every cell hands both input arrays back.
@@ -158,7 +164,13 @@ def cell_keeps(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +d
   Fact<{Pair.snd(F32, Array<F32> & Array<F32>, cell_of(operation, plan, position, A, B, inside)) == (A, B) : Array<F32> & Array<F32>}>:
   match inside:
     case False{}:
-      Fact{{==}}
+      Fact{
+        %Equal.sym(F32 & (Array<F32> & Array<F32>), cell_of(operation, plan, position, A, B, False{}),
+          Elementwise.cell(operation, Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)),
+            Shape.extents(Shape.output_shape(plan)), Shape.index_map(plan), position, A, B, False{}),
+          WalkProof.cell_at_walk(operation, plan, position, A, B, False{})) :
+          {Pair.snd(F32, Array<F32> & Array<F32>, _) == (A, B) : Array<F32> & Array<F32>}
+        {==}}
     case True{}:
       Fact{Pair.fst({Pair.snd(F32, Array<F32> & Array<F32>, cell_of(operation, plan, position, A, B, True{})) == (A, B) : Array<F32> & Array<F32>},
         {Some{Pair.fst(F32, Array<F32> & Array<F32>, cell_of(operation, plan, position, A, B, True{}))} == want(operation, plan, dl, dr, A, B, position) : Maybe<&2, F32>},
