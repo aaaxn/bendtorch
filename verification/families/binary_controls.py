@@ -79,7 +79,7 @@ FAMILY = controls.Family(
     sites={
         "high-fork-reuses-base": Site(
             "tree_eq",
-            "count, Nat.add(Model.capacity(inner), base), (l, r))",
+            "Model.capacity(below)), base), (l, r))",
             f"{BUILD}.tree_eq",
             ("parallel.upper",),
         ),
