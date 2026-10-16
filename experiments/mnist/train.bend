@@ -89,12 +89,39 @@ def closed(pair: File & List<&2, U32>) -> IO(List<&2, U32>):
     File.close(f)
     return bytes
 
-# `size` bytes at offset in the file at path.
-def bytes_at(path: String, offset: U32, size: U32) -> IO(List<&2, U32>):
+def exact_if(ok: Bool, +path: String, bytes: List<&2, U32>) -> IO(List<&2, U32>):
+  match ok:
+    case True{}:
+      IO.pure(List<&2, U32>, bytes)
+    case False{}:
+      IO.die(List<&2, U32>, 4, "short read: " ++ path)
+
+# The bytes, if there are `size` of them; else the program stops with exit
+# code 4, since File.read_at hands back the bytes the file has.
+def exact(+path: String, +size: U32, +bytes: List<&2, U32>) -> IO(List<&2, U32>):
+  exact_if(Nat.is_eq(List.length(&2, U32, bytes), U32.to_nat(size)), path, bytes)
+
+# Exactly `size` bytes at offset in the file at path.
+def bytes_at(+path: String, offset: U32, +size: U32) -> IO(List<&2, U32>):
   do IO<List<&2, U32>>:
     f : File <- IO.try(File, File.open(path, "r"))
     pair : File & List<&2, U32> <- read_at(f, offset, size)
-    closed(pair)
+    bytes : List<&2, U32> <- closed(pair)
+    exact(path, size, bytes)
+
+def sized(m: File & Result<&1, &1, U32 & String, U32>) -> IO(U32):
+  (f, r) = m
+  do IO<U32>:
+    n : U32 <- IO.pass(U32, r)
+    File.close(f)
+    return n
+
+# The number of bytes in the file at path.
+def file_size(+path: String) -> IO(U32):
+  do IO<U32>:
+    f : File <- IO.try(File, File.open(path, "r"))
+    m : File & Result<&1, &1, U32 & String, U32> <- File.size(f)
+    sized(m)
 
 # The records of `size` bytes at base + index * size for each index, in order.
 def rows_at(+path: String, +base: U32, +size: U32, indices: List<&2, U32>) -> IO(List<&2, U32>):
@@ -462,6 +489,17 @@ def counted_pair(images: Maybe<&2, U32>, labels: Maybe<&2, U32>) -> Maybe<&2, U3
     case images labels:
       None{}
 
+# The count, if the files hold the header and `count` records and nothing
+# else: 784 bytes an image, one byte a label. The count is below 5000000, so
+# the sizes fit a U32.
+def fitted(+image_size: U32, +label_size: U32, count: Maybe<&2, U32>) -> Maybe<&2, U32>:
+  match count:
+    case None{}:
+      None{}
+    case Some{+n}:
+      Bool.pick(Maybe<&2, U32>, Bool.and(U32.is_lt(n, 5000000), Bool.and(U32.is_eq(image_size, (16 + (n * 784) : U32)),
+        U32.is_eq(label_size, (8 + n : U32)))), Some{n}, None{})
+
 def needed(+path: String, count: Maybe<&2, U32>) -> IO(U32):
   match count:
     case None{}:
@@ -469,12 +507,17 @@ def needed(+path: String, count: Maybe<&2, U32>) -> IO(U32):
     case Some{n}:
       IO.pure(U32, n)
 
-# The number of examples of an MNIST image file and its label file.
+# The number of examples of an MNIST image file and its label file. A
+# header that is not MNIST's, counts that differ, or a file shorter or longer
+# than its header says stops the program with exit code 4 before it trains.
 def examples(+dir: String, +images: String, +labels: String) -> IO(U32):
   do IO<U32>:
+    image_size : U32 <- file_size(dir ++ "/" ++ images)
+    label_size : U32 <- file_size(dir ++ "/" ++ labels)
     head : List<&2, U32> <- bytes_at(dir ++ "/" ++ images, 0, 16)
     tail : List<&2, U32> <- bytes_at(dir ++ "/" ++ labels, 0, 8)
-    needed(dir ++ "/" ++ images, counted_pair(images_count(be_u32s(head)), labels_count(be_u32s(tail))))
+    needed(dir ++ "/" ++ images,
+      fitted(image_size, label_size, counted_pair(images_count(be_u32s(head)), labels_count(be_u32s(tail)))))
 
 def dumped(words: Bool, params: Params) -> IO(Unit):
   match words:

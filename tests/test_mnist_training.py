@@ -7,7 +7,10 @@ in tools/autograd_tensor_backward.py, which runs the same tape operations:
 the loss of each step, the test count and every trained parameter word. The
 test labels are the reference's own predictions, every third one moved to
 another class, so the count is 8 of 12 only when every row's argmax is right.
-The output must be the same at one thread and at several.
+The output must be the same at one thread and at several. A data file
+that is not MNIST's, or that is shorter or longer than its header says, and
+a short parameter file must stop the program with exit code 4 before it
+prints anything.
 """
 
 import struct
@@ -232,6 +235,42 @@ class MnistTrainingTests(unittest.TestCase):
                 bytes([*self.truth, 0]),
             )
             refused = self.train(wrong, 1)
+        self.assertEqual(refused.returncode, 4)
+        self.assertEqual(refused.stdout, "")
+
+    def test_a_file_shorter_or_longer_than_its_header_is_refused(self):
+        # The header keeps its count; the payload loses or gains bytes.
+        for name, size in (
+            ("t10k-labels-idx1-ubyte", 8),
+            ("t10k-labels-idx1-ubyte", 8 + TEST - 1),
+            ("t10k-images-idx3-ubyte", 16 + 784 * TEST - 1),
+            ("train-images-idx3-ubyte", 16 + 784 * (TRAIN - 1)),
+            ("train-labels-idx1-ubyte", 8 + TRAIN + 1),
+        ):
+            with (
+                self.subTest(name=name, size=size),
+                tempfile.TemporaryDirectory(prefix="mnist-short-") as directory,
+            ):
+                cut = Path(directory)
+                for path in self.data.iterdir():
+                    (cut / path.name).write_bytes(path.read_bytes())
+                data = (cut / name).read_bytes()
+                (cut / name).write_bytes((data + bytes(1))[:size])
+                refused = self.train(cut, 1)
+                self.assertEqual(refused.returncode, 4)
+                self.assertEqual(refused.stdout, "")
+
+    def test_a_short_parameter_file_is_refused(self):
+        with tempfile.TemporaryDirectory(prefix="mnist-short-") as directory:
+            short = Path(directory) / "init.bin"
+            short.write_bytes(self.init.read_bytes()[:-4])
+            arguments = [str(self.data), str(short), str(self.order)]
+            arguments += [str(BATCH), str(STEPS), LR]
+            refused = subprocess.run(
+                native(self.binary, *arguments, threads=1),
+                capture_output=True,
+                text=True,
+            )
         self.assertEqual(refused.returncode, 4)
         self.assertEqual(refused.stdout, "")
 
