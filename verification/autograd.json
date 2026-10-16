@@ -100,6 +100,7 @@
     "sgd_2d_LAWS.sgd_no_params",
     "sgd_2d_LAWS.sgd_params_in_order",
     "sgd_2d_LAWS.sgd_refusal_reads_target",
+    "sgd_2d_LAWS.sgd_only_leaves_accepted",
     "sgd_2d_LAWS.sgd_refusal_unknown",
     "sgd_2d_LAWS.sgd_step_refused",
     "sgd_2d_LAWS.sgd_step_accepted"

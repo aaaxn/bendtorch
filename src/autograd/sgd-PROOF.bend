@@ -46,6 +46,25 @@ def Laws.sgd_update_reaches_target(lr, newer, entry, rest, older, fits):
         Laws.newer_kept(tail, Sgd.placed(rest, Sgd.descend(lr, entry))),
         Laws.sgd_update_reaches_target(lr, tail, entry, rest, older, fits))
 
+def Laws.sgd_only_leaves_accepted(node):
+  match node:
+    case Backward.Leaf{}:
+      {==}
+    case Backward.Add{a, b, left, right}:
+      {==}
+    case Backward.Sub{a, b, left, right}:
+      {==}
+    case Backward.Mul{a, b, left, right}:
+      {==}
+    case Backward.Sum{a, input}:
+      {==}
+    case Backward.Matmul{a, b, left, right}:
+      {==}
+    case Backward.MatmulNT{a, b, left, right}:
+      {==}
+    case Backward.Relu{a, input}:
+      {==}
+
 def Laws.sgd_no_params(lr, count, entries):
   {==}
 

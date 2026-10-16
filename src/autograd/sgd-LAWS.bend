@@ -135,6 +135,19 @@ law sgd_refusal_reads_target:
       older, Backward.at_head(1n+Nat.add(older, List.length(&2, Backward.Node, newer)), older)) ==
     Sgd.leaf_refusal(node) : Maybe<&2, Sgd.Error>}
 
+# What a parameter's node allows: a node with no operands, a leaf, is
+# accepted; a node with operands is refused with NotLeaf.
+def operand_refusal(targets: List<&2, Nat>) -> Maybe<&2, Sgd.Error>:
+  match targets:
+    case Nil{}:
+      None{}
+    case Con{target, rest}:
+      Some{Sgd.NotLeaf{}}
+
+law sgd_only_leaves_accepted:
+  for node: Backward.Node
+  {Sgd.leaf_refusal(node) == operand_refusal(TensorBackward.targets(node)) : Maybe<&2, Sgd.Error>}
+
 # An id the tape does not hold, the number of its nodes or more, is refused
 # with UnknownNode.
 law sgd_refusal_unknown:
