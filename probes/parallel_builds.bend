@@ -122,7 +122,7 @@ def product_inputs(+name: String, +rows: U32, +inner: U32, +columns: U32, +depth
   c: Result<&2, &1, Core.Error, Core.Dynamic>, d: Result<&2, &1, Core.Error, Core.Dynamic>) -> IO(Unit):
   match a b c d:
     case Done{a} Done{b} Done{c} Done{d}:
-      report(name, Matrix.splits(depth, U32.to_nat(inner)), Nat.mul(U32.to_nat(rows), U32.to_nat(columns)),
+      report(name, Matrix.product_splits(depth, U32.to_nat(inner)), Nat.mul(U32.to_nat(rows), U32.to_nat(columns)),
         public(Matrix.matmul(a, b)), sequential(c, d))
     case _ _ _ _:
       IO.print(name ++ " inputs failed")

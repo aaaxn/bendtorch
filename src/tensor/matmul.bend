@@ -247,26 +247,32 @@ def left_index(+inner: Nat, +row: Nat, +k: Nat) -> U32:
 def right_index(+columns: Nat, +column: Nat, +k: Nat) -> U32:
   U32.from_nat(Nat.add(Nat.mul(k, columns), column))
 
-def term_right(rec: F32 -> Array<F32> -> Array<F32> -> F32 & (Array<F32> & Array<F32>), accumulator: F32, x: F32,
-  la: Array<F32>, pair: Array<F32> & F32) -> F32 & (Array<F32> & Array<F32>):
-  (ra, y) = pair
-  rec(F32.add(accumulator, F32.mul(x, y)), la, ra)
-
-def term_left(rec: F32 -> Array<F32> -> Array<F32> -> F32 & (Array<F32> & Array<F32>), accumulator: F32, ra: Array<F32>,
-  +right_at: U32, pair: Array<F32> & F32) -> F32 & (Array<F32> & Array<F32>):
-  (la, x) = pair
-  term_right(rec, accumulator, x, la, Array.get(F32, ra, right_at))
+# The fuel + 1 terms of a cell from the one whose words sit at offsets `lp`
+# and `rp`, added to `accumulator`; `left` and `right` are their reads,
+# already made, and each later term sits `ls` and `rs` further on. Each step
+# reads the next term's words, so the loop is one tail call with no closure
+# and one addition per offset: it compiles to a flat loop.
+def product_run(fuel: Nat, +ls: Nat, +rs: Nat, +lp: Nat, +rp: Nat, accumulator: F32,
+  left: Array<F32> & F32, right: Array<F32> & F32) -> F32 & (Array<F32> & Array<F32>):
+  match fuel left right:
+    case 0n Tuple{la, x} Tuple{ra, y}:
+      (F32.add(accumulator, F32.mul(x, y)), (la, ra))
+    case 1n+rest Tuple{la, x} Tuple{ra, y}:
+      product_run(rest, ls, rs, Nat.add(ls, lp), Nat.add(rs, rp), F32.add(accumulator, F32.mul(x, y)),
+        Array.get(F32, la, U32.from_nat(Nat.add(ls, lp))), Array.get(F32, ra, U32.from_nat(Nat.add(rs, rp))))
 
 # The terms k = cursor .. cursor + fuel - 1 of cell (row, column), added to
-# `accumulator`. Both arrays come back with the total.
+# `accumulator`. Both arrays come back with the total: the run from term
+# cursor, where term k + 1 sits one word on in the left row and `columns`
+# words on in the right column.
 def cell_dot(fuel: Nat, +inner: Nat, +columns: Nat, +row: Nat, +column: Nat, +cursor: Nat, accumulator: F32,
   la: Array<F32>, ra: Array<F32>) -> F32 & (Array<F32> & Array<F32>):
   match fuel:
     case 0n:
       (accumulator, (la, ra))
     case 1n+rest:
-      term_left(value => l => r => cell_dot(rest, inner, columns, row, column, 1n+cursor, value, l, r),
-        accumulator, ra, right_index(columns, column, cursor), Array.get(F32, la, left_index(inner, row, cursor)))
+      product_run(rest, 1n, columns, Nat.add(Nat.mul(row, inner), cursor), Nat.add(Nat.mul(cursor, columns), column), accumulator,
+        Array.get(F32, la, left_index(inner, row, cursor)), Array.get(F32, ra, right_index(columns, column, cursor)))
 
 # Cell `position`: all `inner` terms, from +0.0.
 def dot_of(+inner: Nat, +columns: Nat, +position: Nat, la: Array<F32>, ra: Array<F32>) -> F32 & (Array<F32> & Array<F32>):
@@ -336,6 +342,15 @@ def at_most(+a: Nat, +b: Nat) -> Nat:
 def splits(+depth: Nat, +inner: Nat) -> Nat:
   at_most(at_most(Nat.sub(Nat.add(depth, halvings(inner, inner)), 13n), 6n), depth)
 
+# A product forks as `splits` says, but at most four levels, sixteen
+# subtrees: each fork copies both operands into each half, and with a row
+# of eight cells running as one loop a subtree's work no longer hides its
+# copies. On medusa2 four levels ran fastest at 8 threads for the products
+# of an MNIST step and for 256 x 256 x 256 (the MNIST step 15.2 ms against
+# 17.5 at six levels) and at one thread (20.1 ms against 21.6).
+def product_splits(+depth: Nat, +inner: Nat) -> Nat:
+  at_most(splits(depth, inner), 4n)
+
 # The parallel build returns a balanced tree of its depth, whatever the split.
 def build_balanced(+depth: Nat, +splits: Nat, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat,
   la: Array<F32>, ra: Array<F32>) -> Model.Balanced(F32, depth, build(depth, splits, inner, columns, count, base, la, ra)):
@@ -351,8 +366,8 @@ def parallel_output(+output: Shape.Shape, +inner: Nat, +columns: Nat, +depth: Na
   (kept_left, la) = left
   (kept_right, ra) = right
   Done{(kept_left, kept_right, Core.pack(output, Core.TTensor{Storage.Owned{depth, length,
-    build(depth, splits(depth, inner), inner, columns, length, 0n, la, ra),
-    build_balanced(depth, splits(depth, inner), inner, columns, length, 0n, la, ra),
+    build(depth, product_splits(depth, inner), inner, columns, length, 0n, la, ra),
+    build_balanced(depth, product_splits(depth, inner), inner, columns, length, 0n, la, ra),
     valid}, exact}))}
 
 def parallel_allocated(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape, +inner: Nat, +columns: Nat,
@@ -426,20 +441,6 @@ def stride(+order: Order, +outers: Nat) -> Nat:
     case Swapped{}:
       outers
 
-# The fuel + 1 terms of a cell from the one whose words sit at offsets `lp`
-# and `rp`, added to `accumulator`; `left` and `right` are their reads,
-# already made, and each later term sits `ls` and `rs` further on. Each step
-# reads the next term's words, so the loop is one tail call with no closure
-# and one addition per offset: it compiles to a flat loop.
-def product_run(fuel: Nat, +ls: Nat, +rs: Nat, +lp: Nat, +rp: Nat, accumulator: F32,
-  left: Array<F32> & F32, right: Array<F32> & F32) -> F32 & (Array<F32> & Array<F32>):
-  match fuel left right:
-    case 0n Tuple{la, x} Tuple{ra, y}:
-      (F32.add(accumulator, F32.mul(x, y)), (la, ra))
-    case 1n+rest Tuple{la, x} Tuple{ra, y}:
-      product_run(rest, ls, rs, Nat.add(ls, lp), Nat.add(rs, rp), F32.add(accumulator, F32.mul(x, y)),
-        Array.get(F32, la, U32.from_nat(Nat.add(ls, lp))), Array.get(F32, ra, U32.from_nat(Nat.add(rs, rp))))
-
 # The terms k = cursor .. cursor + fuel - 1 of cell (row, column) of a
 # rows x columns product, added to `accumulator`: the run from term cursor,
 # whose offsets step by each operand's stride.
@@ -479,16 +480,240 @@ def product_cell_at(+layout: Layout, +position: Nat, inputs: Array<F32> & Array<
   (la, ra) = inputs
   product_cell(lo, ro, inner, rows, columns, position, la, ra, inside)
 
+# Products fill their cells as `Parallel.build` does, with one change: a
+# subtree of eight cells that lie below the count and in one output row runs
+# as one loop, `row_run`, with eight accumulators. Term k reads the left
+# word of the row once and the eight right words of the cells, and adds each
+# product to its own cell's accumulator, so every cell still adds its terms
+# in increasing k from +0.0 and gets the word `product_dot` computes. The
+# eight chains of additions are independent, so a core runs them side by
+# side, where one cell's chain waits for each addition before the next.
+type Eight is Data:
+  Eight{w0: F32, w1: F32, w2: F32, w3: F32, w4: F32, w5: F32, w6: F32, w7: F32}
+
+# The eight words at offsets o0 .. o7, read in that order.
+def eight_read_8(+x0: F32, +x1: F32, +x2: F32, +x3: F32, +x4: F32, +x5: F32, +x6: F32, pair: Array<F32> & F32) -> Array<F32> & Eight:
+  match pair:
+    case Tuple{a, +x7}:
+      (a, Eight{x0, x1, x2, x3, x4, x5, x6, x7})
+
+def eight_read_7(+x0: F32, +x1: F32, +x2: F32, +x3: F32, +x4: F32, +x5: F32, pair: Array<F32> & F32, +o7: Nat) -> Array<F32> & Eight:
+  match pair:
+    case Tuple{a, +x6}:
+      eight_read_8(x0, x1, x2, x3, x4, x5, x6, Array.get(F32, a, U32.from_nat(o7)))
+
+def eight_read_6(+x0: F32, +x1: F32, +x2: F32, +x3: F32, +x4: F32, pair: Array<F32> & F32, +o6: Nat, +o7: Nat) -> Array<F32> & Eight:
+  match pair:
+    case Tuple{a, +x5}:
+      eight_read_7(x0, x1, x2, x3, x4, x5, Array.get(F32, a, U32.from_nat(o6)), o7)
+
+def eight_read_5(+x0: F32, +x1: F32, +x2: F32, +x3: F32, pair: Array<F32> & F32, +o5: Nat, +o6: Nat, +o7: Nat) -> Array<F32> & Eight:
+  match pair:
+    case Tuple{a, +x4}:
+      eight_read_6(x0, x1, x2, x3, x4, Array.get(F32, a, U32.from_nat(o5)), o6, o7)
+
+def eight_read_4(+x0: F32, +x1: F32, +x2: F32, pair: Array<F32> & F32, +o4: Nat, +o5: Nat, +o6: Nat, +o7: Nat) -> Array<F32> & Eight:
+  match pair:
+    case Tuple{a, +x3}:
+      eight_read_5(x0, x1, x2, x3, Array.get(F32, a, U32.from_nat(o4)), o5, o6, o7)
+
+def eight_read_3(+x0: F32, +x1: F32, pair: Array<F32> & F32, +o3: Nat, +o4: Nat, +o5: Nat, +o6: Nat, +o7: Nat) -> Array<F32> & Eight:
+  match pair:
+    case Tuple{a, +x2}:
+      eight_read_4(x0, x1, x2, Array.get(F32, a, U32.from_nat(o3)), o4, o5, o6, o7)
+
+def eight_read_2(+x0: F32, pair: Array<F32> & F32, +o2: Nat, +o3: Nat, +o4: Nat, +o5: Nat, +o6: Nat, +o7: Nat) -> Array<F32> & Eight:
+  match pair:
+    case Tuple{a, +x1}:
+      eight_read_3(x0, x1, Array.get(F32, a, U32.from_nat(o2)), o3, o4, o5, o6, o7)
+
+def eight_read_1(pair: Array<F32> & F32, +o1: Nat, +o2: Nat, +o3: Nat, +o4: Nat, +o5: Nat, +o6: Nat, +o7: Nat) -> Array<F32> & Eight:
+  match pair:
+    case Tuple{a, +x0}:
+      eight_read_2(x0, Array.get(F32, a, U32.from_nat(o1)), o2, o3, o4, o5, o6, o7)
+
+def read_eight(a: Array<F32>, +o0: Nat, +o1: Nat, +o2: Nat, +o3: Nat, +o4: Nat, +o5: Nat, +o6: Nat, +o7: Nat) -> Array<F32> & Eight:
+  eight_read_1(Array.get(F32, a, U32.from_nat(o0)), o1, o2, o3, o4, o5, o6, o7)
+
+# Term k of the eight cells: the left word x times each right word.
+def eight_terms(+acc: Eight, +x: F32, +ys: Eight) -> Eight:
+  Eight{+a0, +a1, +a2, +a3, +a4, +a5, +a6, +a7} = acc
+  Eight{+y0, +y1, +y2, +y3, +y4, +y5, +y6, +y7} = ys
+  Eight{F32.add(a0, F32.mul(x, y0)), F32.add(a1, F32.mul(x, y1)), F32.add(a2, F32.mul(x, y2)), F32.add(a3, F32.mul(x, y3)), F32.add(a4, F32.mul(x, y4)), F32.add(a5, F32.mul(x, y5)), F32.add(a6, F32.mul(x, y6)), F32.add(a7, F32.mul(x, y7))}
+
+# The fuel + 1 terms of the eight cells from the one whose words sit at
+# offsets lp (left) and r0 .. r7 (right), read already, as `product_run`
+# runs one cell.
+def row_run(fuel: Nat, +ls: Nat, +rs: Nat, +lp: Nat, +r0: Nat, +r1: Nat, +r2: Nat, +r3: Nat, +r4: Nat, +r5: Nat, +r6: Nat, +r7: Nat, +acc: Eight,
+  left: Array<F32> & F32, right: Array<F32> & Eight) -> Eight & (Array<F32> & Array<F32>):
+  match fuel left right:
+    case 0n Tuple{la, +x} Tuple{ra, +ys}:
+      (eight_terms(acc, x, ys), (la, ra))
+    case 1n+rest Tuple{la, +x} Tuple{ra, +ys}:
+      row_run(rest, ls, rs, Nat.add(ls, lp), Nat.add(rs, r0), Nat.add(rs, r1), Nat.add(rs, r2), Nat.add(rs, r3), Nat.add(rs, r4), Nat.add(rs, r5), Nat.add(rs, r6), Nat.add(rs, r7), eight_terms(acc, x, ys),
+        Array.get(F32, la, U32.from_nat(Nat.add(ls, lp))), read_eight(ra, Nat.add(rs, r0), Nat.add(rs, r1), Nat.add(rs, r2), Nat.add(rs, r3), Nat.add(rs, r4), Nat.add(rs, r5), Nat.add(rs, r6), Nat.add(rs, r7)))
+
+# The eight words as the depth-3 tree `Parallel.tree` builds.
+def eight_leaves_of(+cells: Eight, state: Array<F32> & Array<F32>) -> Array<F32> & (Array<F32> & Array<F32>):
+  Eight{+w0, +w1, +w2, +w3, +w4, +w5, +w6, +w7} = cells
+  (ANode{ANode{ANode{ALeaf{w0}, ALeaf{w1}}, ANode{ALeaf{w2}, ALeaf{w3}}}, ANode{ANode{ALeaf{w4}, ALeaf{w5}}, ANode{ALeaf{w6}, ALeaf{w7}}}}, state)
+
+def eight_leaves(pair: Eight & (Array<F32> & Array<F32>)) -> Array<F32> & (Array<F32> & Array<F32>):
+  match pair:
+    case Tuple{+cells, state}:
+      eight_leaves_of(cells, state)
+
+# Cells base .. base + 7, all in the row of cell base, from fuel terms.
+def row_block_run(fuel: Nat, +lo: Order, +ro: Order, +inner: Nat, +rows: Nat, +columns: Nat, +base: Nat,
+  la: Array<F32>, ra: Array<F32>) -> Array<F32> & (Array<F32> & Array<F32>):
+  match fuel:
+    case 0n:
+      eight_leaves_of(Eight{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, (la, ra))
+    case 1n+rest:
+      eight_leaves(row_run(rest, stride(lo, rows), stride(ro, columns), read_offset(lo, inner, rows, row_of(columns, base), 0n),
+        read_offset(ro, inner, columns, column_of(columns, base), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(1n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(2n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(3n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(4n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(5n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(6n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(7n, base)), 0n),
+        Eight{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, Array.get(F32, la, U32.from_nat(read_offset(lo, inner, rows, row_of(columns, base), 0n))),
+        read_eight(ra, read_offset(ro, inner, columns, column_of(columns, base), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(1n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(2n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(3n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(4n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(5n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(6n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(7n, base)), 0n))))
+
+def row_block(+layout: Layout, +base: Nat, state: Array<F32> & Array<F32>) -> Array<F32> & (Array<F32> & Array<F32>):
+  Layout{+lo, +ro, +inner, +rows, +columns} = layout
+  (la, ra) = state
+  row_block_run(inner, lo, ro, inner, rows, columns, base, la, ra)
+
+# The eight cells from base lie below the count and in the row of cell base.
+def one_row(+layout: Layout, +count: Nat, +base: Nat) -> Bool:
+  Layout{+lo, +ro, +inner, +rows, +columns} = layout
+  Bool.and(Nat.is_lt(base, count), Bool.and(Nat.is_lt(Nat.add(1n, base), count), Bool.and(Nat.is_lt(Nat.add(2n, base), count), Bool.and(Nat.is_lt(Nat.add(3n, base), count), Bool.and(Nat.is_lt(Nat.add(4n, base), count), Bool.and(Nat.is_lt(Nat.add(5n, base), count), Bool.and(Nat.is_lt(Nat.add(6n, base), count), Bool.and(Nat.is_lt(Nat.add(7n, base), count), Bool.and(Nat.is_eq(row_of(columns, Nat.add(1n, base)), row_of(columns, base)), Bool.and(Nat.is_eq(row_of(columns, Nat.add(2n, base)), row_of(columns, base)), Bool.and(Nat.is_eq(row_of(columns, Nat.add(3n, base)), row_of(columns, base)), Bool.and(Nat.is_eq(row_of(columns, Nat.add(4n, base)), row_of(columns, base)), Bool.and(Nat.is_eq(row_of(columns, Nat.add(5n, base)), row_of(columns, base)), Bool.and(Nat.is_eq(row_of(columns, Nat.add(6n, base)), row_of(columns, base)), Bool.and(Nat.is_eq(row_of(columns, Nat.add(7n, base)), row_of(columns, base)), True{})))))))))))))))
+
+def block_or_tree(+layout: Layout, +count: Nat, +base: Nat, state: Array<F32> & Array<F32>, one: Bool) ->
+  Array<F32> & (Array<F32> & Array<F32>):
+  match one:
+    case False{}:
+      Parallel.tree(~Layout, ~Array<F32>, ~Array<F32>, ~product_cell_at, layout, 3n, count, base, state)
+    case True{}:
+      row_block(layout, base, state)
+
+# The cells base .. base + 2^depth on one thread: `Parallel.tree` with the
+# product cell, but each subtree of eight cells in one row is a row block.
+def product_tree(+layout: Layout, +depth: Nat, +count: Nat, +base: Nat, state: Array<F32> & Array<F32>) ->
+  Array<F32> & (Array<F32> & Array<F32>):
+  match depth:
+    case 0n:
+      Parallel.tree(~Layout, ~Array<F32>, ~Array<F32>, ~product_cell_at, layout, 0n, count, base, state)
+    case 1n+d1:
+      match d1:
+        case 0n:
+          Parallel.tree(~Layout, ~Array<F32>, ~Array<F32>, ~product_cell_at, layout, 1n, count, base, state)
+        case 1n+d2:
+          match d2:
+            case 0n:
+              Parallel.tree(~Layout, ~Array<F32>, ~Array<F32>, ~product_cell_at, layout, 2n, count, base, state)
+            case 1n+d3:
+              match d3:
+                case 0n:
+                  block_or_tree(layout, count, base, state, one_row(layout, count, base))
+                case 1n+d4:
+                  Parallel.node(~Array<F32>, ~Array<F32>, l => r => product_tree(layout, d1, count, Parallel.upper(d1, base), (l, r)),
+                    product_tree(layout, d1, count, base, state))
+
+# The parallel product build: the top `splits` levels fork as
+# `Parallel.build` forks, each half with its own copy of both inputs, and
+# each subtree below the forks is a `product_tree`.
 def product_build(+depth: Nat, +splits: Nat, +lo: Order, +ro: Order, +inner: Nat, +rows: Nat, +columns: Nat,
   +count: Nat, +base: Nat, la: Array<F32>, ra: Array<F32>) -> Array<F32>:
-  Parallel.build(~Layout, ~Layout, ~Array<F32>, ~Array<F32>, ~layout, ~Elementwise.split, ~product_cell_at,
-    Layout{lo, ro, inner, rows, columns}, depth, splits, count, base, (la, ra))
+  match depth splits:
+    case 1n+lower 1n+rest:
+      Parallel.fork(~Array<F32>, ~Array<F32>, Elementwise.split((la, ra)),
+        l => r => product_build(lower, rest, lo, ro, inner, rows, columns, count, base, l, r),
+        l => r => product_build(lower, rest, lo, ro, inner, rows, columns, count, Parallel.upper(lower, base), l, r))
+    case _ _:
+      Pair.fst(Array<F32>, Array<F32> & Array<F32>, product_tree(Layout{lo, ro, inner, rows, columns}, depth, count, base, (la, ra)))
+
+# The build is a balanced tree of its depth, whatever the split: the erased
+# certificate of the output storage.
+def eight_leaves_of_certified(+cells: Eight, state: Array<F32> & Array<F32>) ->
+  Parallel.Certified<(Array<F32> & Array<F32>), 3n, eight_leaves_of(cells, state)>:
+  Eight{+w0, +w1, +w2, +w3, +w4, +w5, +w6, +w7} = cells
+  Parallel.Certified{(ANode{ANode{ANode{ALeaf{w0}, ALeaf{w1}}, ANode{ALeaf{w2}, ALeaf{w3}}}, ANode{ANode{ALeaf{w4}, ALeaf{w5}}, ANode{ALeaf{w6}, ALeaf{w7}}}}, state),
+    {==}, (((Unit{}, Unit{}), (Unit{}, Unit{})), ((Unit{}, Unit{}), (Unit{}, Unit{})))}
+
+def eight_leaves_certified(pair: Eight & (Array<F32> & Array<F32>)) ->
+  Parallel.Certified<(Array<F32> & Array<F32>), 3n, eight_leaves(pair)>:
+  match pair:
+    case Tuple{+cells, state}:
+      eight_leaves_of_certified(cells, state)
+
+def row_block_run_certified(fuel: Nat, +lo: Order, +ro: Order, +inner: Nat, +rows: Nat, +columns: Nat, +base: Nat,
+  la: Array<F32>, ra: Array<F32>) ->
+  Parallel.Certified<(Array<F32> & Array<F32>), 3n, row_block_run(fuel, lo, ro, inner, rows, columns, base, la, ra)>:
+  match fuel:
+    case 0n:
+      eight_leaves_of_certified(Eight{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, (la, ra))
+    case 1n+rest:
+      eight_leaves_certified(row_run(rest, stride(lo, rows), stride(ro, columns), read_offset(lo, inner, rows, row_of(columns, base), 0n),
+        read_offset(ro, inner, columns, column_of(columns, base), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(1n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(2n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(3n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(4n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(5n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(6n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(7n, base)), 0n),
+        Eight{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}, Array.get(F32, la, U32.from_nat(read_offset(lo, inner, rows, row_of(columns, base), 0n))),
+        read_eight(ra, read_offset(ro, inner, columns, column_of(columns, base), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(1n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(2n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(3n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(4n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(5n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(6n, base)), 0n), read_offset(ro, inner, columns, column_of(columns, Nat.add(7n, base)), 0n))))
+
+def row_block_certified(+layout: Layout, +base: Nat, state: Array<F32> & Array<F32>) ->
+  Parallel.Certified<(Array<F32> & Array<F32>), 3n, row_block(layout, base, state)>:
+  Layout{+lo, +ro, +inner, +rows, +columns} = layout
+  (la, ra) = state
+  row_block_run_certified(inner, lo, ro, inner, rows, columns, base, la, ra)
+
+def block_or_tree_certified(+layout: Layout, +count: Nat, +base: Nat, state: Array<F32> & Array<F32>, one: Bool) ->
+  Parallel.Certified<(Array<F32> & Array<F32>), 3n, block_or_tree(layout, count, base, state, one)>:
+  match one:
+    case False{}:
+      Parallel.tree_certified(~Layout, ~Array<F32>, ~Array<F32>, ~product_cell_at, layout, 3n, count, base, state)
+    case True{}:
+      row_block_certified(layout, base, state)
+
+def product_tree_certified(+layout: Layout, +depth: Nat, +count: Nat, +base: Nat, state: Array<F32> & Array<F32>) ->
+  Parallel.Certified<(Array<F32> & Array<F32>), depth, product_tree(layout, depth, count, base, state)>:
+  match depth:
+    case 0n:
+      Parallel.tree_certified(~Layout, ~Array<F32>, ~Array<F32>, ~product_cell_at, layout, 0n, count, base, state)
+    case 1n+d1:
+      match d1:
+        case 0n:
+          Parallel.tree_certified(~Layout, ~Array<F32>, ~Array<F32>, ~product_cell_at, layout, 1n, count, base, state)
+        case 1n+d2:
+          match d2:
+            case 0n:
+              Parallel.tree_certified(~Layout, ~Array<F32>, ~Array<F32>, ~product_cell_at, layout, 2n, count, base, state)
+            case 1n+d3:
+              match d3:
+                case 0n:
+                  block_or_tree_certified(layout, count, base, state, one_row(layout, count, base))
+                case 1n+d4:
+                  Parallel.node_certified(~Array<F32>, ~Array<F32>, d1, l => r => product_tree(layout, d1, count, Parallel.upper(d1, base), (l, r)),
+                    product_tree(layout, d1, count, base, state), product_tree_certified(layout, d1, count, base, state),
+                    l => r => product_tree_certified(layout, d1, count, Parallel.upper(d1, base), (l, r)))
+
+def tree_balanced(+depth: Nat, -expected: Array<F32> & (Array<F32> & Array<F32>),
+  certified: Parallel.Certified<(Array<F32> & Array<F32>), depth, expected>) ->
+  Model.Balanced(F32, depth, Pair.fst(Array<F32>, Array<F32> & Array<F32>, expected)):
+  Parallel.Certified{result, same, balanced} = certified
+  %same : Model.Balanced(F32, depth, Pair.fst(Array<F32>, Array<F32> & Array<F32>, _))
+  balanced
 
 def product_build_balanced(+depth: Nat, +splits: Nat, +lo: Order, +ro: Order, +inner: Nat, +rows: Nat, +columns: Nat,
   +count: Nat, +base: Nat, la: Array<F32>, ra: Array<F32>) ->
   Model.Balanced(F32, depth, product_build(depth, splits, lo, ro, inner, rows, columns, count, base, la, ra)):
-  Parallel.balanced(~Layout, ~Layout, ~Array<F32>, ~Array<F32>, ~layout, ~Elementwise.split, ~product_cell_at,
-    Layout{lo, ro, inner, rows, columns}, depth, splits, count, base, (la, ra))
+  match depth splits:
+    case 1n+lower 1n+rest:
+      Parallel.fork_balanced(~Array<F32>, ~Array<F32>, lower, Elementwise.split((la, ra)),
+        l => r => product_build(lower, rest, lo, ro, inner, rows, columns, count, base, l, r),
+        l => r => product_build(lower, rest, lo, ro, inner, rows, columns, count, Parallel.upper(lower, base), l, r),
+        l => r => product_build_balanced(lower, rest, lo, ro, inner, rows, columns, count, base, l, r),
+        l => r => product_build_balanced(lower, rest, lo, ro, inner, rows, columns, count, Parallel.upper(lower, base), l, r))
+    case 0n _:
+      tree_balanced(0n, product_tree(Layout{lo, ro, inner, rows, columns}, 0n, count, base, (la, ra)),
+        product_tree_certified(Layout{lo, ro, inner, rows, columns}, 0n, count, base, (la, ra)))
+    case 1n+lower 0n:
+      tree_balanced(1n+lower, product_tree(Layout{lo, ro, inner, rows, columns}, 1n+lower, count, base, (la, ra)),
+        product_tree_certified(Layout{lo, ro, inner, rows, columns}, 1n+lower, count, base, (la, ra)))
 
 # The dimensions of an operand of `outer` rows (or columns) and `inner`
 # terms laid out in `order`.
@@ -587,8 +812,8 @@ def product_parallel_output(+lo: Order, +ro: Order, +output: Shape.Shape, +inner
   (kept_left, la) = left
   (kept_right, ra) = right
   Done{(kept_left, kept_right, Core.pack(output, Core.TTensor{Storage.Owned{depth, length,
-    product_build(depth, splits(depth, inner), lo, ro, inner, rows, columns, length, 0n, la, ra),
-    product_build_balanced(depth, splits(depth, inner), lo, ro, inner, rows, columns, length, 0n, la, ra),
+    product_build(depth, product_splits(depth, inner), lo, ro, inner, rows, columns, length, 0n, la, ra),
+    product_build_balanced(depth, product_splits(depth, inner), lo, ro, inner, rows, columns, length, 0n, la, ra),
     valid}, exact}))}
 
 def product_allocated(+lo: Order, +ro: Order, +left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape,

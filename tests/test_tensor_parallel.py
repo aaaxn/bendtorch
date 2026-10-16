@@ -12,6 +12,7 @@ from tools.tensor_parallel import (
     depth,
     expected_splits,
     matmul_splits,
+    product_splits,
 )
 
 
@@ -44,6 +45,17 @@ class ParallelProbeTests(unittest.TestCase):
         ):
             with self.subTest(cells=cells, inner=inner):
                 self.assertEqual(matmul_splits(depth(cells), inner), expected)
+
+    def test_product_splits_at_most_four(self):
+        for cells, inner, expected in (
+            (8192, 64, 4),
+            (7680, 40, 4),
+            (1024, 16, 1),
+            (8192, 784, 4),
+            (4, 3, 0),
+        ):
+            with self.subTest(cells=cells, inner=inner):
+                self.assertEqual(product_splits(depth(cells), inner), expected)
 
     def test_probe_builds_fork(self):
         self.assertTrue(any(expected_splits(name) for name in PRODUCTS))
@@ -89,7 +101,7 @@ class ParallelProbeTests(unittest.TestCase):
 
     def test_check_lines_rejects_a_differing_word(self):
         with self.assertRaises(GateError):
-            check_lines(probe_output(**{"matmul-128x64x64": (6, 1)}))
+            check_lines(probe_output(**{"matmul-128x64x64": (4, 1)}))
         with self.assertRaises(GateError):
             check_lines(probe_output(**{"reduce-256x64-to-256x1-rounding": (1, 3)}))
 
