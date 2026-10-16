@@ -332,3 +332,55 @@ law product_replayed:
   for h: ProductWith(lo, ro, left, right, plan, left_fill, left_ops, right_fill, right_ops, P)
   P(Matrix.product(lo, ro, Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
     Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}}))
+
+# `matmul_nt(x, W)` is the product of two `Kept` operands, x @ W^T: cell
+# (row, column) folds x[row, k] * W[column, k], the words of x at
+# row * inner + k and of W at column * inner + k, in increasing k from +0.0.
+law matmul_nt_ordered:
+  for +left: Shape.Shape
+  for +right: Shape.Shape
+  for +plan: Matrix.Product<Matrix.Kept{}, Matrix.Kept{}, left, right>
+  for planned: {Matrix.product_plan(Matrix.Kept{}, Matrix.Kept{}, left, right) == Done{plan} :
+    Result<&2, &2, Matrix.Error, Matrix.Product<Matrix.Kept{}, Matrix.Kept{}, left, right>>}
+  for +left_fill: F32
+  for +left_ops: List<&2, StorageLaws.Op>
+  for -left_fits: {Lifecycle.logical_length(Replayed.storage(left, left_fill, left_ops)) == Shape.logical_numel(Shape.dimensions(left)) : Nat}
+  for +right_fill: F32
+  for +right_ops: List<&2, StorageLaws.Op>
+  for -right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_ops)) == Shape.logical_numel(Shape.dimensions(right)) : Nat}
+  FoldRecords.MatmulContract<left, right, product_rows(Matrix.Kept{}, Matrix.Kept{}, left, right, plan),
+    product_columns(Matrix.Kept{}, Matrix.Kept{}, left, right, plan),
+    row => column => DotFold.dot_fold(product_factors(row, column, Matrix.Kept{}, Matrix.Kept{},
+      product_inner(Matrix.Kept{}, Matrix.Kept{}, left, right, plan), product_rows(Matrix.Kept{}, Matrix.Kept{}, left, right, plan),
+      product_columns(Matrix.Kept{}, Matrix.Kept{}, left, right, plan),
+      left, left_fill, left_ops, right, right_fill, right_ops, product_inner(Matrix.Kept{}, Matrix.Kept{}, left, right, plan)), 0.0),
+    other => Replayed.value(left, left_fill, left_ops, other),
+    other => Replayed.value(right, right_fill, right_ops, other),
+    Matrix.matmul_nt(Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
+      Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}})>
+
+# `matmul_tn(g, x)` is the product of two `Swapped` operands, g^T @ x: cell
+# (row, column) folds g[k, row] * x[k, column], the words of g at
+# k * rows + row and of x at k * columns + column, in increasing k from +0.0.
+law matmul_tn_ordered:
+  for +left: Shape.Shape
+  for +right: Shape.Shape
+  for +plan: Matrix.Product<Matrix.Swapped{}, Matrix.Swapped{}, left, right>
+  for planned: {Matrix.product_plan(Matrix.Swapped{}, Matrix.Swapped{}, left, right) == Done{plan} :
+    Result<&2, &2, Matrix.Error, Matrix.Product<Matrix.Swapped{}, Matrix.Swapped{}, left, right>>}
+  for +left_fill: F32
+  for +left_ops: List<&2, StorageLaws.Op>
+  for -left_fits: {Lifecycle.logical_length(Replayed.storage(left, left_fill, left_ops)) == Shape.logical_numel(Shape.dimensions(left)) : Nat}
+  for +right_fill: F32
+  for +right_ops: List<&2, StorageLaws.Op>
+  for -right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_ops)) == Shape.logical_numel(Shape.dimensions(right)) : Nat}
+  FoldRecords.MatmulContract<left, right, product_rows(Matrix.Swapped{}, Matrix.Swapped{}, left, right, plan),
+    product_columns(Matrix.Swapped{}, Matrix.Swapped{}, left, right, plan),
+    row => column => DotFold.dot_fold(product_factors(row, column, Matrix.Swapped{}, Matrix.Swapped{},
+      product_inner(Matrix.Swapped{}, Matrix.Swapped{}, left, right, plan), product_rows(Matrix.Swapped{}, Matrix.Swapped{}, left, right, plan),
+      product_columns(Matrix.Swapped{}, Matrix.Swapped{}, left, right, plan),
+      left, left_fill, left_ops, right, right_fill, right_ops, product_inner(Matrix.Swapped{}, Matrix.Swapped{}, left, right, plan)), 0.0),
+    other => Replayed.value(left, left_fill, left_ops, other),
+    other => Replayed.value(right, right_fill, right_ops, other),
+    Matrix.matmul_tn(Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
+      Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}})>
