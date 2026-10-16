@@ -10,6 +10,7 @@ import ./transpose-PROOF.bend as Transpose
 import ./transform-PROOF.bend as Transforms
 import ./reduction-PROOF.bend as Reduction
 import ./matmul-PROOF.bend as Matrix
+import ./parallel-PROOF.bend as Parallel
 import ./construction-contract-PROOF.bend as ConstructionContract
 import ./read-write-contract-PROOF.bend as ReadWriteContract
 import ./clone-metadata-contract-PROOF.bend as CloneMetadataContract
