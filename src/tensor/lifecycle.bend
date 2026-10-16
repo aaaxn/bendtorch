@@ -2,6 +2,7 @@ import Base
 import ../storage/main.bend as Storage
 import ../storage/model.bend as Model
 import ../storage/refinement.bend as Refinement
+import ../storage/route.bend as Route
 
 def logical_length(storage: Storage.Storage) -> Nat:
   match storage:
@@ -25,16 +26,6 @@ def finish_read_length(+d: Nat, +n: Nat, -original: Array<F32>, +i: U32,
   (array, value) = result
   {==}
 
-def read_index_length(+d: Nat, +n: Nat, array: Array<F32>, +i: U32, matched: Bool,
-  -decision: {matched == Storage.index_matches(d, n, i) : Bool},
-  -balanced: Model.Balanced(F32, d, array), -valid: {Storage.bounds(d, n) == True{} : Bool}) ->
-  {retained_read(Storage.read_index(d, n, array, i, matched, decision, balanced, valid)) == n : Nat}:
-  match matched:
-    case False{}:
-      {==}
-    case True{}:
-      finish_read_length(d, n, array, i, Array.get(F32, array, i), {==}, balanced, valid)
-
 def get_checked_length(+d: Nat, +n: Nat, array: Array<F32>, +i: U32, allowed: Bool,
   -decision: {allowed == Nat.is_lt(U32.to_nat(i), n) : Bool},
   -balanced: Model.Balanced(F32, d, array), -valid: {Storage.bounds(d, n) == True{} : Bool}) ->
@@ -43,7 +34,7 @@ def get_checked_length(+d: Nat, +n: Nat, array: Array<F32>, +i: U32, allowed: Bo
     case False{}:
       {==}
     case True{}:
-      read_index_length(d, n, array, i, Storage.index_matches(d, n, i), {==}, balanced, valid)
+      finish_read_length(d, n, array, i, Array.get(F32, array, i), {==}, balanced, valid)
 
 def get_length(storage: Storage.Storage, +i: U32) ->
   {retained_read(Storage.get(storage, i)) == logical_length(storage) : Nat}:
@@ -53,16 +44,6 @@ def get_length(storage: Storage.Storage, +i: U32) ->
     case Storage.Owned{+d, +n, array, balanced, valid}:
       get_checked_length(d, n, array, i, Nat.is_lt(U32.to_nat(i), n), {==}, balanced, valid)
 
-def write_index_length(+d: Nat, +n: Nat, array: Array<F32>, +i: U32, +value: F32, matched: Bool,
-  -decision: {matched == Storage.index_matches(d, n, i) : Bool},
-  -balanced: Model.Balanced(F32, d, array), -valid: {Storage.bounds(d, n) == True{} : Bool}) ->
-  {retained_write(Storage.write_index(d, n, array, i, value, matched, decision, balanced, valid)) == n : Nat}:
-  match matched:
-    case False{}:
-      {==}
-    case True{}:
-      {==}
-
 def set_checked_length(+d: Nat, +n: Nat, array: Array<F32>, +i: U32, +value: F32, allowed: Bool,
   -decision: {allowed == Nat.is_lt(U32.to_nat(i), n) : Bool},
   -balanced: Model.Balanced(F32, d, array), -valid: {Storage.bounds(d, n) == True{} : Bool}) ->
@@ -71,7 +52,7 @@ def set_checked_length(+d: Nat, +n: Nat, array: Array<F32>, +i: U32, +value: F32
     case False{}:
       {==}
     case True{}:
-      write_index_length(d, n, array, i, value, Storage.index_matches(d, n, i), {==}, balanced, valid)
+      {==}
 
 def set_length(storage: Storage.Storage, +i: U32, +value: F32) ->
   {retained_write(Storage.set(storage, i, value)) == logical_length(storage) : Nat}:
@@ -209,39 +190,11 @@ def finish_read_value(-depth: Nat, -length: Nat, -original: Array<F32>, -index: 
   (array, value) = pair
   {==}
 
-type ReadIndexModel<-depth: Nat, -length: Nat, -array: Array<F32>, -index: U32, -matched: Bool,
-  -decision: {matched == Storage.index_matches(depth, length, index) : Bool},
-  -balanced: Model.Balanced(F32, depth, array), -valid: {Storage.bounds(depth, length) == True{} : Bool}> is Data:
-  ReadIndexModel{-meaning: {read_value(Storage.read_index(depth, length, array, index, matched, decision, balanced, valid)) ==
-    observe_index(depth, length, array, index, matched) : Maybe<&2, F32>}}
-
-def read_index_model(+depth: Nat, +length: Nat, -array: Array<F32>, +index: U32, matched: Bool,
-  -decision: {matched == Storage.index_matches(depth, length, index) : Bool},
-  -balanced: Model.Balanced(F32, depth, array), -valid: {Storage.bounds(depth, length) == True{} : Bool}) ->
-  ReadIndexModel<depth, length, array, index, matched, decision, balanced, valid>:
-  match matched:
-    case False{}:
-      ReadIndexModel{{==}}
-    case True{}:
-      ReadIndexModel{Equal.trans(Maybe<&2, F32>,
-        read_value(Storage.finish_read(depth, length, array, index, Array.get(F32, array, index), {==}, balanced, valid)),
-        Some{Refinement.second(F32, Array.get(F32, array, index))}, Model.observe(F32, depth, array, Refinement.route(depth, index)),
-        finish_read_value(depth, length, array, index, Array.get(F32, array, index), {==}, balanced, valid),
-        Refinement.law_get_refines(F32, depth, array, index, balanced))}
-
 type ReadCheckedModel<-depth: Nat, -length: Nat, -array: Array<F32>, -index: U32, -allowed: Bool,
   -decision: {allowed == Nat.is_lt(U32.to_nat(index), length) : Bool},
   -balanced: Model.Balanced(F32, depth, array), -valid: {Storage.bounds(depth, length) == True{} : Bool}> is Data:
   ReadCheckedModel{-meaning: {read_value(Storage.get_checked(depth, length, array, index, allowed, decision, balanced, valid)) ==
     observe_allowed(depth, length, array, index, allowed) : Maybe<&2, F32>}}
-
-def read_index_checked(+depth: Nat, +length: Nat, -array: Array<F32>, +index: U32,
-  -decision: {True{} == Nat.is_lt(U32.to_nat(index), length) : Bool},
-  -balanced: Model.Balanced(F32, depth, array), -valid: {Storage.bounds(depth, length) == True{} : Bool},
-  certificate: ReadIndexModel<depth, length, array, index, Storage.index_matches(depth, length, index), {==}, balanced, valid>) ->
-  ReadCheckedModel<depth, length, array, index, True{}, decision, balanced, valid>:
-  ReadIndexModel{meaning} = certificate
-  ReadCheckedModel{meaning}
 
 def read_checked_model(+depth: Nat, +length: Nat, -array: Array<F32>, +index: U32, allowed: Bool,
   -decision: {allowed == Nat.is_lt(U32.to_nat(index), length) : Bool},
@@ -251,8 +204,16 @@ def read_checked_model(+depth: Nat, +length: Nat, -array: Array<F32>, +index: U3
     case False{}:
       ReadCheckedModel{{==}}
     case True{}:
-      read_index_checked(depth, length, array, index, decision, balanced, valid,
-        read_index_model(depth, length, array, index, Storage.index_matches(depth, length, index), {==}, balanced, valid))
+      ReadCheckedModel{
+        %Route.index_complete(depth, length, index, valid,
+          Equal.sym(Bool, True{}, Nat.is_lt(U32.to_nat(index), length), decision)) :
+          {read_value(Storage.finish_read(depth, length, array, index, Array.get(F32, array, index), {==}, balanced, valid)) ==
+            observe_index(depth, length, array, index, _) : Maybe<&2, F32>}
+        Equal.trans(Maybe<&2, F32>,
+          read_value(Storage.finish_read(depth, length, array, index, Array.get(F32, array, index), {==}, balanced, valid)),
+          Some{Refinement.second(F32, Array.get(F32, array, index))}, Model.observe(F32, depth, array, Refinement.route(depth, index)),
+          finish_read_value(depth, length, array, index, Array.get(F32, array, index), {==}, balanced, valid),
+          Refinement.law_get_refines(F32, depth, array, index, balanced))}
 
 type StorageReadModel<-original: Storage.Storage, -index: U32> is Data:
   StorageReadModel{-meaning: {read_value(Storage.get(original, index)) == checked_observe(original, index) : Maybe<&2, F32>}}
@@ -287,43 +248,12 @@ def finish_read_observe(+depth: Nat, +length: Nat, -original: Array<F32>, -index
   (array, value) = pair
   {==}
 
-type ReadIndexKeeps<-depth: Nat, -length: Nat, -array: Array<F32>, -index: U32, -matched: Bool,
-  -decision: {matched == Storage.index_matches(depth, length, index) : Bool},
-  -balanced: Model.Balanced(F32, depth, array), -valid: {Storage.bounds(depth, length) == True{} : Bool}> is Data:
-  ReadIndexKeeps{-kept: @+other: U32 ->
-    {retained_observe(Storage.read_index(depth, length, array, index, matched, decision, balanced, valid), other) ==
-      checked_observe_array(depth, length, array, other) : Maybe<&2, F32>}}
-
-def read_index_keeps(+depth: Nat, +length: Nat, -array: Array<F32>, +index: U32, matched: Bool,
-  -decision: {matched == Storage.index_matches(depth, length, index) : Bool},
-  -balanced: Model.Balanced(F32, depth, array), -valid: {Storage.bounds(depth, length) == True{} : Bool}) ->
-  ReadIndexKeeps<depth, length, array, index, matched, decision, balanced, valid>:
-  match matched:
-    case False{}:
-      ReadIndexKeeps{other => {==}}
-    case True{}:
-      ReadIndexKeeps{other => Equal.trans(Maybe<&2, F32>,
-        retained_observe(Storage.finish_read(depth, length, array, index, Array.get(F32, array, index), {==}, balanced, valid), other),
-        checked_observe_array(depth, length, Refinement.first(F32, Array.get(F32, array, index)), other),
-        checked_observe_array(depth, length, array, other),
-        finish_read_observe(depth, length, array, index, other, Array.get(F32, array, index), {==}, balanced, valid),
-        Equal.cong(Array<F32>, Maybe<&2, F32>, a => checked_observe_array(depth, length, a, other),
-          Refinement.first(F32, Array.get(F32, array, index)), array, Refinement.law_get_retains(F32, depth, array, index, balanced)))}
-
 type ReadCheckedKeeps<-depth: Nat, -length: Nat, -array: Array<F32>, -index: U32, -allowed: Bool,
   -decision: {allowed == Nat.is_lt(U32.to_nat(index), length) : Bool},
   -balanced: Model.Balanced(F32, depth, array), -valid: {Storage.bounds(depth, length) == True{} : Bool}> is Data:
   ReadCheckedKeeps{-kept: @+other: U32 ->
     {retained_observe(Storage.get_checked(depth, length, array, index, allowed, decision, balanced, valid), other) ==
       checked_observe_array(depth, length, array, other) : Maybe<&2, F32>}}
-
-def read_keeps_checked(+depth: Nat, +length: Nat, -array: Array<F32>, +index: U32,
-  -decision: {True{} == Nat.is_lt(U32.to_nat(index), length) : Bool},
-  -balanced: Model.Balanced(F32, depth, array), -valid: {Storage.bounds(depth, length) == True{} : Bool},
-  certificate: ReadIndexKeeps<depth, length, array, index, Storage.index_matches(depth, length, index), {==}, balanced, valid>) ->
-  ReadCheckedKeeps<depth, length, array, index, True{}, decision, balanced, valid>:
-  ReadIndexKeeps{kept} = certificate
-  ReadCheckedKeeps{kept}
 
 def read_checked_keeps(+depth: Nat, +length: Nat, -array: Array<F32>, +index: U32, allowed: Bool,
   -decision: {allowed == Nat.is_lt(U32.to_nat(index), length) : Bool},
@@ -333,8 +263,13 @@ def read_checked_keeps(+depth: Nat, +length: Nat, -array: Array<F32>, +index: U3
     case False{}:
       ReadCheckedKeeps{other => {==}}
     case True{}:
-      read_keeps_checked(depth, length, array, index, decision, balanced, valid,
-        read_index_keeps(depth, length, array, index, Storage.index_matches(depth, length, index), {==}, balanced, valid))
+      ReadCheckedKeeps{other => Equal.trans(Maybe<&2, F32>,
+        retained_observe(Storage.finish_read(depth, length, array, index, Array.get(F32, array, index), {==}, balanced, valid), other),
+        checked_observe_array(depth, length, Refinement.first(F32, Array.get(F32, array, index)), other),
+        checked_observe_array(depth, length, array, other),
+        finish_read_observe(depth, length, array, index, other, Array.get(F32, array, index), {==}, balanced, valid),
+        Equal.cong(Array<F32>, Maybe<&2, F32>, a => checked_observe_array(depth, length, a, other),
+          Refinement.first(F32, Array.get(F32, array, index)), array, Refinement.law_get_retains(F32, depth, array, index, balanced)))}
 
 type StorageReadKeeps<-original: Storage.Storage, -index: U32> is Data:
   StorageReadKeeps{-kept: @+other: U32 ->

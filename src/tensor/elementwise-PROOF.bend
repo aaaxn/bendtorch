@@ -56,40 +56,29 @@ def array_inspect(+depth: Nat, +length: Nat, property: Totality.Property, array:
 type InspectionModel<-left: Totality.Inspection, -right: Totality.Inspection> is Data:
   InspectionModel{-equal: {left == right : Totality.Inspection}}
 
-def read_index_inspect(+depth: Nat, +length: Nat, +index: U32, matched: Bool, +property: Totality.Property, array: Array<F32>,
-  -decision: {matched == Storage.index_matches(depth, length, index) : Bool},
+def read_hit_inspect(+depth: Nat, +length: Nat, +index: U32, +property: Totality.Property, array: Array<F32>,
   balanced: Model.Balanced(F32, depth, array), -valid: {Storage.bounds(depth, length) == True{} : Bool}) ->
-  InspectionModel<storage_inspect(property, read_owner(Storage.read_index(depth, length, array, index, matched, decision, balanced, valid))),
+  InspectionModel<storage_inspect(property, read_owner(Storage.finish_read(depth, length, array, index, Array.get(F32, array, index), {==}, balanced, valid))),
     array_inspect(depth, length, property, array)>:
-  match matched:
-    case False{}:
-      match property:
-        case Totality.Dimensions{}:
-          InspectionModel{{==}}
-        case Totality.Checked{other}:
-          InspectionModel{{==}}
-        case Totality.Raw{other}:
-          InspectionModel{{==}}
-    case True{}:
-      match property:
-        case Totality.Dimensions{}:
-          InspectionModel{finish_read_inspect(depth, length, array, index, Totality.Dimensions{}, Array.get(F32, array, index), {==}, balanced, valid)}
-        case Totality.Checked{+other}:
-          InspectionModel{Equal.trans(Totality.Inspection,
-            storage_inspect(Totality.Checked{other}, read_owner(Storage.finish_read(depth, length, array, index, Array.get(F32, array, index), {==}, balanced, valid))),
-            array_inspect(depth, length, Totality.Checked{other}, Refinement.first(F32, Array.get(F32, array, index))),
-            array_inspect(depth, length, Totality.Checked{other}, array),
-            finish_read_inspect(depth, length, array, index, Totality.Checked{other}, Array.get(F32, array, index), {==}, balanced, valid),
-            Equal.cong(Array<F32>, Totality.Inspection, a => array_inspect(depth, length, Totality.Checked{other}, a),
-              Refinement.first(F32, Array.get(F32, array, index)), array, Refinement.law_get_retains(F32, depth, array, index, balanced)))}
-        case Totality.Raw{+other}:
-          InspectionModel{Equal.trans(Totality.Inspection,
-            storage_inspect(Totality.Raw{other}, read_owner(Storage.finish_read(depth, length, array, index, Array.get(F32, array, index), {==}, balanced, valid))),
-            array_inspect(depth, length, Totality.Raw{other}, Refinement.first(F32, Array.get(F32, array, index))),
-            array_inspect(depth, length, Totality.Raw{other}, array),
-            finish_read_inspect(depth, length, array, index, Totality.Raw{other}, Array.get(F32, array, index), {==}, balanced, valid),
-            Equal.cong(Array<F32>, Totality.Inspection, a => array_inspect(depth, length, Totality.Raw{other}, a),
-              Refinement.first(F32, Array.get(F32, array, index)), array, Refinement.law_get_retains(F32, depth, array, index, balanced)))}
+  match property:
+    case Totality.Dimensions{}:
+      InspectionModel{finish_read_inspect(depth, length, array, index, Totality.Dimensions{}, Array.get(F32, array, index), {==}, balanced, valid)}
+    case Totality.Checked{+other}:
+      InspectionModel{Equal.trans(Totality.Inspection,
+        storage_inspect(Totality.Checked{other}, read_owner(Storage.finish_read(depth, length, array, index, Array.get(F32, array, index), {==}, balanced, valid))),
+        array_inspect(depth, length, Totality.Checked{other}, Refinement.first(F32, Array.get(F32, array, index))),
+        array_inspect(depth, length, Totality.Checked{other}, array),
+        finish_read_inspect(depth, length, array, index, Totality.Checked{other}, Array.get(F32, array, index), {==}, balanced, valid),
+        Equal.cong(Array<F32>, Totality.Inspection, a => array_inspect(depth, length, Totality.Checked{other}, a),
+          Refinement.first(F32, Array.get(F32, array, index)), array, Refinement.law_get_retains(F32, depth, array, index, balanced)))}
+    case Totality.Raw{+other}:
+      InspectionModel{Equal.trans(Totality.Inspection,
+        storage_inspect(Totality.Raw{other}, read_owner(Storage.finish_read(depth, length, array, index, Array.get(F32, array, index), {==}, balanced, valid))),
+        array_inspect(depth, length, Totality.Raw{other}, Refinement.first(F32, Array.get(F32, array, index))),
+        array_inspect(depth, length, Totality.Raw{other}, array),
+        finish_read_inspect(depth, length, array, index, Totality.Raw{other}, Array.get(F32, array, index), {==}, balanced, valid),
+        Equal.cong(Array<F32>, Totality.Inspection, a => array_inspect(depth, length, Totality.Raw{other}, a),
+          Refinement.first(F32, Array.get(F32, array, index)), array, Refinement.law_get_retains(F32, depth, array, index, balanced)))}
 
 def read_checked_inspect(+depth: Nat, +length: Nat, +index: U32, allowed: Bool, +property: Totality.Property, array: Array<F32>,
   -decision: {allowed == Nat.is_lt(U32.to_nat(index), length) : Bool},
@@ -106,7 +95,7 @@ def read_checked_inspect(+depth: Nat, +length: Nat, +index: U32, allowed: Bool, 
         case Totality.Raw{other}:
           InspectionModel{{==}}
     case True{}:
-      read_index_inspect(depth, length, index, Storage.index_matches(depth, length, index), property, array, {==}, balanced, valid)
+      read_hit_inspect(depth, length, index, property, array, balanced, valid)
 
 def tensor_read_owner(-shape: Shape.Shape, pair: Core.Tensor<shape> & Result<&2, &2, Core.Error, F32>) -> Core.Tensor<shape>:
   (owner, result) = pair

@@ -10,10 +10,13 @@ The empty constructor owns no array. Nonempty storage has a balanced Base
 array, logical length between one and its power-of-two capacity, and depth at
 most twenty. The balance and range certificates are erased. The public length
 limit is 2^20; invalid lengths are rejected before array allocation. Reads and
-updates reject indices outside logical length before Base's wrapping access.
-They additionally validate that the exact Base branch route's natural offset
-equals the requested U32 index and lies inside logical length. A route mismatch
-is `InvalidIndex`, never silent access to another element or padding.
+updates reject indices outside logical length (`OutOfBounds`) before Base's
+wrapping access, and then use Base's in-place `Array.get` or `Array.set`
+directly. An in-bounds index needs no second check: `route.bend` proves that
+for storage with these certificates the exact Base branch route of every index
+below the logical length lands on that index's offset
+(`index_complete`), so an in-bounds access never reaches another element or
+padding.
 
 ## Source-level representation guarantees
 
@@ -43,8 +46,9 @@ length that `length` reports are `OutOfBounds`.
 The laws quantify over operation histories rather than over arbitrary owned
 values because the balance and range certificates are erased, so a proof
 cannot use them, and an affine array cannot be both read and fed to a model
-lemma. Every storage the API builds from `new` is covered; a storage forged
-from erased certificates is not, and the runtime `InvalidIndex` check stays.
+lemma. Every storage the API builds from `new` is covered. A storage forged
+from erased certificates is not: reads and writes trust the range certificate
+as they trust the balance certificate, and recompute no route at run time.
 A later change that adds another way to make storage, such as an imported
 buffer, needs its own law or a proof that it yields what these histories
 reach. Clone laws state the contents of each copy; that the copies do not
@@ -53,7 +57,8 @@ share memory at run time is checked by the native corpus, not by a law.
 The proofs in `api.bend` use `route.bend`, which proves that Base's route for
 a U32 index below the capacity lands on that index's offset, from bit-level
 lemmas in `arith.bend` relating `Word` compare, subtract and mask to `Nat`.
-So for well-formed storage the `InvalidIndex` branch is unreachable. `new`
+`Storage.index_matches`, the route check, stays as the statement that laws
+such as `checked_route_separation` and `Core.ObservationChecked` use. `new`
 compares the requested length as a U32 against 2^20, the same predicate as the
 earlier `Nat` comparison, so that no proof has to expand the unary literal.
 
