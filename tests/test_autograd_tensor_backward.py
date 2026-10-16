@@ -1,7 +1,10 @@
 import hashlib
 import json
+import math
+import struct
 import tempfile
 import unittest
+from fractions import Fraction
 from pathlib import Path
 
 from tools.autograd import PROOF_CONTROLS, SUBGATES
@@ -11,9 +14,11 @@ from tools.autograd_tensor_backward import (
     MATMUL_INNER,
     MATMUL_RANK,
     NATIVE_CONTROLS,
+    NOT_LEAF,
     RUNTIME_CONTROLS,
     ZERO_GRAD,
     cases,
+    descend_word,
     forge,
     leaf,
     op,
@@ -22,12 +27,13 @@ from tools.autograd_tensor_backward import (
     reference,
     run,
     run_gate,
+    same_row,
     verify,
 )
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "5b00cfd56abc6ec69d963503cca9ce00570ef4346c7345f38c2d86b582bb9e1e"
+FIXTURE_SHA256 = "0e8df4a870e876edf04f7993db59a9b288e14056e4eabdfb4cce60ba2caa1cf1"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
@@ -44,11 +50,12 @@ REJECTIONS = {
     "linear_bias_unknown",
     "matmul_nt_rank",
     "relu_unknown_operand",
+    "sgd_unknown_param",
 }
 RUNTIME_ERROR_CODES = {6, MATMUL_RANK, MATMUL_INNER, 10}
 FORGED = {"dangling_self", "dangling_newer", "dangling_missing"}
 # NaN * NaN: the payload is not specified by the tensor layer.
-NAN_PAYLOAD = {"specials", "relu_edges", "relu_nan_gradient"}
+NAN_PAYLOAD = {"specials", "relu_edges", "relu_nan_gradient", "sgd_edges"}
 # The forward value differs, not the backward: rounding_09 sums six words in
 # ascending order where PyTorch's vectorized sum takes another order, and
 # rounding_14 has a matmul with inner dimension 1 whose only product is -0.0:
@@ -56,6 +63,52 @@ NAN_PAYLOAD = {"specials", "relu_edges", "relu_nan_gradient"}
 # relu_13 has the same inner-dimension-1 matmul, whose products 0.5 * -1e-45
 # and 0.5 * -0.0 are -0.0.
 FORWARD_ORDER = {"rounding_09", "rounding_14", "relu_13"}
+# PyTorch's CPU kernel for param.add_(grad, alpha=-lr) rounds p + (-lr) * g
+# once (a fused multiply-add) on AVX2 and AVX512; the tape rounds the product,
+# then the difference. These scripts match a reference that rounds once.
+FUSED_UPDATE = {"sgd_two_layers", "sgd_rounding"}
+# torch.optim.SGD accepts a non-leaf that retains its gradient, as every
+# non-leaf of the replay does; the tape refuses it with NotLeaf.
+NON_LEAF = {"sgd_not_leaf"}
+
+
+def f32(number: int) -> float:
+    return struct.unpack("<f", struct.pack("<I", number))[0]
+
+
+def rounded(exact: Fraction) -> int:
+    negative = exact < 0
+    magnitude = -exact if negative else exact
+    exponent = magnitude.numerator.bit_length() - magnitude.denominator.bit_length()
+    while Fraction(2) ** exponent > magnitude:
+        exponent -= 1
+    while Fraction(2) ** (exponent + 1) <= magnitude:
+        exponent += 1
+    unit = Fraction(2) ** (max(exponent, -126) - 23)
+    steps = magnitude / unit
+    whole = steps.numerator // steps.denominator
+    rest = steps - whole
+    if rest > Fraction(1, 2) or (rest == Fraction(1, 2) and whole % 2 == 1):
+        whole += 1
+    if whole * unit >= Fraction(2) ** 128 - Fraction(2) ** 103:
+        bits = 0x7F800000
+    else:
+        bits = struct.unpack("<I", struct.pack("<f", float(whole * unit)))[0]
+    return bits | 0x80000000 if negative else bits
+
+
+# p - lr * g rounded once, from the exact value, for finite words; a NaN or an
+# infinity propagates as with two roundings.
+def fused_word(lr: int, p: int, g: int) -> int:
+    rate, held, gradient = f32(lr), f32(p), f32(g)
+    if not all(math.isfinite(number) for number in (rate, held, gradient)):
+        return descend_word(lr, p, g)
+    product = Fraction(rate) * Fraction(gradient)
+    exact = Fraction(held) - product
+    if exact != 0:
+        return rounded(exact)
+    negative = math.copysign(1.0, held) < 0 and math.copysign(1.0, rate * gradient) > 0
+    return NEGATIVE_ZERO if held == 0 and product == 0 and negative else 0
 
 
 def case(steps: list[dict]) -> dict:
@@ -299,6 +352,21 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                         self.assertTrue(is_nan(int(a.removeprefix("tensor:word:"))))
                         self.assertTrue(is_nan(int(b.removeprefix("tensor:word:"))))
                     continue
+                if identifier in FUSED_UPDATE:
+                    self.assertTrue(differ)
+                    fused = reference(row, update=fused_word)
+                    self.assertEqual(len(seen), len(fused))
+                    for a, b in zip(seen, fused, strict=True):
+                        self.assertTrue(same_row(a, b), (a, b))
+                    continue
+                if identifier in NON_LEAF:
+                    self.assertEqual(
+                        differ[0], ("autograd:step", f"autograd:error:{NOT_LEAF}")
+                    )
+                    for a, b in differ[1:]:
+                        self.assertTrue(a.startswith("tensor:word:"))
+                        self.assertTrue(b.startswith("tensor:word:"))
+                    continue
                 if identifier in FORWARD_ORDER:
                     self.assertTrue(differ)
                     for a, b in differ:
@@ -308,7 +376,9 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                     continue
                 self.assertEqual(seen, expected)
                 exact += 1
-        excluded = REJECTIONS | FORGED | NAN_PAYLOAD | FORWARD_ORDER
+        excluded = (
+            REJECTIONS | FORGED | NAN_PAYLOAD | FORWARD_ORDER | FUSED_UPDATE | NON_LEAF
+        )
         self.assertEqual(exact, len(cases()) - len(excluded))
 
     def test_arrival_order_and_broadcast_folds_match_pytorch(self):
