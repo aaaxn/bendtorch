@@ -33,7 +33,22 @@ from tools.autograd_tensor_backward import (
     run,
     run_gate,
     same_row,
+    source_index,
     verify,
+)
+from tools.autograd_tensor_bound import (
+    REPLACED,
+    Bounded,
+    add_word,
+    bounded_dot,
+    bounded_lines,
+    bounded_matmul,
+    bounded_reference,
+    bounded_total,
+    bounded_word,
+    compare,
+    mul_word,
+    within,
 )
 from tools.common import ROOT, GateError
 
@@ -95,13 +110,52 @@ NAN_PAYLOAD = {
 # rounding_14 has a matmul with inner dimension 1 whose only product is -0.0:
 # the ordered dot adds it to +0.0 and gives +0.0, PyTorch's gemm keeps -0.0.
 # relu_13 has the same inner-dimension-1 matmul, whose products 0.5 * -1e-45
-# and 0.5 * -0.0 are -0.0.
+# and 0.5 * -0.0 are -0.0. Every gradient must agree word for word, and every
+# value word that differs must lie within its rounding-error bound (AGENTS.md,
+# numeric policy, level 2; tools/autograd_tensor_bound.py).
 FORWARD_ORDER = {"rounding_09", "rounding_14", "relu_13"}
-# Loss words in the last bits: PyTorch sums the nll terms and the squares of
-# mse_loss in a cascade where the tape adds left to right, and its
-# log_softmax backward uses a vectorized exp. For each script, the line index
-# of every word that differs and the pair (PyTorch's word, the reference's
-# word); every other line must be exact. docs/losses.md has the distances.
+# mse_loss words in the last bits: PyTorch sums the squares, and the
+# broadcast target's gradient, in a cascade where the tape adds left to right.
+# For each script, the line index of every word that differs and the pair
+# (PyTorch's word, the reference's word); every other line must be exact, and
+# each pinned word, PyTorch's and the reference's, must also lie within its
+# rounding-error bound. docs/losses.md has the distances.
+MSE_ROUNDING = {
+    "loss_03": {
+        143: (0xC23FCE94, 0xC23FCE93),
+        145: (0xC2205F9E, 0xC2205F9F),
+        147: (0xC1D6DFCF, 0xC1D6DFCE),
+        151: (0x42E662FA, 0x42E662FB),
+        163: (0x42E662FA, 0x42E662FB),
+        167: (0x44A1786C, 0x44A1786D),
+    },
+    "loss_05": {
+        37: (0x42F4DF00, 0x42F4DF01),
+    },
+    "loss_07": {
+        71: (0x43103CF9, 0x43103CFB),
+        83: (0x43103CF9, 0x43103CFB),
+        87: (0x43FDE039, 0x43FDE03C),
+    },
+    "loss_09": {
+        127: (0x429B5C42, 0x429B5C41),
+    },
+    "loss_11": {
+        81: (0x42274C91, 0x42274C92),
+    },
+    "loss_15": {
+        77: (0x40E3FDA0, 0x40E3FD9E),
+        81: (0x42A58400, 0x42A58401),
+        93: (0x42A58400, 0x42A58401),
+        97: (0xC39B3B0F, 0xC39B3B10),
+    },
+}
+# cross_entropy words in the last bits: PyTorch's log_softmax forward and
+# backward use a vectorized exp whose error is its own, and its nll terms are
+# summed in a cascade. These words are built on exp or log, which no bound
+# covers. For each script, the line index of every word that differs and the
+# pair (PyTorch's word, the reference's word); every other line must be exact,
+# and the comparison refuses a pin on a word that has a bound.
 LOSS_ROUNDING = {
     "cross_entropy": {
         21: (0x3D6CC5F4, 0x3D6CC5F5),
@@ -114,41 +168,19 @@ LOSS_ROUNDING = {
         75: (0x3A70CB7C, 0x3A70CB7B),
         100: (0x40E2749D, 0x40E2749E),
     },
-    "loss_03": {
-        143: (0xC23FCE94, 0xC23FCE93),
-        145: (0xC2205F9E, 0xC2205F9F),
-        147: (0xC1D6DFCF, 0xC1D6DFCE),
-        151: (0x42E662FA, 0x42E662FB),
-        163: (0x42E662FA, 0x42E662FB),
-        167: (0x44A1786C, 0x44A1786D),
-    },
-    "loss_05": {
-        37: (0x42F4DF00, 0x42F4DF01),
-    },
     "loss_06": {
         53: (0x3C52C0AC, 0x3C52C0AD),
         56: (0x362641F6, 0x362641F5),
         65: (0x35B633EC, 0x35B633ED),
         72: (0x38DFB880, 0x38DFB881),
     },
-    "loss_07": {
-        71: (0x43103CF9, 0x43103CFB),
-        83: (0x43103CF9, 0x43103CFB),
-        87: (0x43FDE039, 0x43FDE03C),
-    },
     "loss_08": {
         22: (0x3B4B88EE, 0x3B4B88ED),
-    },
-    "loss_09": {
-        127: (0x429B5C42, 0x429B5C41),
     },
     "loss_10": {
         56: (0x3818EE64, 0x3818EE65),
         64: (0x2E5C1E56, 0x2E5C1E54),
         92: (0x32FD4F5E, 0x32FD4F5C),
-    },
-    "loss_11": {
-        81: (0x42274C91, 0x42274C92),
     },
     "loss_12": {
         65: (0x395829BA, 0x395829B9),
@@ -157,12 +189,6 @@ LOSS_ROUNDING = {
     "loss_14": {
         67: (0x2E12DDE3, 0x2E12DDE4),
         77: (0x3E2DA733, 0x3E2DA732),
-    },
-    "loss_15": {
-        77: (0x40E3FDA0, 0x40E3FD9E),
-        81: (0x42A58400, 0x42A58401),
-        93: (0x42A58400, 0x42A58401),
-        97: (0xC39B3B0F, 0xC39B3B10),
     },
 }
 
@@ -173,6 +199,10 @@ FUSED_UPDATE = {"sgd_two_layers", "sgd_rounding"}
 # torch.optim.SGD accepts a non-leaf that retains its gradient, as every
 # non-leaf of the replay does; the tape refuses it with NotLeaf.
 NON_LEAF = {"sgd_not_leaf"}
+# The families that record_rule does not judge; each keeps its own check.
+OTHER_FAMILIES = (
+    REJECTIONS | set(LOSS_REJECTIONS) | FORGED | NAN_PAYLOAD | FUSED_UPDATE | NON_LEAF
+)
 
 
 def f32(number: int) -> float:
@@ -407,6 +437,93 @@ class TensorBackwardVerificationTests(unittest.TestCase):
                 verify([row], parse(self.frame(wrong), ["case"]), "native")
 
 
+def word_pairs(seen: list[str], expected: list[str]) -> dict[int, tuple[int, int]]:
+    return {
+        index: (
+            int(a.removeprefix("tensor:word:")),
+            int(b.removeprefix("tensor:word:")),
+        )
+        for index, (a, b) in enumerate(zip(seen, expected, strict=True))
+        if a != b
+    }
+
+
+# Level 2 of the numeric policy for the scripts that the refusal, forged,
+# NaN-payload, fused-update and non-leaf families do not cover. Each family
+# keeps the rule it had before the rounding-error bound, and the bound is
+# checked on top of it. `expected` is the reference's lines with their bounds,
+# replayed from the script unless a test plants other ones. Returns the
+# family; raises GateError on a mismatch.
+def record_rule(row: dict, seen: list[str], expected: list[str] | None = None) -> str:
+    identifier = row["id"]
+    expected = bounded_reference(row) if expected is None else expected
+    if len(seen) != len(expected):
+        raise GateError(f"{identifier}: {len(seen)} lines, expected {len(expected)}")
+    if identifier in FORWARD_ORDER:
+        for a, b in zip(seen, expected, strict=True):
+            if a != b and not (
+                a.startswith("tensor:word:") and b.startswith("tensor:word:")
+            ):
+                raise GateError(f"{identifier}: {a} differs from {b}")
+        if grads(seen) != grads(expected):
+            raise GateError(f"{identifier}: a gradient differs from PyTorch's")
+        bounded, _ = compare(identifier, seen, expected)
+        if not bounded:
+            raise GateError(f"{identifier}: no forward word differs")
+        return "forward_order"
+    if identifier in MSE_ROUNDING:
+        if word_pairs(seen, expected) != MSE_ROUNDING[identifier]:
+            raise GateError(f"{identifier}: not the pinned words")
+        bounded, _ = compare(identifier, seen, expected)
+        if bounded != len(MSE_ROUNDING[identifier]):
+            raise GateError(f"{identifier}: a pinned word is not bounded")
+        return "mse_rounding"
+    if identifier in LOSS_ROUNDING:
+        if word_pairs(seen, expected) != LOSS_ROUNDING[identifier]:
+            raise GateError(f"{identifier}: not the pinned words")
+        compare(identifier, seen, expected, LOSS_ROUNDING[identifier])
+        return "loss_rounding"
+    if seen != expected:
+        raise GateError(f"{identifier}: a line differs from PyTorch's")
+    return "exact"
+
+
+# A sum that leaves out its last term, as a Bend fold that stops one cell
+# early would; the reference follows it, so its bound is the bound of the
+# wrong arithmetic.
+def dropping_total(words: list[int]) -> Bounded:
+    return bounded_total(words[:-1] if len(words) > 1 else words)
+
+
+def dropping_sum_to_size(tensor: tuple, target: list[int]) -> tuple:
+    shape, words = tensor
+    if shape == target:
+        return (target, list(words))
+    fibers: list[list[int]] = [[] for _ in range(math.prod(target))]
+    for flat in range(math.prod(shape)):
+        fibers[source_index(target, shape, flat)].append(words[flat])
+    return (target, [dropping_total(fiber) for fiber in fibers])
+
+
+def dropping_matmul(left: tuple, right: tuple) -> tuple | int:
+    result = bounded_matmul(left, right)
+    (rows, inner), (_, columns) = left[0], right[0]
+    if isinstance(result, int) or inner < 2:
+        return result
+    words = []
+    for row in range(rows):
+        for column in range(columns):
+            pairs = [
+                (left[1][row * inner + k], right[1][k * columns + column])
+                for k in range(inner - 1)
+            ]
+            number = 0
+            for a, b in pairs:
+                number = add_word(number, mul_word(int(a), int(b)))
+            words.append(bounded_dot(pairs, number))
+    return (result[0], words)
+
+
 class TensorBackwardTorchOracleTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -424,7 +541,7 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
             [row["id"] for row in cases()],
         )
 
-    def test_reference_matches_pytorch_word_for_word(self):
+    def test_reference_matches_pytorch_within_the_policy(self):
         exact = 0
         for row, observed in zip(cases(), self.fixture["backward"], strict=True):
             identifier = row["id"]
@@ -486,41 +603,98 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                         self.assertTrue(a.startswith("tensor:word:"))
                         self.assertTrue(b.startswith("tensor:word:"))
                     continue
-                if identifier in FORWARD_ORDER:
-                    self.assertTrue(differ)
-                    for a, b in differ:
-                        self.assertTrue(a.startswith("tensor:word:"))
-                        self.assertTrue(b.startswith("tensor:word:"))
-                    self.assertEqual(grads(seen), grads(expected))
-                    continue
-                if identifier in LOSS_ROUNDING:
-                    self.assertEqual(
-                        {
-                            index: (
-                                int(a.removeprefix("tensor:word:")),
-                                int(b.removeprefix("tensor:word:")),
-                            )
-                            for index, (a, b) in enumerate(
-                                zip(seen, expected, strict=True)
-                            )
-                            if a != b
-                        },
-                        LOSS_ROUNDING[identifier],
-                    )
-                    continue
-                self.assertEqual(seen, expected)
-                exact += 1
+                if record_rule(row, seen) == "exact":
+                    exact += 1
         excluded = (
             REJECTIONS
             | set(LOSS_REJECTIONS)
             | FORGED
             | NAN_PAYLOAD
             | FORWARD_ORDER
+            | set(MSE_ROUNDING)
             | set(LOSS_ROUNDING)
             | FUSED_UPDATE
             | NON_LEAF
         )
         self.assertEqual(exact, len(cases()) - len(excluded))
+        self.assertEqual(exact, 131)
+
+    # Planted wrong results on the reference's side, as a wrong Bend result
+    # would be: a sum, a reduction and a matmul that leave out their last
+    # term. The clean lines of every script pass first. The bound comparison
+    # rejects each changed script but loss_07, whose omitted square adds about
+    # 9e-5 to a loss of 144 (6 ulp), inside that word's 15-ulp bound; its old
+    # pins reject it under the whole rule. A word with no bound (the
+    # cross_entropy words, built on exp and log) is rejected by its pin, or
+    # because it differs with no pin, never by a bound.
+    def test_a_dropped_term_is_rejected(self):
+        rows = {row["id"]: row for row in cases()}
+        seen = {row["id"]: row.get("lines") for row in self.fixture["backward"]}
+        compared = [
+            identifier for identifier in rows if identifier not in OTHER_FAMILIES
+        ]
+        for identifier in compared:
+            record_rule(rows[identifier], seen[identifier])
+            pins = LOSS_ROUNDING.get(identifier)
+            compare(
+                identifier, seen[identifier], bounded_reference(rows[identifier]), pins
+            )
+        planted = {
+            "total": (dropping_total, 81, {"loss_07"}, (66, 12, 2)),
+            "sum_to_size": (dropping_sum_to_size, 62, set(), (61, 1, 0)),
+            "matmul": (dropping_matmul, 27, set(), (26, 1, 0)),
+        }
+        for name, (function, changed, missed, reasons) in planted.items():
+            with self.subTest(planted=name):
+                counts = {"outside the bound": 0, "no bound": 0, "pinned pair": 0}
+                accepted = set()
+                touched = 0
+                for identifier in compared:
+                    row = rows[identifier]
+                    wrong = bounded_lines(row, REPLACED | {name: function})
+                    if wrong == reference(row):
+                        continue
+                    touched += 1
+                    pins = LOSS_ROUNDING.get(identifier)
+                    try:
+                        compare(identifier, seen[identifier], wrong, pins)
+                    except GateError as error:
+                        reason = next(key for key in counts if key in str(error))
+                        counts[reason] += 1
+                    else:
+                        accepted.add(identifier)
+                    with self.assertRaises(GateError):
+                        record_rule(row, seen[identifier], wrong)
+                self.assertEqual(touched, changed)
+                self.assertEqual(accepted, missed)
+                self.assertEqual(tuple(counts.values()), reasons)
+
+    # Words the rule before the rounding-error bound rejected, and that are
+    # within the bound: the bound comparison alone accepts each one, and the
+    # whole rule, which checks the bound on top of the old rule, rejects it.
+    # The first is a pinned mse_loss word moved 2 ulp, inside its 57-ulp
+    # bound; the others are gradient words moved 1 ulp in the scripts whose
+    # forward values differ.
+    def test_a_word_the_old_rule_rejected_stays_rejected(self):
+        rows = {row["id"]: row for row in cases()}
+        seen = {row["id"]: row.get("lines") for row in self.fixture["backward"]}
+        planted = [
+            ("loss_03", 151, 0x42E662FA, 0x42E662FC),
+            ("rounding_09", 36, 0x4000418A, 0x4000418B),
+            ("rounding_14", 23, 0x40800000, 0x40800001),
+            ("relu_13", 18, 0xBFC00000, 0xBFC00001),
+        ]
+        for identifier, index, old, new in planted:
+            with self.subTest(case=identifier):
+                lines = list(seen[identifier])
+                self.assertEqual(lines[index], f"tensor:word:{old}")
+                record_rule(rows[identifier], lines)
+                lines[index] = f"tensor:word:{new}"
+                expected = bounded_reference(rows[identifier])
+                self.assertTrue(within(new, bounded_word(expected[index])))
+                compare(identifier, lines, expected)
+                with self.assertRaises(GateError):
+                    record_rule(rows[identifier], lines)
 
     def test_arrival_order_and_broadcast_folds_match_pytorch(self):
         rows = {row["id"]: row for row in self.fixture["backward"]}

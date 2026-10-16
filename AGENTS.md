@@ -185,3 +185,93 @@ Experimental work stays in `experiments/`, outside `src/`, until it is
 promoted.
 
 No PR weakens a law, excludes a case or widens a numerical tolerance.
+
+## Numeric policy
+
+F32 results are compared at three levels. Each check uses one of them, and
+its page says which.
+
+**1. Against our own reference, same operations in the same order: bit for
+bit.** Every gate lane, native and JavaScript, against its Python reference;
+the ordered-fold words of the tensor supplement; the MNIST program against
+the tape reference at any thread count. A NaN only has to be a NaN, except
+where a check states the word, such as `relu` on the native lane.
+
+**2. Against PyTorch, op by op.**
+
+- An operation that rounds once per output word must give PyTorch's word,
+  bit for bit: `add`, `sub`, `mul`, division, negation, comparisons, `max`,
+  `relu` and its gradient, and the ops that only move words (copies,
+  `reshape`, `transpose`, `permute`, `broadcast_to`). A word that only such
+  operations build from the inputs is *fixed*: every correct run gives it.
+- A sum, a matmul and every word built on one (`reduce_to`, a reducing
+  `sum_to_size`, the backward through them, the losses) must lie within a
+  bound on its rounding error, because PyTorch adds in its own order. Both
+  PyTorch's word and ours must be within the bound of the exact result.
+- The bound. With `u = 2^-24`, `eta = 2^-150` and
+  `gamma(k) = k*u / (1 - k*u)`: a sum of `n` terms, in any order, is within
+  `gamma(n-1) * sum |x_i|` of the exact sum; a dot product of `K` terms, in
+  any order, with or without fused multiply-adds, is within
+  `gamma(K) * sum |x_k * y_k| + K*eta / (1 - K*u)` (Higham, *Accuracy and
+  Stability of Numerical Algorithms*, 2nd ed., sections 3.1 and 4.2). One
+  rounding adds `u * |result|`, plus `eta` for a product or a quotient.
+- The bound holds only under these conditions: binary32 arithmetic that
+  rounds to nearest, ties to even; gradual underflow, so subnormals are kept
+  and an addition is exact in the subnormal range; no intermediate overflow
+  in any order; and `k*u < 1` for every count `k`. A word gets a bound only
+  where the check can show them: `(1 + gamma(n)) * sum |terms| <= MAX`, the
+  largest finite F32, for every sum and dot product, and
+  `(1 + u) * (|result| + E) <= MAX` for every other rounding that is not
+  fixed. `[MAX, -MAX, MAX]` sums to `MAX` left to right but overflows when
+  the two `MAX` come first, so it has no bound. A word without a bound,
+  finite or not, goes to the special-word checks below. An empty sum and a
+  dot product of no terms are `+0.0` in every order: a fixed word.
+- A word built from other words follows the reference's own operations.
+  Each word carries its exact value, computed in exact rational arithmetic
+  from the input words, and a bound `E` that holds for any run that does the
+  same operations with each sum and matmul in any order. An operation first
+  carries its operands' bounds through (for a product,
+  `|a|*E_b + |b|*E_a + E_a*E_b`; a sum adds them), then adds its own
+  rounding. `tools/autograd_tensor_bound.py` computes it for the tensor
+  backward.
+- The tensor layer's frozen corpus keeps its own published envelope
+  (`oracle/tensor/README.md`). It is looser, counting `2K` roundings for a
+  `K`-term matmul, and its version 3 adds exact words for `add`, `sub` and
+  `mul` and the sign of a zero sum.
+- `exp` and `log`. PyTorch's are vectorized approximations whose error this
+  repository does not bound, so a word built on them has no bound. Such a
+  word is *pinned*: its check lists PyTorch's word and ours, and no other
+  word may differ. Today these are the `cross_entropy` words.
+- A bound never replaces a stricter check. Where a check already pinned the
+  words that may differ, or required some words to agree exactly, it keeps
+  doing so, and the bound is checked on top: each pinned word must also lie
+  within its bound. A bound counted per script, not per word, would let a
+  second word move once one word differs.
+- Where PyTorch rounds once and we round twice (an SGD step on AVX2 or
+  AVX512 kernels, a fused multiply-add), the check compares with a reference
+  that rounds as PyTorch does, word for word.
+- Special words. A NaN must be a NaN; its sign and payload are not compared
+  with PyTorch. An infinity must be the same word. A fixed zero keeps its
+  sign. A word under a bound is compared by value, so a zero of either sign
+  passes where the bound reaches zero: a fold from `+0.0` turns a one-term
+  `-0.0` sum into `+0.0`.
+
+**3. Training against a PyTorch copy.** The loss at each step must be within
+a relative tolerance of PyTorch's, and the final metric within a band, over
+a few seeds. Both are fixed from PyTorch against itself before any Bend
+result is compared: run PyTorch with another rounding order (its `default`
+kernels against its vectorized ones) and take the largest per-step
+difference. Over the whole run the tolerance is the next power of ten above
+it. An earlier window of steps, where that drift is still far below the
+effect of a planted change, may get a tighter tolerance: one that sits
+between the window's drift and the smallest planted change's effect in it,
+with both numbers stated. The band for an accuracy `p` on `n` test rows is
+`ceil(sqrt(p * (1 - p) * n))` rows. Planted changes (another learning rate,
+a bias that never updates) must fail the tolerance. `docs/mnist.md` has the
+MNIST instance: `1e-2` to the end of the epoch, the next power of ten above
+the drift of 2.7e-3; `1e-4` for the first 100 steps, between a drift below
+2.4e-7 and planted changes that show by 3e-4; a band of 26 or 27 rows;
+seeds 0 to 2.
+
+A bound, a tolerance or a pin is fixed before the result it judges, and is
+never widened to let a result pass.
