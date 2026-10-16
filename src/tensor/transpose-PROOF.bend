@@ -8,6 +8,10 @@ import ./layout.bend as Layout
 import ./word-conversion.bend as Conversion
 import ./transpose-spec.bend as Transpose
 import ./transpose-LAWS.bend as Laws
+import ./observation.bend as Values
+import ./matmul.bend as Matrix
+import ./matrix-index-proof.bend as MatrixIndex
+import ../shape/nat_proofs.bend as Nats
 
 def rank_bound(+shape: Shape.Shape) -> Shape.LE(Shape.rank_dimensions(Shape.dimensions(shape)), 4n):
   match shape:
@@ -169,3 +173,94 @@ def Laws.transpose_axes_valid(shape, a, b, inside):
 
 def Laws.transpose_axes_self_inverse(shape, a, b, inside):
   inverse_axes(shape, a, b, inside)
+
+# What `permute_source(input, [1, 0], index)` computes once the input's
+# dimensions are known.
+def transposed_source(+dims: List<&2, U32>, +index: U32) -> Maybe<&2, U32>:
+  Layout.reference_source_coordinates(dims,
+    Axis.scatter(U32, Shape.rank_dimensions(dims), Shape.naturals([1, 0]),
+      Shape.words(Shape.digits(Shape.naturals(Axis.order(U32, dims, Shape.naturals([1, 0]))), U32.to_nat(index))), 0n))
+
+# Source of output digits (j, l) of a [columns, rows] transpose: the input
+# offset l * columns + j, once both digits are words again.
+def swapped_offset(+rows: U32, +columns: U32, +j: Nat, +l: Nat,
+  +j_below: {Nat.is_lt(j, U32.to_nat(columns)) == True{} : Bool},
+  +l_below: {Nat.is_lt(l, U32.to_nat(rows)) == True{} : Bool}) ->
+  {Some{U32.from_nat(Nat.add(Nat.mul(U32.to_nat(U32.from_nat(l)), Nat.mul(U32.to_nat(columns), 1n)),
+     Nat.add(Nat.mul(U32.to_nat(U32.from_nat(j)), 1n), 0n)))} ==
+   Some{U32.from_nat(Nat.add(Nat.mul(l, U32.to_nat(columns)), j))} : Maybe<&2, U32>}:
+  +c = U32.to_nat(columns)
+  %Equal.sym(Nat, U32.to_nat(U32.from_nat(l)), l, MatrixIndex.word_below(l, rows, l_below)) :
+    {Some{U32.from_nat(Nat.add(Nat.mul(_, Nat.mul(c, 1n)), Nat.add(Nat.mul(U32.to_nat(U32.from_nat(j)), 1n), 0n)))} ==
+      Some{U32.from_nat(Nat.add(Nat.mul(l, c), j))} : Maybe<&2, U32>}
+  %Equal.sym(Nat, U32.to_nat(U32.from_nat(j)), j, MatrixIndex.word_below(j, columns, j_below)) :
+    {Some{U32.from_nat(Nat.add(Nat.mul(l, Nat.mul(c, 1n)), Nat.add(Nat.mul(_, 1n), 0n)))} ==
+      Some{U32.from_nat(Nat.add(Nat.mul(l, c), j))} : Maybe<&2, U32>}
+  %Equal.sym(Nat, Nat.mul(c, 1n), c, Nats.mul_one_right(c)) :
+    {Some{U32.from_nat(Nat.add(Nat.mul(l, _), Nat.add(Nat.mul(j, 1n), 0n)))} ==
+      Some{U32.from_nat(Nat.add(Nat.mul(l, c), j))} : Maybe<&2, U32>}
+  %Equal.sym(Nat, Nat.mul(j, 1n), j, Nats.mul_one_right(j)) :
+    {Some{U32.from_nat(Nat.add(Nat.mul(l, c), Nat.add(_, 0n)))} ==
+      Some{U32.from_nat(Nat.add(Nat.mul(l, c), j))} : Maybe<&2, U32>}
+  %Equal.sym(Nat, Nat.add(j, 0n), j, Conversion.add_zero(j)) :
+    {Some{U32.from_nat(Nat.add(Nat.mul(l, c), _))} ==
+      Some{U32.from_nat(Nat.add(Nat.mul(l, c), j))} : Maybe<&2, U32>}
+  {==}
+
+def matrix_source(+rows: U32, +columns: U32, +j: Nat, +l: Nat,
+  +j_below: {Nat.is_lt(j, U32.to_nat(columns)) == True{} : Bool},
+  +l_below: {Nat.is_lt(l, U32.to_nat(rows)) == True{} : Bool},
+  +exact: {U32.to_nat(U32.from_nat(Nat.add(Nat.mul(j, U32.to_nat(rows)), l))) == Nat.add(Nat.mul(j, U32.to_nat(rows)), l) : Nat}) ->
+  {transposed_source([rows, columns], U32.from_nat(Nat.add(Nat.mul(j, U32.to_nat(rows)), l))) ==
+    Some{U32.from_nat(Nat.add(Nat.mul(l, U32.to_nat(columns)), j))} : Maybe<&2, U32>}:
+  +r = U32.to_nat(rows)
+  +c = U32.to_nat(columns)
+  +i = Nat.add(Nat.mul(j, r), l)
+  %Equal.sym(Nat, U32.to_nat(U32.from_nat(i)), i, exact) :
+    {Some{U32.from_nat(Nat.add(Nat.mul(U32.to_nat(U32.from_nat(Matrix.column_of(r, _))), Nat.mul(c, 1n)),
+       Nat.add(Nat.mul(U32.to_nat(U32.from_nat(Matrix.row_of(r, U32.to_nat(U32.from_nat(i))))), 1n), 0n)))} ==
+      Some{U32.from_nat(Nat.add(Nat.mul(l, c), j))} : Maybe<&2, U32>}
+  %Equal.sym(Nat, U32.to_nat(U32.from_nat(i)), i, exact) :
+    {Some{U32.from_nat(Nat.add(Nat.mul(U32.to_nat(U32.from_nat(Matrix.column_of(r, i))), Nat.mul(c, 1n)),
+       Nat.add(Nat.mul(U32.to_nat(U32.from_nat(Matrix.row_of(r, _))), 1n), 0n)))} ==
+      Some{U32.from_nat(Nat.add(Nat.mul(l, c), j))} : Maybe<&2, U32>}
+  %Equal.sym(Nat, Matrix.column_of(r, i), l, MatrixIndex.column_at(j, l, r, l_below)) :
+    {Some{U32.from_nat(Nat.add(Nat.mul(U32.to_nat(U32.from_nat(_)), Nat.mul(c, 1n)),
+       Nat.add(Nat.mul(U32.to_nat(U32.from_nat(Matrix.row_of(r, i))), 1n), 0n)))} ==
+      Some{U32.from_nat(Nat.add(Nat.mul(l, c), j))} : Maybe<&2, U32>}
+  %Equal.sym(Nat, Matrix.row_of(r, i), j, MatrixIndex.row_at(j, l, r, l_below)) :
+    {Some{U32.from_nat(Nat.add(Nat.mul(U32.to_nat(U32.from_nat(l)), Nat.mul(c, 1n)),
+       Nat.add(Nat.mul(U32.to_nat(U32.from_nat(_)), 1n), 0n)))} ==
+      Some{U32.from_nat(Nat.add(Nat.mul(l, c), j))} : Maybe<&2, U32>}
+  swapped_offset(rows, columns, j, l, j_below, l_below)
+
+# j * rows + l < rows * columns, so the output index is its own word.
+def transposed_index_exact(+input: Shape.Shape, +rows: U32, +columns: U32,
+  +matrix: {Shape.dimensions(input) == [rows, columns] : List<&2, U32>}, +j: Nat,
+  +j_below: {Nat.is_lt(j, U32.to_nat(columns)) == True{} : Bool}, +l: Nat,
+  +l_below: {Nat.is_lt(l, U32.to_nat(rows)) == True{} : Bool}) ->
+  {U32.to_nat(U32.from_nat(Nat.add(Nat.mul(j, U32.to_nat(rows)), l))) == Nat.add(Nat.mul(j, U32.to_nat(rows)), l) : Nat}:
+  +r = U32.to_nat(rows)
+  +c = U32.to_nat(columns)
+  MatrixIndex.word_exact(Nat.add(Nat.mul(j, r), l), input,
+    %Equal.sym(List<&2, U32>, Shape.dimensions(input), [rows, columns], matrix) :
+      {Nat.is_lt(Nat.add(Nat.mul(j, r), l), Shape.logical_numel(_)) == True{} : Bool}
+    %Equal.sym(Nat, Nat.mul(c, 1n), c, Nats.mul_one_right(c)) :
+      {Nat.is_lt(Nat.add(Nat.mul(j, r), l), Nat.mul(r, _)) == True{} : Bool}
+    %Nats.mul_comm(c, r) :
+      {Nat.is_lt(Nat.add(Nat.mul(j, r), l), _) == True{} : Bool}
+    MatrixIndex.lt_mul_add(j, c, l, r, j_below, l_below))
+
+def permute_source_transposed(+input: Shape.Shape, +rows: U32, +columns: U32,
+  +matrix: {Shape.dimensions(input) == [rows, columns] : List<&2, U32>}, +j: Nat,
+  +j_below: {Nat.is_lt(j, U32.to_nat(columns)) == True{} : Bool}, +l: Nat,
+  +l_below: {Nat.is_lt(l, U32.to_nat(rows)) == True{} : Bool}) ->
+  {Values.permute_source(input, [1, 0], U32.from_nat(Nat.add(Nat.mul(j, U32.to_nat(rows)), l))) ==
+    Some{U32.from_nat(Nat.add(Nat.mul(l, U32.to_nat(columns)), j))} : Maybe<&2, U32>}:
+  +index = U32.from_nat(Nat.add(Nat.mul(j, U32.to_nat(rows)), l))
+  %Equal.sym(List<&2, U32>, Shape.dimensions(input), [rows, columns], matrix) :
+    {transposed_source(_, index) == Some{U32.from_nat(Nat.add(Nat.mul(l, U32.to_nat(columns)), j))} : Maybe<&2, U32>}
+  matrix_source(rows, columns, j, l, j_below, l_below, transposed_index_exact(input, rows, columns, matrix, j, j_below, l, l_below))
+
+def Laws.permute_source_transposed(input, rows, columns, matrix, j, j_below, l, l_below):
+  permute_source_transposed(input, rows, columns, matrix, j, j_below, l, l_below)

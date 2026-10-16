@@ -48,6 +48,7 @@
     "transpose_2d_LAWS.transpose_axes_requested",
     "transpose_2d_LAWS.transpose_axes_valid",
     "transpose_2d_LAWS.transpose_axes_self_inverse",
+    "transpose_2d_LAWS.permute_source_transposed",
     "allocation_2d_LAWS.storage_new_complete",
     "allocation_2d_LAWS.storage_new_zero",
     "allocation_2d_LAWS.storage_new_depth_bounds",
