@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 from tools.common import ROOT, Evidence, GateError
-from tools.tensor import certificate_controls, verify_lane
+from tools.tensor import RELU_CONTROLS, certificate_controls, verify_lane
 from tools.tensor_runtime import (
     ERROR_CODES,
     SUCCESS_GROUPS,
@@ -115,6 +115,15 @@ class GateAcceptanceTests(unittest.TestCase):
         self.assertTrue(laws)
         self.assertLessEqual(laws, set(required))
         self.assertEqual(len(required), len(set(required)))
+
+    def test_relu_controls_apply_once_and_name_a_relu_law(self):
+        source = (ROOT / "src/tensor/elementwise.bend").read_text()
+        laws = (ROOT / "src/tensor/relu-LAWS.bend").read_text()
+        self.assertEqual(len(RELU_CONTROLS), 7)
+        for original, mutated, location in RELU_CONTROLS.values():
+            self.assertEqual(source.count(original), 1)
+            self.assertNotEqual(original, mutated)
+            self.assertIn(f"law {location.removeprefix('Laws.')}:\n", laws)
 
     def test_law_exports_name_every_law_and_each_template_law_once(self):
         text = (

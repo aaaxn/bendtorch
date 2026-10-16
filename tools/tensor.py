@@ -191,6 +191,74 @@ def verify_supplement(supplement: dict, observations: list[dict]) -> dict:
     return {"numerical_cases": accepted, "ordered_reference": ordered, "errors": errors}
 
 
+# Mutants of ReLU, its gradient and the comparisons with zero they use, each
+# applied to a copy of src/tensor/elementwise.bend, and the law of
+# src/tensor/relu-LAWS.bend whose proof rejects it.
+RELU_CONTROLS = {
+    "relu-passes-negatives": (
+        "  zero_if(below_zero(x), x)",
+        "  zero_if(False{}, x)",
+        "Laws.scalar_relu_left_below",
+    ),
+    "relu-zeroes-negative-zero": (
+        "  Bool.and(U32.is_lt(2147483648, word), U32.is_le(word, 4286578688))\n",
+        "  Bool.and(U32.is_le(2147483648, word), U32.is_le(word, 4286578688))\n",
+        "Laws.below_zero_words",
+    ),
+    "relu-zeroes-negative-nan": (
+        "  Bool.and(U32.is_lt(2147483648, word), U32.is_le(word, 4286578688))\n",
+        "  Bool.and(U32.is_lt(2147483648, word), U32.is_le(word, 4294967295))\n",
+        "Laws.below_zero_words",
+    ),
+    "relu-backward-passes-gradient-at-zero": (
+        "  zero_if(at_most_zero(x), g)",
+        "  zero_if(below_zero(x), g)",
+        "Laws.scalar_relu_backward_zeroed",
+    ),
+    "relu-backward-ignores-gradient": (
+        "  zero_if(at_most_zero(x), g)",
+        "  zero_if(at_most_zero(x), x)",
+        "Laws.scalar_relu_backward_zeroed",
+    ),
+    "relu-backward-zeroes-negative-nan": (
+        "U32.is_le(word, 4286578688)))",
+        "U32.is_le(word, 4294967295)))",
+        "Laws.at_most_zero_words",
+    ),
+    "relu-backward-swaps-operands": (
+        "      relu_backward(left, right)",
+        "      relu_backward(right, left)",
+        "Laws.scalar_relu_backward_zeroed",
+    ),
+}
+
+
+def relu_controls(evidence: Evidence, source_root: Path) -> None:
+    def control(name: str, original: str, mutated: str, location: str) -> None:
+        copy = evidence.directory / "relu-controls" / name
+        shutil.copytree(source_root / "src", copy / "src")
+        target = copy / "src/tensor/elementwise.bend"
+        text = target.read_text()
+        if text.count(original) != 1:
+            raise GateError(f"{name}: control anchor is missing or ambiguous")
+        target.write_text(text.replace(original, mutated))
+        evidence.run(
+            f"relu-control-{name}",
+            bend(
+                evidence.tool_root, copy / "src/tensor/relu-PROOF.bend", "--check-only"
+            ),
+            expected_code=1,
+            contains=("SOME PROOFS FAIL", f"Location: {location}"),
+        )
+
+    parallel(
+        *(
+            partial(control, name, *control_text)
+            for name, control_text in RELU_CONTROLS.items()
+        )
+    )
+
+
 def certificate_controls(evidence: Evidence, source_root: Path) -> None:
     imports = "import Base\n"
     for path, alias in (
@@ -536,6 +604,7 @@ def run_gate(tool_root: Path, output: Path) -> None:
                 "Tensor native executable links a forbidden compute backend"
             )
         certificate_controls(evidence, output / "runtime/source")
+        relu_controls(evidence, output / "source")
 
     parallel(
         partial(
