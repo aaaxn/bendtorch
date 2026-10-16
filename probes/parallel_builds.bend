@@ -2,11 +2,14 @@ import Base
 import ../src/shape/core.bend as Shape
 import ../src/tensor/core.bend as Core
 import ../src/tensor/matmul.bend as Matrix
+import ../src/tensor/layout.bend as Layout
+import ../src/tensor/transforms.bend as Transforms
+import ../src/tensor/permute-build.bend as Permute
 import ../src/autograd/reduce.bend as Reduce
 import ../src/autograd/reduce-fold.bend as ReduceFold
 
 # The parallel builds next to the sequential definitions, on inputs large
-# enough to fork. For each product and reduction the program prints how many levels the
+# enough to fork. For each product, reduction and permute the program prints how many levels the
 # public build forks, how many output words differ from the sequential
 # definition, and a rolling hash of the public words. tools/tensor_parallel.py
 # runs it at several thread counts and requires every count to print the same
@@ -205,6 +208,51 @@ def count(dims: List<&2, U32>) -> Nat:
 def reduction(+name: String, +rounding: Bool, +dims: List<&2, U32>, +target: List<&2, U32>, +cells: Nat, +depth: Nat) -> IO(Unit):
   reduce_input(name, cells, depth, target, Core.construct(dims, reversed(words(count(dims), rounding, 0n, 7n, Nil{}), Nil{})))
 
+def transformed(-input: Shape.Shape, pair: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Dynamic>) -> Maybe<&1, Core.Dynamic>:
+  (source, result) = pair
+  match result:
+    case Fail{error}:
+      None{}
+    case Done{out}:
+      Some{out}
+
+# The sequential definition of a permute: `Transforms.loop_allocated`, the
+# checked copy loop the transform laws state.
+def loop_planned(+input: Shape.Shape, +axes: List<&2, U32>, source: Core.Tensor<input>,
+  planned: Result<&2, &2, Layout.Error, Layout.Plan<input, axes>>) -> Maybe<&1, Core.Dynamic>:
+  match planned:
+    case Fail{error}:
+      None{}
+    case Done{+plan}:
+      transformed(input, Transforms.loop_allocated(input, axes, plan, source, Core.new(Layout.output(input, axes, plan), 0.0)))
+
+def looped(dynamic: Core.Dynamic, +axes: List<&2, U32>) -> Maybe<&1, Core.Dynamic>:
+  Core.Packed{+input, source} = dynamic
+  loop_planned(input, axes, source, Layout.permutation(input, axes))
+
+def permuted(pair: Core.Dynamic & Result<&2, &1, Transforms.Error, Core.Dynamic>) -> Maybe<&1, Core.Dynamic>:
+  (source, result) = pair
+  match result:
+    case Fail{error}:
+      None{}
+    case Done{out}:
+      Some{out}
+
+def permute_inputs(+name: String, +axes: List<&2, U32>, +cells: Nat, +depth: Nat,
+  a: Result<&2, &1, Core.Error, Core.Dynamic>, b: Result<&2, &1, Core.Error, Core.Dynamic>) -> IO(Unit):
+  match a b:
+    case Done{a} Done{b}:
+      report(name, Permute.splits(depth), cells, permuted(Transforms.permute_dynamic(a, axes)), looped(b, axes))
+    case _ _:
+      IO.print(name ++ " inputs failed")
+
+# A permute of a tensor of shape `dims` by `axes`, whose `cells` cells sit in
+# a storage of depth `depth`.
+def permute(+name: String, +dims: List<&2, U32>, +axes: List<&2, U32>, +cells: Nat, +depth: Nat) -> IO(Unit):
+  permute_inputs(name, axes, cells, depth,
+    Core.construct(dims, reversed(words(count(dims), True{}, 0n, 7n, Nil{}), Nil{})),
+    Core.construct(dims, reversed(words(count(dims), True{}, 0n, 7n, Nil{}), Nil{})))
+
 def main() -> IO(Unit):
   do IO<Unit>:
     product("matmul-128x64x64", False{}, 128, 64, 64, 13n)
@@ -216,3 +264,6 @@ def main() -> IO(Unit):
     reduction("reduce-64x16x32-to-16x1-rounding", True{}, [64, 16, 32], [16, 1], 16n, 4n)
     reduction("reduce-64x16x32-to-64x1x1-rounding", True{}, [64, 16, 32], [64, 1, 1], 64n, 6n)
     reduction("reduce-6x5x4-to-5x1", False{}, [6, 5, 4], [5, 1], 5n, 3n)
+    permute("transpose-256x257", [256, 257], [1, 0], 65792n, 17n)
+    permute("permute-16x64x40-201", [16, 64, 40], [2, 0, 1], 40960n, 16n)
+    permute("permute-3x5x7-120", [3, 5, 7], [1, 2, 0], 105n, 7n)

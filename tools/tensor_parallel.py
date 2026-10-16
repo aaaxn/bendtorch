@@ -44,7 +44,15 @@ REDUCTIONS = {
     "reduce-64x16x32-to-64x1x1-rounding": ((64, 16, 32), (64, 1, 1)),
     "reduce-6x5x4-to-5x1": ((6, 5, 4), (5, 1)),
 }
-BUILDS = (*PRODUCTS, *REDUCTIONS)
+# Each permute the probe runs, by its output cells. The two above 2^15 cells
+# must fork, so the probe checks the forked build against the copy loop.
+PERMUTES = {
+    "transpose-256x257": 65792,
+    "permute-16x64x40-201": 40960,
+    "permute-3x5x7-120": 105,
+}
+FORKED_PERMUTES = ("transpose-256x257", "permute-16x64x40-201")
+BUILDS = (*PRODUCTS, *REDUCTIONS, *PERMUTES)
 # The builds whose inputs round, so that adding a cell's terms in another
 # order changes its bits; the products of multiples of 1/64 above cannot show
 # a reordered sum. Each must fork to check the forked build. The other
@@ -83,7 +91,14 @@ def reduce_splits(dims: tuple[int, ...], target: tuple[int, ...]) -> int:
     return matmul_splits(depth(cells), contribution // cells)
 
 
+def permute_splits(cells: int) -> int:
+    """`Permute.splits`: a subtree below the forks holds 2^15 cells."""
+    return max(depth(cells) - 15, 0)
+
+
 def expected_splits(name: str) -> int:
+    if name in PERMUTES:
+        return permute_splits(PERMUTES[name])
     if name in REDUCTIONS:
         return reduce_splits(*REDUCTIONS[name])
     rows, inner, columns = PRODUCTS[name]
@@ -93,7 +108,8 @@ def expected_splits(name: str) -> int:
 def check_lines(stdout: str) -> dict[str, int]:
     """The splits each probe line reports, after checking that every line
     names a known build, forks as `expected_splits` says (`Matrix.product_splits`
-    for a product, `Reduce.splits` for a reduction) and matches its
+    for a product, `Reduce.splits` for a reduction, `Permute.splits` for a
+    permute) and matches its
     sequential definition word for word."""
     splits = {}
     for line in stdout.splitlines():
@@ -116,7 +132,7 @@ def check_lines(stdout: str) -> dict[str, int]:
         raise GateError(f"Parallel probe omitted builds: {set(BUILDS) - set(splits)}")
     if not any(splits.values()):
         raise GateError("No parallel probe build forks")
-    for name in ROUNDING_BUILDS:
+    for name in (*ROUNDING_BUILDS, *FORKED_PERMUTES):
         if not splits[name]:
             raise GateError(f"{name} does not fork")
     return splits

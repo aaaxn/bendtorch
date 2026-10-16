@@ -34,6 +34,11 @@ On a `[1024,1024]` transpose this takes 98 ms on one thread and 36 ms on
 eight, against 1.7 s and 2.4 s for the loop; the words are the same at every
 thread count.
 
+The tensor gate's parallel probe (`probes/parallel_builds.bend`) runs a
+transpose of `[256,257]` and a permute of `[16,64,40]`, which fork two levels
+and one, next to the copy loop (`loop_allocated`) at 1, 8 and 24 threads and
+requires the same words.
+
 The laws below about the loop (`copy_loop`, `natural_step`, `copy_step`,
 `copy_read`) state what the checked sequential copy does; `copy_allocated`
 no longer runs it. `permute_result_interpretation`,

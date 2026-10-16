@@ -3,6 +3,8 @@ import unittest
 from tools.common import GateError
 from tools.tensor_parallel import (
     BUILDS,
+    FORKED_PERMUTES,
+    PERMUTES,
     PRODUCTS,
     REDUCTIONS,
     ROUNDING,
@@ -12,6 +14,7 @@ from tools.tensor_parallel import (
     depth,
     expected_splits,
     matmul_splits,
+    permute_splits,
     product_splits,
 )
 
@@ -70,6 +73,24 @@ class ParallelProbeTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertTrue(expected_splits(name))
 
+    def test_permute_splits_leave_2_15_cells_per_subtree(self):
+        for cells, expected in (
+            (105, 0),
+            (1 << 15, 0),
+            ((1 << 15) + 1, 1),
+            (40960, 1),
+            (65792, 2),
+            (1 << 20, 5),
+        ):
+            with self.subTest(cells=cells):
+                self.assertEqual(permute_splits(cells), expected)
+
+    def test_large_permutes_fork(self):
+        self.assertEqual(set(FORKED_PERMUTES) | {"permute-3x5x7-120"}, set(PERMUTES))
+        for name in FORKED_PERMUTES:
+            with self.subTest(name=name):
+                self.assertTrue(expected_splits(name))
+
     def test_only_contiguous_fibers_fork(self):
         self.assertTrue(contiguous((256, 64), (256, 1)))
         self.assertTrue(contiguous((64, 16, 32), (64, 1, 1)))
@@ -104,6 +125,8 @@ class ParallelProbeTests(unittest.TestCase):
             check_lines(probe_output(**{"matmul-128x64x64": (4, 1)}))
         with self.assertRaises(GateError):
             check_lines(probe_output(**{"reduce-256x64-to-256x1-rounding": (1, 3)}))
+        with self.assertRaises(GateError):
+            check_lines(probe_output(**{"transpose-256x257": (2, 5)}))
 
     def test_check_lines_rejects_an_unforked_rounding_reduction(self):
         with self.assertRaises(GateError):
