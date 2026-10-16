@@ -68,6 +68,10 @@ def Laws.sgd_only_leaves_accepted(node):
       {==}
     case Backward.CrossEntropy{a, input}:
       {==}
+    case Backward.Constant{}:
+      {==}
+    case Backward.Frozen{id, inner}:
+      Laws.sgd_only_leaves_accepted(inner)
 
 def Laws.sgd_no_params(lr, count, entries):
   {==}

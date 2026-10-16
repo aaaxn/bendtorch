@@ -57,6 +57,10 @@ def targets(node: Backward.Node) -> List<&2, Nat>:
       [a, b]
     case Backward.CrossEntropy{a, input}:
       [a]
+    case Backward.Constant{}:
+      []
+    case Backward.Frozen{id, inner}:
+      targets(inner)
 
 def bounded(ids: List<&2, Nat>, +bound: Nat) -> Bool:
   match ids:
@@ -145,6 +149,52 @@ law tensor_vjp_leaf:
   for saved: Backward.Saved
   for g: Core.Dynamic
   {Backward.vjp(Backward.Leaf{}, saved, g) == Backward.Pass{saved, g, Done{Nil{}}} : Backward.Pass}
+
+# A constant sends nothing, and hands back its saved values and its gradient.
+law tensor_vjp_constant:
+  for saved: Backward.Saved
+  for g: Core.Dynamic
+  {Backward.vjp(Backward.Constant{}, saved, g) == Backward.Pass{saved, g, Done{Nil{}}} : Backward.Pass}
+
+# Frozen{id, node}, the node of a recording whose operand id is a constant,
+# sends node's contributions without the ones to id, in order, and hands back
+# what node's VJP hands back. Where Backward.skips(id, node) holds (node is
+# x @ W^T and id is x and not W), the VJP does not compute the product it
+# would drop; tensor_matmul_nt_frozen_vjp_values states what it sends.
+law tensor_vjp_frozen_unsent:
+  for +id: Nat
+  for +node: Backward.Node
+  for saved: Backward.Saved
+  for g: Core.Dynamic
+  for computed: {Backward.skips(id, node) == False{} : Bool}
+  {Backward.vjp(Backward.Frozen{id, node}, saved, g) == Backward.unsent(id, Backward.vjp(node, saved, g)) : Backward.Pass}
+
+# Whether a list of contributions holds one to id.
+def reaches(+id: Nat, items: List<&1, Backward.Contribution>) -> Bool:
+  match items:
+    case Nil{}:
+      False{}
+    case Con{Backward.Contribution{target, shape, gradient}, rest}:
+      Bool.or(Nat.is_eq(id, target), reaches(id, rest))
+
+# Whether a VJP's pass sends a contribution to id.
+def sends_to(+id: Nat, pass: Backward.Pass) -> Bool:
+  Backward.Pass{saved, g, contributions} = pass
+  match contributions:
+    case Fail{error}:
+      False{}
+    case Done{items}:
+      reaches(id, items)
+
+# A frozen operand gets nothing: for any node, saved values and g, no
+# contribution of the VJP of Frozen{id, node} goes to id, skipped product
+# included.
+law tensor_vjp_frozen_spares:
+  for +id: Nat
+  for +node: Backward.Node
+  for saved: Backward.Saved
+  for g: Core.Dynamic
+  {sends_to(id, Backward.vjp(Backward.Frozen{id, node}, saved, g)) == False{} : Bool}
 
 # backward of an output the tape does not hold is refused with UnknownNode,
 # and the tape comes back unchanged.

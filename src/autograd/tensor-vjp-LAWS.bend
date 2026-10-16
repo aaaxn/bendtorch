@@ -386,6 +386,59 @@ law tensor_matmul_nt_vjp_values:
         Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}}},
       Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}})>
 
+# What a VJP that sends one contribution of a matrix promises: it goes to node
+# b with target's dimensions and holds cell(row, column) at row * columns +
+# column for every row < rows and column < columns.
+type MatmulSoleContract<-b: Nat, -target: Shape.Shape, -rows: Nat, -columns: Nat, -cell: Nat -> Nat -> F32,
+  -pass: Backward.Pass> is Type:
+  MatmulSoleContract{
+    target_id: {TensorBackward.sole_target(TensorBackward.sole(pass)) == Some{b} : Maybe<&2, Nat>},
+    dimensions: {TensorBackward.sole_dimensions(TensorBackward.sole(pass)) == Some{Shape.dimensions(target)} : Maybe<&2, List<&2, U32>>},
+    value: @+row: Nat -> @row_below: {Nat.is_lt(row, rows) == True{} : Bool} ->
+      @+column: Nat -> @column_below: {Nat.is_lt(column, columns) == True{} : Bool} ->
+      {TensorBackward.sole_point(TensorBackward.sole(pass), U32.from_nat(Nat.add(Nat.mul(row, columns), column))) ==
+        Some{cell(row, column)} : Maybe<&2, F32>}}
+
+# d(x @ W^T)/dW of a product whose input x is a constant: the VJP of
+# Frozen{a, MatmulNT{a, b, left, right}}, for an input a that is not the
+# weight b, sends one contribution, to b, with right's dimensions: g^T @ x,
+# cell (j, l) the ordered dot product over i of g[i, j] * x[i, l] from +0.0,
+# the words of the second contribution of tensor_matmul_nt_vjp_values. It
+# never builds g @ W.
+law tensor_matmul_nt_frozen_vjp_values:
+  for +a: Nat
+  for +b: Nat
+  for apart: {Nat.is_eq(a, b) == False{} : Bool}
+  for +left: Shape.Shape
+  for +right: Shape.Shape
+  for +shape: Shape.Shape
+  for +second: Matrix.Product<Matrix.Swapped{}, Matrix.Swapped{}, shape, left>
+  for second_planned: {Matrix.product_plan(Matrix.Swapped{}, Matrix.Swapped{}, shape, left) == Done{second} :
+    Result<&2, &2, Matrix.Error, Matrix.Product<Matrix.Swapped{}, Matrix.Swapped{}, shape, left>>}
+  for second_same: {Shape.dimensions(Matrix.product_shape(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second)) ==
+    Shape.dimensions(right) : List<&2, U32>}
+  for +fill: F32
+  for +ops: List<&2, StorageLaws.Op>
+  for -fits: {Lifecycle.logical_length(Replayed.storage(shape, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}
+  for +left_fill: F32
+  for +left_ops: List<&2, StorageLaws.Op>
+  for -left_fits: {Lifecycle.logical_length(Replayed.storage(left, left_fill, left_ops)) == Shape.logical_numel(Shape.dimensions(left)) : Nat}
+  for +right_fill: F32
+  for +right_ops: List<&2, StorageLaws.Op>
+  for -right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_ops)) == Shape.logical_numel(Shape.dimensions(right)) : Nat}
+  MatmulSoleContract<b, right,
+    Contracts.product_rows(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second),
+    Contracts.product_columns(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second),
+    row => column => DotFold.dot_fold(Contracts.product_factors(row, column, Matrix.Swapped{}, Matrix.Swapped{},
+      Contracts.product_inner(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second),
+      Contracts.product_rows(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second),
+      Contracts.product_columns(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second),
+      shape, fill, ops, left, left_fill, left_ops, Contracts.product_inner(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second)), 0.0),
+    Backward.vjp(Backward.Frozen{a, Backward.MatmulNT{a, b, left, right}},
+      Backward.Operands{Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
+        Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}}},
+      Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}})>
+
 # matmul_nt reads what matmul reads from the transposed copy: for a right
 # operand of dimensions [columns, inner], the factor pairs of cell
 # (row, column) of a product of two `Kept` operands (`matmul_nt`), left[row,

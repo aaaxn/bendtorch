@@ -13,6 +13,7 @@ import ./sgd.bend as Sgd
 
 type Step is Data:
   Leaf{dimensions: List<&2, U32>, words: List<&2, U32>}
+  Constant{dimensions: List<&2, U32>, words: List<&2, U32>}
   Add{a: Nat, b: Nat}
   Sub{a: Nat, b: Nat}
   Mul{a: Nat, b: Nat}
@@ -70,6 +71,15 @@ def constructed(tape: Backward.Tape, rec: Backward.Tape -> IO(Unit), result: Res
         rec(tape)
     case Done{value}:
       leafed(rec, Backward.leaf(tape, value))
+
+def constant_constructed(tape: Backward.Tape, rec: Backward.Tape -> IO(Unit), result: Result<&2, &1, Core.Error, Core.Dynamic>) -> IO(Unit):
+  match result:
+    case Fail{failure}:
+      do IO<Unit>:
+        IO.print("autograd:error:" ++ U32.show(Core.error_code(failure)))
+        rec(tape)
+    case Done{value}:
+      leafed(rec, Backward.constant(tape, value))
 
 def ran(rec: Backward.Tape -> IO(Unit), pair: Backward.Tape & Result<&2, &2, Backward.Error, Unit>) -> IO(Unit):
   (tape, result) = pair
@@ -161,6 +171,8 @@ def step(instruction: Step, tape: Backward.Tape, rec: Backward.Tape -> IO(Unit))
   match instruction:
     case Leaf{dimensions, words}:
       constructed(tape, rec, Core.construct(dimensions, values(words)))
+    case Constant{dimensions, words}:
+      constant_constructed(tape, rec, Core.construct(dimensions, values(words)))
     case Add{a, b}:
       recorded(rec, Backward.add(tape, a, b))
     case Sub{a, b}:
