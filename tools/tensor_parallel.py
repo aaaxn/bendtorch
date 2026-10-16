@@ -29,13 +29,30 @@ PRODUCTS = {
     "matmul-2x3x2": (2, 3, 2),
     "matmul-64x48x64-rounding": (64, 48, 64),
 }
-# The product whose inputs round, so that adding a cell's terms in another
+# Each reduction the probe runs, as (contribution cells, target cells). The
+# reduce build splits like the matmul build, by the terms of a target cell:
+# `Matrix.splits(depth, contribution cells / target cells)`.
+REDUCTIONS = {
+    "reduce-256x128-to-1x128-rounding": (256 * 128, 128),
+    "reduce-256x64-to-256x1-rounding": (256 * 64, 256),
+    "reduce-64x16x32-to-16x1-rounding": (64 * 16 * 32, 16),
+    "reduce-6x5x4-to-5x1": (6 * 5 * 4, 5),
+}
+BUILDS = (*PRODUCTS, *REDUCTIONS)
+# The builds whose inputs round, so that adding a cell's terms in another
 # order changes its bits; the products of multiples of 1/64 above cannot show
-# a reordered sum. It must fork to check the forked build.
+# a reordered sum. Each must fork to check the forked build.
 ROUNDING = "matmul-64x48x64-rounding"
+ROUNDING_BUILDS = (
+    ROUNDING,
+    *(name for name in REDUCTIONS if name.endswith("-rounding")),
+)
 
 
 def expected_splits(name: str) -> int:
+    if name in REDUCTIONS:
+        contribution, cells = REDUCTIONS[name]
+        return matmul_splits(depth(cells), contribution // cells)
     rows, inner, columns = PRODUCTS[name]
     return matmul_splits(depth(rows * columns), inner)
 
@@ -50,7 +67,7 @@ def check_lines(stdout: str) -> dict[str, int]:
         if match is None:
             raise GateError(f"Parallel probe printed an unexpected line: {line!r}")
         name, forks, differing, _ = match.groups()
-        if name not in PRODUCTS or name in splits:
+        if name not in BUILDS or name in splits:
             raise GateError(f"Parallel probe line names an unknown build: {name}")
         if int(differing) != 0:
             raise GateError(
@@ -61,12 +78,13 @@ def check_lines(stdout: str) -> dict[str, int]:
                 f"{name}: forked {forks} levels, expected {expected_splits(name)}"
             )
         splits[name] = int(forks)
-    if set(splits) != set(PRODUCTS):
-        raise GateError(f"Parallel probe omitted builds: {set(PRODUCTS) - set(splits)}")
+    if set(splits) != set(BUILDS):
+        raise GateError(f"Parallel probe omitted builds: {set(BUILDS) - set(splits)}")
     if not any(splits.values()):
         raise GateError("No parallel probe build forks")
-    if not splits[ROUNDING]:
-        raise GateError(f"{ROUNDING} does not fork")
+    for name in ROUNDING_BUILDS:
+        if not splits[name]:
+            raise GateError(f"{name} does not fork")
     return splits
 
 
