@@ -296,6 +296,82 @@ def relu_controls(evidence: Evidence, source_root: Path) -> None:
     )
 
 
+# Mutants of the scalar operations of the mean and the losses, each applied
+# to a copy of src/tensor/elementwise.bend, and the law of
+# src/tensor/loss-ops-LAWS.bend whose proof rejects it. Each law named here
+# is false for the mutant.
+LOSS_CONTROLS = {
+    "divide-multiplies": (
+        "      F32.div(left, right)",
+        "      F32.mul(left, right)",
+        "Laws.scalar_divide",
+    ),
+    "matches-inverted": (
+        "      zero_if(Bool.not(U32.is_eq(bits(left), bits(right))), 1.0)",
+        "      zero_if(U32.is_eq(bits(left), bits(right)), 1.0)",
+        "Laws.scalar_matches_same",
+    ),
+    "pick-keeps-sign": (
+        "      zero_if(Bool.not(is_one(right)), F32.neg(left))",
+        "      zero_if(Bool.not(is_one(right)), left)",
+        "Laws.scalar_pick_negated_target",
+    ),
+    "mse-grad-drops-scale": (
+        "      F32.mul(F32.mul(scale, right), left)",
+        "      F32.mul(right, left)",
+        "Laws.scalar_mse_grad",
+    ),
+    "mse-grad-scales-last": (
+        "      F32.mul(F32.mul(scale, right), left)",
+        "      F32.mul(F32.mul(right, left), scale)",
+        "Laws.scalar_mse_grad",
+    ),
+    "one-hot-grad-inverted": (
+        "      zero_if(Bool.not(is_one(right)), target_gradient(left, count))",
+        "      zero_if(is_one(right), target_gradient(left, count))",
+        "Laws.scalar_one_hot_grad_target",
+    ),
+    "softmax-grad-drops-zero-add": (
+        "    case False{}:\n      F32.add(t, 0.0)\n",
+        "    case False{}:\n      t\n",
+        "Laws.scalar_softmax_grad_classes",
+    ),
+    "softmax-grad-adds-zero-to-one-class": (
+        "    case True{}:\n      t\n",
+        "    case True{}:\n      F32.add(t, 0.0)\n",
+        "Laws.scalar_softmax_grad_one_class",
+    ),
+}
+
+
+def loss_controls(evidence: Evidence, source_root: Path) -> None:
+    def control(name: str, original: str, mutated: str, location: str) -> None:
+        copy = evidence.directory / "loss-controls" / name
+        shutil.copytree(source_root / "src", copy / "src")
+        target = copy / "src/tensor/elementwise.bend"
+        text = target.read_text()
+        if text.count(original) != 1:
+            raise GateError(f"{name}: control anchor is missing or ambiguous")
+        target.write_text(text.replace(original, mutated))
+        evidence.run(
+            f"loss-control-{name}",
+            bend(
+                evidence.tool_root,
+                copy / "src/tensor/loss-ops-PROOF.bend",
+                "--check-only",
+            ),
+            expected_code=1,
+            contains=("SOME PROOFS FAIL", f"Location: {location}"),
+        )
+
+    parallel(
+        *(
+            partial(control, name, *control_text)
+            for name, control_text in LOSS_CONTROLS.items()
+        )
+    )
+
+
 def certificate_controls(evidence: Evidence, source_root: Path) -> None:
     imports = "import Base\n"
     for path, alias in (
@@ -642,6 +718,7 @@ def run_gate(tool_root: Path, output: Path) -> None:
             )
         certificate_controls(evidence, output / "runtime/source")
         relu_controls(evidence, output / "source")
+        loss_controls(evidence, output / "source")
 
     parallel(
         partial(

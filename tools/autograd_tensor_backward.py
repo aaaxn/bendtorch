@@ -11,10 +11,12 @@ from tools.autograd_backward import (
     NEGATIVE_ZERO,
     ONE,
     OTHER_NAN,
+    QUIET,
     QUIET_NAN,
     UNKNOWN_NODE,
     add_word,
     mul_word,
+    nan_operand,
     neg_word,
     sub_word,
 )
@@ -28,14 +30,18 @@ from tools.autograd_broadcast import (
     run_lanes,
     word,
 )
+from tools.autograd_reduce import bits, f32, value
 from tools.common import ROOT, Evidence, GateError, bend, native
 
 VALUE_COUNT_MISMATCH = 10
 MATMUL_RANK = 105
 MATMUL_INNER = 106
 INFINITY = 0x7F800000
-BINARY = ("add", "sub", "mul", "matmul", "matmul_nt")
-UNARY = ("sum", "relu")
+BINARY = ("add", "sub", "mul", "matmul", "matmul_nt", "mse_loss")
+UNARY = ("sum", "relu", "cross_entropy")
+NOT_LOGITS = 107
+TARGET_OUT_OF_RANGE = 108
+NEGATIVE_INFINITY = 0xFF800000
 
 RUNTIME_CONTROLS = {
     "seed-newest-node": (
@@ -116,6 +122,55 @@ RUNTIME_CONTROLS = {
         "relu_passed(a, input, zero, "
         "Elementwise.binary(Elementwise.ReluBackward{}, g, x))",
     ),
+    "mean-divides-by-one": (
+        "src/autograd/loss.bend",
+        "  total_over(Shape.logical_numel(Shape.dimensions(shape)), "
+        "Reduction.sum_dynamic(input))",
+        "  total_over(1n, Reduction.sum_dynamic(input))",
+    ),
+    "mse-scale-inverted": (
+        "src/autograd/loss.bend",
+        "  F32.div(2.0, count_f32(Shape.logical_numel(Shape.dimensions(shape))))",
+        "  F32.div(count_f32(Shape.logical_numel(Shape.dimensions(shape))), 2.0)",
+    ),
+    "cross-entropy-skips-max-shift": (
+        "src/autograd/loss.bend",
+        "ce_shifted(rows, onehot, target, "
+        "Elementwise.binary(Elementwise.Sub{}, logits, maxes),",
+        "ce_shifted(rows, onehot, target, "
+        "Elementwise.binary(Elementwise.KeepLeft{}, logits, maxes),",
+    ),
+    "one-hot-shifted-column": (
+        "src/autograd/loss.bend",
+        "classes(columns, 0n)",
+        "classes(columns, 1n)",
+    ),
+    "cross-entropy-mean-divides-by-one": (
+        "src/autograd/loss.bend",
+        "  recorded(lp, onehot, total_over(rows, result))",
+        "  recorded(lp, onehot, total_over(1n, result))",
+    ),
+    "one-hot-gradient-zero": (
+        "src/tensor/elementwise.bend",
+        "      zero_if(Bool.not(is_one(right)), target_gradient(left, count))",
+        "      zero_if(True{}, target_gradient(left, count))",
+    ),
+    "target-gradient-skips-count": (
+        "src/tensor/elementwise.bend",
+        "  F32.neg(F32.div(g, count))",
+        "  F32.neg(g)",
+    ),
+    "softmax-gradient-swaps-operands": (
+        "entropy_second(a, input, product_reduced(a, input, first), onehot, "
+        "Elementwise.binary(Elementwise.SoftmaxGrad{count, single}, g, lp))",
+        "entropy_second(a, input, product_reduced(a, input, first), onehot, "
+        "Elementwise.binary(Elementwise.SoftmaxGrad{count, single}, lp, g))",
+    ),
+    "softmax-gradient-ignores-one-class": (
+        "entropy_first(a, input, Loss.count_f32(Loss.rows(input)), "
+        "Loss.one_class(input), lp,",
+        "entropy_first(a, input, Loss.count_f32(Loss.rows(input)), False{}, lp,",
+    ),
     "reduction-folds-equal-shapes": (
         "delivered_as(target, shape, SumToSize.sum_to_size(g, shape))",
         "delivered_as(target, shape, Reduce.reduce_to(g, shape))",
@@ -168,6 +223,10 @@ def leaf(shape: list[int], words: list[int]) -> dict:
 
 def op(name: str, a: int, b: int | None = None) -> dict:
     return {"op": name, "a": a} if b is None else {"op": name, "a": a, "b": b}
+
+
+def entropy(a: int, targets: list[int]) -> dict:
+    return {"op": "cross_entropy", "a": a, "targets": targets}
 
 
 def run(output: int) -> dict:
@@ -741,12 +800,246 @@ def generated(
     return result
 
 
+def losses() -> list[dict]:
+    logits = leaf(
+        [4, 3], f(1.0, 2.0, 0.5, -1.0, 0.0, 3.0, 2.5, 2.5, -0.5, 0.1, -0.3, 7.25)
+    )
+    targets = [1, 2, 0, 2]
+    x = leaf([2, 3], f(1.0, -2.0, 0.5, 3.0, 0.25, -1.0))
+    y = leaf([2, 3], f(0.5, 1.0, 0.5, -1.0, 2.0, 0.75))
+    big = f(100.0, 200.0, 89.0, -1e30, 0.0, 1e30)
+    infinities = f(INFINITY, 1.0, 2.0, 1.0, NEGATIVE_INFINITY, 0.5)
+    infinities += f(NEGATIVE_INFINITY, NEGATIVE_INFINITY, NEGATIVE_INFINITY)
+    layer = leaf([4, 3], f(*[0.25 * k - 1.0 for k in range(12)]))
+    return [
+        program_case("mse", [x, y, op("mse_loss", 0, 1)], 2),
+        program_case(
+            "mse_broadcast_target",
+            [x, leaf([3], f(0.1, -0.3, 1e-3)), op("mse_loss", 0, 1)],
+            2,
+        ),
+        # Six cells, so 2 / N rounds, and a scale of 3 after the loss, so
+        # (2 / N * d) * g differs from (d * g) * (2 / N).
+        program_case(
+            "mse_scaled",
+            [
+                leaf([2, 3], f(0.1, -0.3, 7.25, 1e-3, 3.0, -2.0)),
+                leaf([2, 3], f(1.0, 0.5, 0.1, 1e8, -1e-3, -2.0)),
+                op("mse_loss", 0, 1),
+                leaf([], f(3.0)),
+                op("mul", 2, 3),
+            ],
+            4,
+        ),
+        program_case(
+            "mse_equal_and_zeros",
+            [
+                leaf([4], f(1.0, 0.0, NEGATIVE_ZERO, 0.0)),
+                leaf([4], f(1.0, NEGATIVE_ZERO, 0.0, 0.0)),
+                op("mse_loss", 0, 1),
+            ],
+            2,
+        ),
+        program_case(
+            "mse_specials",
+            [
+                leaf([4], f(INFINITY, 1e30, QUIET_NAN, 1.0)),
+                leaf([4], f(1.0, -1e30, 2.0, INFINITY)),
+                op("mse_loss", 0, 1),
+            ],
+            2,
+        ),
+        program_case(
+            "mse_empty",
+            [leaf([0, 3], []), leaf([3], f(1.0, 2.0, 3.0)), op("mse_loss", 0, 1)],
+            2,
+        ),
+        {
+            "id": "mse_refused",
+            "steps": [
+                x,
+                leaf([2], f(1.0, 2.0)),
+                op("mse_loss", 0, 1),
+                op("mse_loss", 0, 7),
+                op("mse_loss", 0, 0),
+                run(2),
+                *reads(3),
+            ],
+        },
+        program_case("cross_entropy", [logits, entropy(0, targets)], 1),
+        program_case(
+            "cross_entropy_scaled",
+            [
+                leaf(
+                    [3, 4],
+                    f(0.1, -0.3, 7.25, 1e-3, 3.0, -2.0, 0.5, 0.5, 1.0, 2.0, 3.0, 4.0),
+                ),
+                entropy(0, [3, 0, 2]),
+                leaf([], f(3.0)),
+                op("mul", 1, 2),
+            ],
+            3,
+        ),
+        # Logits whose unshifted exp overflows, and a row of -1e30 and 1e30.
+        program_case(
+            "cross_entropy_large",
+            [leaf([2, 3], big), entropy(0, [0, 1])],
+            1,
+        ),
+        program_case(
+            "cross_entropy_large_target",
+            [leaf([2, 3], big), entropy(0, [2, 2])],
+            1,
+        ),
+        # +inf in a row, -inf at a target, and a row of -inf only.
+        program_case(
+            "cross_entropy_infinities",
+            [leaf([3, 3], infinities), entropy(0, [1, 1, 0])],
+            1,
+        ),
+        program_case(
+            "cross_entropy_nan",
+            [leaf([2, 3], f(1.0, QUIET_NAN, 2.0, 0.5, 0.25, 0.0)), entropy(0, [0, 2])],
+            1,
+        ),
+        # Equal logits, and a tie of +0.0 and -0.0 in a one-class row.
+        program_case(
+            "cross_entropy_ties",
+            [
+                leaf([2, 3], f(5.0, 5.0, 5.0, 0.0, NEGATIVE_ZERO, 0.0)),
+                entropy(0, [1, 1]),
+            ],
+            1,
+        ),
+        program_case(
+            "cross_entropy_one_class",
+            [leaf([3, 1], f(2.0, NEGATIVE_ZERO, -7.5)), entropy(0, [0, 0, 0])],
+            1,
+        ),
+        program_case(
+            "cross_entropy_empty",
+            [leaf([0, 3], []), entropy(0, [])],
+            1,
+        ),
+        # No rows and more columns than a tensor holds cells: valid, since
+        # [0, columns] has no cell, so the loss is NaN and the gradient empty.
+        program_case(
+            "cross_entropy_empty_wide",
+            [leaf([0, 1048577], []), entropy(0, [])],
+            1,
+        ),
+        scaled_entropy("one_class", [2, 1], f(2.0, -7.5), [0, 0]),
+        scaled_entropy("two_class", [2, 2], f(0.0, 1.0, 3.0, -1.0), [1, 0]),
+        # The logits also feed a sum, so their slot adds the sum's gradient
+        # before the two cross_entropy contributions.
+        program_case(
+            "cross_entropy_fan_out",
+            [logits, entropy(0, targets), op("sum", 0), op("add", 1, 2)],
+            3,
+        ),
+        {
+            "id": "cross_entropy_refused",
+            "steps": [
+                logits,
+                entropy(0, [1, 2, 3, 0]),
+                entropy(0, [1, 2, 0]),
+                entropy(0, [1, 2, 0, 0, 1]),
+                leaf([1, 2, 3], f(1.0, 2.0, 3.0, 4.0, 5.0, 6.0)),
+                entropy(1, [0]),
+                entropy(5, [0]),
+                op("sum", 0),
+                run(2),
+                *reads(3),
+            ],
+        },
+        # Linear, relu, Linear and cross_entropy: the MLP of a classifier.
+        program_case(
+            "cross_entropy_mlp",
+            [
+                leaf([2, 3], f(1.0, -2.0, 0.5, 3.0, 0.25, -1.0)),
+                layer,
+                leaf([4], f(0.25, -0.5, 1.0, 2.0)),
+                leaf([3, 4], f(*[0.5 - 0.125 * k for k in range(12)])),
+                leaf([3], f(0.1, 0.0, -0.1)),
+                linear(0, 1, 2),
+                op("relu", 6),
+                linear(7, 3, 4),
+                entropy(9, [2, 0]),
+            ],
+            10,
+        ),
+        program_case(
+            "mse_linear",
+            [
+                x,
+                layer,
+                leaf([4], f(0.25, -0.5, 1.0, 2.0)),
+                linear(0, 1, 2),
+                leaf([2, 4], f(*[0.5 * k for k in range(8)])),
+                op("mse_loss", 4, 5),
+            ],
+            6,
+        ),
+    ]
+
+
+# The loss of logits times g = +0.0, -0.0, 1.0 and NaN, one backward each,
+# the slots emptied between them. With one class PyTorch's row sum of the
+# one-hot gradient is its one word, so at g = +0.0 the logits' gradient is
+# +0.0, where adding +0.0 to that row sum would give -0.0.
+def scaled_entropy(
+    name: str, shape: list[int], words: list[int], targets: list[int]
+) -> dict:
+    steps = [leaf(shape, words), entropy(0, targets)]
+    for scale in (0, NEGATIVE_ZERO, ONE, QUIET_NAN):
+        steps += [leaf([], [scale]), op("mul", 1, len(steps))]
+    count = len(steps)
+    for output in range(3, count, 2):
+        if output > 3:
+            steps.append(ZERO_GRAD)
+        steps += [run(output), *reads(count)]
+    return {"id": f"cross_entropy_{name}_scaled", "steps": steps}
+
+
+def loss_generated(count: int, seed: int) -> list[dict]:
+    state = seed
+
+    def draw(bound: int) -> int:
+        nonlocal state
+        state = (state * 1103515245 + 12345) & 0x7FFFFFFF
+        return (state >> 8) % bound
+
+    def number() -> int:
+        return word((draw(4001) - 2000) / 173.0)
+
+    result = []
+    for index in range(count):
+        rows, columns = 1 + draw(6), 1 + draw(12)
+        shape = [rows, columns]
+        steps = [leaf(shape, [number() for _ in range(rows * columns)])]
+        if index % 2 == 0:
+            steps.append(entropy(0, [draw(columns) for _ in range(rows)]))
+        else:
+            other = [shape, [columns], [rows, 1], []][draw(4)]
+            steps.append(leaf(other, [number() for _ in range(math.prod(other))]))
+            steps.append(op("mse_loss", 0, 1))
+        node = len(steps) - 1
+        if draw(2):
+            steps += [leaf([], [number()]), op("mul", node, node + 1)]
+        output = len(steps) - 1
+        steps += [run(output), *reads(len(steps))]
+        result.append({"id": f"loss_{index:02d}", "steps": steps})
+    return result
+
+
 def cases() -> list[dict]:
     result = (
         handwritten()
         + generated("generated", EXACT, 32, 0x5DEECE66)
         + generated("rounding", ROUNDING, 24, 0x2545F491)
         + generated("relu", RELU_POOL, 16, 0x1F2E3D4C, relu=True)
+        + losses()
+        + loss_generated(16, 0x3C6EF372)
     )
     if len({case["id"] for case in result}) != len(result):
         raise GateError("Duplicate autograd tensor backward case identifier")
@@ -773,6 +1066,95 @@ def relu_word(number: int) -> int:
 # PyTorch's threshold_backward(g, relu(x), 0): +0.0 where x <= 0, else g.
 def relu_backward_word(x: int, g: int) -> int:
     return 0 if at_most_zero(x) else g
+
+
+# F32 division, exp and log as the native lane computes them: the binary64
+# operation on the two F32 values, rounded to F32 (exp and log are the C
+# library's binary64 exp and log). A NaN operand gives a NaN; its payload is
+# not specified.
+def div_word(left: int, right: int) -> int:
+    nan = nan_operand(left, right, False)
+    if nan is not None:
+        return nan
+    a, b = value(left), value(right)
+    if b == 0:
+        if a == 0:
+            return QUIET_NAN
+        negative = math.copysign(1.0, a) * math.copysign(1.0, b) < 0
+        return NEGATIVE_INFINITY if negative else INFINITY
+    if math.isinf(a) and math.isinf(b):
+        return QUIET_NAN
+    return bits(f32(a / b))
+
+
+def exp_word(number: int) -> int:
+    if is_nan(number):
+        return number | QUIET
+    try:
+        return bits(f32(math.exp(value(number))))
+    except OverflowError:
+        return INFINITY
+
+
+def log_word(number: int) -> int:
+    if is_nan(number):
+        return number | QUIET
+    x = value(number)
+    if x == 0:
+        return NEGATIVE_INFINITY
+    if x < 0:
+        return QUIET_NAN
+    if math.isinf(x):
+        return INFINITY
+    return bits(f32(math.log(x)))
+
+
+def count_word(count: int) -> int:
+    return word(float(count))
+
+
+def greater(left: int, right: int) -> bool:
+    return value(left) > value(right)
+
+
+# PyTorch's maximum: NaN when either word is NaN, else the larger, the later
+# word on a tie.
+def max_word(held: int, number: int) -> int:
+    if is_nan(held) or (not is_nan(number) and greater(held, number)):
+        return held
+    return number
+
+
+def mse_forward(left: tuple, right: tuple) -> tuple | int:
+    d = elementwise(sub_word, left, right)
+    if isinstance(d, int):
+        return d
+    e = accepted(elementwise(sub_word, right, left))
+    squares = [mul_word(number, number) for number in d[1]]
+    loss = div_word(total(squares), count_word(len(squares)))
+    return ([], [loss]), e, d
+
+
+def entropy_forward(logits: tuple, targets: list[int]) -> tuple | int:
+    shape, words = logits
+    if len(shape) != 2:
+        return NOT_LOGITS
+    rows, columns = shape
+    if len(targets) != rows or any(target >= columns for target in targets):
+        return TARGET_OUT_OF_RANGE
+    lp, onehot, picked = [], [], []
+    for row in range(rows):
+        line = words[row * columns : (row + 1) * columns]
+        held = line[0]
+        for number in line[1:]:
+            held = max_word(held, number)
+        shifted = [sub_word(number, held) for number in line]
+        lse = log_word(total([exp_word(number) for number in shifted]))
+        lp += [sub_word(number, lse) for number in shifted]
+        onehot += [ONE if column == targets[row] else 0 for column in range(columns)]
+    picked = [neg_word(a) if b == ONE else 0 for a, b in zip(lp, onehot, strict=True)]
+    loss = div_word(total(picked), count_word(rows))
+    return ([], [loss]), (shape, lp), (shape, onehot)
 
 
 def broadcast(left: list[int], right: list[int]) -> list[int] | None:
@@ -890,6 +1272,41 @@ def vjp(node: dict, gradient: tuple) -> list[tuple[int, tuple]]:
     name = node["op"]
     if name == "leaf":
         return []
+    if name == "mse_loss":
+        e, d = node["saved"]
+        scale = div_word(word(2.0), count_word(len(d[1])))
+
+        def scaled(g: int, number: int) -> int:
+            return mul_word(mul_word(scale, number), g)
+
+        first = accepted(elementwise(scaled, gradient, d))
+        second = accepted(elementwise(scaled, gradient, e))
+        return [
+            (node["a"], sum_to_size(first, node["left"])),
+            (node["b"], sum_to_size(second, node["right"])),
+        ]
+    if name == "cross_entropy":
+        lp, onehot = node["saved"]
+        count = count_word(node["left"][0])
+
+        def target(g: int, mark: int) -> int:
+            return neg_word(div_word(g, count)) if mark == ONE else 0
+
+        # PyTorch's row sum of the one-hot gradient: the target word alone
+        # in a row of one column (-0.0 kept), the target word + 0.0 otherwise.
+        single = node["left"][1] == 1
+
+        def rest(g: int, number: int) -> int:
+            target = neg_word(div_word(g, count))
+            row_sum = target if single else add_word(target, 0)
+            return neg_word(mul_word(exp_word(number), row_sum))
+
+        first = accepted(elementwise(target, gradient, onehot))
+        second = accepted(elementwise(rest, gradient, lp))
+        return [
+            (node["a"], sum_to_size(first, node["left"])),
+            (node["a"], sum_to_size(second, node["left"])),
+        ]
     if name == "sum":
         return [(node["a"], broadcast_to(gradient, node["left"]))]
     if name == "relu":
@@ -963,7 +1380,11 @@ def operands(node: dict) -> list[int]:
     return [node[key] for key in ("a", "b") if key in node]
 
 
-def forward(name: str, values: list[tuple]) -> tuple | int:
+def forward(name: str, values: list[tuple], step: dict) -> tuple | int:
+    if name == "mse_loss":
+        return mse_forward(*values)
+    if name == "cross_entropy":
+        return entropy_forward(values[0], step["targets"])
     if name == "sum":
         return ([], [total(values[0][1])])
     if name == "relu":
@@ -1004,16 +1425,21 @@ def reference(case: dict, trace: dict | None = None) -> list[str]:
             lines.append(f"autograd:error:{UNKNOWN_NODE}")
             return False
         values = [nodes[identifier]["value"] for identifier in ids]
-        result = forward(name, values)
+        result = forward(name, values, step)
         if isinstance(result, int):
             lines.append(f"autograd:error:{result}")
             return False
+        saved = None
+        if name in ("mse_loss", "cross_entropy"):
+            result, *saved = result
         node = {"op": name, "a": step["a"], "shape": result[0], "value": result}
         node["left"] = values[0][0]
         if name not in UNARY:
             node |= {"b": step["b"], "right": values[1][0]}
         if name in ("mul", "matmul", "matmul_nt", "relu"):
             node["saved"] = values
+        if saved is not None:
+            node["saved"] = saved
         push(node, shown)
         return True
 
@@ -1170,6 +1596,8 @@ def step_source(step: dict) -> str:
         return f"Harness.ForgeSum{{{node['a']}n, {tensor}}}"
     if name == "linear":
         return f"Harness.Linear{{{step['a']}n, {step['b']}n, {step['bias']}n}}"
+    if name == "cross_entropy":
+        return f"Harness.CrossEntropy{{{step['a']}n, {list_source(step['targets'])}}}"
     fields = ", ".join(f"{identifier}n" for identifier in operands(step))
     title = "".join(part.capitalize() for part in name.split("_"))
     return f"Harness.{title}{{{fields}}}"

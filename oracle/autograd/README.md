@@ -60,13 +60,14 @@ subgate on PyTorch tensors and writes `fixtures/tensor-backward-torch.json`.
 Each script records leaves and `+`, `-`, `*`, `@`, `linear(x, W)`
 (`matmul_nt`), `linear(x, W) + b` (`linear`, two entries, as the tape records
 it; both are computed before either is recorded, so a refused `linear`
-records nothing), `torch.relu` and `.sum()` in order; every `backward` seeds `torch.ones_like(output)` and keeps the graph
+records nothing), `torch.relu`, `mse_loss`, `cross_entropy` with class
+indices and `.sum()` in order; every `backward` seeds `torch.ones_like(output)` and keeps the graph
 (`retain_graph=True`), every non-leaf keeps its gradient (`retain_grad()`), and
 `zero_grad` sets every `.grad` to `None`. Lines carry decimal F32 words in the
 gate's own format. `tests/test_autograd_tensor_backward.py` in the root suite
-compares the gate's Python reference with this file: 110 of 130 scripts agree
+compares the gate's Python reference with this file: 126 of 169 scripts agree
 line for line, and [docs/tensor-backward.md](../../docs/tensor-backward.md)
-lists the other 20.
+lists the other 43.
 
 ## Reproduce
 

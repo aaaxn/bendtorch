@@ -21,6 +21,9 @@ OUTPUT = AUTOGRAD_DIR / "fixtures/tensor-backward-torch.json"
 Json = dict[str, Any]
 
 
+BACKED = ("add", "sub", "mul", "matmul", "matmul_nt", "sum", "relu", "mse_loss")
+
+
 def snapshot(value: torch.Tensor) -> list[str]:
     flat = value.detach().contiguous().reshape(-1).view(torch.int32).tolist()
     return [
@@ -50,6 +53,8 @@ def operation(name: str, operands: list[torch.Tensor]) -> torch.Tensor:
         return torch.nn.functional.linear(operands[0], operands[1])
     if name == "relu":
         return torch.relu(operands[0])
+    if name == "mse_loss":
+        return torch.nn.functional.mse_loss(operands[0], operands[1])
     return operands[0].sum()
 
 
@@ -69,10 +74,18 @@ def replay(case: Json) -> Json:
             if name == "leaf":
                 value = tensor(step["words"], step["shape"]).requires_grad_()
                 lines.append(record(value, nodes))
-            elif name in ("add", "sub", "mul", "matmul", "matmul_nt", "sum", "relu"):
+            elif name in BACKED:
                 ids = [step[key] for key in ("a", "b") if key in step]
                 operands = [nodes[identifier] for identifier in ids]
                 lines.append(record(operation(name, operands), nodes))
+            elif name == "cross_entropy":
+                # Class indices, mean reduction. A target count other than
+                # the batch raises ValueError, a target out of range
+                # IndexError.
+                logits = nodes[step["a"]]
+                targets = torch.tensor(step["targets"], dtype=torch.int64)
+                loss = torch.nn.functional.cross_entropy(logits, targets)
+                lines.append(record(loss, nodes))
             elif name == "linear":
                 # The tape records Linear as x @ W^T, then the bias added to
                 # it, and prints the sum's id: linear(x, W), then + b. Both
@@ -106,7 +119,7 @@ def replay(case: Json) -> Json:
                     if grad is None
                     else ["autograd:grad", *snapshot(grad)]
                 )
-        except (IndexError, RuntimeError) as error:
+        except (IndexError, RuntimeError, ValueError) as error:
             lines.append(f"autograd:rejected:{type(error).__name__}")
     return {"lines": lines}
 

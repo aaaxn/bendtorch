@@ -13,22 +13,27 @@ operand's shape with [`sum_to_size`](sum-to-size.md) before it is added.
 
 A `Tape` is a list of `Entry{node, shape, value, saved, grad}`, newest first.
 `node` is `Leaf`, `Add{a, b, left, right}`, `Sub{...}`, `Mul{...}`,
-`Matmul{...}`, `MatmulNT{...}`, `Sum{a, input}` or `Relu{a, input}`: the operand
+`Matmul{...}`, `MatmulNT{...}`, `Sum{a, input}`, `Relu{a, input}`,
+`MseLoss{a, b, left, right}` or `CrossEntropy{a, input}`: the operand
 ids and the operand shapes. `MatmulNT` is `left @ right^T` with `right` read in place,
 PyTorch's `linear(left, right)` without a bias. `value` is the forward value,
 `saved` holds the operand values a product needs for its VJP
 (`Operands{left, right}` for `Mul`, `Matmul` and `MatmulNT`, `Operands{x, zero}`
-for `Relu`, its input and the rank-0 `+0.0` of its forward, `Unsaved` for the
-rest), and `grad` is the entry's gradient slot.
+for `Relu`, its input and the rank-0 `+0.0` of its forward, `Operands{e, d}`
+for `MseLoss`, the differences `b - a` and `a - b`, `Operands{lp, onehot}`
+for `CrossEntropy`, its `log_softmax` and the one-hot rows of its targets,
+`Unsaved` for the rest), and `grad` is the entry's gradient slot.
 
 `TensorBackward.leaf(tape, value)` returns the new tape and the id.
-`add`, `sub`, `mul`, `matmul` and `matmul_nt` take two ids and `sum` and `relu`
-one; each
+`add`, `sub`, `mul`, `matmul`, `matmul_nt` and `mse_loss` take two ids, `sum`
+and `relu` one, and `cross_entropy` one id and a `List<U32>` of class
+indices; each
 returns the new tape and `Done{id}`. A recording reads copies of its operands'
 values through the same lookup as `TensorBackward.value`, runs the tensor
 operation (`Elementwise.add`, `sub` or `mul` with broadcasting,
 `Matrix.matmul`, `Matrix.matmul_nt`, `Reduction.sum_dynamic`, or for `relu`
-`Elementwise.binary(ReluLeft, x, +0.0)` against a rank-0 `+0.0`) and pushes
+`Elementwise.binary(ReluLeft, x, +0.0)` against a rank-0 `+0.0`, or
+`Loss.mse_loss` and `Loss.cross_entropy`, see [losses](losses.md)) and pushes
 the result. `linear(tape, x, w, b)` is a layer in PyTorch's layout, `W` of
 `[out, in]`: it records `matmul_nt(x, w)` and then `add` of that product and
 the bias `b` of `[out]`, and returns the sum's id; the product is the entry
@@ -38,7 +43,8 @@ take that id. If the bias does not broadcast, the product is dropped again.
 An id the tape does not hold
 gives `Fail{UnknownNode}` (103); an operation the tensor layer refuses gives
 its error: `IncompatibleBroadcast` (6), a matmul rank mismatch (105) or inner
-dimension mismatch (106). A refused recording, `linear` included, hands the
+dimension mismatch (106), `cross_entropy` logits that are not of rank 2
+(`NotLogits`, 107) or targets that do not fit them (`TargetOutOfRange`, 108). A refused recording, `linear` included, hands the
 tape back unchanged.
 
 Every call hands the tape back, because tensors have one owner.
@@ -75,6 +81,8 @@ The sweep:
   | `Matmul` | `g @ right^T` | `left^T @ g` |
   | `MatmulNT` | `g @ right` | `g^T @ left`, `Matrix.matmul_tn`, `g` read in place |
   | `Relu` | `sum_to_size(relu_backward(x, g), x)`: `g`'s word where the saved input `x` is above zero or NaN, `+0.0` where it is at most zero | |
+  | `MseLoss` | `sum_to_size((2 / N * d) * g, left)`, `d = a - b` saved | `sum_to_size((2 / N * e) * g, right)`, `e = b - a` saved |
+  | `CrossEntropy` | two contributions to `a`: `-(g / N)` at each target and `+0.0` elsewhere, then `-(exp(lp) * r)` with `r = sum(gout)`, `-(g / N)` for one column and `-(g / N) + 0.0` for more; the slot adds them, PyTorch's `gout - exp(lp) * sum(gout)` | |
 
   `left` and `right` are the saved operand values (and shapes). `-g` uses the
   new `Elementwise.NegateLeft` operation, `scalar(NegateLeft, l, r) =
@@ -163,10 +171,10 @@ of slots, shape and tensor.
 
 These laws state the engine's structure and the `Sum` VJP's values. The
 [VJP values](#vjp-values) below state the `Add`, `Sub`, `Mul`, `Matmul`,
-`MatmulNT` and `Relu` VJPs' values.
+`MatmulNT`, `Relu`, `MseLoss` and `CrossEntropy` VJPs' values.
 
 The family controls in [`verification/families/tensor_vjp/`](../verification/families/README.md#tensor-vjp)
-check the VJP value laws: five literal consumers, seven false twins and fourteen
+check the VJP value laws: five literal consumers, seven false twins and eighteen
 mutants of `tensor-backward.bend`, each rejected by the source checker and by
 BendTT. The autograd gate applies ten proof controls and two error controls to a copy
 of the sources, and the proofs reject each one: `NegateLeft` keeping the sign
@@ -182,7 +190,7 @@ a `zero_grad` that keeps the slot; and each refusal reported as the other.
 ## VJP values
 
 `src/autograd/tensor-vjp-LAWS.bend` states the values of the `Add`, `Sub`,
-`Mul`, `Matmul`, `MatmulNT` and `Relu` VJPs, and `tensor-vjp-PROOF.bend` proves them. The `Add`,
+`Mul`, `Matmul`, `MatmulNT`, `Relu`, `MseLoss` and `CrossEntropy` VJPs, and `tensor-vjp-PROOF.bend` proves them. The `Add`,
 `Sub` and `Mul` proofs go through laws alone: the parallel product, whose
 words are the pointwise family's, then `sum_to_size`, each handing the next a
 replayed tensor. The `Matmul` proof composes the clone, transpose and
@@ -282,6 +290,22 @@ contribution, to `a`, with the input's dimensions, and cell `i` holds
 proof is the first half of the `Mul` proof: `product_replayed`, then
 `sum_to_size_replayed`.
 
+`tensor_mse_vjp_values` states the `MseLoss` VJP. With the saved differences
+`e` and `d` (both of the broadcast shape `diff`) and the gradient `g`, all
+replayed, and one plan for `g` against `diff`, it concludes a `PairContract`:
+`a` receives `reduced` of `cells(MseGrad{2 / N}, ...)` of `g` and `d`, `b` the
+same of `g` and `e`, with `N` the cells of `diff` (`Loss.mse_scale`). Word `k`
+is `(2 / N * d[k]) * g`, PyTorch's `mse_loss_backward`.
+`tensor_cross_entropy_vjp_values` states the `CrossEntropy` VJP: with the
+saved `lp` and one-hot rows (both of the input's shape) and `g`, all replayed,
+both contributions go to `a` with the input's dimensions, the first holding
+`reduced` of `cells(OneHotGrad{N}, ...)` of `g` and the one-hot rows, the
+second of `cells(SoftmaxGrad{N, Loss.one_class(input)}, ...)` of `g` and
+`lp`, `N` the rows as an F32; `SoftmaxGrad` adds `+0.0` to the row sum only
+when the input has more than one column. The `Elementwise` operations take `g` on the left, as `Mul` does, so both
+proofs follow the `Mul` proof step for step. [Losses](losses.md) has the
+operations and their order.
+
 Two laws tie the in-place reads to the transpose copy, through
 `permute_source_transposed` (for an input of dimensions `[rows, columns]`,
 `permute_source` with axes `[1, 0]` sends `j * rows + l` to
@@ -303,7 +327,7 @@ operand's dimensions.
 
 ## Runtime lanes
 
-`tools/autograd_tensor_backward.py` runs 130 scripts on native Bend CPU
+`tools/autograd_tensor_backward.py` runs 169 scripts on native Bend CPU
 (`--threads N --gpu off`, N from `tools.check --threads`, default 8, or the CPU count if lower) and on the generated JavaScript. Each script records
 leaves and operations, runs `backward` on chosen outputs, sometimes calls
 `zero_grad`, and reads the value and gradient of every node, word by word. The
@@ -311,7 +335,7 @@ harness (`src/autograd/tensor-backward-harness.bend`) calls the public
 functions; `ForgeAdd` and `ForgeSum` push an entry without checks so the gate
 can build tapes with dangling operands.
 
-- 58 handwritten scripts: broadcasting along rows, columns, a `[1, 3]` operand,
+- 81 handwritten scripts: broadcasting along rows, columns, a `[1, 3]` operand,
   a rank-0 operand and rank 4; `x*x`, `x+x` and `x-x`; matmul, a square
   `A @ A` and a linear layer `x @ W + b`; a non-scalar output seeded with
   ones; the unused-node graph with each output selected; repeated backward on
@@ -332,12 +356,28 @@ can build tapes with dangling operands.
   that reach its gradient; NaN gradients of both signs, with payloads and a
   signaling NaN, that it must pass word for word; a seeded output;
   `relu(relu(x)) * x`; a rank-0 `-0.0`; an empty `[0, 3]` input; `linear`,
-  `relu`, `linear`; and an unknown operand.
+  `relu`, `linear`; and an unknown operand. Seven run `mse_loss`: same
+  shapes, a broadcast target, a scale after the loss with a count whose
+  `2 / N` rounds, equal words and both zeros, infinities and NaN, an empty
+  input, and refusals (shapes that do not broadcast, an unknown id).
+  Fourteen run `cross_entropy`: one batch, a scale after the loss over three rows,
+  logits whose unshifted `exp` overflows (with the large logit at a target or
+  not), `+inf` in a row, `-inf` at a target and a row of `-inf` only, a NaN
+  logit, ties (equal logits, and `+0.0` against `-0.0`), one class, an empty
+  batch, an empty batch of 1048577 columns, one and two classes times
+  `g = +0.0`, `-0.0`, `1.0` and NaN, logits that also feed a `sum`, and
+  refusals (a target equal to the columns, too few and too many targets,
+  logits of rank 3, an unknown id).
+  One runs Linear, relu, Linear and `cross_entropy`, and one Linear and
+  `mse_loss`.
 - 32 generated scripts (fixed seed) over shapes `[]`, `[2]`, `[3]`, `[1, 3]`,
   `[2, 1]`, `[2, 3]`, `[3, 2]` and `[2, 2]`, with words whose sums and products
   stay exact, and 24 more with words that round, cancel and overflow. 16 more
   record `relu` in three of eight steps, over words on both sides of zero,
-  both zeros and a denormal of each sign.
+  both zeros and a denormal of each sign. 16 more record `cross_entropy` with
+  random targets, or `mse_loss` against a target of the same, a broadcast or
+  a rank-0 shape, on `[1..6, 1..12]` words that round, sometimes scaled after
+  the loss.
 
 Both lanes must print exactly the lines of a Python reference that applies the
 same rules in the same order and rounds to F32 after each operation. A NaN
@@ -353,7 +393,7 @@ as `0x7FC00000`, without its sign or payload, so it keeps the NaN allowance,
 and only the native lane and the laws check the NaN words `relu` keeps and
 passes.
 
-The subgate also builds seventeen runtime controls from a mutated copy of the
+The subgate also builds twenty-six runtime controls from a mutated copy of the
 sources and requires the JavaScript lane to reject each one: a seed at the
 newest node, a `Mul` VJP with swapped operands, a `Sub` VJP without the sign,
 a `Matmul` VJP without the transpose, a merge that overwrites the slot, a
@@ -364,8 +404,13 @@ drops the bias, a `reduce_to` that walks the wrong stride, so the bias
 gradient sums rows instead of columns, a `linear` that checks the bias id
 after it records the product, a `linear` that keeps the product when the
 sum is refused, a `relu` that passes negatives, a `relu` that zeroes
-`-0.0`, a `relu` gradient that passes `g` at zero, and a `Relu` VJP that
-reads `g` as the input. Two more controls run on the native lane only, since
+`-0.0`, a `relu` gradient that passes `g` at zero, a `Relu` VJP that
+reads `g` as the input, a `mean` that divides by 1, an inverted `2 / N`, a
+`cross_entropy` without the max shift, one-hot rows shifted by one column, a
+`cross_entropy` mean that divides by 1, a one-hot gradient of `+0.0`
+everywhere, a target gradient without the division by `N`, a `SoftmaxGrad`
+with its operands swapped, and a `CrossEntropy` VJP that adds `+0.0` to the
+row sum of one-class logits. Two more controls run on the native lane only, since
 the JavaScript lane cannot tell NaNs apart: a `relu` and a `relu` gradient
 that replace each NaN word, of `x` or of `g`, with `0x7FC00000`. The
 reference accepts both, and the exact `relu` words reject each.
@@ -379,22 +424,26 @@ retain_graph=True)`, `retain_grad()` on every non-leaf) and writes
 `tests/test_autograd_tensor_backward.py` compares it with the Python
 reference. Bend never calls PyTorch.
 
-110 of the 130 scripts agree with PyTorch line for line: every id, shape, value,
+126 of the 169 scripts agree with PyTorch line for line: every id, shape, value,
 gradient word and `None`, including the arrival-order and fold-order scripts,
 `-0.0`, infinities and subnormals, and every `relu` script but four, with
 PyTorch's `-0.0`, NaN and zero-gradient words. Those four are listed below:
 `relu_edges` and `relu_nan_gradient` (NaN payloads of `NaN * NaN` in the
 forward product after `relu`), `relu_13` (a one-term matmul, no `relu`
-involved) and `relu_unknown_operand` (an intentional refusal). The other 20
-differ as listed, and every
+involved) and `relu_unknown_operand` (an intentional refusal), and 16 of the
+39 loss scripts. The other 43
+differ as listed; outside the loss scripts every
 gradient PyTorch can represent in them agrees:
 
 | Scripts | bendtorch | PyTorch |
 | --- | --- | --- |
 | `unknown_operands`, `unknown_output`, `unknown_output_empty`, `linear_bias_next`, `linear_bias_unknown`, `relu_unknown_operand` | `UnknownNode` (103) for each unknown id | `IndexError` from the Python list that the replay uses as a tape |
 | `incompatible_shapes`, `invalid_leaf`, `linear_inner_mismatch`, `linear_bias_mismatch`, `matmul_nt_rank` | the tensor layer's error code (6, 105, 106, 10) | `RuntimeError` |
+| `mse_refused`, `cross_entropy_refused` | 6, 107, 108 and 103 | `RuntimeError`, `IndexError` (a target out of range, an unknown id) and `ValueError` (a target count other than the rows) |
 | `dangling_self`, `dangling_newer`, `dangling_missing` | `DanglingOperand` (104) | not representable |
 | `specials`, `relu_edges`, `relu_nan_gradient` | the value of `NaN * NaN` is NaN | NaN with another payload |
+| `mse_empty`, `cross_entropy_infinities`, `cross_entropy_nan`, `cross_entropy_empty`, `cross_entropy_empty_wide`, `cross_entropy_one_class_scaled`, `cross_entropy_two_class_scaled` | NaN losses and gradients | NaN with another payload |
+| `cross_entropy`, `cross_entropy_scaled` and 12 generated `loss_` scripts | 9 loss words up to 3 ulp, 21 gradient words up to 2 ulp and 3 gradients of a scale (a loss word) up to 2 ulp from PyTorch's | PyTorch's cascade sums and vectorized `exp` ([losses](losses.md#against-pytorch)) |
 | `rounding_09` | the forward `sum` of six words adds them in ascending order | PyTorch's vectorized sum gives another word |
 | `rounding_14`, `relu_13` | a matmul with inner dimension 1 whose product is `-0.0` gives `+0.0`, because the ordered dot starts from `+0.0` | `-0.0` |
 
