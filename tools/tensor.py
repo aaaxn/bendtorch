@@ -193,7 +193,8 @@ def verify_supplement(supplement: dict, observations: list[dict]) -> dict:
 
 # Mutants of ReLU, its gradient and the comparisons with zero they use, each
 # applied to a copy of src/tensor/elementwise.bend, and the law of
-# src/tensor/relu-LAWS.bend whose proof rejects it.
+# src/tensor/relu-LAWS.bend whose proof rejects it. Each law named here is
+# false for the mutant.
 RELU_CONTROLS = {
     "relu-passes-negatives": (
         "  zero_if(below_zero(x), x)",
@@ -218,7 +219,7 @@ RELU_CONTROLS = {
     "relu-backward-ignores-gradient": (
         "  zero_if(at_most_zero(x), g)",
         "  zero_if(at_most_zero(x), x)",
-        "Laws.scalar_relu_backward_zeroed",
+        "scalar_relu_backward_passed_at_one",
     ),
     "relu-backward-zeroes-negative-nan": (
         "U32.is_le(word, 4286578688)))",
@@ -231,6 +232,68 @@ RELU_CONTROLS = {
         "Laws.scalar_relu_backward_zeroed",
     ),
 }
+
+
+# Instances of a relu law, checked on their own. A mutant that keeps the law
+# a proof checks first true is rejected by an instance of the law it breaks:
+# a gradient that passes x instead of g still gives +0.0 where x is at most
+# zero, so it is checked at x = 1.0, where scalar_relu_backward_passed says
+# the gradient is g's own word, 2.5. The check names the two words.
+RELU_WITNESSES = {
+    "scalar_relu_backward_passed_at_one": (
+        "def scalar_relu_backward_passed_at_one() -> "
+        "{Elementwise.scalar(Elementwise.ReluBackward{}, 1.0, 2.5) == 2.5 : F32}:\n"
+        "  {==}\n",
+        ("- expected : 1.0", "- observed : 2.5"),
+    ),
+}
+
+
+def relu_witness(directory: Path, location: str) -> Path:
+    source = directory / "relu-witness.bend"
+    source.write_text(
+        "import Base\nimport ./src/tensor/elementwise.bend as Elementwise\n\n"
+        + RELU_WITNESSES[location][0]
+    )
+    return source
+
+
+def relu_controls(evidence: Evidence, source_root: Path) -> None:
+    def control(name: str, original: str, mutated: str, location: str) -> None:
+        copy = evidence.directory / "relu-controls" / name
+        shutil.copytree(source_root / "src", copy / "src")
+        target = copy / "src/tensor/elementwise.bend"
+        text = target.read_text()
+        if text.count(original) != 1:
+            raise GateError(f"{name}: control anchor is missing or ambiguous")
+        target.write_text(text.replace(original, mutated))
+        if location in RELU_WITNESSES:
+            checked, words = relu_witness(copy, location), RELU_WITNESSES[location][1]
+        else:
+            checked, words = copy / "src/tensor/relu-PROOF.bend", ()
+        evidence.run(
+            f"relu-control-{name}",
+            bend(evidence.tool_root, checked, "--check-only"),
+            expected_code=1,
+            contains=("SOME PROOFS FAIL", f"Location: {location}", *words),
+        )
+
+    def accepted(location: str) -> None:
+        copy = evidence.directory / "relu-controls" / f"accepted-{location}"
+        shutil.copytree(source_root / "src", copy / "src")
+        evidence.run(
+            f"relu-witness-{location}",
+            bend(evidence.tool_root, relu_witness(copy, location), "--check-only"),
+            contains="ALL PROOFS CHECK",
+        )
+
+    parallel(
+        *(
+            partial(control, name, *control_text)
+            for name, control_text in RELU_CONTROLS.items()
+        ),
+        *(partial(accepted, location) for location in RELU_WITNESSES),
+    )
 
 
 # Mutants of the scalar operations of the mean and the losses, each applied
@@ -277,11 +340,9 @@ LOSS_CONTROLS = {
 }
 
 
-def law_controls(
-    evidence: Evidence, source_root: Path, kind: str, controls: dict, proof: str
-) -> None:
+def loss_controls(evidence: Evidence, source_root: Path) -> None:
     def control(name: str, original: str, mutated: str, location: str) -> None:
-        copy = evidence.directory / f"{kind}-controls" / name
+        copy = evidence.directory / "loss-controls" / name
         shutil.copytree(source_root / "src", copy / "src")
         target = copy / "src/tensor/elementwise.bend"
         text = target.read_text()
@@ -289,8 +350,12 @@ def law_controls(
             raise GateError(f"{name}: control anchor is missing or ambiguous")
         target.write_text(text.replace(original, mutated))
         evidence.run(
-            f"{kind}-control-{name}",
-            bend(evidence.tool_root, copy / proof, "--check-only"),
+            f"loss-control-{name}",
+            bend(
+                evidence.tool_root,
+                copy / "src/tensor/loss-ops-PROOF.bend",
+                "--check-only",
+            ),
             expected_code=1,
             contains=("SOME PROOFS FAIL", f"Location: {location}"),
         )
@@ -298,20 +363,8 @@ def law_controls(
     parallel(
         *(
             partial(control, name, *control_text)
-            for name, control_text in controls.items()
+            for name, control_text in LOSS_CONTROLS.items()
         )
-    )
-
-
-def relu_controls(evidence: Evidence, source_root: Path) -> None:
-    law_controls(
-        evidence, source_root, "relu", RELU_CONTROLS, "src/tensor/relu-PROOF.bend"
-    )
-
-
-def loss_controls(evidence: Evidence, source_root: Path) -> None:
-    law_controls(
-        evidence, source_root, "loss", LOSS_CONTROLS, "src/tensor/loss-ops-PROOF.bend"
     )
 
 

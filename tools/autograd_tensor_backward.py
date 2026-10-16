@@ -31,7 +31,7 @@ from tools.autograd_broadcast import (
     word,
 )
 from tools.autograd_reduce import bits, f32, value
-from tools.common import ROOT, Evidence, GateError, bend
+from tools.common import ROOT, Evidence, GateError, bend, native
 
 VALUE_COUNT_MISMATCH = 10
 MATMUL_RANK = 105
@@ -169,6 +169,41 @@ RUNTIME_CONTROLS = {
     "reduction-folds-equal-shapes": (
         "delivered_as(target, shape, SumToSize.sum_to_size(g, shape))",
         "delivered_as(target, shape, Reduce.reduce_to(g, shape))",
+    ),
+}
+
+# Controls that only the native lane can reject: the JavaScript lane prints
+# every NaN as 0x7FC00000, so a relu that replaces a NaN word with that
+# canonical NaN looks right there. Each replaces x's or g's NaN word, sign,
+# payload and signaling bit included, with 0x7FC00000.
+CANONICAL_NAN = """def quiet(word: U32) -> F32:
+  U32{bits} = word
+  F32{bits}
+
+def canonical_if(nan: Bool, value: F32) -> F32:
+  match nan:
+    case True{}:
+      quiet(2143289344)
+    case False{}:
+      value
+
+# 0x7FC00000 when the word is a NaN, else the word.
+def canonical(+value: F32) -> F32:
+  canonical_if(U32.is_lt(2139095040, U32.and(bits(value), 2147483647)), value)
+
+"""
+NATIVE_CONTROLS = {
+    "relu-canonicalizes-nan": (
+        "src/tensor/elementwise.bend",
+        "def relu(+x: F32) -> F32:\n  zero_if(below_zero(x), x)",
+        CANONICAL_NAN
+        + "def relu(+x: F32) -> F32:\n  zero_if(below_zero(x), canonical(x))",
+    ),
+    "relu-backward-canonicalizes-nan": (
+        "src/tensor/elementwise.bend",
+        "def relu_backward(+x: F32, g: F32) -> F32:\n  zero_if(at_most_zero(x), g)",
+        CANONICAL_NAN + "def relu_backward(+x: F32, g: F32) -> F32:\n"
+        "  zero_if(at_most_zero(x), canonical(g))",
     ),
 }
 
@@ -563,6 +598,31 @@ def handwritten() -> list[dict]:
                 leaf([len(EDGES)], list(EDGES)),
                 op("relu", 0),
                 leaf([len(EDGES)], [EDGE_WEIGHTS[k % 6] for k in range(len(EDGES))]),
+                op("mul", 1, 2),
+                op("sum", 3),
+            ],
+            4,
+        ),
+        # NaN gradients of either sign, with payloads and a signaling NaN,
+        # reach relu through x * w: where x is above zero or NaN, x's
+        # gradient is g's own word.
+        program_case(
+            "relu_nan_gradient",
+            [
+                leaf([7], f(1.0, 2.0, 0x7FC00000, 0xFFC00001, 3.0, -1.0, 0.5)),
+                op("relu", 0),
+                leaf(
+                    [7],
+                    [
+                        0xFFC00001,
+                        QUIET_NAN,
+                        0xFF800001,
+                        0x7FA00001,
+                        NEGATIVE_ZERO,
+                        0xFFC00001,
+                        0xFFFFFFFF,
+                    ],
+                ),
                 op("mul", 1, 2),
                 op("sum", 3),
             ],
@@ -1303,10 +1363,18 @@ def forward(name: str, values: list[tuple], step: dict) -> tuple | int:
     return elementwise(combine, *values)
 
 
-def reference(case: dict) -> list[str]:
+# The reference's lines for one script. With a trace, it also records each
+# node's op and operands ("nodes"), the backward outputs ("outputs"), and, for
+# each read, where its value and gradient words start in the lines ("reads",
+# keyed by the read's epoch and the node id; an epoch is a run of reads with
+# no other step between them).
+def reference(case: dict, trace: dict | None = None) -> list[str]:
     nodes: list[dict] = []
     slots: list[tuple | None] = []
     lines = []
+    epoch = 0
+    reads: dict[tuple[int, int], tuple[int, int, int | None]] = {}
+    outputs: set[int] = set()
 
     def push(node: dict, shown: bool = True) -> None:
         if shown:
@@ -1340,6 +1408,8 @@ def reference(case: dict) -> list[str]:
 
     for step in case["steps"]:
         name = step["op"]
+        if name != "read":
+            epoch += 1
         if name == "leaf":
             shape, words = step["shape"], step["words"]
             if len(shape) > MAX_RANK:
@@ -1373,6 +1443,7 @@ def reference(case: dict) -> list[str]:
             slots.append(None)
         elif name == "backward":
             output = step["output"]
+            outputs.add(output)
             if output >= len(nodes):
                 lines.append(f"autograd:error:{UNKNOWN_NODE}")
             elif any(
@@ -1397,13 +1468,72 @@ def reference(case: dict) -> list[str]:
                 ]
                 continue
             slot = slots[identifier]
+            value_start = len(lines) + 3
             lines += ["autograd:value", *snapshot(nodes[identifier]["value"])]
+            grad_start = None if slot is None else len(lines) + 3
             lines += (
                 ["autograd:grad:none"]
                 if slot is None
                 else ["autograd:grad", *snapshot(slot)]
             )
+            count = len(nodes[identifier]["value"][1])
+            reads[(epoch, identifier)] = (value_start, count, grad_start)
+    if trace is not None:
+        trace["nodes"] = [(node["op"], operands(node)) for node in nodes]
+        trace["outputs"] = outputs
+        trace["reads"] = reads
     return lines
+
+
+def words_at(lines: list[str], start: int, count: int) -> list[int]:
+    return [
+        int(line.removeprefix("tensor:word:")) for line in lines[start : start + count]
+    ]
+
+
+# relu moves words and never computes one, so on the native lane its words
+# must be exact, NaN sign, payload and signaling bit included, though the
+# reference allows any NaN for any NaN elsewhere. For each read of a relu
+# node r of input a in one epoch: r's value is relu of a's value, word for
+# word; and when a feeds only r and no backward starts at a, a's gradient is
+# relu_backward of a's value and r's gradient, both as this lane printed them,
+# so every passed word is g's own word. Both slots accumulate in the same
+# order, so the sums agree too.
+def relu_exact(case: dict, seen: list[str], lane: str) -> int:
+    trace: dict = {}
+    reference(case, trace)
+    nodes, reads, outputs = trace["nodes"], trace["reads"], trace["outputs"]
+    consumers = [0] * len(nodes)
+    for _, ids in nodes:
+        for identifier in ids:
+            if identifier < len(nodes):
+                consumers[identifier] += 1
+    checked = 0
+    for (epoch, r), (value_r, count, grad_r) in reads.items():
+        op_name, ids = nodes[r]
+        if op_name != "relu" or (epoch, ids[0]) not in reads:
+            continue
+        a = ids[0]
+        value_a, _, grad_a = reads[(epoch, a)]
+        xs = words_at(seen, value_a, count)
+        if words_at(seen, value_r, count) != [relu_word(x) for x in xs]:
+            raise GateError(f"{lane} {case['id']}: relu of node {a} is not exact")
+        checked += count
+        if consumers[a] != 1 or a in outputs:
+            continue
+        if (grad_r is None) != (grad_a is None):
+            raise GateError(f"{lane} {case['id']}: node {a} and relu disagree on None")
+        if grad_r is None or grad_a is None:
+            continue
+        gs = words_at(seen, grad_r, count)
+        if words_at(seen, grad_a, count) != [
+            relu_backward_word(x, g) for x, g in zip(xs, gs, strict=True)
+        ]:
+            raise GateError(
+                f"{lane} {case['id']}: relu gradient of node {a} is not exact"
+            )
+        checked += count
+    return checked
 
 
 def list_source(numbers: list[int]) -> str:
@@ -1506,7 +1636,9 @@ def same_row(seen: str, wanted: str) -> bool:
     return seen == wanted
 
 
-def verify(selected: list[dict], observations: list[dict], lane: str) -> dict:
+def verify(
+    selected: list[dict], observations: list[dict], lane: str, native: bool = False
+) -> dict:
     if [row["id"] for row in observations] != [case["id"] for case in selected]:
         raise GateError(f"{lane}: incomplete autograd tensor backward case inventory")
     summary = {
@@ -1523,6 +1655,8 @@ def verify(selected: list[dict], observations: list[dict], lane: str) -> dict:
             same_row(a, b) for a, b in zip(seen, expected, strict=True)
         ):
             raise GateError(f"{lane} {case['id']}: output differs from the reference")
+        if native:
+            relu_exact(case, seen, lane)
         summary["backward"] += expected.count("autograd:backward")
         summary["errors"] += sum(
             line.startswith(("autograd:error:", "autograd:value:error:"))
@@ -1541,7 +1675,7 @@ def run_gate(tool_root: Path, output: Path) -> dict:
 
     def check(stdout: str, lane: str) -> tuple[list, dict]:
         observations = parse(stdout, [case["id"] for case in selected])
-        return observations, verify(selected, observations, lane)
+        return observations, verify(selected, observations, lane, lane == "native")
 
     summary = run_lanes(tool_root, output, "tensor-backward", selected, render, check)
     summary["runtime_controls"] = runtime_controls(
@@ -1579,6 +1713,48 @@ def runtime_controls(tool_root: Path, output: Path, selected: list[dict]) -> lis
             rejected.append(name)
             continue
         raise GateError(f"{name}: the tensor backward lane accepted a broken engine")
+    for name, (path, original, mutated) in NATIVE_CONTROLS.items():
+        copy = output / name
+        shutil.copytree(ROOT / "src", copy / "src")
+        target = copy / path
+        text = target.read_text()
+        if text.count(original) != 1:
+            raise GateError(f"{name}: native control anchor is missing or ambiguous")
+        target.write_text(text.replace(original, mutated))
+        source = copy / "tensor-backward.bend"
+        source.write_text(program(selected, copy, copy))
+        emitted = copy / "tensor-backward.c"
+        executable = copy / "tensor-backward"
+        evidence.run(f"{name}-c-export", bend(tool_root, source, "-o", emitted))
+        evidence.run(
+            f"{name}-native-build",
+            [
+                str(tool_root / "llvm/usr/bin/clang-19"),
+                "-std=c11",
+                "-O3",
+                str(emitted),
+                "-lpthread",
+                "-lm",
+                "-o",
+                str(executable),
+            ],
+        )
+        result = evidence.run(f"{name}-native-run", native(executable), timeout=1800)
+        observations = parse(result.stdout, [c["id"] for c in selected])
+        try:
+            verify(selected, observations, name, native=True)
+        except GateError as error:
+            # Only the exact relu words may reject it: the reference allows
+            # the canonical NaN.
+            if "is not exact" not in str(error):
+                raise GateError(
+                    f"{name}: rejected for another reason: {error}"
+                ) from error
+            rejected.append(name)
+            continue
+        raise GateError(
+            f"{name}: the native tensor backward lane accepted a broken engine"
+        )
     evidence.save()
     return rejected
 

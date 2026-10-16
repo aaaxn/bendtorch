@@ -11,6 +11,7 @@ from tools.common import ROOT, Evidence, GateError
 from tools.tensor import (
     LOSS_CONTROLS,
     RELU_CONTROLS,
+    RELU_WITNESSES,
     certificate_controls,
     verify_lane,
 )
@@ -128,7 +129,17 @@ class GateAcceptanceTests(unittest.TestCase):
         for original, mutated, location in RELU_CONTROLS.values():
             self.assertEqual(source.count(original), 1)
             self.assertNotEqual(original, mutated)
-            self.assertIn(f"law {location.removeprefix('Laws.')}:\n", laws)
+            if location.startswith("Laws."):
+                law = location.removeprefix("Laws.")
+            else:
+                # A witness is an instance of the law its name starts with.
+                self.assertIn(location, RELU_WITNESSES)
+                law = location.rsplit("_at_", 1)[0]
+            self.assertIn(f"law {law}:\n", laws)
+        self.assertEqual(
+            RELU_CONTROLS["relu-backward-ignores-gradient"][2],
+            "scalar_relu_backward_passed_at_one",
+        )
 
     def test_loss_controls_apply_once_and_name_a_loss_law(self):
         source = (ROOT / "src/tensor/elementwise.bend").read_text()

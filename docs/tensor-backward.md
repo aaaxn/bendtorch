@@ -303,7 +303,7 @@ operand's dimensions.
 
 ## Runtime lanes
 
-`tools/autograd_tensor_backward.py` runs 129 scripts on native Bend CPU
+`tools/autograd_tensor_backward.py` runs 130 scripts on native Bend CPU
 (`--threads N --gpu off`, N from `tools.check --threads`, default 8, or the CPU count if lower) and on the generated JavaScript. Each script records
 leaves and operations, runs `backward` on chosen outputs, sometimes calls
 `zero_grad`, and reads the value and gradient of every node, word by word. The
@@ -311,7 +311,7 @@ harness (`src/autograd/tensor-backward-harness.bend`) calls the public
 functions; `ForgeAdd` and `ForgeSum` push an entry without checks so the gate
 can build tapes with dangling operands.
 
-- 57 handwritten scripts: broadcasting along rows, columns, a `[1, 3]` operand,
+- 58 handwritten scripts: broadcasting along rows, columns, a `[1, 3]` operand,
   a rank-0 operand and rank 4; `x*x`, `x+x` and `x-x`; matmul, a square
   `A @ A` and a linear layer `x @ W + b`; a non-scalar output seeded with
   ones; the unused-node graph with each output selected; repeated backward on
@@ -320,16 +320,19 @@ can build tapes with dangling operands.
   an empty `[0, 3]` operand; NaN, infinity, overflow and subnormals; unknown
   operands and outputs, incompatible shapes, matmul rank and inner errors, an
   invalid leaf; and three forged tapes with an operand that is the node
-  itself, a newer node or a missing node. Ten of them run `linear` in
-  PyTorch's layout: one layer with a scalar and a seeded output, words that
-  round, two layers in a row, `x @ x^T`, an inner mismatch, a rank-0 input,
-  and three refusals after which the next node takes the id the product would
-  have taken: a bias that does not broadcast, a bias id equal to the number
-  of entries, and a larger unknown bias id. Seven run `relu`: at the twenty F32
-  edge words (both zeros, denormals, infinities, signaling, quiet and
-  all-ones NaNs of both signs) times weights that reach its gradient; a seeded
-  output; `relu(relu(x)) * x`; a rank-0 `-0.0`; an empty `[0, 3]` input;
-  `linear`, `relu`, `linear`; and an unknown operand.
+  itself, a newer node or a missing node. Eleven of them run Linear's product
+  in PyTorch's layout. Nine call the public `linear`: one layer with a scalar
+  and a seeded output, words that round, two layers in a row, an inner
+  mismatch, three refusals after which the next node takes the id the product
+  would have taken (a bias that does not broadcast, a bias id equal to the
+  number of entries, and a larger unknown bias id), and `linear`, `relu`,
+  `linear`. Two call `matmul_nt` alone: `x @ x^T` and a rank-0 input. Eight
+  run `relu`: at the twenty F32 edge words (both zeros, denormals,
+  infinities, signaling, quiet and all-ones NaNs of both signs) times weights
+  that reach its gradient; NaN gradients of both signs, with payloads and a
+  signaling NaN, that it must pass word for word; a seeded output;
+  `relu(relu(x)) * x`; a rank-0 `-0.0`; an empty `[0, 3]` input; `linear`,
+  `relu`, `linear`; and an unknown operand.
 - 32 generated scripts (fixed seed) over shapes `[]`, `[2]`, `[3]`, `[1, 3]`,
   `[2, 1]`, `[2, 3]`, `[3, 2]` and `[2, 2]`, with words whose sums and products
   stay exact, and 24 more with words that round, cancel and overflow. 16 more
@@ -339,9 +342,16 @@ can build tapes with dangling operands.
 Both lanes must print exactly the lines of a Python reference that applies the
 same rules in the same order and rounds to F32 after each operation. A NaN
 word only needs to be NaN on both sides: the tensor operations and gradient
-slots the engine builds on do not specify NaN payloads. The JavaScript lane
-prints every NaN as `0x7FC00000`, without its sign or payload, so only the
-native lane and the laws check the words `relu` gives at a negative NaN.
+slots the engine builds on do not specify NaN payloads. `relu` computes no
+word, it moves one, so the native lane holds its words exact, NaNs included:
+at each read of a `relu` node, its value must be `relu` of its input's value
+word for word, and, when the input feeds only that `relu` and no backward
+starts at it, the input's gradient must be `relu_backward` of the input's
+value and the `relu` node's gradient, both as the lane printed them, so every
+passed gradient word is `g`'s own word. The JavaScript lane prints every NaN
+as `0x7FC00000`, without its sign or payload, so it keeps the NaN allowance,
+and only the native lane and the laws check the NaN words `relu` keeps and
+passes.
 
 The subgate also builds seventeen runtime controls from a mutated copy of the
 sources and requires the JavaScript lane to reject each one: a seed at the
@@ -355,7 +365,10 @@ gradient sums rows instead of columns, a `linear` that checks the bias id
 after it records the product, a `linear` that keeps the product when the
 sum is refused, a `relu` that passes negatives, a `relu` that zeroes
 `-0.0`, a `relu` gradient that passes `g` at zero, and a `Relu` VJP that
-reads `g` as the input.
+reads `g` as the input. Two more controls run on the native lane only, since
+the JavaScript lane cannot tell NaNs apart: a `relu` and a `relu` gradient
+that replace each NaN word, of `x` or of `g`, with `0x7FC00000`. The
+reference accepts both, and the exact `relu` words reject each.
 
 ## PyTorch record
 
@@ -366,11 +379,14 @@ retain_graph=True)`, `retain_grad()` on every non-leaf) and writes
 `tests/test_autograd_tensor_backward.py` compares it with the Python
 reference. Bend never calls PyTorch.
 
-110 of the 129 scripts agree with PyTorch line for line: every id, shape, value,
+110 of the 130 scripts agree with PyTorch line for line: every id, shape, value,
 gradient word and `None`, including the arrival-order and fold-order scripts,
-`-0.0`, infinities and subnormals, and every `relu` script but the two below,
-with PyTorch's `-0.0`, NaN and zero-gradient words. The other 19 differ as
-listed, and every
+`-0.0`, infinities and subnormals, and every `relu` script but four, with
+PyTorch's `-0.0`, NaN and zero-gradient words. Those four are listed below:
+`relu_edges` and `relu_nan_gradient` (NaN payloads of `NaN * NaN` in the
+forward product after `relu`), `relu_13` (a one-term matmul, no `relu`
+involved) and `relu_unknown_operand` (an intentional refusal). The other 20
+differ as listed, and every
 gradient PyTorch can represent in them agrees:
 
 | Scripts | bendtorch | PyTorch |
@@ -378,7 +394,7 @@ gradient PyTorch can represent in them agrees:
 | `unknown_operands`, `unknown_output`, `unknown_output_empty`, `linear_bias_next`, `linear_bias_unknown`, `relu_unknown_operand` | `UnknownNode` (103) for each unknown id | `IndexError` from the Python list that the replay uses as a tape |
 | `incompatible_shapes`, `invalid_leaf`, `linear_inner_mismatch`, `linear_bias_mismatch`, `matmul_nt_rank` | the tensor layer's error code (6, 105, 106, 10) | `RuntimeError` |
 | `dangling_self`, `dangling_newer`, `dangling_missing` | `DanglingOperand` (104) | not representable |
-| `specials`, `relu_edges` | the value of `NaN * NaN` is NaN | NaN with another payload |
+| `specials`, `relu_edges`, `relu_nan_gradient` | the value of `NaN * NaN` is NaN | NaN with another payload |
 | `rounding_09` | the forward `sum` of six words adds them in ascending order | PyTorch's vectorized sum gives another word |
 | `rounding_14`, `relu_13` | a matmul with inner dimension 1 whose product is `-0.0` gives `+0.0`, because the ordered dot starts from `+0.0` | `-0.0` |
 
