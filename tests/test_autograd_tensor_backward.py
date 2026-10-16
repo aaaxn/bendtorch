@@ -11,6 +11,7 @@ from tools.autograd import PROOF_CONTROLS, SUBGATES
 from tools.autograd_backward import DANGLING_OPERAND, NEGATIVE_ZERO, UNKNOWN_NODE
 from tools.autograd_broadcast import is_nan, word
 from tools.autograd_tensor_backward import (
+    CHAIN_CONTROLS,
     INVALID_LEARNING_RATE,
     MATMUL_INNER,
     MATMUL_RANK,
@@ -593,6 +594,26 @@ class GateRegistrationTests(unittest.TestCase):
                 self.assertEqual(RUNTIME_CONTROLS[name], (path, original, mutated))
         self.assertIn("zero-grad-keeps-slot", RUNTIME_CONTROLS)
 
+    def test_autograd_gate_requires_the_chain_rule_laws_and_their_controls(self):
+        required = json.loads((ROOT / "verification/autograd.json").read_text())[
+            "required_exports"
+        ]
+        self.assertEqual(
+            [name for name in required if name.startswith("tensor_2d_chain_2d_LAWS.")],
+            [
+                "tensor_2d_chain_2d_LAWS.tensor_sweep_chain_rule",
+                "tensor_2d_chain_2d_LAWS.tensor_backward_chain_rule",
+            ],
+        )
+        proof = (ROOT / "src/autograd/tensor-chain-PROOF.bend").read_text()
+        self.assertEqual(len(CHAIN_CONTROLS), 4)
+        for name, (path, original, mutated, location) in CHAIN_CONTROLS.items():
+            with self.subTest(control=name):
+                self.assertEqual((ROOT / path).read_text().count(original), 1)
+                self.assertNotEqual(original, mutated)
+                self.assertIn(f"def {location.removeprefix('Location: ')}(", proof)
+                self.assertEqual(RUNTIME_CONTROLS[name], (path, original, mutated))
+
     def test_autograd_gate_registers_tensor_backward_and_its_laws(self):
         self.assertIn("tensor_backward", SUBGATES)
         required = json.loads((ROOT / "verification/autograd.json").read_text())[
@@ -636,7 +657,7 @@ class GateRegistrationTests(unittest.TestCase):
             self.assertIn("quiet(2143289344)", mutated)
 
     def test_runtime_controls_apply_once(self):
-        self.assertEqual(len(RUNTIME_CONTROLS), 36)
+        self.assertEqual(len(RUNTIME_CONTROLS), 40)
         for control in RUNTIME_CONTROLS.values():
             path, original, mutated = (
                 control
