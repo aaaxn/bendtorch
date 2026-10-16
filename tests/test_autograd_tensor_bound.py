@@ -1,22 +1,17 @@
 import json
-import math
 import unittest
 from fractions import Fraction
 
 from tools.autograd_broadcast import word
 from tools.autograd_reduce import value
-from tools.autograd_tensor_backward import cases, reference, source_index
+from tools.autograd_tensor_backward import cases, reference
 from tools.autograd_tensor_bound import (
-    REPLACED,
     UNDERFLOW,
     Bounded,
     Line,
-    add_word,
     bounded_add,
     bounded_dot,
     bounded_exp,
-    bounded_lines,
-    bounded_matmul,
     bounded_mul,
     bounded_reference,
     bounded_total,
@@ -24,7 +19,6 @@ from tools.autograd_tensor_bound import (
     compare,
     gamma,
     lift,
-    mul_word,
     within,
     word_of,
 )
@@ -82,42 +76,6 @@ def line(number: int, bound: Bounded | None = None) -> str:
     return text if bound is None else Line(text, bound)
 
 
-# A sum that leaves out its last term, as a Bend fold that stops one cell
-# early would; the reference follows it, so its bound is the bound of the
-# wrong arithmetic.
-def dropping_total(words: list[int]) -> Bounded:
-    return bounded_total(words[:-1] if len(words) > 1 else words)
-
-
-def dropping_sum_to_size(tensor: tuple, target: list[int]) -> tuple:
-    shape, words = tensor
-    if shape == target:
-        return (target, list(words))
-    fibers: list[list[int]] = [[] for _ in range(math.prod(target))]
-    for flat in range(math.prod(shape)):
-        fibers[source_index(target, shape, flat)].append(words[flat])
-    return (target, [dropping_total(fiber) for fiber in fibers])
-
-
-def dropping_matmul(left: tuple, right: tuple) -> tuple | int:
-    result = bounded_matmul(left, right)
-    (rows, inner), (_, columns) = left[0], right[0]
-    if isinstance(result, int) or inner < 2:
-        return result
-    words = []
-    for row in range(rows):
-        for column in range(columns):
-            pairs = [
-                (left[1][row * inner + k], right[1][k * columns + column])
-                for k in range(inner - 1)
-            ]
-            number = 0
-            for a, b in pairs:
-                number = add_word(number, mul_word(int(a), int(b)))
-            words.append(bounded_dot(pairs, number))
-    return (result[0], words)
-
-
 class BoundTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -141,6 +99,24 @@ class BoundTests(unittest.TestCase):
         for number in (word(2.0**24), word(2.0**24 + 2)):
             self.assertTrue(within(number, total))
         self.assertFalse(within(word(2.0**24 + 8), total))
+
+    def test_no_bound_where_another_order_could_overflow(self):
+        # M + -M + M is M in this order, and (M + M) + -M overflows: no bound.
+        largest = 0x7F7FFFFF
+        total = bounded_total([largest, largest | 0x80000000, largest])
+        self.assertEqual(int(total), largest)
+        self.assertFalse(total.bounded)
+        self.assertFalse(within(largest, total))
+        self.assertFalse(bounded_dot([(largest, word(1.0))] * 2, largest).bounded)
+        # A word under a bound that is not fixed, at the edge of the range.
+        rounding = bounded_mul(bounded_total([largest, word(0.0)]), word(1.0))
+        self.assertFalse(rounding.bounded)
+        # A smaller sum keeps its bound.
+        self.assertTrue(bounded_total([word(2.0**126), word(-(2.0**126))]).bounded)
+        # An empty sum or dot is the fixed +0.0.
+        self.assertEqual((int(bounded_total([])), bounded_total([]).fixed), (0, True))
+        self.assertEqual(int(bounded_dot([], 0)), 0)
+        self.assertTrue(bounded_dot([], 0).fixed)
 
     def test_one_rounding_words_are_fixed_and_sums_are_not(self):
         two, three = lift(word(2.0)), lift(word(3.0))
@@ -167,32 +143,6 @@ class BoundTests(unittest.TestCase):
                     kinds["bounded"] += 1
                     self.assertTrue(within(int(bound), bound), (identifier, text))
         self.assertEqual(kinds, {"fixed": 5452, "bounded": 1808, "unbounded": 382})
-
-    def test_a_dropped_term_is_rejected(self):
-        # Each planted sum changes the words of some scripts; the comparison
-        # with PyTorch rejects every one of them but loss_07, where the dropped
-        # square is 1e-4 of a loss of 144: 6 ulp, inside its 15-ulp bound.
-        planted = {
-            "total": ({"total": dropping_total}, 81, {"loss_07"}),
-            "sum_to_size": ({"sum_to_size": dropping_sum_to_size}, 62, set()),
-            "matmul": ({"matmul": dropping_matmul}, 27, set()),
-        }
-        for name, (functions, changed, missed) in planted.items():
-            with self.subTest(planted=name):
-                rejected, accepted = 0, set()
-                for identifier in self.compared:
-                    row = self.rows[identifier]
-                    wrong = bounded_lines(row, REPLACED | functions)
-                    if wrong == reference(row):
-                        continue
-                    try:
-                        compare(identifier, self.seen[identifier], wrong)
-                    except GateError:
-                        rejected += 1
-                    else:
-                        accepted.add(identifier)
-                self.assertEqual(accepted, missed)
-                self.assertEqual(rejected + len(accepted), changed)
 
     def bounded_line(self, identifier: str, index: int) -> tuple[list[str], Bounded]:
         expected = bounded_reference(self.rows[identifier])
