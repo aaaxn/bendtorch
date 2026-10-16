@@ -26,7 +26,7 @@ from tools.autograd_tensor_backward import (
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "7199243ab9ee44ec628da9aafa5e9069c9ddb6f57589436ac49eaab51c34e703"
+FIXTURE_SHA256 = "d3a5c199b796133243a53b2f277b43d65988ac62d27d497a2f3c3809c3c9452e"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
@@ -40,16 +40,19 @@ REJECTIONS = {
     "linear_inner_mismatch",
     "linear_bias_mismatch",
     "matmul_nt_rank",
+    "relu_unknown_operand",
 }
 RUNTIME_ERROR_CODES = {6, MATMUL_RANK, MATMUL_INNER, 10}
 FORGED = {"dangling_self", "dangling_newer", "dangling_missing"}
 # NaN * NaN: the payload is not specified by the tensor layer.
-NAN_PAYLOAD = {"specials"}
+NAN_PAYLOAD = {"specials", "relu_edges"}
 # The forward value differs, not the backward: rounding_09 sums six words in
 # ascending order where PyTorch's vectorized sum takes another order, and
 # rounding_14 has a matmul with inner dimension 1 whose only product is -0.0:
 # the ordered dot adds it to +0.0 and gives +0.0, PyTorch's gemm keeps -0.0.
-FORWARD_ORDER = {"rounding_09", "rounding_14"}
+# relu_13 has the same inner-dimension-1 matmul, whose products 0.5 * -1e-45
+# and 0.5 * -0.0 are -0.0.
+FORWARD_ORDER = {"rounding_09", "rounding_14", "relu_13"}
 
 
 def case(steps: list[dict]) -> dict:
@@ -324,7 +327,7 @@ class GateRegistrationTests(unittest.TestCase):
             self.assertEqual((ROOT / path).read_text().count(original), 1)
 
     def test_runtime_controls_apply_once(self):
-        self.assertEqual(len(RUNTIME_CONTROLS), 11)
+        self.assertEqual(len(RUNTIME_CONTROLS), 15)
         for control in RUNTIME_CONTROLS.values():
             path, original, mutated = (
                 control

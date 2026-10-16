@@ -48,6 +48,8 @@ def operation(name: str, operands: list[torch.Tensor]) -> torch.Tensor:
         return operands[0] @ operands[1]
     if name == "matmul_nt":
         return torch.nn.functional.linear(operands[0], operands[1])
+    if name == "relu":
+        return torch.relu(operands[0])
     return operands[0].sum()
 
 
@@ -67,7 +69,7 @@ def replay(case: Json) -> Json:
             if name == "leaf":
                 value = tensor(step["words"], step["shape"]).requires_grad_()
                 lines.append(record(value, nodes))
-            elif name in ("add", "sub", "mul", "matmul", "matmul_nt", "sum"):
+            elif name in ("add", "sub", "mul", "matmul", "matmul_nt", "sum", "relu"):
                 ids = [step[key] for key in ("a", "b") if key in step]
                 operands = [nodes[identifier] for identifier in ids]
                 lines.append(record(operation(name, operands), nodes))
