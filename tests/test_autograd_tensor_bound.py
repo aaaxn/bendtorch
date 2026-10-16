@@ -199,8 +199,8 @@ class BoundTests(unittest.TestCase):
         return expected, bounded_word(expected[index])
 
     def test_a_word_past_the_bound_is_rejected(self):
-        # loss_03, line 151: the gradient of the broadcast mse target, a sum of
-        # eight cells; PyTorch's word is 1 ulp from the reference's.
+        # loss_03, line 151: the mse_loss word, a sum of squares over a count;
+        # PyTorch's word is 1 ulp from the reference's, and the bound 57 ulp.
         expected, bound = self.bounded_line("loss_03", 151)
         seen = list(self.seen["loss_03"])
         self.assertNotEqual(seen[151], expected[151])
