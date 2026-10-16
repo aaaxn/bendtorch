@@ -28,6 +28,7 @@ from tools.tensor_runtime import (
     native_command,
     negative_program,
     parse_native_output,
+    permuted_cells,
     product_cells,
     run_native_corpus,
     u32,
@@ -361,6 +362,14 @@ def binary_request(op: str, *shapes: list[int]) -> dict:
     }
 
 
+def transform_request(op: str, shape: list[int], key: str, axes: list[int]) -> dict:
+    return {
+        "op": op,
+        "inputs": {"a": {"shape": shape, "fill_zero": True}},
+        "parameters": {key: axes},
+    }
+
+
 class CopyAuditTests(unittest.TestCase):
     def test_build_joins_every_inner_node_of_the_balanced_output(self):
         for cells, joins in (
@@ -421,11 +430,30 @@ class CopyAuditTests(unittest.TestCase):
             with self.subTest(request=request):
                 self.assertEqual(product_cells(request), cells)
 
+    def test_permuted_cells_counts_only_outputs_the_build_writes(self):
+        for request, cells in (
+            (transform_request("permute_copy", [2, 3], "axes", [1, 0]), 6),
+            (transform_request("permute_copy", [2, 3, 4], "axes", [2, 0, 1]), 24),
+            (transform_request("permute_copy", [], "axes", []), 1),
+            (transform_request("permute_copy", [2, 3], "axes", [0]), 0),
+            (transform_request("permute_copy", [2, 3], "axes", [0, 0]), 0),
+            (transform_request("permute_copy", [2, 3], "axes", [0, 2]), 0),
+            (transform_request("permute_copy", [0, 3], "axes", [1, 0]), 0),
+            (transform_request("transpose_copy", [2, 3], "dims", [0, 1]), 6),
+            (transform_request("transpose_copy", [2, 3], "dims", [1, 1]), 6),
+            (transform_request("transpose_copy", [2, 3], "dims", [0, 2]), 0),
+            (transform_request("transpose_copy", [], "dims", [0, 0]), 1),
+            (transform_request("transpose_copy", [], "dims", [1, 0]), 0),
+            (binary_request("add", [3], [3]), 0),
+        ):
+            with self.subTest(request=request):
+                self.assertEqual(permuted_cells(request), cells)
+
     def test_matmul_add_joins_both_builds(self):
         request = binary_request("matmul_add", [2, 3], [3, 3], [3])
         self.assertEqual(expected_copy_audit([request]), (0, 7 + 7))
 
-    def test_frozen_corpus_expects_771_joins_and_no_split(self):
+    def test_frozen_corpus_expects_842_joins_and_no_split(self):
         transported = []
         for case in corpus_cases(load_corpus()):
             try:
@@ -435,7 +463,7 @@ class CopyAuditTests(unittest.TestCase):
             if "compile_negative" not in request:
                 transported.append(request)
         self.assertEqual(len(transported), 202)
-        self.assertEqual(expected_copy_audit(transported), (0, 771))
+        self.assertEqual(expected_copy_audit(transported), (0, 842))
 
     def test_audit_rejects_any_split_or_join_beyond_the_builds(self):
         requests = [binary_request("add", [3], []), binary_request("sum", [4])]
@@ -748,7 +776,7 @@ class NativeCorpusTests(unittest.TestCase):
         evidence = self.directory / "run"
         self.assertEqual(
             (evidence / "corpus-audit-run.stderr").read_text(),
-            "STORAGE_COPY_AUDIT 0 771\n",
+            "STORAGE_COPY_AUDIT 0 842\n",
         )
         report = json.loads((evidence / "report.json").read_text())
         self.assertEqual(report["hostname"], platform.node())

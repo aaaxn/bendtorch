@@ -465,7 +465,7 @@ class ExperimentRunnerTests(unittest.TestCase):
             )
 
     def test_permute_kernel_reason_refuses_other_locations(self):
-        site = f"{permutes.SRC}permute_2d_values.read_step"
+        site = f"{permutes.SRC}permute_2d_build_2d_proof.source_word"
         good = f"In {site}:\nexpected: a\nobserved: b\n"
         self.assertIn(site, permutes.kernel_reason(good, "permute-forward-map"))
         with self.assertRaises(runner.GateError):
