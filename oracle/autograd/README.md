@@ -70,7 +70,8 @@ refuses, updates nothing); every `backward` seeds `torch.ones_like(output)` and 
 gate's own format. `tests/test_autograd_tensor_backward.py` in the root suite
 compares the gate's Python reference with this file, under level 2 of the
 [numeric policy](../../AGENTS.md#numeric-policy) (`tools/autograd_tensor_bound.py`
-computes each word's rounding-error bound): 131 of 181 scripts agree line for
+computes each word's rounding-error bound, checked on top of the listed
+words): 131 of 181 scripts agree line for
 line, and [docs/tensor-backward.md](../../docs/tensor-backward.md) lists the
 other 50.
 

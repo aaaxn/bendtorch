@@ -573,19 +573,33 @@ retain_graph=True)`, `retain_grad()` on every non-leaf) and writes
 reference. Bend never calls PyTorch.
 
 The comparison is level 2 of the [numeric policy](../AGENTS.md#numeric-policy).
-A line that is not a word must be PyTorch's line. A fixed word, one that only
-operations with one rounding build from the leaves, must be PyTorch's word,
-bit for bit. A word built on a sum or a matmul must lie, with the reference's
-word, within its rounding-error bound of the exact value of the script's
-arithmetic. `tools/autograd_tensor_bound.py` computes each word's exact value
-and bound in exact rational arithmetic: it replays the reference with its
-arithmetic functions replaced by ones that also carry the bound, and checks
-that the replay prints the reference's lines. A word built on `exp` or `log`
-has no bound, and its check lists PyTorch's word and the reference's
-(`LOSS_ROUNDING`). The comparison reads 148 scripts: the 131 below that agree
-line for line and the bounded and pinned rows of the table. Their reference
-lines hold 5452 fixed words, 1808 words with a bound and 382 words built on
-`exp` or `log`.
+Each row of the table below keeps the check it had before the rounding-error
+bound, and the bound is an extra check on the words that row lets differ:
+
+- The 131 scripts that agree line for line must still do so.
+- The six `mse_loss` scripts must differ in exactly their 16 pinned words
+  (`MSE_ROUNDING`, PyTorch's word and the reference's), and each of those
+  words, on both sides, must now also lie within its bound.
+- `rounding_09`, `rounding_14` and `relu_13` must still give every gradient
+  word for word. Their forward value words may differ, as before, but each
+  one that differs must now lie within its bound; before, any value word
+  passed.
+- The eight `cross_entropy` scripts must differ in exactly their 17 pinned
+  words (`LOSS_ROUNDING`), and a pin is now refused on a word that has a
+  bound. These words are built on `exp` and `log` and have no bound.
+
+So the record is stricter than before in two places and looser nowhere.
+`tools/autograd_tensor_bound.py` computes each word's exact value and bound
+in exact rational arithmetic: it replays the reference with its arithmetic
+functions replaced by ones that also carry the bound, and checks that the
+replay prints the reference's lines. A word is fixed when only operations
+with one rounding build it from the leaves; it must be PyTorch's word, bit
+for bit. The bound holds under the policy's conditions (round to nearest,
+gradual underflow, no intermediate overflow in any order); a word where
+another order could overflow gets no bound. The bound reads 148 scripts:
+the 131 that agree line for line and the bounded and pinned rows of the
+table. Their reference lines hold 5452 fixed words, 1808 words with a bound
+and 382 words with none, built on `exp` or `log`.
 
 131 of the 181 scripts agree with PyTorch line for line: every id, shape, value,
 gradient word and `None`, including the arrival-order and fold-order scripts,
@@ -607,9 +621,9 @@ gradient PyTorch can represent in them agrees:
 | `dangling_self`, `dangling_newer`, `dangling_missing` | `DanglingOperand` (104) | not representable |
 | `specials`, `relu_edges`, `relu_nan_gradient`, `sgd_edges`, `sgd_rate_nan` | the value of `NaN * NaN`, and of a step with a NaN parameter, gradient or rate, is NaN | NaN with another sign or payload |
 | `mse_empty`, `cross_entropy_infinities`, `cross_entropy_nan`, `cross_entropy_empty`, `cross_entropy_empty_wide`, `cross_entropy_one_class_scaled`, `cross_entropy_two_class_scaled` | NaN losses and gradients | NaN with another payload |
-| `loss_03`, `loss_05`, `loss_07`, `loss_09`, `loss_11`, `loss_15` (`mse_loss`) | within the bound: 8 loss words 1 to 3 ulp, 5 gradient words of a broadcast target and 3 gradients of a scale (a loss word) 1 or 2 ulp from PyTorch's, where the bound allows 10 to 58 ulp | PyTorch's cascade sums ([losses](losses.md#against-pytorch)) |
-| `rounding_09` | within the bound: the forward `sum` of six words adds them in ascending order, 127 ulp from PyTorch's word, where cancellation makes the bound 4964 ulp | PyTorch's vectorized sum gives another word |
-| `rounding_14`, `relu_13` | within the bound: a matmul with inner dimension 1 whose product is `-0.0`, or rounds to it, gives `+0.0`, because the ordered dot starts from `+0.0` (8 words of `relu_13`, 2 of `rounding_14`) | `-0.0` |
+| `loss_03`, `loss_05`, `loss_07`, `loss_09`, `loss_11`, `loss_15` (`mse_loss`) | 16 pinned words, each also within the bound: 8 loss words 1 to 3 ulp, 5 gradient words of a broadcast target and 3 gradients of a scale (a loss word) 1 or 2 ulp from PyTorch's, where the bound allows 10 to 58 ulp | PyTorch's cascade sums ([losses](losses.md#against-pytorch)) |
+| `rounding_09` | gradients exact; the forward `sum` of six words adds them in ascending order, 127 ulp from PyTorch's word, within the bound, which cancellation makes 4964 ulp | PyTorch's vectorized sum gives another word |
+| `rounding_14`, `relu_13` | gradients exact; within the bound, a matmul with inner dimension 1 whose product is `-0.0`, or rounds to it, gives `+0.0`, because the ordered dot starts from `+0.0` (8 words of `relu_13`, 2 of `rounding_14`) | `-0.0` |
 | `cross_entropy`, `cross_entropy_scaled`, `loss_02`, `loss_06`, `loss_08`, `loss_10`, `loss_12`, `loss_14` (`cross_entropy`) | pinned, no bound: 1 loss word 1 ulp and 16 gradient words of the logits up to 2 ulp from PyTorch's | PyTorch's vectorized `exp` and cascade sums ([losses](losses.md#against-pytorch)) |
 | `sgd_rate_negative` | `InvalidLearningRate` (110) for each rate below zero | `ValueError` ("Invalid learning rate") |
 | `sgd_two_layers`, `sgd_rounding` | an SGD step rounds `lr * g`, then `p - lr * g` | one rounding on AVX2 and AVX512: the lines equal a reference that rounds once, word for word; 6 of 337 words differ from bendtorch's, by 1 to 6 ulp |
@@ -621,16 +635,30 @@ The `cross_entropy` words keep their pins because PyTorch's `exp` and `log`
 are vectorized approximations whose error the repository does not bound; a
 bound for them would have to assume one.
 
-`tests/test_autograd_tensor_bound.py` shows the bound rejects wrong results.
-A planted sum that leaves out its last term changes 81 scripts and is
-rejected in 80 of them; in `loss_07` the dropped square is 1e-4 of a loss of
-144, 6 ulp, inside that word's 15-ulp bound. A planted reduction and a
-planted matmul that leave out their last term change 62 and 27 scripts and
-are rejected in every one. The first word past the bound of `loss_03`'s loss,
-in PyTorch's line or in the reference's, is rejected, and the last word
-inside it is accepted; a fixed
-word 1 ulp off, a zero of the other sign where the bound does not reach zero
-and a pin on a word that has a bound are rejected.
+`tests/test_autograd_tensor_backward.py` shows the record rejects wrong
+results. Every clean script passes first. A planted sum that leaves out its
+last term, on the reference's side as a wrong Bend result would, changes 81
+scripts. The bound comparison, with the `cross_entropy` pins, rejects 80 of
+them: 66 with a word outside its bound, 12 with a word that has no bound
+and no pin (6 `cross_entropy` scripts and 6 others) and 2 with a word off
+its pin (the other 2 `cross_entropy` scripts). In `loss_07` the omitted
+square adds about 9e-5 to a loss of 144, 6 ulp, inside that word's 15-ulp
+bound, so the bound alone accepts it; its pins reject it, and the whole rule
+rejects all 81. A planted reduction and a planted matmul that leave out
+their last term change 62 and 27 scripts, and both the bound and the whole
+rule reject every one. The `cross_entropy` words are rejected by their pins
+or for differing with no pin, never by a bound. Four words that the rule
+before the bound rejected lie within their bound, and the bound alone accepts
+them; the whole rule still rejects each: `loss_03` line 151 moved 2 ulp from
+its pin, and one gradient word moved 1 ulp in each of `rounding_09`,
+`rounding_14` and `relu_13`.
+
+`tests/test_autograd_tensor_bound.py` tests the bound itself. The first word
+past the bound of `loss_03`'s loss, in PyTorch's line or in the reference's,
+is rejected, and the last word inside it is accepted; a fixed word 1 ulp
+off, a zero of the other sign where the bound does not reach zero and a pin
+on a word that has a bound are rejected. `[MAX, -MAX, MAX]`, whose sum
+overflows in another order, has no bound.
 
 ## Reproduce
 

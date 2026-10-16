@@ -107,10 +107,10 @@ the same order. A frozen [PyTorch record](oracle/autograd/README.md) of every on
 those requests ties the references to PyTorch's `expand`, `sum_to_size` and
 `backward`: they agree word for word, apart from the listed rank, capacity,
 NaN-payload and `None`-gradient differences. The tensor backward's record
-follows the [numeric policy](AGENTS.md#numeric-policy): PyTorch's word, bit
-for bit, where only operations with one rounding build it, a word within a
-rounding-error bound where a sum or a matmul does, and listed words for
-`cross_entropy`, which no bound covers.
+follows the [numeric policy](AGENTS.md#numeric-policy): it keeps its listed
+words and exact gradients, and every listed word built on a sum or a matmul
+must also lie within a rounding-error bound; the `cross_entropy` words, which
+no bound covers, stay listed.
 
 ## Limits
 

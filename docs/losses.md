@@ -110,9 +110,10 @@ ulp:
 
 The PyTorch record ([tensor backward](tensor-backward.md#pytorch-record))
 compares these words under level 2 of the
-[numeric policy](../AGENTS.md#numeric-policy): the `mse_loss` words within
-the rounding-error bound of their sums, and the `cross_entropy` words, built
-on `exp` and `log`, which no bound covers, on pins.
+[numeric policy](../AGENTS.md#numeric-policy): every word on a pin, and the
+`mse_loss` words also within the rounding-error bound of their sums. The
+`cross_entropy` words are built on `exp` and `log`, which no bound covers,
+so only their pins check them.
 
 Where they differ, and why:
 
