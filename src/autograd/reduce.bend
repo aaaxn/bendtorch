@@ -6,6 +6,7 @@ import ../tensor/core.bend as Core
 import ../tensor/elementwise.bend as Elementwise
 import ../tensor/layout.bend as Layout
 import ../tensor/matmul.bend as Matrix
+import ../tensor/parallel.bend as Parallel
 
 # Reduction of a broadcast contribution back to a target shape. The target
 # must broadcast into the contribution's shape. Target cell t holds the
@@ -85,141 +86,56 @@ def fiber(+rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, fuel: Nat, +targe
 def fiber_of(+rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +target: Nat, array: Array<F32>) -> F32 & Array<F32>:
   fiber(rows, extents, first_span(rows, extents), target, 0n, first_digit(rows, target), 0.0, array)
 
-def cell_leaf(pair: F32 & Array<F32>) -> Array<F32> & Array<F32>:
-  (value, array) = pair
-  (ALeaf{value}, array)
-
 # One target cell: its fiber sum from +0.0 when the cell is below `count`,
 # else +0.0.
 def cell(+rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +position: Nat, array: Array<F32>, inside: Bool) ->
-  Array<F32> & Array<F32>:
+  F32 & Array<F32>:
   match inside:
     case False{}:
-      (ALeaf{0.0}, array)
+      (0.0, array)
     case True{}:
-      cell_leaf(fiber_of(rows, extents, position, array))
+      fiber_of(rows, extents, position, array)
 
-def tree_join(a: Array<F32>, high: Array<F32> & Array<F32>) -> Array<F32> & Array<F32>:
-  (b, array) = high
-  (ANode{a, b}, array)
+# What every cell of a build needs: the index rows of the plan and the
+# contribution extent of each row.
+type Fibers is Data:
+  Fibers{rows: List<&2, Shape.Row>, extents: List<&2, Nat>}
 
-def tree_node(rec: Array<F32> -> Array<F32> & Array<F32>, low: Array<F32> & Array<F32>) -> Array<F32> & Array<F32>:
-  (a, array) = low
-  tree_join(a, rec(array))
+# Each thread below the forks reads its own copy.
+def fibers(+given: Fibers) -> Fibers:
+  Fibers{+rows, +extents} = given
+  Fibers{rows, extents}
 
-# The cells `base .. base + 2^depth` as a balanced tree, built in index order
-# on one thread.
-def tree(+depth: Nat, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +count: Nat, +base: Nat, array: Array<F32>) ->
-  Array<F32> & Array<F32>:
-  match depth:
-    case 0n:
-      cell(rows, extents, base, array, Nat.is_lt(base, count))
-    case 1n+lower:
-      tree_node(a => tree(lower, rows, extents, count, Nat.add(Model.capacity(lower), base), a),
-        tree(lower, rows, extents, count, base, array))
+# The cell function `Parallel.build` runs: its state is the contribution
+# array, next to a Unit that fills the build's second state slot.
+def keep(pair: F32 & Array<F32>, none: Unit) -> F32 & (Array<F32> & Unit):
+  (value, array) = pair
+  (value, (array, none))
 
-def fork(pair: Array<F32> & Array<F32>, low: Array<F32> -> Array<F32>, high: Array<F32> -> Array<F32>) -> Array<F32>:
+def cell_at(+fibers: Fibers, +position: Nat, state: Array<F32> & Unit, inside: Bool) -> F32 & (Array<F32> & Unit):
+  Fibers{+rows, +extents} = fibers
+  (array, none) = state
+  keep(cell(rows, extents, position, array, inside), none)
+
+# Each half of a fork gets its own clone of the contribution array.
+def halves(pair: Array<F32> & Array<F32>) -> (Array<F32> & Unit) & (Array<F32> & Unit):
   (first, second) = pair
-  a b = low(first) high(second)
-  ANode{a, b}
+  ((first, Unit{}), (second, Unit{}))
+
+def split(state: Array<F32> & Unit) -> (Array<F32> & Unit) & (Array<F32> & Unit):
+  (array, none) = state
+  halves(Array.clone(F32, array))
 
 def build(+depth: Nat, +splits: Nat, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +count: Nat, +base: Nat,
   array: Array<F32>) -> Array<F32>:
-  match depth splits:
-    case 1n+lower 1n+rest:
-      +high = Nat.add(Model.capacity(lower), base)
-      fork(Array.clone(F32, array),
-        a => build(lower, rest, rows, extents, count, base, a),
-        a => build(lower, rest, rows, extents, count, high, a))
-    case _ _:
-      Pair.fst(Array<F32>, Array<F32>, tree(depth, rows, extents, count, base, array))
-
-# A run of the build next to its proof of balance, as `Elementwise.Certified`.
-type Certified<-depth: Nat, -expected: Array<F32> & Array<F32>> is Type:
-  Certified{result: Array<F32> & Array<F32>, same: {result == expected : Array<F32> & Array<F32>},
-    balanced: Model.Balanced(F32, depth, Pair.fst(Array<F32>, Array<F32>, result))}
-
-def cell_leaf_certified(pair: F32 & Array<F32>) -> Certified<0n, cell_leaf(pair)>:
-  (value, array) = pair
-  Certified{cell_leaf((value, array)), {==}, Unit{}}
-
-def cell_certified(+rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +position: Nat, array: Array<F32>, inside: Bool) ->
-  Certified<0n, cell(rows, extents, position, array, inside)>:
-  match inside:
-    case False{}:
-      Certified{cell(rows, extents, position, array, False{}), {==}, Unit{}}
-    case True{}:
-      cell_leaf_certified(fiber_of(rows, extents, position, array))
-
-def node_joined(+lower: Nat, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +count: Nat, +base: Nat, -array: Array<F32>,
-  a: Array<F32>, -kept: Array<F32>,
-  same: {(a, kept) == tree(lower, rows, extents, count, base, array) : Array<F32> & Array<F32>},
-  balanced: Model.Balanced(F32, lower, a),
-  high: Certified<lower, tree(lower, rows, extents, count, Nat.add(Model.capacity(lower), base), kept)>) ->
-  Certified<1n+lower, tree(1n+lower, rows, extents, count, base, array)>:
-  Certified{result, high_same, high_balanced} = high
-  (b, rest) = result
-  Certified{(ANode{a, b}, rest),
-    %same : {(ANode{a, b}, rest) == tree_node(x => tree(lower, rows, extents, count, Nat.add(Model.capacity(lower), base), x), _) : Array<F32> & Array<F32>}
-    %high_same : {(ANode{a, b}, rest) == tree_join(a, _) : Array<F32> & Array<F32>}
-    {==},
-    (balanced, high_balanced)}
-
-def node_split(+lower: Nat, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +count: Nat, +base: Nat, -array: Array<F32>,
-  result: Array<F32> & Array<F32>,
-  same: {result == tree(lower, rows, extents, count, base, array) : Array<F32> & Array<F32>},
-  balanced: Model.Balanced(F32, lower, Pair.fst(Array<F32>, Array<F32>, result)),
-  next: @kept: Array<F32> -> Certified<lower, tree(lower, rows, extents, count, Nat.add(Model.capacity(lower), base), kept)>) ->
-  Certified<1n+lower, tree(1n+lower, rows, extents, count, base, array)>:
-  (a, kept) = result
-  node_joined(lower, rows, extents, count, base, array, a, kept, same, balanced, next(kept))
-
-def tree_node_certified(+lower: Nat, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +count: Nat, +base: Nat, -array: Array<F32>,
-  low: Certified<lower, tree(lower, rows, extents, count, base, array)>,
-  next: @kept: Array<F32> -> Certified<lower, tree(lower, rows, extents, count, Nat.add(Model.capacity(lower), base), kept)>) ->
-  Certified<1n+lower, tree(1n+lower, rows, extents, count, base, array)>:
-  Certified{result, same, balanced} = low
-  node_split(lower, rows, extents, count, base, array, result, same, balanced, next)
-
-def tree_certified(+depth: Nat, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +count: Nat, +base: Nat, array: Array<F32>) ->
-  Certified<depth, tree(depth, rows, extents, count, base, array)>:
-  match depth:
-    case 0n:
-      cell_certified(rows, extents, base, array, Nat.is_lt(base, count))
-    case 1n+lower:
-      tree_node_certified(lower, rows, extents, count, base, array,
-        tree_certified(lower, rows, extents, count, base, array),
-        kept => tree_certified(lower, rows, extents, count, Nat.add(Model.capacity(lower), base), kept))
-
-def tree_balanced(+depth: Nat, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +count: Nat, +base: Nat, -array: Array<F32>,
-  certified: Certified<depth, tree(depth, rows, extents, count, base, array)>) ->
-  Model.Balanced(F32, depth, Pair.fst(Array<F32>, Array<F32>, tree(depth, rows, extents, count, base, array))):
-  Certified{result, same, balanced} = certified
-  %same : Model.Balanced(F32, depth, Pair.fst(Array<F32>, Array<F32>, _))
-  balanced
-
-def fork_balanced(+lower: Nat, pair: Array<F32> & Array<F32>, -low: Array<F32> -> Array<F32>, -high: Array<F32> -> Array<F32>,
-  low_valid: @a: Array<F32> -> Model.Balanced(F32, lower, low(a)),
-  high_valid: @a: Array<F32> -> Model.Balanced(F32, lower, high(a))) ->
-  Model.Balanced(F32, 1n+lower, fork(pair, low, high)):
-  (first, second) = pair
-  (low_valid(first), high_valid(second))
+  Parallel.build(~Fibers, ~Fibers, ~Array<F32>, ~Unit, ~fibers, ~split, ~cell_at, Fibers{rows, extents}, depth, splits, count, base,
+    (array, Unit{}))
 
 # The parallel build returns a balanced tree of its depth, whatever the split.
 def build_balanced(+depth: Nat, +splits: Nat, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +count: Nat, +base: Nat,
   array: Array<F32>) -> Model.Balanced(F32, depth, build(depth, splits, rows, extents, count, base, array)):
-  match depth splits:
-    case 1n+lower 1n+rest:
-      +high = Nat.add(Model.capacity(lower), base)
-      fork_balanced(lower, Array.clone(F32, array),
-        a => build(lower, rest, rows, extents, count, base, a),
-        a => build(lower, rest, rows, extents, count, high, a),
-        a => build_balanced(lower, rest, rows, extents, count, base, a),
-        a => build_balanced(lower, rest, rows, extents, count, high, a))
-    case 0n _:
-      tree_balanced(0n, rows, extents, count, base, array, tree_certified(0n, rows, extents, count, base, array))
-    case 1n+lower 0n:
-      tree_balanced(1n+lower, rows, extents, count, base, array, tree_certified(1n+lower, rows, extents, count, base, array))
+  Parallel.balanced(~Fibers, ~Fibers, ~Array<F32>, ~Unit, ~fibers, ~split, ~cell_at, Fibers{rows, extents}, depth, splits, count, base,
+    (array, Unit{}))
 
 # A target cell costs one term per contribution word that lands on it.
 def terms(+plan: Shape.BroadcastPlan, +length: Nat) -> Nat:

@@ -286,7 +286,7 @@ replayed tensor with history `writes(count)`. `word_fiber` turns `cell_word(t)`
 into `ReduceLaws.fiber`, through `Fiber.fiber_walk`. A walk over the wrong
 offsets, a skipped digit, another addition order or a `-0.0` start in
 `reduce.bend` fails the proofs of the build (`fiber_run`, `fiber_cons`,
-`leaf_run`, `cell_facts`). A wrong landing map or an inverted mask in
+`leaf_run`, `run_of`). A wrong landing map or an inverted mask in
 `reduce-fold.bend` fails `fiber_total`, which `reduce_fold_fiber` uses.
 
 `words` and `factors` are in `src/tensor/contracts/LAWS.bend`. `words` lists

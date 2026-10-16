@@ -150,9 +150,9 @@ FAMILY = controls.Family(
             module=REDUCE_TO,
         ),
         "reduce-to-starts-negative-zero": Site(
-            "cell_facts",
+            "run_of",
             "F32.neg(0.0)",
-            "reduce_2d_parallel_2d_proof.cell_facts",
+            "reduce_2d_parallel_2d_proof.run_of",
             ("reduce.fiber_of",),
             module=REDUCE_TO,
         ),

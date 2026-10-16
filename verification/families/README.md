@@ -206,7 +206,7 @@ declarations.
 | Target count | `cell` folds over the target's element count | `reduce_fold_fiber` | `reduce_fold_fiber` |
 | `reduce_to` walks target stride | `fiber` moves the offset by the left stride, not the right one | `fiber_run` | `fiber_run` |
 | `reduce_to` skips last digit | `span` walks `extent - 1` digits of a reduced axis | `fiber_cons` | `fiber_cons` |
-| `reduce_to` starts at -0.0 | `fiber_of` starts each cell at `F32.neg(0.0)` | `cell_facts` | `cell_facts` |
+| `reduce_to` starts at -0.0 | `fiber_of` starts each cell at `F32.neg(0.0)` | `run_of` | `run_of` |
 | `reduce_to` swapped add | `leaf_add` adds `F32.add(word, accumulator)` | `leaf_run` | `leaf_run` |
 | `sum_to_size` identity folds | `decided` runs `reduce_to` when the dimensions are equal | `sum_to_size_clone` | `sum_to_size_clone` |
 | `sum_to_size` reduced clones | `decided` clones when the dimensions differ | `sum_to_size_fiber` | `sum_to_size_fiber` |
@@ -217,7 +217,7 @@ mutants change the parallel build in `src/autograd/reduce.bend`. The source
 check runs `src/autograd/reduce-to-fold-PROOF.bend`, the live proof of
 `reduce_to_fiber`, instead of `src/autograd/PROOF.bend`. It imports the build
 proofs, so both checkers reject each mutant in the first build proof it
-breaks: `fiber_run`, `cell_facts` and `leaf_run` in
+breaks: `fiber_run`, `run_of` and `leaf_run` in
 `src/autograd/reduce-parallel-proof.bend`, which the live proof imports
 before its own, and `fiber_cons`, the fiber-walk step of
 `src/autograd/reduce-fiber-proof.bend`, for a skipped digit.
@@ -370,15 +370,21 @@ of the fold family fail those walks, so they cover the transport laws too.
 | False twin `negate_witness` | `3.0`, the sign kept | the witness | the witness |
 | False twin `kept_witness` | `3.0`, another word of the left input | the witness | the witness |
 | False twin `chain_witness` | only the second product, from `+0.0` | the witness | the witness |
-| High fork reuses the base | `upper` returns `base`, so both halves build the low cells | `build_eq` | `build_eq` |
+| High fork reuses the base | `Parallel.upper` returns `base`, so both halves build the low cells | `tree_eq` | `tree_eq` |
 | Cell swaps operands | `cell_right` writes `scalar(operation, y, x)` | `cell_right_eq` | `cell_right_eq` |
 | Cell swaps returned inputs | `cell_right` hands the input arrays back swapped | `cell_right_eq` | `cell_right_eq` |
 | Padding not zero | a cell past the count holds `1.0` | `cell_eq` | `cell_eq` |
+| Leaf writes zero | `Parallel.leaf` stores `0.0` instead of the cell's F32 | `cell_right_eq` | `cell_right_eq` |
 
-The mutants change `src/tensor/elementwise.bend`. The erased
-`elementwise-parallel-proof.bend` would reject most of them too, so the source
-check runs `src/tensor/contracts/binary-PROOF.bend`, which imports only the
-live proof. The erased `BinaryModel` states only the cells below the count;
+Three mutants change `src/tensor/elementwise.bend`, and two change
+`src/tensor/parallel.bend`, the build that elementwise, matmul and reduce_to
+share: there `upper` and `leaf` keep the build balanced, so its certificate
+still checks, and only the laws reject them. The generic law
+`parallel_build_cells` (`src/tensor/parallel-LAWS.bend`) rejects both too, in
+`node_cell` and `leaf_facts` of `src/tensor/parallel-proof.bend`, for every
+operation. The erased `elementwise-parallel-proof.bend` would reject most of
+the mutants too, so the source check runs
+`src/tensor/contracts/binary-PROOF.bend`, which imports only the live proof. The erased `BinaryModel` states only the cells below the count;
 `binary_replayed` states the whole output storage, so its statement, and not
 only its proof, excludes `padding-not-zero`. A change to `splits`, the number
 of forks, keeps every word and is not a mutant: `build_eq` holds for any
