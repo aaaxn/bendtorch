@@ -10,7 +10,9 @@ from tools.autograd_broadcast import is_nan, word
 from tools.autograd_tensor_backward import (
     MATMUL_INNER,
     MATMUL_RANK,
+    NOT_LOGITS,
     RUNTIME_CONTROLS,
+    TARGET_OUT_OF_RANGE,
     ZERO_GRAD,
     cases,
     forge,
@@ -26,11 +28,14 @@ from tools.autograd_tensor_backward import (
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "9d8c14e30230b5ea6712e5dba57c3a8cf3cedf4d69fcdfdfb9c26e177df051c1"
+FIXTURE_SHA256 = "374b1a7ea611a8e60dceb1091a94895956b15040a5569e0b1db6d3c56e6dd954"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
-# dimension (106) mismatch, and a leaf with the wrong number of values (10).
+# dimension (106) mismatch, a leaf with the wrong number of values (10) and
+# cross_entropy logits that are not [rows, columns] (107). For a target out
+# of range PyTorch raises IndexError and for a target count other than the
+# rows ValueError, where the tape answers TargetOutOfRange (108).
 REJECTIONS = {
     "unknown_operands",
     "unknown_output_empty",
@@ -43,11 +48,20 @@ REJECTIONS = {
     "linear_bias_unknown",
     "matmul_nt_rank",
     "relu_unknown_operand",
+    "mse_refused",
+    "cross_entropy_refused",
 }
-RUNTIME_ERROR_CODES = {6, MATMUL_RANK, MATMUL_INNER, 10}
+RUNTIME_ERROR_CODES = {6, MATMUL_RANK, MATMUL_INNER, 10, NOT_LOGITS}
 FORGED = {"dangling_self", "dangling_newer", "dangling_missing"}
 # NaN * NaN: the payload is not specified by the tensor layer.
-NAN_PAYLOAD = {"specials", "relu_edges"}
+NAN_PAYLOAD = {
+    "specials",
+    "relu_edges",
+    "mse_empty",
+    "cross_entropy_infinities",
+    "cross_entropy_nan",
+    "cross_entropy_empty",
+}
 # The forward value differs, not the backward: rounding_09 sums six words in
 # ascending order where PyTorch's vectorized sum takes another order, and
 # rounding_14 has a matmul with inner dimension 1 whose only product is -0.0:
@@ -55,6 +69,15 @@ NAN_PAYLOAD = {"specials", "relu_edges"}
 # relu_13 has the same inner-dimension-1 matmul, whose products 0.5 * -1e-45
 # and 0.5 * -0.0 are -0.0.
 FORWARD_ORDER = {"rounding_09", "rounding_14", "relu_13"}
+# Loss words in the last bits: PyTorch sums the nll terms and the squares of
+# mse_loss in a cascade where the tape adds left to right, and its
+# log_softmax and log_softmax backward use vectorized exp and log. Every
+# differing line is a finite word; docs/losses.md lists the distances.
+LOSS_ROUNDING = {
+    "cross_entropy",
+    "cross_entropy_scaled",
+    *(f"loss_{index:02d}" for index in (2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15)),
+}
 
 
 def case(steps: list[dict]) -> dict:
@@ -283,7 +306,9 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                     for a, b in differ:
                         code = int(b.rsplit(":", 1)[1])
                         if a.endswith("IndexError"):
-                            self.assertEqual(code, UNKNOWN_NODE)
+                            self.assertIn(code, {UNKNOWN_NODE, TARGET_OUT_OF_RANGE})
+                        elif a.endswith("ValueError"):
+                            self.assertEqual(code, TARGET_OUT_OF_RANGE)
                         else:
                             self.assertEqual(a, "autograd:rejected:RuntimeError")
                             self.assertIn(code, RUNTIME_ERROR_CODES)
@@ -305,9 +330,15 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                         self.assertTrue(b.startswith("tensor:word:"))
                     self.assertEqual(grads(seen), grads(expected))
                     continue
+                if identifier in LOSS_ROUNDING:
+                    self.assertTrue(differ)
+                    for a, b in differ:
+                        self.assertFalse(is_nan(int(a.removeprefix("tensor:word:"))))
+                        self.assertFalse(is_nan(int(b.removeprefix("tensor:word:"))))
+                    continue
                 self.assertEqual(seen, expected)
                 exact += 1
-        excluded = REJECTIONS | FORGED | NAN_PAYLOAD | FORWARD_ORDER
+        excluded = REJECTIONS | FORGED | NAN_PAYLOAD | FORWARD_ORDER | LOSS_ROUNDING
         self.assertEqual(exact, len(cases()) - len(excluded))
 
     def test_arrival_order_and_broadcast_folds_match_pytorch(self):
@@ -355,7 +386,7 @@ class GateRegistrationTests(unittest.TestCase):
             self.assertEqual((ROOT / path).read_text().count(original), 1)
 
     def test_runtime_controls_apply_once(self):
-        self.assertEqual(len(RUNTIME_CONTROLS), 17)
+        self.assertEqual(len(RUNTIME_CONTROLS), 25)
         for control in RUNTIME_CONTROLS.values():
             path, original, mutated = (
                 control
