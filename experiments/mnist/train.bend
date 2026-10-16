@@ -5,8 +5,8 @@ import ../../src/autograd/sgd.bend as Sgd
 
 # Trains a 784-128-10 MLP on MNIST with the tape: Linear, relu, Linear,
 # cross_entropy with mean reduction, backward, Sgd.step, one mini-batch per
-# step. PyTorch's copy is oracle/mnist/train.py; README.md beside this file
-# says how to run both.
+# step. PyTorch's copy is oracle/mnist/train.py; docs/mnist.md says how to
+# run both.
 #
 #   train <mnist dir> <init file> <order file> <batch> <steps> <lr> [words]
 #

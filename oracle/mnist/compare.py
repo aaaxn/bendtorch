@@ -11,7 +11,7 @@ band of one binomial standard error, |bend - torch| <= ceil(sqrt(p (1 - p)
 n)) correct rows with p PyTorch's accuracy on the n = 10000 test rows. It
 prints a table and exits 1 if a seed fails a check.
 
-Run from oracle/, with the binary built as experiments/mnist/README.md says:
+Run from oracle/, with the binary built as docs/mnist.md says:
   uv run --frozen python -I mnist/compare.py BINARY MNIST_DIR WORK_DIR [--seeds 0 1 2]
     [--steps 937] [--batch 64] [--lr 0.1] [--threads 16] [--kernel default|native]
 
@@ -29,7 +29,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 
-# The checks. experiments/mnist/README.md says how they were chosen.
+# The checks. docs/mnist.md says how they were chosen.
 TOLERANCE = 1e-2
 EARLY_TOLERANCE = 1e-4
 EARLY_STEPS = 100
