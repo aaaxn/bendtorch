@@ -916,3 +916,45 @@ def Laws.tn_reads_transpose(row, column, columns, left, left_fill, left_ops, rig
   row_below, count, room):
   tn_factors(row, column, columns, left, left_fill, left_ops, right, right_fill, right_ops, inner, rows, matrix,
     row_below, count, room)
+
+# A delivered contribution, a replayed tensor with its target's dimensions
+# whose cells hold the stated words, meets the one-contribution contract.
+def one_contract(+a: Nat, +target: Shape.Shape, -target_cell: U32 -> Maybe<&2, F32>, -saved: Backward.Saved, -g: Core.Dynamic,
+  +first: Shape.Shape, +first_dimensions: {Shape.dimensions(first) == Shape.dimensions(target) : List<&2, U32>},
+  +first_fill: F32, +first_ops: List<&2, StorageLaws.Op>,
+  first_values: @+index: U32 -> @inside: {Nat.is_lt(U32.to_nat(index), Shape.logical_numel(Shape.dimensions(target))) == True{} : Bool} ->
+    {Some{Replayed.value(first, first_fill, first_ops, index)} == target_cell(index) : Maybe<&2, F32>},
+  -first_fits: {Lifecycle.logical_length(Replayed.storage(first, first_fill, first_ops)) == Shape.logical_numel(Shape.dimensions(first)) : Nat}) ->
+  Laws.OneContract<a, target, target_cell,
+    Backward.Pass{saved, g, Done{[Backward.Contribution{a, target, Core.Packed{first, Core.TTensor{Replayed.storage(first, first_fill, first_ops), first_fits}}}]}}>:
+  Laws.OneContract{
+    {==},
+    Equal.cong(List<&2, U32>, Maybe<&2, List<&2, U32>>, dimensions => Some{dimensions}, Shape.dimensions(first), Shape.dimensions(target),
+      first_dimensions),
+    index => inside =>
+      +inside = inside
+      Equal.trans(Maybe<&2, F32>,
+        Core.dynamic_read_value(Core.read_dynamic(Core.Packed{first, Core.TTensor{Replayed.storage(first, first_fill, first_ops), first_fits}}, index)),
+        Some{Replayed.value(first, first_fill, first_ops, index)}, target_cell(index),
+        PointwiseProof.replayed_point(first, first_fill, first_ops, first_fits, index,
+          SumToSizeFoldProof.shape_below(first, target, index, first_dimensions, inside)),
+        first_values(index, inside))}
+
+def Laws.tensor_relu_vjp_values(a, input, shape, plan, planned, input_plan, input_planned, input_same, zero, fill, ops, fits,
+  input_fill, input_ops, input_fits):
+  +front = Shape.output_shape(plan)
+  +front_count = Shape.logical_numel(Shape.dimensions(front))
+  +front_values = Laws.cells(Elementwise.ReluBackward{}, plan, input, input_fill, input_ops, shape, fill, ops, front_count)
+  product_replayed(Elementwise.ReluBackward{}, input, shape, plan, planned, input_fill, input_ops, fill, ops,
+    pair => Laws.OneContract<a, input, index => Laws.reduced(input, front, input_plan, front_values, index),
+      Backward.relu_passed(a, input, zero, pair)>,
+    x_kept => x_words => x_fits => g_kept => g_words => g_fits => front_ops => front_words => front_fits =>
+      -x = {Core.Packed{input, Core.TTensor{Replayed.storage(input, input_fill, x_kept), x_fits}} : Core.Dynamic}
+      -g = {Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, g_kept), g_fits}} : Core.Dynamic}
+      SumToSizeFold.sum_to_size_replayed(input, front, input_plan, input_planned, input_same, 0.0, front_ops, front_fits, front_values,
+        front_words,
+        pair => Laws.OneContract<a, input, index => Laws.reduced(input, front, input_plan, front_values, index),
+          Backward.Pass{Backward.Operands{x, zero}, g, Backward.alone(Backward.contribution_of(Backward.delivered_as(a, input, pair)))}>,
+        reduced => reduced_words => reduced_fits => head => head_dimensions => head_fill => head_ops => head_values => head_fits =>
+          one_contract(a, input, index => Laws.reduced(input, front, input_plan, front_values, index),
+            Backward.Operands{x, zero}, g, head, head_dimensions, head_fill, head_ops, head_values, head_fits)))(input_fits, fits)

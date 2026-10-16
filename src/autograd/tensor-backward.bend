@@ -31,7 +31,9 @@ import ./gradient.bend as Gradient
 #   Add: g and g; Sub: g and -g; Mul: g * right and g * left, with the operand
 #   values saved at record time; Sum: g broadcast to the operand's shape;
 #   Matmul: g @ right^T and left^T @ g; MatmulNT (left @ right^T, the
-#   product of Linear): g @ right and g^T @ left, read in place.
+#   product of Linear): g @ right and g^T @ left, read in place; Relu: g where
+#   the saved input is above zero or NaN and +0.0 where it is at most zero,
+#   PyTorch's threshold_backward.
 # Each is reduced to its operand's shape before it is delivered.
 #
 # Recording and reads hand back the tape. A failed call leaves every slot as
@@ -55,6 +57,7 @@ type Node is Data:
   Sum{a: Nat, input: Shape.Shape}
   Matmul{a: Nat, b: Nat, left: Shape.Shape, right: Shape.Shape}
   MatmulNT{a: Nat, b: Nat, left: Shape.Shape, right: Shape.Shape}
+  Relu{a: Nat, input: Shape.Shape}
 
 # The operand values a product saves at record time.
 type Saved is Type:
@@ -337,6 +340,29 @@ def vjp_matmul_nt(+a: Nat, +b: Nat, +left: Shape.Shape, +right: Shape.Shape, sav
     case Operands{x, y}:
       nt_first(a, b, left, right, x, y, Core.clone_dynamic(g))
 
+def alone(result: Result<&2, &1, Error, Contribution>) -> Result<&2, &1, Error, List<&1, Contribution>>:
+  match result:
+    case Fail{error}:
+      Fail{error}
+    case Done{contribution}:
+      Done{[contribution]}
+
+def relu_passed(+a: Nat, +input: Shape.Shape, zero: Core.Dynamic,
+  pair: (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>) -> Pass:
+  (operands, result) = pair
+  (x, g) = operands
+  Pass{Operands{x, zero}, g, alone(product_reduced(a, input, result))}
+
+# d relu(a)/da: the pointwise ReluBackward of the saved input x and g, g's
+# own word where x is above zero or NaN and +0.0 where x is at most zero,
+# reduced to the input's shape.
+def vjp_relu(+a: Nat, +input: Shape.Shape, saved: Saved, g: Core.Dynamic) -> Pass:
+  match saved:
+    case Unsaved{}:
+      Pass{Unsaved{}, g, Fail{TensorError{Core.StorageLengthMismatch{}}}}
+    case Operands{x, zero}:
+      relu_passed(a, input, zero, Elementwise.binary(Elementwise.ReluBackward{}, x, g))
+
 # The vector-Jacobian product of one node with gradient g: the contribution
 # each operand receives, in operand order, already reduced to its shape.
 def vjp(node: Node, saved: Saved, g: Core.Dynamic) -> Pass:
@@ -355,6 +381,8 @@ def vjp(node: Node, saved: Saved, g: Core.Dynamic) -> Pass:
       vjp_matmul(a, b, left, right, saved, g)
     case MatmulNT{+a, +b, +left, +right}:
       vjp_matmul_nt(a, b, left, right, saved, g)
+    case Relu{+a, +input}:
+      vjp_relu(a, input, saved, g)
 
 # Delivery.
 
@@ -479,6 +507,8 @@ def operands_below(node: Node, +bound: Nat) -> Bool:
       Bool.and(Nat.is_lt(a, bound), Nat.is_lt(b, bound))
     case MatmulNT{a, b, left, right}:
       Bool.and(Nat.is_lt(a, bound), Nat.is_lt(b, bound))
+    case Relu{a, input}:
+      Nat.is_lt(a, bound)
 
 def wired(nodes: List<&2, Node>, +count: Nat) -> Bool:
   match nodes count:
@@ -813,6 +843,34 @@ def sum_found(+a: Nat, pair: Found()) -> Tape & Result<&2, &2, Error, Nat>:
 def sum(tape: Tape, +a: Nat) -> Tape & Result<&2, &2, Error, Nat>:
   Tape{entries} = tape
   sum_found(a, value_counted(a, counted(entries)))
+
+def relu_zeroed(+a: Nat, entries: List<&1, Entry>, +shape: Shape.Shape, input: Core.Dynamic,
+  zero: Result<&2, &1, Core.Error, Core.Tensor<Reduction.scalar_shape()>>) -> Tape & Result<&2, &2, Error, Nat>:
+  match zero:
+    case Fail{error}:
+      (Tape{entries}, Fail{TensorError{error}})
+    case Done{tensor}:
+      kept(Relu{a, shape}, entries,
+        Elementwise.binary(Elementwise.ReluLeft{}, input, Core.pack(Reduction.scalar_shape(), tensor)))
+
+def relu_shaped(+a: Nat, entries: List<&1, Entry>, pair: Core.Dynamic & Shape.Shape) -> Tape & Result<&2, &2, Error, Nat>:
+  (input, +shape) = pair
+  relu_zeroed(a, entries, shape, input, Core.new(Reduction.scalar_shape(), 0.0))
+
+def relu_found(+a: Nat, pair: Found()) -> Tape & Result<&2, &2, Error, Nat>:
+  (entries, input) = pair
+  match input:
+    case Fail{error}:
+      (Tape{entries}, Fail{UnknownNode{}})
+    case Done{input}:
+      relu_shaped(a, entries, Core.shape(input))
+
+# Records relu(a), PyTorch's relu, of a's shape: the pointwise product of a
+# copy of a's value with ReluLeft against a rank-0 +0.0, on the parallel
+# elementwise build. The copy is saved for the VJP.
+def relu(tape: Tape, +a: Nat) -> Tape & Result<&2, &2, Error, Nat>:
+  Tape{entries} = tape
+  relu_found(a, value_counted(a, counted(entries)))
 
 def error_code(error: Error) -> U32:
   match error:

@@ -19,6 +19,7 @@ type Step is Data:
   MatmulNt{a: Nat, b: Nat}
   Linear{x: Nat, w: Nat, bias: Nat}
   Sum{a: Nat}
+  Relu{a: Nat}
   Run{output: Nat}
   ZeroGrad{}
   Read{id: Nat}
@@ -158,6 +159,8 @@ def step(instruction: Step, tape: Backward.Tape, rec: Backward.Tape -> IO(Unit))
       recorded(rec, Backward.linear(tape, x, w, bias))
     case Sum{a}:
       recorded(rec, Backward.sum(tape, a))
+    case Relu{a}:
+      recorded(rec, Backward.relu(tape, a))
     case Run{output}:
       ran(rec, Backward.backward(tape, output))
     case ZeroGrad{}:
