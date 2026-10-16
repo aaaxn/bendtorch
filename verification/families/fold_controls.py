@@ -240,6 +240,24 @@ FAMILY = controls.Family(
             "contracts_2f_matmul_2d_parallel_2d_proof.dot_right_eq",
             ("matmul.right_index",),
         ),
+        "nt-reads-weight-untransposed": Site(
+            "Laws.matmul_nt_ordered",
+            "Matrix.product_planned(Matrix.Kept{}, Matrix.Swapped{}, left, right,",
+            "contracts_2f_LAWS.matmul_nt_ordered",
+            ("matmul.matmul_nt",),
+        ),
+        "tn-swaps-operands": Site(
+            "Laws.matmul_tn_ordered",
+            "Matrix.product_planned(Matrix.Swapped{}, Matrix.Swapped{}, right, left,",
+            "contracts_2f_LAWS.matmul_tn_ordered",
+            ("matmul.matmul_tn",),
+        ),
+        "product-kept-reads-swapped": Site(
+            "read_below",
+            "Nat.add(Nat.mul(k, inner), outer)",
+            "contracts_2f_product_2d_parallel_2d_proof.read_below",
+            ("matmul.read_offset",),
+        ),
     },
     prefix=TENSOR,
 )

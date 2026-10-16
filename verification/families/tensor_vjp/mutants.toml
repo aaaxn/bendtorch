@@ -53,3 +53,28 @@ before = '''
       matmul_first(a, b, left, right, x, y, Core.clone_dynamic(g))'''
 after = '''
       matmul_first(a, a, left, right, x, y, Core.clone_dynamic(g))'''
+
+[nt-vjp-tn-swaps-operands]
+file = "src/autograd/tensor-backward.bend"
+before = '''
+  (left, multiplied(target, shape, Matrix.matmul_tn(copy, flipped)))'''
+after = '''
+  (left, multiplied(target, shape, Matrix.matmul_tn(flipped, copy)))'''
+
+[nt-vjp-left-reads-transposed]
+file = "src/autograd/tensor-backward.bend"
+before = '''
+  (right, multiplied(target, shape, Matrix.matmul(copy, flipped)))
+
+# g^T @ x for the right operand, g read in place.'''
+after = '''
+  (right, multiplied(target, shape, Matrix.matmul_nt(copy, flipped)))
+
+# g^T @ x for the right operand, g read in place.'''
+
+[nt-vjp-sends-second-to-first]
+file = "src/autograd/tensor-backward.bend"
+before = '''
+      nt_first(a, b, left, right, x, y, Core.clone_dynamic(g))'''
+after = '''
+      nt_first(a, a, left, right, x, y, Core.clone_dynamic(g))'''

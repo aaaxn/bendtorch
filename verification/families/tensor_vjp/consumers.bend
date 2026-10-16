@@ -257,3 +257,50 @@ def matmul_values() -> MatmulCase<matmul_pass(gradient(), {==}), 1, F32.add(F32.
   2, F32.add(0.0, F32.mul(7.0, 3.0))>:
   open_matmul(matmul_pass(gradient(), {==}), row => column => front_cell(row, column), row => column => back_cell(row, column),
     matmul_evidence(), 0n, {==}, 1n, {==}, 1n, {==}, 0n, {==})
+
+# MatmulNT, Linear's product: node 2 = a @ b^T with a = node 0 of shape
+# [1, 2] holding [2.0, 7.0] and b = node 1 of shape [2, 2] holding
+# [10.0, 20.0, 30.0, 50.0], PyTorch's [out, in], for the gradient [3.0, 5.0].
+# d/da is g @ b, read in place: cell (0, 1) folds g[0] * b[0, 1] and
+# g[1] * b[1, 1] from +0.0, the second column of b; d/db is g^T @ a: cell
+# (1, 0) is g[1] * a[0] from +0.0.
+def linear_back_of(+left: Shape.Shape, +right: Shape.Shape,
+  r: Result<&2, &2, Matrix.Error, Matrix.Product<Matrix.Swapped{}, Matrix.Swapped{}, left, right>>,
+  done: {Result.is_done(&2, &2, Matrix.Error, Matrix.Product<Matrix.Swapped{}, Matrix.Swapped{}, left, right>, r) == True{} : Bool}) ->
+  Matrix.Product<Matrix.Swapped{}, Matrix.Swapped{}, left, right>:
+  match r:
+    case Done{plan}:
+      plan
+    case Fail{error}:
+      Empty.absurd(Matrix.Product<Matrix.Swapped{}, Matrix.Swapped{}, left, right>, Arith.clash(done))
+
+def linear_front() -> Matrix.Plan<row_shape(), square_shape()>:
+  product_of(row_shape(), square_shape(), Matrix.plan(row_shape(), square_shape()), {==})
+
+def linear_back() -> Matrix.Product<Matrix.Swapped{}, Matrix.Swapped{}, row_shape(), row_shape()>:
+  linear_back_of(row_shape(), row_shape(), Matrix.product_plan(Matrix.Swapped{}, Matrix.Swapped{}, row_shape(), row_shape()), {==})
+
+def linear_pass(+values: List<&2, F32>,
+  -fits: {Lifecycle.logical_length(Replayed.storage(row_shape(), 0.0, writes(values))) == 2n : Nat}) -> Backward.Pass:
+  Backward.vjp(Backward.MatmulNT{0n, 1n, row_shape(), square_shape()},
+    Backward.Operands{input(row_shape(), left_values(), {==}), input(square_shape(), square_values(), {==})},
+    input(row_shape(), values, fits))
+
+def linear_front_cell(+row: Nat, +column: Nat) -> F32:
+  DotFold.dot_fold(Contracts.factors(row, column, 2n, 2n, row_shape(), 0.0, writes(gradient()),
+    square_shape(), 0.0, writes(square_values()), 2n), 0.0)
+
+def linear_back_cell(+row: Nat, +column: Nat) -> F32:
+  DotFold.dot_fold(Contracts.product_factors(row, column, Matrix.Swapped{}, Matrix.Swapped{}, 1n, 2n, 2n,
+    row_shape(), 0.0, writes(gradient()), row_shape(), 0.0, writes(left_values()), 1n), 0.0)
+
+def linear_evidence() -> Laws.MatmulPairContract<0n, row_shape(), 1n, 2n, row => column => linear_front_cell(row, column),
+  1n, square_shape(), 2n, 2n, row => column => linear_back_cell(row, column), linear_pass(gradient(), {==})>:
+  Laws.tensor_matmul_nt_vjp_values(0n, 1n, row_shape(), square_shape(), row_shape(), linear_front(), {==}, {==},
+    linear_back(), {==}, {==}, 0.0, writes(gradient()), {==}, 0.0, writes(left_values()), {==},
+    0.0, writes(square_values()), {==})
+
+def linear_values() -> MatmulCase<linear_pass(gradient(), {==}), 1, F32.add(F32.add(0.0, F32.mul(3.0, 20.0)), F32.mul(5.0, 50.0)),
+  2, F32.add(0.0, F32.mul(5.0, 2.0))>:
+  open_matmul(linear_pass(gradient(), {==}), row => column => linear_front_cell(row, column),
+    row => column => linear_back_cell(row, column), linear_evidence(), 0n, {==}, 1n, {==}, 1n, {==}, 0n, {==})

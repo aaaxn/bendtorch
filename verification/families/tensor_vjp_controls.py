@@ -50,6 +50,7 @@ FAMILY = controls.Family(
         f"{LAWS}.tensor_sub_vjp_values": Law(NAT, "tensor_2d_backward.vjp"),
         f"{LAWS}.tensor_mul_vjp_values": Law(NAT, "tensor_2d_backward.vjp"),
         f"{LAWS}.tensor_matmul_vjp_values": Law(NAT, "tensor_2d_backward.vjp"),
+        f"{LAWS}.tensor_matmul_nt_vjp_values": Law(NAT, "tensor_2d_backward.vjp"),
     },
     live_records=(
         f"{LAWS}.PairContract.arms",
@@ -59,7 +60,13 @@ FAMILY = controls.Family(
     ),
     consumers=tuple(
         f"consumers.{name}"
-        for name in ("add_values", "sub_values", "mul_values", "matmul_values")
+        for name in (
+            "add_values",
+            "sub_values",
+            "mul_values",
+            "matmul_values",
+            "linear_values",
+        )
     ),
     witnesses={
         "add_kept_witness": Witness("kept_word", "folded_word"),
@@ -161,6 +168,25 @@ FAMILY = controls.Family(
             "Backward.matmul_first(a, a, left, right,",
             "tensor_2d_vjp_2d_PROOF.matmul_values",
             ("tensor_2d_backward.vjp_matmul",),
+        ),
+        "nt-vjp-tn-swaps-operands": Site(
+            "nt_values",
+            "Matrix.product_planned(Matrix.Swapped{}, Matrix.Swapped{}, left, shape,",
+            "tensor_2d_vjp_2d_PROOF.nt_values",
+            ("tensor_2d_backward.nt_right",),
+        ),
+        "nt-vjp-left-reads-transposed": Site(
+            "nt_values",
+            "Backward.multiplied(a, left, "
+            "Matrix.product_planned(Matrix.Kept{}, Matrix.Kept{},",
+            "tensor_2d_vjp_2d_PROOF.nt_values",
+            ("tensor_2d_backward.nt_left",),
+        ),
+        "nt-vjp-sends-second-to-first": Site(
+            "nt_values",
+            "Backward.nt_first(a, a, left, right,",
+            "tensor_2d_vjp_2d_PROOF.nt_values",
+            ("tensor_2d_backward.vjp_matmul_nt",),
         ),
     },
     proof="src/autograd/PROOF.bend",

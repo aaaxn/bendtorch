@@ -133,6 +133,9 @@ instance copy, only the instance copy for the swapped maps, or only
 | `matmul` reversed order | `cell_dot` reads `k` from `inner - 1` down to 0 | `dot_eq` | `dot_eq` |
 | `matmul` negative zero start | `dot_of` starts the cell at `F32.neg(0.0)` | `cell_inside_eq` | `cell_inside_eq` |
 | `matmul` transposed right | `right_index` reads the right matrix at `column * columns + k` | `dot_right_eq` | `dot_right_eq` |
+| `matmul_nt` reads the weight untransposed | `matmul_nt` is `product(Kept, Swapped)`, which reads `W` as `[inner, columns]` | `Laws.matmul_nt_ordered` | `matmul_nt_ordered` |
+| `matmul_tn` swaps operands | `matmul_tn(g, x)` multiplies `x^T @ g` | `Laws.matmul_tn_ordered` | `matmul_tn_ordered` |
+| Product reads a `Kept` operand swapped | `read_offset` reads a `Kept` operand at `k * inner + outer` | `read_below` | `read_below` |
 
 The first nine mutants change the generic loops in `fold.bend`, and the
 generic proofs reject them. The next three change what the loops return when
@@ -146,7 +149,12 @@ the live walk of the build that proves `matmul_ordered`, rejects them in a
 step of the walk: `dot_eq`, `cell_inside_eq` and `dot_right_eq`. The contracts
 take `dot_fold` from `src/tensor/dot-fold.bend`, which holds no law, so the
 kernel artifact holds no erased matmul proof and BendTT rejects them at the
-same declarations. The fold family's BendTT prefix is `src/tensor/`, so the
+same declarations. The products that read an operand in place add three:
+`matmul_nt_ordered` and `matmul_tn_ordered` state which orders the public
+`matmul_nt` and `matmul_tn` pass to `Matrix.product`, so they reject a
+`matmul_nt` that reads `W` untransposed and a `matmul_tn` with swapped
+operands; `read_below`, which bounds every read of `product-parallel-proof.bend`,
+rejects a `Kept` read at the swapped index. The fold family's BendTT prefix is `src/tensor/`, so the
 transplant also carries the mutated `matmul.bend` declarations.
 
 `fold/entry.bend` imports `broadcast.bend` before `sum.bend`, `dot.bend` and
@@ -279,9 +287,9 @@ template constant.
 
 `tensor_vjp/` holds:
 
-- `consumers.bend`: four consumers, one for each of `tensor_add_vjp_values`,
-  `tensor_sub_vjp_values`, `tensor_mul_vjp_values` and
-  `tensor_matmul_vjp_values`. The first three run the VJP of
+- `consumers.bend`: five consumers, one for each of `tensor_add_vjp_values`,
+  `tensor_sub_vjp_values`, `tensor_mul_vjp_values`,
+  `tensor_matmul_vjp_values` and `tensor_matmul_nt_vjp_values`. The first three run the VJP of
   node 2 on a tape whose operands are node 0, of shape `[2]`, and node 1, of
   shape `[1]`, for the gradient `[3, 5]` of shape `[2]`, replayed as the
   writes of `Core.from_values`. It takes every plan from
@@ -306,6 +314,14 @@ template constant.
     `F32.add(F32.add(0.0, F32.mul(3.0, 30.0)), F32.mul(5.0, 50.0))`, from
     `g @ b^T`; node 1's cell `(1, 0)` is `F32.add(0.0, F32.mul(7.0, 3.0))`,
     from `a^T @ g`. Both dimensions are stated as well.
+  - `linear_values` runs the `MatmulNT` VJP of node 2 = `a @ b^T`, Linear's
+    product with `b` in PyTorch's `[out, in]` layout, on the same tape. It
+    takes the plan of `g @ b` from `Matrix.plan` and the plan of `g^T @ a`
+    from `Matrix.product_plan` with two `Swapped` operands. Node 0's cell
+    `(0, 1)` is `F32.add(F32.add(0.0, F32.mul(3.0, 20.0)), F32.mul(5.0, 50.0))`,
+    from `g @ b` read in place, a column of `b` where the `Matmul` VJP reads a
+    row; node 1's cell `(1, 0)` is `F32.add(0.0, F32.mul(5.0, 2.0))`, from
+    `g^T @ a`.
 - `controls.bend`: seven value witnesses, each paired with one wrong value.
 - `mutants.toml`: the before and after text of each mutation.
 
@@ -326,6 +342,9 @@ template constant.
 | Matmul left untransposed | `matmul_first` transposes `b` by `(0, 0)`, which keeps it as it is | `matmul_values` | `matmul_values` |
 | Matmul right operands swapped | `right_product` multiplies `g @ a^T` instead of `a^T @ g` | `matmul_values` | `matmul_values` |
 | Matmul sends the second to the first | `vjp_matmul` passes `a` for `b` | `matmul_values` | `matmul_values` |
+| MatmulNT `matmul_tn` swaps operands | `nt_right` multiplies `x^T @ g` instead of `g^T @ x` | `nt_values` | `nt_values` |
+| MatmulNT left reads the weight transposed | `nt_left` runs `matmul_nt(g, W)` instead of `matmul(g, W)` | `nt_values` | `nt_values` |
+| MatmulNT sends the second to the first | `vjp_matmul_nt` passes `a` for `b` | `nt_values` | `nt_values` |
 
 The mutants change `src/autograd/tensor-backward.bend`, and the source check
 runs `src/autograd/PROOF.bend`. The structural laws in
@@ -334,8 +353,11 @@ only the value laws reject these mutants. The `Matmul` mutants fail in
 `matmul_values`, the proof of `tensor_matmul_vjp_values` in
 `tensor-vjp-PROOF.bend`: the first hands `transpose_replayed` a call that
 law does not state, the other two produce a pass other than the stated one.
-The runtime controls of the autograd gate reject the `Mul` and `Sub` ones,
-and a `Matmul` VJP without the transpose, as well, in the JavaScript lane.
+The `MatmulNT` mutants fail in `nt_values`, the proof of
+`tensor_matmul_nt_vjp_values`. The runtime controls of the autograd gate
+reject the `Mul` and `Sub` ones, a `Matmul` VJP without the transpose, and
+the `MatmulNT` `matmul_tn` with swapped operands, as well, in the JavaScript
+lane.
 
 `permute_replayed`, `transpose_replayed` and `matmul_replayed` reuse the
 walks of the copy loop and of the matmul loops. The permute value contract's
