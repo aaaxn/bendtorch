@@ -9,22 +9,28 @@ output cells as a balanced tree with `Matrix.build`. Cell `p` sits at row
 `p / columns` and column `p % columns` and folds
 `left[row * inner + k] * right[k * columns + column]` for `k = 0, 1, ...,
 inner - 1` from `+0.0`, the terms and order of `natural_dot`, so no output word
-depends on the split. The top `Matrix.splits(depth, inner)` levels of the tree
-fork, each half with its own clone of both inputs; a subtree below the forks
-is built in index order on one thread. The build splits by work: an output
-stored at depth `depth` (at most `2^depth` cells) forks
+depends on the split. The top `Matrix.product_splits(depth, inner)` levels of
+the tree fork, each half with its own clone of both inputs; a subtree below the
+forks is built in index order on one thread. The build splits by work: an
+output stored at depth `depth` (at most `2^depth` cells) forks
 
-    min(max(depth + floor_log2(inner) - 13, 0), 6, depth)
+    min(max(depth + floor_log2(inner) - 13, 0), 4, depth)
 
-levels, with `floor_log2(0) = 0` (`Matrix.splits`; `Nat.sub` gives the
-`max(..., 0)`). While no bound binds, a subtree spans
-`2^(13 - floor_log2(inner))` cells, between `2^13` and `2^14` terms when all of
-them lie inside the output. A product of fewer than `2^13` terms does not
-fork; the six-level cap leaves bigger subtrees, and the `depth` cap leaves one
-cell per subtree.
-An output of `[64, 784] @ [784, 128]` forks six levels although it has only
-8192 cells; the cap binds there, and each of its 64 subtrees holds 128 cells
-of 784 terms, about `2^16.6` terms.
+levels, with `floor_log2(0) = 0` (`Matrix.product_splits`, which caps
+`Matrix.splits` at four levels; `Nat.sub` gives the `max(..., 0)`).
+`reduce_to` and the losses split by `Matrix.splits`, whose cap is six. While
+no bound binds, a subtree spans `2^(13 - floor_log2(inner))` cells, between
+`2^13` and `2^14` terms when all of them lie inside the output. A product of
+fewer than `2^13` terms does not fork; the four-level cap leaves bigger
+subtrees, and the `depth` cap leaves one cell per subtree.
+An output of `[64, 784] @ [784, 128]` forks four levels although it has only
+8192 cells; the cap binds there, and each of its 16 subtrees holds 512 cells
+of 784 terms, about `2^18.6` terms. Each fork copies both operands into each
+half. The cap was six until the cells ran eight at a time (below); then the
+copies of a six-level build cost more than its extra subtrees saved: on
+medusa2 the MNIST step of the bench (`tools.bench_compare`, five alternating
+rounds) took 20 ms at four levels against 22 at six on one thread, and 17
+against 20 on eight.
 
 `Matrix.multiply`, `natural_product_loop` and `natural_dot` stay as the
 sequential definition: their laws below still state them. The public laws
@@ -69,8 +75,8 @@ output row (or column) `outer` sits at `outer * inner + k`, or `Swapped`, as
   `g[k, row] * x[k, column]`.
 
 Neither builds a transpose. Each cell adds its terms in increasing `k` from
-`+0.0`, and the cells are built with `Parallel.build` exactly as `matmul`
-builds its own (`Matrix.product_build`, split by `Matrix.splits`), so
+`+0.0`, and the cells are built as `matmul` builds its own, with one change
+below (`Matrix.product_build`, split by `Matrix.product_splits`), so
 `matmul_nt(x, W)` holds the words of `matmul(x, transpose_copy(W))` and
 `matmul_tn(g, x)` those of `matmul(transpose_copy(g), x)`. `Matrix.product_plan`
 checks both ranks (`RankMismatch`, the left operand first) and the inner
@@ -93,7 +99,31 @@ takes 5.9 ms and 2.6 ms now, with the same words (a program that times 5 to
 20 products, three runs each). One cell's terms form one chain of dependent
 F32 additions, about 3 cycles each, so the loop alone needs about 3.7 ms on
 one thread; the rest is the parallel build's copies of both operands.
-`matmul` keeps its own `cell_dot`.
+`matmul`'s `cell_dot` runs the same loop with strides 1 and `columns`;
+`stepped_left` and `stepped_right` in `matrix-index-proof.bend` prove its
+steps. A `[256, 256] @ [256, 256]` product took 636 ms on one thread with a
+closure per term and takes 15 ms now, with the same words (`tools.bench_compare`,
+five alternating rounds).
+
+A product builds its cells with `Matrix.product_tree`, which is
+`Parallel.tree` with the product cell except for one case: a subtree of eight
+cells that lie below the count and in one output row (`Matrix.one_row`, which
+checks both at run time) runs as one loop, `Matrix.row_run`. Term `k` reads the
+row's left word once and the eight right words (`Matrix.read_eight`), and adds
+each product to its own cell's accumulator (`Matrix.eight_terms`), so each
+cell still adds its terms in increasing `k` from `+0.0`. One cell's chain of
+additions waits about three cycles per term; eight independent chains run
+side by side. `product_build` forks as `Parallel.build` does, with
+`product_tree` below the forks. The replayed walk in
+`contracts/product-parallel-proof.bend` proves it: `read_eight_eq` for the
+eight reads, `row_last`, `row_next` and `row_eq` for the run, `row_block_eq`
+and `row_block_tree` for a block, then `block_or_tree_eq`, `product_node_eq`,
+`product_tree_eq`, `fork_eq` and `build_eq` for the tree. On one thread a
+`[256, 256]` product took 14 ms (`matmul_nt`) and 19 ms (`matmul_tn`) with one
+chain per cell and takes 9 ms with eight, and the bench's MNIST step went from
+27 to 21 ms, with the same words. The loop now spends its time on the eight
+right reads, one per term and cell; reading eight packed words at once
+would take a copy of the right operand laid out by eight columns.
 
 ## Public math completeness supplement
 

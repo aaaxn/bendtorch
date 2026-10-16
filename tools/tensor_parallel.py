@@ -23,6 +23,11 @@ def matmul_splits(depth: int, inner: int) -> int:
     return min(max(depth + halvings - 13, 0), 6, depth)
 
 
+def product_splits(depth: int, inner: int) -> int:
+    """`Matrix.product_splits`: `Matrix.splits`, at most 4."""
+    return min(matmul_splits(depth, inner), 4)
+
+
 # Each product the probe runs, as (rows, inner, columns).
 PRODUCTS = {
     "matmul-128x64x64": (128, 64, 64),
@@ -82,12 +87,12 @@ def expected_splits(name: str) -> int:
     if name in REDUCTIONS:
         return reduce_splits(*REDUCTIONS[name])
     rows, inner, columns = PRODUCTS[name]
-    return matmul_splits(depth(rows * columns), inner)
+    return product_splits(depth(rows * columns), inner)
 
 
 def check_lines(stdout: str) -> dict[str, int]:
     """The splits each probe line reports, after checking that every line
-    names a known build, forks as `expected_splits` says (`Matrix.splits`
+    names a known build, forks as `expected_splits` says (`Matrix.product_splits`
     for a product, `Reduce.splits` for a reduction) and matches its
     sequential definition word for word."""
     splits = {}

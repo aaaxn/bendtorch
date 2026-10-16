@@ -324,11 +324,17 @@ def nt_left(+target: Nat, +shape: Shape.Shape, copy: Core.Dynamic, pair: Core.Dy
   (right, flipped) = pair
   (right, multiplied(target, shape, Matrix.matmul(copy, flipped)))
 
-# g^T @ x for the right operand, g read in place.
+# g^T @ x, g read in place. It has its own name so that the proofs of where
+# the contribution goes name it without restating the product; the value
+# laws read what it computes.
+def weight_product(copy: Core.Dynamic, flipped: Core.Dynamic) -> Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>:
+  Matrix.matmul_tn(copy, flipped)
+
+# g^T @ x for the right operand.
 def nt_right(+target: Nat, +shape: Shape.Shape, copy: Core.Dynamic, pair: Core.Dynamic & Core.Dynamic) ->
   Core.Dynamic & Result<&2, &1, Error, Contribution>:
   (left, flipped) = pair
-  (left, multiplied(target, shape, Matrix.matmul_tn(copy, flipped)))
+  (left, multiplied(target, shape, weight_product(copy, flipped)))
 
 def nt_fourth(first: Result<&2, &1, Error, Contribution>, y: Core.Dynamic, g: Core.Dynamic,
   pair: Core.Dynamic & Result<&2, &1, Error, Contribution>) -> Pass:
