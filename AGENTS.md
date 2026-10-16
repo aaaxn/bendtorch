@@ -215,6 +215,17 @@ where a check states the word, such as `relu` on the native lane.
   `gamma(K) * sum |x_k * y_k| + K*eta / (1 - K*u)` (Higham, *Accuracy and
   Stability of Numerical Algorithms*, 2nd ed., sections 3.1 and 4.2). One
   rounding adds `u * |result|`, plus `eta` for a product or a quotient.
+- The bound holds only under these conditions: binary32 arithmetic that
+  rounds to nearest, ties to even; gradual underflow, so subnormals are kept
+  and an addition is exact in the subnormal range; no intermediate overflow
+  in any order; and `k*u < 1` for every count `k`. A word gets a bound only
+  where the check can show them: `(1 + gamma(n)) * sum |terms| <= MAX`, the
+  largest finite F32, for every sum and dot product, and
+  `(1 + u) * (|result| + E) <= MAX` for every other rounding that is not
+  fixed. `[MAX, -MAX, MAX]` sums to `MAX` left to right but overflows when
+  the two `MAX` come first, so it has no bound. A word without a bound,
+  finite or not, goes to the special-word checks below. An empty sum and a
+  dot product of no terms are `+0.0` in every order: a fixed word.
 - A word built from other words follows the reference's own operations.
   Each word carries its exact value, computed in exact rational arithmetic
   from the input words, and a bound `E` that holds for any run that does the
@@ -231,6 +242,11 @@ where a check states the word, such as `relu` on the native lane.
   repository does not bound, so a word built on them has no bound. Such a
   word is *pinned*: its check lists PyTorch's word and ours, and no other
   word may differ. Today these are the `cross_entropy` words.
+- A bound never replaces a stricter check. Where a check already pinned the
+  words that may differ, or required some words to agree exactly, it keeps
+  doing so, and the bound is checked on top: each pinned word must also lie
+  within its bound. A bound counted per script, not per word, would let a
+  second word move once one word differs.
 - Where PyTorch rounds once and we round twice (an SGD step on AVX2 or
   AVX512 kernels, a fused multiply-add), the check compares with a reference
   that rounds as PyTorch does, word for word.
