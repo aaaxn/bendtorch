@@ -152,7 +152,7 @@ FAMILY = controls.Family(
         ),
         "matmul-right-operands-swapped": Site(
             "matmul_values",
-            "Matrix.planned(shape, Layout.output(left,",
+            "Matrix.parallel_planned(shape, Layout.output(left,",
             "tensor_2d_vjp_2d_PROOF.matmul_values",
             ("tensor_2d_backward.right_product",),
         ),

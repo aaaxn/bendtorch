@@ -477,6 +477,20 @@ def constructs(encoded: dict) -> bool:
     )
 
 
+def product_shape(request: dict) -> list[int] | None:
+    """Output shape of the matmul a request runs, None if none runs."""
+    if request.get("op") not in ("matmul", "matmul_add"):
+        return None
+    inputs = request["inputs"]
+    if not all(constructs(encoded) for encoded in inputs.values()):
+        return None
+    left, right = inputs["a"]["shape"], inputs["b"]["shape"]
+    if len(left) != 2 or len(right) != 2 or left[1] != right[0]:
+        return None
+    product = [left[0], right[1]]
+    return product if "count" in shape_oracle(product) else None
+
+
 def built_cells(request: dict) -> int:
     """Output cells of the elementwise build a request runs, 0 if none runs."""
     op = request.get("op")
@@ -487,17 +501,21 @@ def built_cells(request: dict) -> int:
         return 0
     left, right = inputs["a"]["shape"], inputs["b"]["shape"]
     if op == "matmul_add":
-        if len(left) != 2 or len(right) != 2 or left[1] != right[0]:
-            return 0
-        product = [left[0], right[1]]
-        if "count" not in shape_oracle(product):
+        product = product_shape(request)
+        if product is None:
             return 0
         left, right = product, inputs["bias"]["shape"]
     return broadcast_oracle(left, right).get("count", 0)
 
 
+def product_cells(request: dict) -> int:
+    """Output cells of the parallel matmul build a request runs, 0 if none."""
+    product = product_shape(request)
+    return 0 if product is None else shape_oracle(product)["count"]
+
+
 def build_joins(cells: int) -> int:
-    """`blk_node` calls of one elementwise build.
+    """`blk_node` calls of one elementwise or matmul build.
 
     The build joins every inner node of its balanced output tree once, by
     `ANode` in `fork` or `tree_join`. Storage of `cells` cells has depth
@@ -507,7 +525,10 @@ def build_joins(cells: int) -> int:
 
 
 def expected_copy_audit(requests: list[dict]) -> tuple[int, int]:
-    return 0, sum(build_joins(built_cells(request)) for request in requests)
+    return 0, sum(
+        build_joins(built_cells(request)) + build_joins(product_cells(request))
+        for request in requests
+    )
 
 
 def check_copy_audit(stderr: str, requests: list[dict]) -> None:
@@ -518,7 +539,7 @@ def check_copy_audit(stderr: str, requests: list[dict]) -> None:
             "Native copy audit reported "
             + (", ".join(" ".join(row) for row in found) or "nothing")
             + f"; expected {expected[0]} splits and {expected[1]} joins, "
-            "exactly the joins of the elementwise output builds"
+            "exactly the joins of the elementwise and matmul output builds"
         )
 
 
@@ -797,7 +818,12 @@ def run_native_corpus(
         "shape_cases": 7,
         "copy_audit": {
             "splits": 0,
-            "elementwise_build_joins": expected_copy_audit(transported)[1],
+            "elementwise_build_joins": sum(
+                build_joins(built_cells(request)) for request in transported
+            ),
+            "matmul_build_joins": sum(
+                build_joins(product_cells(request)) for request in transported
+            ),
         },
         "numerical_acceptance": (
             "not performed; root must call tools.tensor_numerics.verify_case "

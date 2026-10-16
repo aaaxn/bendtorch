@@ -19,6 +19,7 @@ import ./reduce-fold.bend as Cells
 import ./reduce-fold-PROOF.bend as FoldProof
 import ./reduce-fold-LAWS.bend as ReduceFold
 import ./reduce-to-fold-PROOF.bend as ReduceTo
+import ./reduce-replayed-proof.bend as Replay
 import ./sum-to-size.bend as SumToSize
 import ./sum-to-size-fold-LAWS.bend as Laws
 
@@ -259,26 +260,20 @@ def replayed_fiber(+target: Shape.Shape, +shape: Shape.Shape, +plan: Shape.Broad
   @-fits: {Lifecycle.logical_length(Replayed.storage(shape, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat} ->
     P(SumToSize.decided(shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}, target, False{})):
   +count = Shape.logical_numel(Shape.dimensions(shape))
-  +left = ReduceTo.plan_left(target, shape, plan, planned)
-  +room = ReduceTo.contribution_room(shape, plan, same)
-  +history = ReduceTo.history(plan, target, shape, fill, ops, count)
   ReduceTo.run_lift(target, shape, plan, planned, same, fill, ops, P,
-    input_fits => output_fits =>
-      h(List.append(&2, StorageLaws.Op, ops, ReduceTo.reads(plan, count)),
-        Equal.trans(List<&2, F32>, Contracts.words(shape, fill, List.append(&2, StorageLaws.Op, ops, ReduceTo.reads(plan, count)), count),
-          Contracts.words(shape, fill, ops, count), values,
-          Words.words_reads(~Shape.BroadcastPlan, ~Cells.contribution_offset, plan, count, shape, fill, ops, count), words),
-        input_fits, target, {==}, 0.0, history,
+    kept => values_eq => words_eq => kept_fits => out => cells => out_fits =>
+      h(kept, Equal.trans(List<&2, F32>, Contracts.words(shape, fill, kept, count), Contracts.words(shape, fill, ops, count), values, words_eq, words),
+        kept_fits, target, {==}, 0.0, out,
         index => inside =>
-          Equal.trans(Maybe<&2, F32>, Some{Replayed.value(target, 0.0, history, index)},
-            Some{ReduceTo.total(plan, shape, fill, ops, index, count)},
+          +inside = inside
+          Equal.trans(Maybe<&2, F32>, Some{Replayed.value(target, 0.0, out, index)},
+            Some{Replay.cell_word(plan, Shape.index_map(plan), shape, fill, ops, U32.to_nat(index))},
             ReduceLaws.fiber(plan, values, index, count),
-            Equal.cong(F32, Maybe<&2, F32>, value => Some{value}, Replayed.value(target, 0.0, history, index),
-              ReduceTo.total(plan, shape, fill, ops, index, count),
-              ReduceTo.history_value(plan, target, shape, fill, ops, left, count, room, index)),
-            %words : {Some{ReduceTo.total(plan, shape, fill, ops, index, count)} == ReduceLaws.fiber(plan, _, index, count) : Maybe<&2, F32>}
-            ReduceTo.fiber_equation(target, shape, plan, planned, same, fill, ops, index)),
-        output_fits))
+            Equal.cong(F32, Maybe<&2, F32>, value => Some{value}, Replayed.value(target, 0.0, out, index),
+              Replay.cell_word(plan, Shape.index_map(plan), shape, fill, ops, U32.to_nat(index)), cells(index)(inside)),
+            %words : {Some{Replay.cell_word(plan, Shape.index_map(plan), shape, fill, ops, U32.to_nat(index))} == ReduceLaws.fiber(plan, _, index, count) : Maybe<&2, F32>}
+            ReduceTo.cell_fiber(target, shape, plan, planned, same, fill, ops, index, inside)),
+        out_fits))
 
 def replayed_decided(+target: Shape.Shape, +shape: Shape.Shape, +plan: Shape.BroadcastPlan,
   +planned: {Shape.broadcast_checked(target, shape) == Done{plan} : Result<&2, &2, Shape.Error, Shape.BroadcastPlan>},

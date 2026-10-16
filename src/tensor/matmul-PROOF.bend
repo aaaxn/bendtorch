@@ -20,6 +20,16 @@ import ../shape/boundary_proofs.bend as Boundary
 import ../shape/coordinate_proofs.bend as Coordinates
 import ../shape/nat_proofs.bend as Nats
 import ../storage/arith.bend as Arith
+import ../storage/main.bend as Storage
+import ../storage/model.bend as Model
+import ../storage/refinement.bend as Refinement
+import ../storage/route.bend as Route
+import ../storage/certificates.bend as Certificates
+import ./elementwise.bend as Elementwise
+import ./elementwise-totality.bend as ElementwiseTotality
+import ./elementwise-parallel-proof.bend as Parallel
+import ./matmul-parallel-proof.bend as MatmulParallel
+import ./matrix-index-proof.bend as MatrixIndex
 
 type CoordinateRead<-shape: Shape.Shape, -original: Core.Tensor<shape>, -coordinates: List<&2, U32>> is Type:
   CoordinateRead{tensor: Core.Tensor<shape>, result: Result<&2, &2, Core.Error, F32>,
@@ -583,39 +593,6 @@ def Laws.successful_multiply_interpretation(left, right, plan, a, b):
     case Matrix.Plan{+output, rows, +inner, right_inner, +columns, le, re, oe, compatible}:
       created_product(left, right, output, inner, columns, a, b, Core.new(output, 0.0))
 
-def packed_source_product(+left: Shape.Shape, +right: Shape.Shape, +plan: Matrix.Plan<left, right>, -a: Core.Tensor<left>, -b: Core.Tensor<right>,
-  result: Result<&2, &1, Matrix.Error, Core.Tensor<left> & Core.Tensor<right> & Core.Tensor<Matrix.output_shape(left, right, plan)>>,
-  -source: Laws.SourceProduct<Laws.plan_inner(left, right, plan), left, right, a, b, Matrix.output_shape(left, right, plan),
-    Shape.logical_numel(Shape.dimensions(Matrix.output_shape(left, right, plan))), result>) ->
-  Laws.SourceMatmul<Core.Packed{left, a}, Core.Packed{right, b}, Matrix.packed(left, right, Matrix.output_shape(left, right, plan), result)>:
-  match result:
-    case Fail{error}:
-      Laws.SourceMatmul{unit => Unit{}}
-    case Done{pair}:
-      (ra, rb, out) = pair
-      Laws.SourceMatmul{unit =>
-        claim : @source: Laws.SourceProduct<Laws.plan_inner(left, right, plan), left, right, a, b, Matrix.output_shape(left, right, plan),
-          Shape.logical_numel(Shape.dimensions(Matrix.output_shape(left, right, plan))),
-          (Done{(ra, rb, out)} : Result<&2, &1, Matrix.Error, Core.Tensor<left> & Core.Tensor<right> & Core.Tensor<Matrix.output_shape(left, right, plan)>>)> ->
-          Laws.ProductPrefix<Laws.plan_inner(left, right, plan), left, right, a, b, Matrix.output_shape(left, right, plan), ra, rb, out,
-            Shape.logical_numel(Shape.dimensions(Matrix.output_shape(left, right, plan)))> = \{Laws.SourceProduct: meaning => meaning(Unit{})}
-        Laws.MatmulSuccess{left, right, plan, a, b, ra, rb, out, {==}, {==}, {==}, {==}, {==}, claim(source)}}
-
-def matmul_planned(+left: Shape.Shape, +right: Shape.Shape, a: Core.Tensor<left>, b: Core.Tensor<right>,
-  result: Result<&2, &2, Matrix.Error, Matrix.Plan<left, right>>) ->
-  Laws.SourceMatmul<Core.Packed{left, a}, Core.Packed{right, b}, Matrix.planned(left, right, a, b, result)>:
-  match result:
-    case Fail{error}:
-      Laws.SourceMatmul{unit => Unit{}}
-    case Done{+plan}:
-      packed_source_product(left, right, plan, a, b, Matrix.multiply(left, right, plan, a, b),
-        Laws.successful_multiply_interpretation(left, right, plan, a, b))
-
-def Laws.successful_matmul_interpretation(left, right):
-  Core.Packed{+left_shape, a} = left
-  Core.Packed{+right_shape, b} = right
-  matmul_planned(left_shape, right_shape, a, b, Matrix.plan(left_shape, right_shape))
-
 def zero_fold(+left: Shape.Shape, +right: Shape.Shape, -a: Core.Tensor<left>, -b: Core.Tensor<right>, +row: U32, +column: U32,
   values: List<&2, DotFold.Factors>, logical: Laws.LogicalDot(0n, left, right, a, b, row, column, 0n, values)) -> {DotFold.dot_fold(values, 0.0) == 0.0 : F32}:
   match values:
@@ -1155,34 +1132,6 @@ def plan_left_status(dimensions: List<&2, U32>, +left: Shape.Shape, +right: Shap
 def plan_status(+left: Shape.Shape, +right: Shape.Shape, -valid: Totality.MatrixInputs<left, right>) -> PlanStatus<left, right, Matrix.plan(left, right)>:
   plan_left_status(Shape.dimensions(left), left, right, {==}, valid)
 
-def packed_status(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape,
-  result: Result<&2, &1, Matrix.Error, Core.Tensor<left> & Core.Tensor<right> & Core.Tensor<output>>,
-  -status: Totality.Status<Matrix.Error, Core.Tensor<left> & Core.Tensor<right> & Core.Tensor<output>, result>) ->
-  Totality.Status<Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic, Matrix.packed(left, right, output, result)>:
-  match result:
-    case Fail{error}:
-      Totality.Status{{\{Totality.Status: successful => Empty.absurd({False{} == True{} : Bool}, Arith.clash(successful))} :
-        Totality.Status<Matrix.Error, Core.Tensor<left> & Core.Tensor<right> & Core.Tensor<output>, Fail{error}> -> {False{} == True{} : Bool}}(status)}
-    case Done{pair}:
-      (a, b, out) = pair
-      Totality.Status{{==}}
-
-def planned_status(+left: Shape.Shape, +right: Shape.Shape, result: Result<&2, &2, Matrix.Error, Matrix.Plan<left, right>>,
-  a: Core.Tensor<left>, b: Core.Tensor<right>, -status: PlanStatus<left, right, result>) ->
-  Totality.Status<Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic, Matrix.planned(left, right, a, b, result)>:
-  match result:
-    case Fail{error}:
-      Totality.Status{{\{PlanStatus: successful => Empty.absurd({False{} == True{} : Bool}, Arith.clash(successful))} :
-        PlanStatus<left, right, Fail{error}> -> {False{} == True{} : Bool}}(status)}
-    case Done{+plan}:
-      packed_status(left, right, Matrix.output_shape(left, right, plan), Matrix.multiply(left, right, plan, a, b), multiply_status(left, right, plan, a, b))
-
-def Laws.matmul_valid_success(left, right, a, b, valid):
-  Laws.TotalMatmul{
-    MathProof.success(Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic, Matrix.matmul(Core.Packed{left, a}, Core.Packed{right, b}),
-      planned_status(left, right, Matrix.plan(left, right), a, b, plan_status(left, right, valid))),
-    Laws.successful_matmul_interpretation(Core.Packed{left, a}, Core.Packed{right, b})}
-
 def plan_left_rank(+left: Shape.Shape, +right: Shape.Shape, +dims: List<&2, U32>,
   -same: {dims == Shape.dimensions(left) : List<&2, U32>},
   not_matrix: {Shape.rank_dimensions(dims) != 2n : Nat}) ->
@@ -1201,7 +1150,7 @@ def plan_left_rank(+left: Shape.Shape, +right: Shape.Shape, +dims: List<&2, U32>
 def Laws.matmul_left_rank_error(left, right, a, b, not_matrix):
   %Equal.sym(Result<&2, &2, Matrix.Error, Matrix.Plan<left, right>>, Matrix.plan_left(left, right, Shape.dimensions(left), {==}), Fail{Matrix.RankMismatch{}},
     plan_left_rank(left, right, Shape.dimensions(left), {==}, not_matrix)) :
-    {Matrix.planned(left, right, a, b, _) == Fail{Matrix.RankMismatch{}} : Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>}
+    {Matrix.parallel_planned(left, right, a, b, _) == Fail{Matrix.RankMismatch{}} : Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>}
   {==}
 
 def plan_right_rank(-left: Shape.Shape, +right: Shape.Shape, +rows: U32, +inner: U32,
@@ -1238,7 +1187,7 @@ def plan_left_right_rank(+left: Shape.Shape, +right: Shape.Shape, +dims: List<&2
 def Laws.matmul_right_rank_error(left, right, a, b, not_matrix):
   %Equal.sym(Result<&2, &2, Matrix.Error, Matrix.Plan<left, right>>, Matrix.plan_left(left, right, Shape.dimensions(left), {==}), Fail{Matrix.RankMismatch{}},
     plan_left_right_rank(left, right, Shape.dimensions(left), {==}, not_matrix)) :
-    {Matrix.planned(left, right, a, b, _) == Fail{Matrix.RankMismatch{}} : Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>}
+    {Matrix.parallel_planned(left, right, a, b, _) == Fail{Matrix.RankMismatch{}} : Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>}
   {==}
 
 def compatible_inner(-left: Shape.Shape, -right: Shape.Shape, +rows: U32, +inner: U32, +right_inner: U32, +columns: U32,
@@ -1319,5 +1268,415 @@ def inner_left(+left: Shape.Shape, +right: Shape.Shape, +dims: List<&2, U32>,
 def Laws.matmul_inner_error(left, right, a, b, rows, inner, right_inner, columns, left_matrix, right_matrix, mismatch):
   %Equal.sym(Result<&2, &2, Matrix.Error, Matrix.Plan<left, right>>, Matrix.plan_left(left, right, Shape.dimensions(left), {==}), Fail{Matrix.InnerDimensionMismatch{}},
     inner_left(left, right, Shape.dimensions(left), {==}, rows, inner, right_inner, columns, left_matrix, right_matrix, mismatch)) :
-    {Matrix.planned(left, right, a, b, _) == Fail{Matrix.InnerDimensionMismatch{}} : Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>}
+    {Matrix.parallel_planned(left, right, a, b, _) == Fail{Matrix.InnerDimensionMismatch{}} : Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>}
   {==}
+
+# The parallel product meets the same interpretation as the sequential one.
+
+# What `take` hands back for a tensor: its kept clone, as a tensor of the same
+# shape, and the copy the build reads.
+def KeptCopy(+shape: Shape.Shape, -a: Core.Tensor<shape>, -Q: Core.Dynamic & Array<F32> -> Type) -> Type:
+  @-kept: Core.Tensor<shape> -> @-copy: Array<F32> ->
+  @-taken: Parallel.Taken<Core.Packed{shape, a}, (Core.Packed{shape, kept}, copy)> ->
+    Q((Core.Packed{shape, kept}, copy))
+
+def take_owned_lift(+shape: Shape.Shape, +depth: Nat, +length: Nat, -array: Array<F32>, pair: Array<F32> & Array<F32>,
+  -same: {pair == Array.clone(F32, array) : Array<F32> & Array<F32>}, -balanced: Model.Balanced(F32, depth, array),
+  -valid: {Storage.bounds(depth, length) == True{} : Bool}, -exact: {length == Shape.logical_numel(Shape.dimensions(shape)) : Nat},
+  -Q: Core.Dynamic & Array<F32> -> Type,
+  h: KeptCopy(shape, Core.TTensor{Storage.Owned{depth, length, array, balanced, valid}, exact}, Q)) ->
+  Q(Elementwise.take_owned(shape, depth, length, array, pair, same, balanced, valid, exact)):
+  (kept, copy) = pair
+  h(Core.TTensor{Storage.Owned{depth, length, kept, Certificates.clone_first(F32, depth, array, (kept, copy), same, balanced), valid}, exact})(copy)(
+    Parallel.taken_owned(shape, depth, length, array, (kept, copy), same, balanced, valid, exact))
+
+def take_lift(+shape: Shape.Shape, a: Core.Tensor<shape>, -Q: Core.Dynamic & Array<F32> -> Type, h: KeptCopy(shape, a, Q)) ->
+  Q(Elementwise.take(Core.Packed{shape, a})):
+  Core.TTensor{storage, exact} = a
+  match storage:
+    case Storage.Empty{}:
+      h(Core.TTensor{Storage.Empty{}, exact})(Array.new(F32, 0n, 0.0))(Parallel.taken(Core.Packed{shape, Core.TTensor{Storage.Empty{}, exact}}))
+    case Storage.Owned{+depth, +length, array, balanced, valid}:
+      take_owned_lift(shape, depth, length, array, Array.clone(F32, array), {==}, balanced, valid, exact, Q, h)
+
+def inspected(found: ElementwiseTotality.Inspection) -> Maybe<&2, F32>:
+  match found:
+    case ElementwiseTotality.Dims{dimensions}:
+      None{}
+    case ElementwiseTotality.Value{value}:
+      value
+
+def kept_observe(+shape: Shape.Shape, -a: Core.Tensor<shape>, -kept: Core.Tensor<shape>,
+  -same: ElementwiseTotality.SameSource(Core.Packed{shape, a}, Core.Packed{shape, kept}), +other: U32) ->
+  Parallel.Fact<{Core.checked_observe(shape, kept, other) == Core.checked_observe(shape, a, other) : Maybe<&2, F32>}>:
+  Parallel.Fact{Equal.cong(ElementwiseTotality.Inspection, Maybe<&2, F32>, inspected,
+    ElementwiseTotality.inspect(ElementwiseTotality.Checked{other}, Core.Packed{shape, kept}),
+    ElementwiseTotality.inspect(ElementwiseTotality.Checked{other}, Core.Packed{shape, a}), same(ElementwiseTotality.Checked{other}))}
+
+def taken_keeps(+shape: Shape.Shape, -a: Core.Tensor<shape>, -kept: Core.Tensor<shape>, -copy: Array<F32>,
+  -taken: Parallel.Taken<Core.Packed{shape, a}, (Core.Packed{shape, kept}, copy)>, +other: U32) ->
+  Parallel.Fact<{Core.checked_observe(shape, kept, other) == Core.checked_observe(shape, a, other) : Maybe<&2, F32>}>:
+  kept_observe(shape, a, kept, {\{Parallel.Taken: depth => balanced => reads => retained => retained} :
+    Parallel.Taken<Core.Packed{shape, a}, (Core.Packed{shape, kept}, copy)> -> ElementwiseTotality.SameSource(Core.Packed{shape, a}, Core.Packed{shape, kept})}(taken), other)
+
+# A read through a flat index the shape decodes is the checked read there.
+def coordinate_read(+shape: Shape.Shape, -tensor: Core.Tensor<shape>, -index: U32,
+  result: Result<&2, &2, Shape.Error, Shape.FlatIndex<shape>>,
+  found: {ShapeLaws.index_result(shape, result) == Some{index} : Maybe<&2, U32>}) ->
+  {Laws.coordinate_observe_result(shape, tensor, result) == Core.checked_observe(shape, tensor, index) : Maybe<&2, F32>}:
+  match result:
+    case Fail{error}:
+      Empty.absurd({Laws.coordinate_observe_result(shape, tensor, Fail{error}) == Core.checked_observe(shape, tensor, index) : Maybe<&2, F32>},
+        Arith.clash(Equal.cong(Maybe<&2, U32>, Bool, value => Maybe.is_some(&2, U32, value), None{}, Some{index}, found)))
+    case Done{flat}:
+      %MatrixIndex.some_equal(U32, Shape.index_value(shape, flat), index, found) :
+        {Core.checked_observe(shape, tensor, Shape.index_value(shape, flat)) == Core.checked_observe(shape, tensor, _) : Maybe<&2, F32>}
+      {==}
+
+def left_flat(+left: Shape.Shape, +rows: U32, +inner: U32, +row: Nat, +k: Nat,
+  +le: {Shape.dimensions(left) == [rows, inner] : List<&2, U32>},
+  +row_below: {Nat.is_lt(row, U32.to_nat(rows)) == True{} : Bool}, +below: {Nat.is_lt(k, U32.to_nat(inner)) == True{} : Bool}) ->
+  {ShapeLaws.index_result(left, Shape.flatten_checked(left, [U32.from_nat(row), U32.from_nat(k)])) ==
+    Some{Matrix.left_index(U32.to_nat(inner), row, k)} : Maybe<&2, U32>}:
+  +k_exact = MatrixIndex.word_below(k, inner, below)
+  +row_exact = MatrixIndex.word_below(row, rows, row_below)
+  Equal.trans(Maybe<&2, U32>, ShapeLaws.index_result(left, Shape.flatten_checked(left, [U32.from_nat(row), U32.from_nat(k)])),
+    Some{U32.from_nat(Nat.add(Nat.mul(U32.to_nat(U32.from_nat(row)), U32.to_nat(inner)), U32.to_nat(U32.from_nat(k))))},
+    Some{U32.from_nat(Nat.add(Nat.mul(row, U32.to_nat(inner)), k))},
+    MatrixIndex.flat_pair(left, rows, inner, U32.from_nat(row), U32.from_nat(k), le,
+      MatrixIndex.lt_same(U32.to_nat(U32.from_nat(row)), row, U32.to_nat(rows), row_exact, row_below),
+      MatrixIndex.lt_same(U32.to_nat(U32.from_nat(k)), k, U32.to_nat(inner), k_exact, below)),
+    MatrixIndex.index_same(U32.to_nat(U32.from_nat(row)), U32.to_nat(U32.from_nat(k)), row, k, U32.to_nat(inner), row_exact, k_exact))
+
+def right_flat(+right: Shape.Shape, +inner: U32, +right_inner: U32, +columns: U32, +column: Nat, +k: Nat,
+  +re: {Shape.dimensions(right) == [right_inner, columns] : List<&2, U32>},
+  +compatible: {U32.to_nat(inner) == U32.to_nat(right_inner) : Nat},
+  +column_below: {Nat.is_lt(column, U32.to_nat(columns)) == True{} : Bool}, +below: {Nat.is_lt(k, U32.to_nat(inner)) == True{} : Bool}) ->
+  {ShapeLaws.index_result(right, Shape.flatten_checked(right, [U32.from_nat(k), U32.from_nat(column)])) ==
+    Some{Matrix.right_index(U32.to_nat(columns), column, k)} : Maybe<&2, U32>}:
+  +k_exact = MatrixIndex.word_below(k, inner, below)
+  +column_exact = MatrixIndex.word_below(column, columns, column_below)
+  Equal.trans(Maybe<&2, U32>, ShapeLaws.index_result(right, Shape.flatten_checked(right, [U32.from_nat(k), U32.from_nat(column)])),
+    Some{U32.from_nat(Nat.add(Nat.mul(U32.to_nat(U32.from_nat(k)), U32.to_nat(columns)), U32.to_nat(U32.from_nat(column))))},
+    Some{U32.from_nat(Nat.add(Nat.mul(k, U32.to_nat(columns)), column))},
+    MatrixIndex.flat_pair(right, right_inner, columns, U32.from_nat(k), U32.from_nat(column), re,
+      MatrixIndex.lt_same(U32.to_nat(U32.from_nat(k)), k, U32.to_nat(right_inner), k_exact,
+        MatrixIndex.lt_bound(k, U32.to_nat(inner), U32.to_nat(right_inner), compatible, below)),
+      MatrixIndex.lt_same(U32.to_nat(U32.from_nat(column)), column, U32.to_nat(columns), column_exact, column_below)),
+    MatrixIndex.index_same(U32.to_nat(U32.from_nat(k)), U32.to_nat(U32.from_nat(column)), k, column, U32.to_nat(columns), k_exact, column_exact))
+
+def left_extents(+left: Shape.Shape, +rows: U32, +inner: U32, +le: {Shape.dimensions(left) == [rows, inner] : List<&2, U32>}) ->
+  {Shape.extents(left) == [U32.to_nat(rows), U32.to_nat(inner)] : List<&2, Nat>}:
+  Equal.cong(List<&2, U32>, List<&2, Nat>, dims => Shape.naturals(dims), Shape.dimensions(left), [rows, inner], le)
+
+def right_extents(+right: Shape.Shape, +inner: U32, +right_inner: U32, +columns: U32,
+  +re: {Shape.dimensions(right) == [right_inner, columns] : List<&2, U32>},
+  +compatible: {U32.to_nat(inner) == U32.to_nat(right_inner) : Nat}) ->
+  {Shape.extents(right) == [U32.to_nat(inner), U32.to_nat(columns)] : List<&2, Nat>}:
+  Equal.trans(List<&2, Nat>, Shape.extents(right), [U32.to_nat(right_inner), U32.to_nat(columns)], [U32.to_nat(inner), U32.to_nat(columns)],
+    Equal.cong(List<&2, U32>, List<&2, Nat>, dims => Shape.naturals(dims), Shape.dimensions(right), [right_inner, columns], re),
+    Equal.cong(Nat, List<&2, Nat>, n => [n, U32.to_nat(columns)], U32.to_nat(right_inner), U32.to_nat(inner),
+      Equal.sym(Nat, U32.to_nat(inner), U32.to_nat(right_inner), compatible)))
+
+# The factor pairs the parallel build reads from its copies are the
+# coordinate reads of the inputs the copies came from.
+def logical_dot(+fuel: Nat, +left: Shape.Shape, +right: Shape.Shape, +rows: U32, +inner: U32, +right_inner: U32, +columns: U32,
+  +row: Nat, +column: Nat, +le: {Shape.dimensions(left) == [rows, inner] : List<&2, U32>},
+  +re: {Shape.dimensions(right) == [right_inner, columns] : List<&2, U32>},
+  +compatible: {U32.to_nat(inner) == U32.to_nat(right_inner) : Nat},
+  +row_below: {Nat.is_lt(row, U32.to_nat(rows)) == True{} : Bool},
+  +column_below: {Nat.is_lt(column, U32.to_nat(columns)) == True{} : Bool},
+  -a: Core.Tensor<left>, -b: Core.Tensor<right>, +dl: Nat, +dr: Nat, -cl: Array<F32>, -cr: Array<F32>,
+  -left_reads: Parallel.SourceReads(Core.Packed{left, a}, dl, cl), -right_reads: Parallel.SourceReads(Core.Packed{right, b}, dr, cr),
+  +cursor: Nat, +steps: {Nat.add(cursor, fuel) == U32.to_nat(inner) : Nat}, values: List<&2, DotFold.Factors>,
+  -arr: MatmulParallel.LogicalArr(fuel, dl, dr, cl, cr, U32.to_nat(inner), U32.to_nat(columns), row, column, cursor, values)) ->
+  Parallel.Fact<Laws.LogicalDot(fuel, left, right, a, b, U32.from_nat(row), U32.from_nat(column), cursor, values)>:
+  match fuel values:
+    case 0n Nil{}:
+      Parallel.Fact{Unit{}}
+    case 1n+tail DotFold.Factors{lv, rv} <> rest:
+      +below = MatrixIndex.cursor_below(cursor, tail, U32.to_nat(inner), steps)
+      +left_at = Matrix.left_index(U32.to_nat(inner), row, cursor)
+      +right_at = Matrix.right_index(U32.to_nat(columns), column, cursor)
+      +left_inside = MatrixIndex.word_inside(Nat.add(Nat.mul(row, U32.to_nat(inner)), cursor), left,
+        MatrixIndex.left_below(U32.to_nat(rows), U32.to_nat(inner), row, row_below, left, left_extents(left, rows, inner, le), cursor, below))
+      +right_inside = MatrixIndex.word_inside(Nat.add(Nat.mul(cursor, U32.to_nat(columns)), column), right,
+        MatrixIndex.right_below(U32.to_nat(inner), U32.to_nat(columns), column, column_below, right,
+          right_extents(right, inner, right_inner, columns, re, compatible), cursor, below))
+      Parallel.Fact{{\{MatmulParallel.ArrStep: left_observed => right_observed => remaining =>
+        Laws.DotStep{MatrixIndex.word_below(cursor, inner, below),
+          Equal.trans(Maybe<&2, F32>, Laws.coordinate_observe(left, a, [U32.from_nat(row), U32.from_nat(cursor)]),
+            Core.checked_observe(left, a, left_at), Some{lv},
+            coordinate_read(left, a, left_at, Shape.flatten_checked(left, [U32.from_nat(row), U32.from_nat(cursor)]),
+              left_flat(left, rows, inner, row, cursor, le, row_below, below)),
+            Equal.trans(Maybe<&2, F32>, Core.checked_observe(left, a, left_at), Model.observe(F32, dl, cl, Refinement.route(dl, left_at)), Some{lv},
+              Equal.sym(Maybe<&2, F32>, Model.observe(F32, dl, cl, Refinement.route(dl, left_at)), Core.checked_observe(left, a, left_at),
+                left_reads(left_at)(left_inside)),
+              left_observed)),
+          Equal.trans(Maybe<&2, F32>, Laws.coordinate_observe(right, b, [U32.from_nat(cursor), U32.from_nat(column)]),
+            Core.checked_observe(right, b, right_at), Some{rv},
+            coordinate_read(right, b, right_at, Shape.flatten_checked(right, [U32.from_nat(cursor), U32.from_nat(column)]),
+              right_flat(right, inner, right_inner, columns, column, cursor, re, compatible, column_below, below)),
+            Equal.trans(Maybe<&2, F32>, Core.checked_observe(right, b, right_at), Model.observe(F32, dr, cr, Refinement.route(dr, right_at)), Some{rv},
+              Equal.sym(Maybe<&2, F32>, Model.observe(F32, dr, cr, Refinement.route(dr, right_at)), Core.checked_observe(right, b, right_at),
+                right_reads(right_at)(right_inside)),
+              right_observed)),
+          {\{Parallel.Fact: p => p} : Parallel.Fact<Laws.LogicalDot(tail, left, right, a, b, U32.from_nat(row), U32.from_nat(column), 1n+cursor, rest)> ->
+            Laws.LogicalDot(tail, left, right, a, b, U32.from_nat(row), U32.from_nat(column), 1n+cursor, rest)}(
+            logical_dot(tail, left, right, rows, inner, right_inner, columns, row, column, le, re, compatible, row_below, column_below, a, b, dl, dr, cl, cr, left_reads, right_reads,
+              1n+cursor, MatrixIndex.steps_next(cursor, tail, U32.to_nat(inner), steps), rest, remaining))}} :
+        MatmulParallel.ArrStep<tail, dl, dr, cl, cr, U32.to_nat(inner), U32.to_nat(columns), row, column, cursor, lv, rv, rest> ->
+        Laws.DotStep<tail, left, right, a, b, U32.from_nat(row), U32.from_nat(column), cursor, lv, rv, rest>}(arr)}
+    case 0n DotFold.Factors{lv, rv} <> rest:
+      Parallel.Fact{Empty.absurd(Laws.LogicalDot(0n, left, right, a, b, U32.from_nat(row), U32.from_nat(column), cursor, DotFold.Factors{lv, rv} <> rest), arr)}
+    case 1n+tail Nil{}:
+      Parallel.Fact{Empty.absurd(Laws.LogicalDot(1n+tail, left, right, a, b, U32.from_nat(row), U32.from_nat(column), cursor, Nil{}), arr)}
+
+type Decoded<-output: Shape.Shape, -index: U32, -row: U32, -column: U32> is Data:
+  Decoded{-coordinate: Shape.CheckedCoordinate<output>,
+    -decoded: {Shape.unflatten_checked(output, index) == Done{coordinate} : Result<&2, &2, Shape.Error, Shape.CheckedCoordinate<output>>},
+    -coordinates: {Shape.coordinate_values(output, coordinate) == [row, column] : List<&2, U32>}}
+
+def decoded_of(+output: Shape.Shape, +index: U32, +row: U32, +column: U32,
+  result: Result<&2, &2, Shape.Error, Shape.CheckedCoordinate<output>>,
+  -same: {result == Shape.unflatten_checked(output, index) : Result<&2, &2, Shape.Error, Shape.CheckedCoordinate<output>>},
+  -found: {ShapeLaws.coordinate_result(output, result) == Some{[row, column]} : Maybe<&2, List<&2, U32>>}) ->
+  Parallel.Fact<Decoded<output, index, row, column>>:
+  match result:
+    case Fail{error}:
+      Parallel.Fact{Empty.absurd(Decoded<output, index, row, column>,
+        Arith.clash(Equal.cong(Maybe<&2, List<&2, U32>>, Bool, value => Maybe.is_some(&2, List<&2, U32>, value), None{}, Some{[row, column]}, found)))}
+    case Done{coordinate}:
+      Parallel.Fact{Decoded{coordinate,
+        Equal.sym(Result<&2, &2, Shape.Error, Shape.CheckedCoordinate<output>>, Done{coordinate}, Shape.unflatten_checked(output, index), same),
+        MatrixIndex.some_equal(List<&2, U32>, Shape.coordinate_values(output, coordinate), [row, column], found)}}
+
+# Below the output's element count, the parallel build writes the cell the
+# sequential interpretation names.
+def product_cell(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape, +rows: U32, +inner: U32, +right_inner: U32, +columns: U32,
+  -le: {Shape.dimensions(left) == [rows, inner] : List<&2, U32>}, -re: {Shape.dimensions(right) == [right_inner, columns] : List<&2, U32>},
+  -oe: {Shape.dimensions(output) == [rows, columns] : List<&2, U32>}, -compatible: {U32.to_nat(inner) == U32.to_nat(right_inner) : Nat},
+  +depth: Nat, +length: Nat, -valid: {Storage.bounds(depth, length) == True{} : Bool},
+  -exact: {length == Shape.logical_numel(Shape.dimensions(output)) : Nat},
+  -a: Core.Tensor<left>, -b: Core.Tensor<right>, -dl: Nat, -dr: Nat, -cl: Array<F32>, -cr: Array<F32>,
+  -bl: Model.Balanced(F32, dl, cl), -br: Model.Balanced(F32, dr, cr),
+  -left_reads: Parallel.SourceReads(Core.Packed{left, a}, dl, cl), -right_reads: Parallel.SourceReads(Core.Packed{right, b}, dr, cr),
+  +position: Nat, -earlier: {Nat.is_lt(position, Shape.logical_numel(Shape.dimensions(output))) == True{} : Bool}) ->
+  Parallel.Fact<Laws.ProductCell<inner, left, right, a, b, output,
+    Core.TTensor{Storage.Owned{depth, length,
+      Matrix.build(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, cl, cr),
+      Matrix.build_balanced(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, cl, cr),
+      valid}, exact}, position>>:
+  -inner_n = U32.to_nat(inner)
+  -columns_n = U32.to_nat(columns)
+  -row = Matrix.row_of(columns_n, position)
+  -column = Matrix.column_of(columns_n, position)
+  -index = U32.from_nat(position)
+  -extents = Equal.cong(List<&2, U32>, List<&2, Nat>, dims => Shape.naturals(dims), Shape.dimensions(output), [rows, columns], oe)
+  -fit = MatrixIndex.position_fits(output, U32.to_nat(rows), columns_n, extents, position, earlier)
+  -row_below = Arith.and_left(Nat.is_lt(row, U32.to_nat(rows)), Bool.and(Nat.is_lt(column, columns_n), True{}), fit)
+  -column_below = Arith.and_left(Nat.is_lt(column, columns_n), True{},
+    Arith.and_right(Nat.is_lt(row, U32.to_nat(rows)), Bool.and(Nat.is_lt(column, columns_n), True{}), fit))
+  -word_exact = MatrixIndex.word_exact(position, output, earlier)
+  -below = MatrixIndex.lt_bound(position, Shape.logical_numel(Shape.dimensions(output)), length,
+    Equal.sym(Nat, length, Shape.logical_numel(Shape.dimensions(output)), exact), earlier)
+  -inside = MatrixIndex.lt_same(U32.to_nat(index), position, length, word_exact, below)
+  -tree = Matrix.build(depth, Matrix.splits(depth, inner_n), inner_n, columns_n, length, 0n, cl, cr)
+  -path = Refinement.route(depth, index)
+  -cells = {\{Parallel.Fact: p => p} :
+    Parallel.Fact<MatmulParallel.Cells(depth, dl, dr, cl, cr, inner_n, columns_n, length, 0n, tree)> ->
+    MatmulParallel.Cells(depth, dl, dr, cl, cr, inner_n, columns_n, length, 0n, tree)}(
+      MatmulParallel.build_cells(depth, Matrix.splits(depth, inner_n), dl, dr, cl, cr, inner_n, columns_n, length, 0n, cl, cr, {==}, {==}, bl, br))
+  -position_eq = Equal.trans(Nat, Nat.add(Model.offset(depth, path), 0n), U32.to_nat(index), position,
+    Parallel.output_position(depth, length, index, valid, inside), word_exact)
+  -at = {\{Parallel.Fact: p => p} :
+    Parallel.Fact<MatmulParallel.CellIs(dl, dr, cl, cr, inner_n, columns_n, length, position, Model.observe(F32, depth, tree, path))> ->
+    MatmulParallel.CellIs(dl, dr, cl, cr, inner_n, columns_n, length, position, Model.observe(F32, depth, tree, path))}(
+      MatmulParallel.cell_shift(dl, dr, cl, cr, inner_n, columns_n, length, Nat.add(Model.offset(depth, path), 0n), position,
+        Model.observe(F32, depth, tree, path), position_eq, cells(path)))
+  -cell = {\{Parallel.Fact: p => p} :
+    Parallel.Fact<MatmulParallel.CellAt<dl, dr, cl, cr, inner_n, columns_n, position, Model.observe(F32, depth, tree, path)>> ->
+    MatmulParallel.CellAt<dl, dr, cl, cr, inner_n, columns_n, position, Model.observe(F32, depth, tree, path)>}(
+      MatmulParallel.cell_below(dl, dr, cl, cr, inner_n, columns_n, length, position, Model.observe(F32, depth, tree, path), below, at))
+  -matched = Equal.sym(Bool, True{}, Storage.index_matches(depth, length, index), Route.index_complete(depth, length, index, valid, inside))
+  -decoded = {\{Parallel.Fact: p => p} : Parallel.Fact<Decoded<output, index, U32.from_nat(row), U32.from_nat(column)>> ->
+    Decoded<output, index, U32.from_nat(row), U32.from_nat(column)>}(
+      decoded_of(output, index, U32.from_nat(row), U32.from_nat(column), Shape.unflatten_checked(output, index), {==},
+        MatrixIndex.unflatten_at(output, U32.to_nat(rows), columns_n, extents, position, earlier)))
+  Parallel.Fact{{\{MatmulParallel.CellAt: word => observed => values => logical => fold =>
+    {\{Decoded: coordinate => found => coordinates =>
+      Laws.ProductCell{U32.from_nat(row), U32.from_nat(column), coordinate, found, coordinates, word_exact, values,
+        {\{Parallel.Fact: p => p} :
+          Parallel.Fact<Laws.LogicalDot(inner_n, left, right, a, b, U32.from_nat(row), U32.from_nat(column), 0n, values)> ->
+          Laws.LogicalDot(inner_n, left, right, a, b, U32.from_nat(row), U32.from_nat(column), 0n, values)}(
+          logical_dot(inner_n, left, right, rows, inner, right_inner, columns, row, column, le, re, compatible, row_below, column_below,
+            a, b, dl, dr, cl, cr, left_reads, right_reads, 0n, {==}, values, logical)),
+        word, fold, matched,
+        Equal.trans(Maybe<&2, F32>, Lifecycle.observe_allowed(depth, length, tree, index, Nat.is_lt(U32.to_nat(index), length)),
+          Model.observe(F32, depth, tree, path), Some{word},
+          Parallel.observe_allowed_equal(depth, length, tree, index, Nat.is_lt(U32.to_nat(index), length), inside, matched), observed)}} :
+      Decoded<output, index, U32.from_nat(row), U32.from_nat(column)> ->
+      Laws.ProductCell<inner, left, right, a, b, output,
+        Core.TTensor{Storage.Owned{depth, length, tree, Matrix.build_balanced(depth, Matrix.splits(depth, inner_n), inner_n, columns_n, length, 0n, cl, cr), valid}, exact},
+        position>}(decoded)} :
+    MatmulParallel.CellAt<dl, dr, cl, cr, inner_n, columns_n, position, Model.observe(F32, depth, tree, path)> ->
+    Laws.ProductCell<inner, left, right, a, b, output,
+      Core.TTensor{Storage.Owned{depth, length, tree, Matrix.build_balanced(depth, Matrix.splits(depth, inner_n), inner_n, columns_n, length, 0n, cl, cr), valid}, exact},
+      position>}(cell)}
+
+def output_source(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape, +rows: U32, +inner: U32, +right_inner: U32, +columns: U32,
+  -le: {Shape.dimensions(left) == [rows, inner] : List<&2, U32>}, -re: {Shape.dimensions(right) == [right_inner, columns] : List<&2, U32>},
+  -oe: {Shape.dimensions(output) == [rows, columns] : List<&2, U32>}, -compatible: {U32.to_nat(inner) == U32.to_nat(right_inner) : Nat},
+  +depth: Nat, +length: Nat, -valid: {Storage.bounds(depth, length) == True{} : Bool},
+  -exact: {length == Shape.logical_numel(Shape.dimensions(output)) : Nat},
+  -a: Core.Tensor<left>, -b: Core.Tensor<right>,
+  -kept_left: Core.Tensor<left>, -copy_left: Array<F32>, -taken_left: Parallel.Taken<Core.Packed{left, a}, (Core.Packed{left, kept_left}, copy_left)>,
+  -kept_right: Core.Tensor<right>, -copy_right: Array<F32>, -taken_right: Parallel.Taken<Core.Packed{right, b}, (Core.Packed{right, kept_right}, copy_right)>) ->
+  Laws.SourceMatmul<Core.Packed{left, a}, Core.Packed{right, b}, Matrix.parallel_output(output, U32.to_nat(inner), U32.to_nat(columns), depth, length,
+    valid, exact, (Core.Packed{left, kept_left}, copy_left), (Core.Packed{right, kept_right}, copy_right))>:
+  Laws.SourceMatmul{unit => Laws.MatmulSuccess{left, right, Matrix.Plan{output, rows, inner, right_inner, columns, le, re, oe, compatible},
+    a, b, kept_left, kept_right,
+    Core.TTensor{Storage.Owned{depth, length,
+      Matrix.build(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
+      Matrix.build_balanced(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
+      valid}, exact},
+    {==}, {==}, {==}, {==}, {==},
+    Laws.ProductPrefix{
+      other => {\{Parallel.Fact: p => p} : Parallel.Fact<{Core.checked_observe(left, kept_left, other) == Core.checked_observe(left, a, other) : Maybe<&2, F32>}> ->
+        {Core.checked_observe(left, kept_left, other) == Core.checked_observe(left, a, other) : Maybe<&2, F32>}}(
+        taken_keeps(left, a, kept_left, copy_left, taken_left, other)),
+      other => {\{Parallel.Fact: p => p} : Parallel.Fact<{Core.checked_observe(right, kept_right, other) == Core.checked_observe(right, b, other) : Maybe<&2, F32>}> ->
+        {Core.checked_observe(right, kept_right, other) == Core.checked_observe(right, b, other) : Maybe<&2, F32>}}(
+        taken_keeps(right, b, kept_right, copy_right, taken_right, other)),
+      position => earlier =>
+        {\{Parallel.Taken: dl => bl => left_reads => left_same =>
+          {\{Parallel.Taken: dr => br => right_reads => right_same =>
+            {\{Parallel.Fact: p => p} :
+              Parallel.Fact<Laws.ProductCell<inner, left, right, a, b, output,
+                Core.TTensor{Storage.Owned{depth, length,
+                  Matrix.build(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
+                  Matrix.build_balanced(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
+                  valid}, exact}, position>> ->
+              Laws.ProductCell<inner, left, right, a, b, output,
+                Core.TTensor{Storage.Owned{depth, length,
+                  Matrix.build(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
+                  Matrix.build_balanced(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
+                  valid}, exact}, position>}(
+              product_cell(left, right, output, rows, inner, right_inner, columns, le, re, oe, compatible, depth, length, valid, exact,
+                a, b, dl, dr, copy_left, copy_right, bl, br, left_reads, right_reads, position, earlier))} :
+            Parallel.Taken<Core.Packed{right, b}, (Core.Packed{right, kept_right}, copy_right)> ->
+            Laws.ProductCell<inner, left, right, a, b, output,
+              Core.TTensor{Storage.Owned{depth, length,
+                Matrix.build(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
+                Matrix.build_balanced(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
+                valid}, exact}, position>}(taken_right)} :
+          Parallel.Taken<Core.Packed{left, a}, (Core.Packed{left, kept_left}, copy_left)> ->
+          Laws.ProductCell<inner, left, right, a, b, output,
+            Core.TTensor{Storage.Owned{depth, length,
+              Matrix.build(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
+              Matrix.build_balanced(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
+              valid}, exact}, position>}(taken_left)}}}
+
+def allocated_source(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape, +rows: U32, +inner: U32, +right_inner: U32, +columns: U32,
+  -le: {Shape.dimensions(left) == [rows, inner] : List<&2, U32>}, -re: {Shape.dimensions(right) == [right_inner, columns] : List<&2, U32>},
+  -oe: {Shape.dimensions(output) == [rows, columns] : List<&2, U32>}, -compatible: {U32.to_nat(inner) == U32.to_nat(right_inner) : Nat},
+  a: Core.Tensor<left>, b: Core.Tensor<right>, result: Result<&2, &1, Core.Error, Core.Tensor<output>>) ->
+  Laws.SourceMatmul<Core.Packed{left, a}, Core.Packed{right, b},
+    Matrix.parallel_allocated(left, right, output, U32.to_nat(inner), U32.to_nat(columns), a, b, result)>:
+  match result:
+    case Fail{error}:
+      Laws.SourceMatmul{unit => Unit{}}
+    case Done{Core.TTensor{storage, exact}}:
+      match storage:
+        case Storage.Empty{}:
+          Laws.SourceMatmul{unit => Laws.MatmulSuccess{left, right, Matrix.Plan{output, rows, inner, right_inner, columns, le, re, oe, compatible},
+            a, b, a, b, Core.TTensor{Storage.Empty{}, exact}, {==}, {==}, {==}, {==}, {==},
+            Laws.ProductPrefix{other => {==}, other => {==}, position => earlier =>
+              Empty.absurd(Laws.ProductCell<inner, left, right, a, b, output, Core.TTensor{Storage.Empty{}, exact}, position>,
+                Arith.lt_zero(position,
+                  %Equal.sym(Nat, 0n, Shape.logical_numel(Shape.dimensions(output)), exact) : {Nat.is_lt(position, _) == True{} : Bool}
+                  earlier))}}}
+        case Storage.Owned{+depth, +length, array, balanced, valid}:
+          take_lift(left, a, taken => Laws.SourceMatmul<Core.Packed{left, a}, Core.Packed{right, b},
+              Matrix.parallel_output(output, U32.to_nat(inner), U32.to_nat(columns), depth, length, valid, exact, taken, Elementwise.take(Core.pack(right, b)))>,
+            kept_left => copy_left => taken_left =>
+              take_lift(right, b, taken => Laws.SourceMatmul<Core.Packed{left, a}, Core.Packed{right, b},
+                  Matrix.parallel_output(output, U32.to_nat(inner), U32.to_nat(columns), depth, length, valid, exact,
+                    (Core.Packed{left, kept_left}, copy_left), taken)>,
+                kept_right => copy_right => taken_right =>
+                  output_source(left, right, output, rows, inner, right_inner, columns, le, re, oe, compatible, depth, length, valid, exact,
+                    a, b, kept_left, copy_left, taken_left, kept_right, copy_right, taken_right)))
+
+def multiply_source(+left: Shape.Shape, +right: Shape.Shape, +plan: Matrix.Plan<left, right>, a: Core.Tensor<left>, b: Core.Tensor<right>) ->
+  Laws.SourceMatmul<Core.Packed{left, a}, Core.Packed{right, b}, Matrix.parallel_multiply(left, right, plan, a, b)>:
+  match plan:
+    case Matrix.Plan{+output, +rows, +inner, +right_inner, +columns, le, re, oe, compatible}:
+      allocated_source(left, right, output, rows, inner, right_inner, columns, le, re, oe, compatible, a, b, Core.new(output, 0.0))
+
+def planned_source(+left: Shape.Shape, +right: Shape.Shape, a: Core.Tensor<left>, b: Core.Tensor<right>,
+  result: Result<&2, &2, Matrix.Error, Matrix.Plan<left, right>>) ->
+  Laws.SourceMatmul<Core.Packed{left, a}, Core.Packed{right, b}, Matrix.parallel_planned(left, right, a, b, result)>:
+  match result:
+    case Fail{error}:
+      Laws.SourceMatmul{unit => Unit{}}
+    case Done{+plan}:
+      multiply_source(left, right, plan, a, b)
+
+# The parallel product succeeds on valid inputs: after the plan and the
+# allocation, nothing it does can fail.
+def output_status(+output: Shape.Shape, +inner: Nat, +columns: Nat, +depth: Nat, +length: Nat, -valid: {Storage.bounds(depth, length) == True{} : Bool},
+  -exact: {length == Shape.logical_numel(Shape.dimensions(output)) : Nat},
+  +left: Shape.Shape, a: Core.Tensor<left>, +right: Shape.Shape, b: Core.Tensor<right>) ->
+  Totality.Status<Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic,
+    Matrix.parallel_output(output, inner, columns, depth, length, valid, exact, Elementwise.take(Core.pack(left, a)), Elementwise.take(Core.pack(right, b)))>:
+  take_lift(left, a, taken => Totality.Status<Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic,
+      Matrix.parallel_output(output, inner, columns, depth, length, valid, exact, taken, Elementwise.take(Core.pack(right, b)))>,
+    kept_left => copy_left => taken_left =>
+      take_lift(right, b, taken => Totality.Status<Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic,
+          Matrix.parallel_output(output, inner, columns, depth, length, valid, exact, (Core.Packed{left, kept_left}, copy_left), taken)>,
+        kept_right => copy_right => taken_right => Totality.Status{{==}}))
+
+def allocated_status(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape, +inner: Nat, +columns: Nat,
+  a: Core.Tensor<left>, b: Core.Tensor<right>, result: Result<&2, &1, Core.Error, Core.Tensor<output>>,
+  -done: Allocation.TensorDone<output, result>) ->
+  Totality.Status<Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic, Matrix.parallel_allocated(left, right, output, inner, columns, a, b, result)>:
+  match result:
+    case Fail{error}:
+      Totality.Status{{\{Allocation.TensorDone: tensor => exact =>
+        Empty.absurd({False{} == True{} : Bool}, Shape.clash(Equal.cong(Result<&2, &1, Core.Error, Core.Tensor<output>>, Bool,
+          Result.is_done(&2, &1, Core.Error, Core.Tensor<output>), Done{tensor}, Fail{error}, exact)))} :
+            Allocation.TensorDone<output, Fail{error}> -> {False{} == True{} : Bool}}(done)}
+    case Done{Core.TTensor{storage, exact}}:
+      match storage:
+        case Storage.Empty{}:
+          Totality.Status{{==}}
+        case Storage.Owned{+depth, +length, array, balanced, valid}:
+          output_status(output, inner, columns, depth, length, valid, exact, left, a, right, b)
+
+def multiply_parallel_status(+left: Shape.Shape, +right: Shape.Shape, +plan: Matrix.Plan<left, right>, a: Core.Tensor<left>, b: Core.Tensor<right>) ->
+  Totality.Status<Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic, Matrix.parallel_multiply(left, right, plan, a, b)>:
+  match plan:
+    case Matrix.Plan{+output, rows, +inner, right_inner, +columns, le, re, oe, compatible}:
+      allocated_status(left, right, output, U32.to_nat(inner), U32.to_nat(columns), a, b, Core.new(output, 0.0),
+        AllocationProof.core_new_done(output, 0.0))
+
+def planned_parallel_status(+left: Shape.Shape, +right: Shape.Shape, result: Result<&2, &2, Matrix.Error, Matrix.Plan<left, right>>,
+  a: Core.Tensor<left>, b: Core.Tensor<right>, -status: PlanStatus<left, right, result>) ->
+  Totality.Status<Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic, Matrix.parallel_planned(left, right, a, b, result)>:
+  match result:
+    case Fail{error}:
+      Totality.Status{{\{PlanStatus: successful => Empty.absurd({False{} == True{} : Bool}, Arith.clash(successful))} :
+        PlanStatus<left, right, Fail{error}> -> {False{} == True{} : Bool}}(status)}
+    case Done{+plan}:
+      multiply_parallel_status(left, right, plan, a, b)
+
+def Laws.successful_matmul_interpretation(left, right):
+  Core.Packed{+left_shape, a} = left
+  Core.Packed{+right_shape, b} = right
+  planned_source(left_shape, right_shape, a, b, Matrix.plan(left_shape, right_shape))
+
+def Laws.matmul_valid_success(left, right, a, b, valid):
+  Laws.TotalMatmul{
+    MathProof.success(Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic, Matrix.matmul(Core.Packed{left, a}, Core.Packed{right, b}),
+      planned_parallel_status(left, right, Matrix.plan(left, right), a, b, plan_status(left, right, valid))),
+    Laws.successful_matmul_interpretation(Core.Packed{left, a}, Core.Packed{right, b})}

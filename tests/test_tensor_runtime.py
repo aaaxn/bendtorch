@@ -28,6 +28,7 @@ from tools.tensor_runtime import (
     native_command,
     negative_program,
     parse_native_output,
+    product_cells,
     run_native_corpus,
     u32,
 )
@@ -404,7 +405,27 @@ class CopyAuditTests(unittest.TestCase):
             with self.subTest(request=request):
                 self.assertEqual(built_cells(request), cells)
 
-    def test_frozen_corpus_expects_723_joins_and_no_split(self):
+    def test_product_cells_counts_only_products_the_build_writes(self):
+        for request, cells in (
+            (binary_request("matmul", [2, 3], [3, 2]), 4),
+            (binary_request("matmul", [2, 0], [0, 3]), 6),
+            (binary_request("matmul", [0, 3], [3, 2]), 0),
+            (binary_request("matmul", [2, 3], [4, 2]), 0),
+            (binary_request("matmul", [2, 3, 1], [3, 2]), 0),
+            (binary_request("matmul", [3], [3, 2]), 0),
+            (binary_request("matmul_add", [2, 3], [3, 2], [2]), 4),
+            (binary_request("matmul_add", [2, 3], [4, 2], [2]), 0),
+            (binary_request("matmul", [1024, 2048], [2048, 1025]), 0),
+            (binary_request("add", [3], []), 0),
+        ):
+            with self.subTest(request=request):
+                self.assertEqual(product_cells(request), cells)
+
+    def test_matmul_add_joins_both_builds(self):
+        request = binary_request("matmul_add", [2, 3], [3, 3], [3])
+        self.assertEqual(expected_copy_audit([request]), (0, 7 + 7))
+
+    def test_frozen_corpus_expects_771_joins_and_no_split(self):
         transported = []
         for case in corpus_cases(load_corpus()):
             try:
@@ -414,7 +435,7 @@ class CopyAuditTests(unittest.TestCase):
             if "compile_negative" not in request:
                 transported.append(request)
         self.assertEqual(len(transported), 202)
-        self.assertEqual(expected_copy_audit(transported), (0, 723))
+        self.assertEqual(expected_copy_audit(transported), (0, 771))
 
     def test_audit_rejects_any_split_or_join_beyond_the_builds(self):
         requests = [binary_request("add", [3], []), binary_request("sum", [4])]
@@ -727,7 +748,7 @@ class NativeCorpusTests(unittest.TestCase):
         evidence = self.directory / "run"
         self.assertEqual(
             (evidence / "corpus-audit-run.stderr").read_text(),
-            "STORAGE_COPY_AUDIT 0 723\n",
+            "STORAGE_COPY_AUDIT 0 771\n",
         )
         report = json.loads((evidence / "report.json").read_text())
         self.assertEqual(report["hostname"], platform.node())

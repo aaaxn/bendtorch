@@ -9,7 +9,6 @@ Law, Site, Value, Witness = (
 )
 SRC = controls.SRC
 TENSOR = "_2e_._2f_.._2f_.._2f_src_2f_tensor_2f_"
-MATMUL = "src/tensor/contracts/matmul-proof.bend"
 
 ZERO, ONE, TWO, THREE = (
     "F32.lit0",
@@ -224,25 +223,22 @@ FAMILY = controls.Family(
             ("contracts_2f_dot.right_index",),
         ),
         "matmul-reversed-order": Site(
-            "dot_step_lift",
-            "row, column, rest, U32.from_nat(rest)",
-            "contracts_2f_matmul_2d_proof.dot_step_lift",
-            ("matmul.natural_dot",),
-            module=MATMUL,
+            "dot_eq",
+            "Nat.mul(rest, columns)",
+            "contracts_2f_matmul_2d_parallel_2d_proof.dot_eq",
+            ("matmul.cell_dot",),
         ),
         "matmul-negative-zero-start": Site(
-            "product_step_lift",
+            "cell_inside_eq",
             "F32.neg(0.0)",
-            "contracts_2f_matmul_2d_proof.product_step_lift",
-            ("matmul.product_coordinates",),
-            module=MATMUL,
+            "contracts_2f_matmul_2d_parallel_2d_proof.cell_inside_eq",
+            ("matmul.dot_of",),
         ),
         "matmul-transposed-right": Site(
-            "dot_decided_lift",
-            "[column, U32.from_nat(cursor)]",
-            "contracts_2f_matmul_2d_proof.dot_decided_lift",
-            ("matmul.dot_decided",),
-            module=MATMUL,
+            "dot_right_eq",
+            "Nat.mul(column, columns)",
+            "contracts_2f_matmul_2d_parallel_2d_proof.dot_right_eq",
+            ("matmul.right_index",),
         ),
     },
     prefix=TENSOR,

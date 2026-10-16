@@ -22,11 +22,9 @@ is `reduce_to` otherwise.
    target is larger than the contribution in some axis and the request fails
    with `NotReducible` (code 101): for example `[3]` reduced to `[2, 3]`, or
    `[1]` reduced to `[3]`.
-3. Allocate `+0.0` at every target position, then visit contribution positions
-   `0, 1, ..., n - 1` in ascending flat order. Each position reads its word and
-   the current total at its projected target position, then writes
-   `total + word` with one F32 add. Later contributions never overwrite earlier
-   ones.
+3. Target position `t` holds the contribution words whose projection lands on
+   `t`, added in ascending flat contribution position from `+0.0`, one F32 add
+   each: the ordered fold `fiber(plan, values, t, n)` below.
 
 The order is part of the contract: summing `[1e8, 1, -1e8, 1]` to a scalar gives
 `1.0`, and the reversed list gives `0.0`. An empty contribution leaves every
@@ -34,8 +32,63 @@ target position at `+0.0`, so `[0, 3]` reduced to `[1, 3]` is three zeros, not
 an empty tensor. Two `-0.0` words sum to `+0.0`, because the accumulation
 starts from `+0.0`.
 
-Cost: one allocation of the target shape, and per contribution position one
-checked read of the contribution, one checked read of the total and one write.
+Cost: one allocation of the target shape, one clone of the contribution that
+`Elementwise.take` makes even when nothing forks, one more whole-contribution
+clone per fork, and per contribution position one unchecked read of a clone
+and one add. No position is added twice: every position lands on exactly one
+target cell (the clones copy every word, but they do not add).
+
+## Parallel build
+
+The target cells are independent, so `reduce_to` builds them in parallel, as
+`Matrix.matmul` builds its cells (see
+[sum and matmul](sum-and-matmul.md#parallel-product)). It takes a clone of the
+contribution's array with `Elementwise.take` (the kept half goes back to the
+caller) and builds the target as a balanced tree with `Reduce.build`. The top
+`Reduce.splits` levels fork, each half with its own clone; below the forks a
+thread builds its cells in index order.
+
+`Reduce.splits` forks only when every fiber is one contiguous run of the
+contribution: no axis the target keeps comes after an axis it reduces,
+counting only axes of extent above 1. Row sums (`[n, m]` to `[n, 1]`, or
+`[a, b, c]` to `[a, 1, 1]`) are contiguous and split by work like a product,
+`Matrix.splits(depth, n / cells)`, so a target with fewer than `2^13`
+contribution words does not fork. Column and batch sums (`[n, m]` to `[1, m]`,
+`[b, n, m]` to `[n, m]`), which include the bias gradient of a linear layer,
+have strided fibers and never fork: there each fork's whole-contribution clone
+cost more than the threads gave back. Milliseconds per `reduce_to`, input
+construction subtracted, median of 3 runs on a 64-core machine (main is the
+scatter loop this build replaced; "all forked" is the product rule applied to
+every target, "never forked" is `splits = 0`):
+
+| contribution to target | threads | main | all forked | never forked | `Reduce.splits` |
+| --- | --- | --- | --- | --- | --- |
+| `[1024, 1024]` to `[1, 1024]` | 1 / 8 / 24 | 1270 / 1314 / 1294 | 107 / 310 / 306 | 88 / 153 / 147 | 93 / 147 / 145 |
+| `[1024, 1024]` to `[1024, 1]` | 1 / 8 / 24 | 1195 / 1221 / 1154 | 45 / 19 / 6 | 50 / 84 / 53 | 33 / 20 / 2 |
+| `[16, 256, 256]` to `[256, 256]` | 1 / 8 / 24 | 1558 / 1528 / 1562 | 211 / 454 / 544 | 181 / 289 / 298 | 176 / 281 / 300 |
+| `[128, 784]` to `[1, 784]` | 1 / 8 / 24 | 106 / 114 / 110 | 9.7 / 29 / 29 | 9.1 / 16 / 15 | 8.6 / 16 / 15 |
+| `[256, 128]` to `[1, 128]` | 1 / 8 / 24 | 29 / 33 / 32 | 3.1 / 5.3 / 8.6 | 3.1 / 5.1 / 5.1 | 3.0 / 5.0 / 5.1 |
+| `[64, 128]` to `[1, 128]` | 1 / 8 / 24 | 7.7 / 7.4 / 7.2 | 0.8 / 1.4 / 1.3 | 0.8 / 1.3 / 1.3 | 0.8 / 1.4 / 1.3 |
+
+The unforked build also gets slower from 1 to 8 threads; that is runtime
+overhead outside the build (see issue #24). The row-sum timings at 8 and 24
+threads are within the noise of the subtracted construction time (about 15 ms).
+
+Cell `t` walks only its own fiber. Over the plan's index rows (one per
+contribution axis, with the output stride and the left and right strides of
+that axis), `Reduce.fiber` visits, on a row whose left stride is 0 (an axis the
+target reduces, or a padded one), every digit `0 .. extent - 1` in increasing
+order, and on any other row the one digit `t / left` that `t` names there,
+passing `t % left` to the rows below. Each digit `d` moves the contribution
+offset by `right * d`. The cell adds the words at the offsets it reaches in the
+order it reaches them, from `+0.0`.
+
+`Fiber.fiber_walk` in `src/autograd/reduce-fiber-proof.bend` proves the walk
+visits exactly the fiber: for the index rows of an aligned broadcast and a cell
+`t` below the left count, the offsets `Reduce.fiber` reads are, in order, the
+offsets `base + walk_right(p)` of the positions `p = 0 .. count - 1` with
+`walk_left(p) == t`, the positions `fiber` adds, in the order it adds them.
+So each cell is word-identical to the ordered fold, whatever the split.
 
 | contribution | target | result |
 | --- | --- | --- |
@@ -49,7 +102,7 @@ checked read of the contribution, one checked read of the total and one write.
 ## Laws
 
 `src/autograd/reduce-LAWS.bend` states six laws, and `reduce-PROOF.bend`
-proves them. Each quantifies over every contribution tensor and target shape;
+proves them for the parallel build. Each quantifies over every contribution tensor and target shape;
 none evaluates a concrete tensor.
 
 - `reduce_retains_input`: the returned owner has the same dimensions and the
@@ -75,10 +128,16 @@ none evaluates a concrete tensor.
   the contribution's shape (for example a `[2, 3]` target for a `[3]`
   contribution), the result is exactly `(contribution, Fail{NotReducible})`.
 
-The autograd gate checks four more proof controls in its source copy, and the
+`reduce_mapping` comes from `reduce-parallel-proof.bend`: the cells of the
+build hold the words their walk saw (`build_cells`), the walk reads the
+masked positions (`plan_walk`, from `fiber_walk`), every one of them lies
+inside the contribution (`masked_below`), and adding the listed words there is
+`fiber` (`fiber_masked`).
+
+The autograd gate checks five more proof controls in its source copy, and the
 proofs must reject each: overwriting the total instead of adding, adding in the
-reversed order (`word + total`), starting from `1.0`, and skipping the target
-check.
+reversed order (`word + total`), starting from `1.0`, walking a digit with the
+target's stride instead of the contribution's, and skipping the target check.
 
 ## Runtime lanes
 
