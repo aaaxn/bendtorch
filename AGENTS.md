@@ -260,13 +260,18 @@ where a check states the word, such as `relu` on the native lane.
 a relative tolerance of PyTorch's, and the final metric within a band, over
 a few seeds. Both are fixed from PyTorch against itself before any Bend
 result is compared: run PyTorch with another rounding order (its `default`
-kernels against its vectorized ones), take the largest per-step difference,
-and set the tolerance at the next power of ten above it, over the steps
-where that holds. The band for an accuracy `p` on `n` test rows is
+kernels against its vectorized ones) and take the largest per-step
+difference. Over the whole run the tolerance is the next power of ten above
+it. An earlier window of steps, where that drift is still far below the
+effect of a planted change, may get a tighter tolerance: one that sits
+between the window's drift and the smallest planted change's effect in it,
+with both numbers stated. The band for an accuracy `p` on `n` test rows is
 `ceil(sqrt(p * (1 - p) * n))` rows. Planted changes (another learning rate,
 a bias that never updates) must fail the tolerance. `docs/mnist.md` has the
-MNIST instance: `1e-4` for the first 100 steps, `1e-2` to the end of the
-epoch, a band of 26 or 27 rows, seeds 0 to 2.
+MNIST instance: `1e-2` to the end of the epoch, the next power of ten above
+the drift of 2.7e-3; `1e-4` for the first 100 steps, between a drift below
+2.4e-7 and planted changes that show by 3e-4; a band of 26 or 27 rows;
+seeds 0 to 2.
 
 A bound, a tolerance or a pin is fixed before the result it judges, and is
 never widened to let a result pass.

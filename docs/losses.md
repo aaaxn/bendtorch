@@ -109,7 +109,8 @@ ulp:
 | `mse_loss` `[4096, 10]` loss and gradient | 40961 | 40961 | 0 |
 
 The PyTorch record ([tensor backward](tensor-backward.md#pytorch-record))
-compares these words under level 2 of the
+compares the words of its own `mse_loss` and `cross_entropy` scripts under
+level 2 of the
 [numeric policy](../AGENTS.md#numeric-policy): every word on a pin, and the
 `mse_loss` words also within the rounding-error bound of their sums. The
 `cross_entropy` words are built on `exp` and `log`, which no bound covers,
@@ -142,7 +143,9 @@ Where they differ, and why:
   so `lp` differs in the last bits; for 10 columns its partial-vector path
   adds left to right, as the tape does.
 
-No tolerance is applied: the numeric policy of #47 does not exist yet.
+The table above is a measurement of these sizes against PyTorch, not a
+check: no tolerance is applied to it. The record's own scripts are checked
+as described above.
 
 ## Cost
 
