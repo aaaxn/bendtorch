@@ -4,8 +4,8 @@
         [--only matmul,add] [--rounds 5] [--cpu 24] [--threads 1]
 
 Each revision is checked out in its own detached worktree under DIR and
-built with this tree's `experiments/bench/bench.bend` when the revision has
-none. The runs alternate, A then B in even rounds and B then A in odd ones,
+built with this tree's `experiments/bench/bench.bend`, so both sides run the
+same harness. The runs alternate, A then B in even rounds and B then A in odd ones,
 on the same CPUs. Each workload gets one line: the median time of one call
 with its range for A and for B, the median and range of the per-round ratio
 B / A, and whether the two printed the same digest, the one in this tree's
@@ -43,14 +43,17 @@ def checkout(rev: str, place: Path) -> Path:
     git("worktree", "add", "--detach", str(place), rev)
     (place / ".tools").symlink_to((ROOT / ".tools").resolve())
     source = place / SOURCE
-    copied = not source.exists()
-    if copied:
-        source.parent.mkdir(parents=True, exist_ok=True)
-        source.write_text((ROOT / SOURCE).read_text())
+    tracked = source.exists()
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text((ROOT / SOURCE).read_text())
     try:
         return build(place, place.parent / f"{place.name}.bench")
     finally:
-        if copied:
+        if tracked:
+            subprocess.run(
+                ["git", "checkout", "--", str(SOURCE)], cwd=place, check=True
+            )
+        else:
             source.unlink()
         (place / ".tools").unlink()
         git("worktree", "remove", str(place))
