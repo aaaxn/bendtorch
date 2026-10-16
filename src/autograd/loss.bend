@@ -296,9 +296,16 @@ def one_hot_pair(targets: Result<&2, &1, Core.Error, Core.Dynamic>, columns: Res
 # The one-hot rows of the targets, [rows, columns]: 1.0 where the column is
 # the row's target, +0.0 elsewhere. The [rows, 1] targets and the [1, columns]
 # class numbers broadcast against each other with Matches, which compares
-# their words.
+# their words. With no rows the one-hot rows are empty, and the class
+# numbers are not built: [1, columns] could exceed the capacity that
+# [0, columns] does not.
 def one_hot(+targets: List<&2, U32>, +rows: Nat, +columns: Nat) -> Result<&2, &1, Core.Error, Core.Dynamic>:
-  one_hot_pair(Core.construct([U32.from_nat(rows), 1], as_words(targets)), Core.construct([1, U32.from_nat(columns)], classes(columns, 0n)))
+  match rows:
+    case 0n:
+      Core.construct([0, U32.from_nat(columns)], Nil{})
+    case 1n+less:
+      one_hot_pair(Core.construct([U32.from_nat(1n+less), 1], as_words(targets)),
+        Core.construct([1, U32.from_nat(columns)], classes(columns, 0n)))
 
 def ce_total(+rows: Nat, lp: Core.Dynamic, onehot: Core.Dynamic, result: Result<&2, &1, Core.Error, Core.Dynamic & Core.Dynamic>) ->
   Result<&2, &1, Error, Recorded>:
