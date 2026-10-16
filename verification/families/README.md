@@ -345,6 +345,9 @@ template constant.
 | MatmulNT `matmul_tn` swaps operands | `nt_right` multiplies `x^T @ g` instead of `g^T @ x` | `nt_values` | `nt_values` |
 | MatmulNT left reads the weight transposed | `nt_left` runs `matmul_nt(g, W)` instead of `matmul(g, W)` | `nt_values` | `nt_values` |
 | MatmulNT sends the second to the first | `vjp_matmul_nt` passes `a` for `b` | `nt_values` | `nt_values` |
+| Relu VJP reads the gradient as the input | `vjp_relu` runs `ReluBackward` of `g` and `x` instead of `x` and `g` | `Laws.tensor_relu_vjp_values` | `tensor_relu_vjp_values` |
+| Relu VJP sends relu | `vjp_relu` runs `ReluLeft` instead of `ReluBackward` | `Laws.tensor_relu_vjp_values` | `tensor_relu_vjp_values` |
+| Relu VJP sends to the first node | `relu_passed` sends the contribution to node `0` instead of `a` | `Laws.tensor_relu_vjp_values` | `tensor_relu_vjp_values` |
 
 The mutants change `src/autograd/tensor-backward.bend`, and the source check
 runs `src/autograd/PROOF.bend`. The structural laws in
@@ -354,10 +357,11 @@ only the value laws reject these mutants. The `Matmul` mutants fail in
 `tensor-vjp-PROOF.bend`: the first hands `transpose_replayed` a call that
 law does not state, the other two produce a pass other than the stated one.
 The `MatmulNT` mutants fail in `nt_values`, the proof of
-`tensor_matmul_nt_vjp_values`. The runtime controls of the autograd gate
+`tensor_matmul_nt_vjp_values`, and the `Relu` mutants in the proof of
+`tensor_relu_vjp_values`, which no literal consumer states yet. The runtime controls of the autograd gate
 reject the `Mul` and `Sub` ones, a `Matmul` VJP without the transpose, and
-the `MatmulNT` `matmul_tn` with swapped operands, as well, in the JavaScript
-lane.
+the `MatmulNT` `matmul_tn` with swapped operands and the `Relu` VJP that
+reads `g` as the input, as well, in the JavaScript lane.
 
 `permute_replayed`, `transpose_replayed` and `matmul_replayed` reuse the
 walks of the copy loop and of the matmul loops. The permute value contract's
