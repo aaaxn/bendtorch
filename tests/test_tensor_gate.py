@@ -90,10 +90,14 @@ class GateAcceptanceTests(unittest.TestCase):
             path = ROOT / "src/tensor" / line.split()[1]
             module = path.relative_to(ROOT / "src/tensor").with_suffix("")
             prefix = module.as_posix().replace("-", "_2d_").replace("/", "_2f_") + "."
+            # A law with a template (`~`) parameter, such as the generic
+            # parallel build laws, has no export of its own: BendTT checks it
+            # at each instance, which the instance laws require.
+            text = path.read_text()
             laws.update(
-                prefix + declaration.removeprefix("law ").split(":", 1)[0]
-                for declaration in path.read_text().splitlines()
-                if declaration.startswith("law ")
+                prefix + block.split(":", 1)[0]
+                for block in text.split("\nlaw ")[1:]
+                if "\n  for ~" not in block.split("\n\n", 1)[0]
             )
         self.assertTrue(laws)
         self.assertLessEqual(laws, set(required))
