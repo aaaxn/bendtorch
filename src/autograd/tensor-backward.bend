@@ -30,7 +30,8 @@ import ./gradient.bend as Gradient
 # backward(torch.ones_like(output)). The products are
 #   Add: g and g; Sub: g and -g; Mul: g * right and g * left, with the operand
 #   values saved at record time; Sum: g broadcast to the operand's shape;
-#   Matmul: g @ right^T and left^T @ g.
+#   Matmul: g @ right^T and left^T @ g; MatmulNT (left @ right^T, the
+#   product of Linear): g @ right and g^T @ left, read in place.
 # Each is reduced to its operand's shape before it is delivered.
 #
 # Recording and reads hand back the tape. A failed call leaves every slot as
@@ -53,6 +54,7 @@ type Node is Data:
   Mul{a: Nat, b: Nat, left: Shape.Shape, right: Shape.Shape}
   Sum{a: Nat, input: Shape.Shape}
   Matmul{a: Nat, b: Nat, left: Shape.Shape, right: Shape.Shape}
+  MatmulNT{a: Nat, b: Nat, left: Shape.Shape, right: Shape.Shape}
 
 # The operand values a product saves at record time.
 type Saved is Type:
@@ -78,6 +80,7 @@ type Binary is Data:
   Minus{}
   Times{}
   Product{}
+  ProductNT{}
 
 def empty() -> Tape:
   Tape{Nil{}}
@@ -290,6 +293,50 @@ def vjp_matmul(+a: Nat, +b: Nat, +left: Shape.Shape, +right: Shape.Shape, saved:
     case Operands{x, y}:
       matmul_first(a, b, left, right, x, y, Core.clone_dynamic(g))
 
+# g @ W for the left operand of x @ W^T: g and W are copied first, so a
+# failure loses neither.
+def nt_left(+target: Nat, +shape: Shape.Shape, copy: Core.Dynamic, pair: Core.Dynamic & Core.Dynamic) ->
+  Core.Dynamic & Result<&2, &1, Error, Contribution>:
+  (right, flipped) = pair
+  (right, multiplied(target, shape, Matrix.matmul(copy, flipped)))
+
+# g^T @ x for the right operand, g read in place.
+def nt_right(+target: Nat, +shape: Shape.Shape, copy: Core.Dynamic, pair: Core.Dynamic & Core.Dynamic) ->
+  Core.Dynamic & Result<&2, &1, Error, Contribution>:
+  (left, flipped) = pair
+  (left, multiplied(target, shape, Matrix.matmul_tn(copy, flipped)))
+
+def nt_fourth(first: Result<&2, &1, Error, Contribution>, y: Core.Dynamic, g: Core.Dynamic,
+  pair: Core.Dynamic & Result<&2, &1, Error, Contribution>) -> Pass:
+  (x, second) = pair
+  Pass{Operands{x, y}, g, both(first, second)}
+
+def nt_third(+b: Nat, +right: Shape.Shape, first: Result<&2, &1, Error, Contribution>, y: Core.Dynamic, x: Core.Dynamic,
+  pair: Core.Dynamic & Core.Dynamic) -> Pass:
+  (g, copy) = pair
+  nt_fourth(first, y, g, nt_right(b, right, copy, Core.clone_dynamic(x)))
+
+def nt_second(+b: Nat, +right: Shape.Shape, x: Core.Dynamic, g: Core.Dynamic,
+  pair: Core.Dynamic & Result<&2, &1, Error, Contribution>) -> Pass:
+  (y, first) = pair
+  nt_third(b, right, first, y, x, Core.clone_dynamic(g))
+
+def nt_first(+a: Nat, +b: Nat, +left: Shape.Shape, +right: Shape.Shape, x: Core.Dynamic, y: Core.Dynamic,
+  pair: Core.Dynamic & Core.Dynamic) -> Pass:
+  (g, copy) = pair
+  nt_second(b, right, x, g, nt_left(a, left, copy, Core.clone_dynamic(y)))
+
+# d(x @ W^T)/dx: g @ W; d(x @ W^T)/dW: g^T @ x, with the operand values
+# saved at record time. Neither product builds a transpose: g @ W is
+# `matmul`, and g^T @ x is `matmul_tn`, which reads g in place. Each product
+# already has its operand's shape.
+def vjp_matmul_nt(+a: Nat, +b: Nat, +left: Shape.Shape, +right: Shape.Shape, saved: Saved, g: Core.Dynamic) -> Pass:
+  match saved:
+    case Unsaved{}:
+      Pass{Unsaved{}, g, Fail{TensorError{Core.StorageLengthMismatch{}}}}
+    case Operands{x, y}:
+      nt_first(a, b, left, right, x, y, Core.clone_dynamic(g))
+
 # The vector-Jacobian product of one node with gradient g: the contribution
 # each operand receives, in operand order, already reduced to its shape.
 def vjp(node: Node, saved: Saved, g: Core.Dynamic) -> Pass:
@@ -306,6 +353,8 @@ def vjp(node: Node, saved: Saved, g: Core.Dynamic) -> Pass:
       vjp_sum(a, input, g)
     case Matmul{+a, +b, +left, +right}:
       vjp_matmul(a, b, left, right, saved, g)
+    case MatmulNT{+a, +b, +left, +right}:
+      vjp_matmul_nt(a, b, left, right, saved, g)
 
 # Delivery.
 
@@ -427,6 +476,8 @@ def operands_below(node: Node, +bound: Nat) -> Bool:
     case Sum{a, input}:
       Nat.is_lt(a, bound)
     case Matmul{a, b, left, right}:
+      Bool.and(Nat.is_lt(a, bound), Nat.is_lt(b, bound))
+    case MatmulNT{a, b, left, right}:
       Bool.and(Nat.is_lt(a, bound), Nat.is_lt(b, bound))
 
 def wired(nodes: List<&2, Node>, +count: Nat) -> Bool:
@@ -672,6 +723,8 @@ def operated(kind: Binary, +a: Nat, +b: Nat, +left_shape: Shape.Shape, +right_sh
       kept(Mul{a, b, left_shape, right_shape}, entries, Elementwise.mul(left, right))
     case Product{}:
       multiplied_record(Matmul{a, b, left_shape, right_shape}, entries, Matrix.matmul(left, right))
+    case ProductNT{}:
+      multiplied_record(MatmulNT{a, b, left_shape, right_shape}, entries, Matrix.matmul_nt(left, right))
 
 def computed(kind: Binary, +a: Nat, +b: Nat, entries: List<&1, Entry>, left: Core.Dynamic & Shape.Shape,
   right: Core.Dynamic & Shape.Shape) -> Tape & Result<&2, &2, Error, Nat>:
@@ -714,6 +767,26 @@ def mul(tape: Tape, +a: Nat, +b: Nat) -> Tape & Result<&2, &2, Error, Nat>:
 
 def matmul(tape: Tape, +a: Nat, +b: Nat) -> Tape & Result<&2, &2, Error, Nat>:
   binary(tape, Product{}, a, b)
+
+# Records a @ b^T, with b read in place: PyTorch's linear(a, b) without a
+# bias.
+def matmul_nt(tape: Tape, +a: Nat, +b: Nat) -> Tape & Result<&2, &2, Error, Nat>:
+  binary(tape, ProductNT{}, a, b)
+
+def biased(+bias: Nat, pair: Tape & Result<&2, &2, Error, Nat>) -> Tape & Result<&2, &2, Error, Nat>:
+  (tape, result) = pair
+  match result:
+    case Fail{error}:
+      (tape, Fail{error})
+    case Done{+product}:
+      add(tape, product, bias)
+
+# Linear: records x @ W^T with W of [out, in], PyTorch's layout, then adds
+# the bias b of [out] to every row. The id is the sum's; the product is the
+# entry before it. A refusal of either step comes back with its error, and
+# the product stays recorded if only the sum is refused.
+def linear(tape: Tape, +x: Nat, +w: Nat, +bias: Nat) -> Tape & Result<&2, &2, Error, Nat>:
+  biased(bias, matmul_nt(tape, x, w))
 
 def summed(+a: Nat, entries: List<&1, Entry>, +shape: Shape.Shape, result: Result<&2, &1, Core.Error, Core.Dynamic & Core.Dynamic>) ->
   Tape & Result<&2, &2, Error, Nat>:

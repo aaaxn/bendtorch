@@ -331,3 +331,56 @@ law tensor_matmul_vjp_values:
       Backward.Operands{Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
         Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}}},
       Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}})>
+
+# d(x @ W^T)/dx and d(x @ W^T)/dW, the backward of Linear's product: with the
+# saved operand values x (left, [batch, in]) and W (right, [out, in], PyTorch's
+# layout) and the gradient g ([batch, out]), the MatmulNT VJP sends g @ W to
+# a, then g^T @ x to b. Neither product builds a transpose: first is the plan
+# of `matmul(g, W)`, and second the plan of `matmul_tn(g, x)`, which reads g
+# in place. Cell (i, l) of the first holds the ordered dot product over j of
+# g[i, j] * W[j, l], the words of g at i * out + j and of W at j * in + l;
+# cell (j, l) of the second holds the ordered dot product over i of
+# g[i, j] * x[i, l], the words of g at i * out + j and of x at i * in + l.
+# Each sum adds its terms in increasing order from +0.0, and each
+# contribution has its operand's dimensions. The bias of Linear is an Add
+# entry, whose VJP `tensor_add_vjp_values` states: its gradient is g summed
+# over the batch, column by column.
+law tensor_matmul_nt_vjp_values:
+  for +a: Nat
+  for +b: Nat
+  for +left: Shape.Shape
+  for +right: Shape.Shape
+  for +shape: Shape.Shape
+  for +first: Matrix.Plan<shape, right>
+  for first_planned: {Matrix.plan(shape, right) == Done{first} : Result<&2, &2, Matrix.Error, Matrix.Plan<shape, right>>}
+  for first_same: {Shape.dimensions(Matrix.output_shape(shape, right, first)) == Shape.dimensions(left) : List<&2, U32>}
+  for +second: Matrix.Product<Matrix.Swapped{}, Matrix.Swapped{}, shape, left>
+  for second_planned: {Matrix.product_plan(Matrix.Swapped{}, Matrix.Swapped{}, shape, left) == Done{second} :
+    Result<&2, &2, Matrix.Error, Matrix.Product<Matrix.Swapped{}, Matrix.Swapped{}, shape, left>>}
+  for second_same: {Shape.dimensions(Matrix.product_shape(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second)) ==
+    Shape.dimensions(right) : List<&2, U32>}
+  for +fill: F32
+  for +ops: List<&2, StorageLaws.Op>
+  for -fits: {Lifecycle.logical_length(Replayed.storage(shape, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}
+  for +left_fill: F32
+  for +left_ops: List<&2, StorageLaws.Op>
+  for -left_fits: {Lifecycle.logical_length(Replayed.storage(left, left_fill, left_ops)) == Shape.logical_numel(Shape.dimensions(left)) : Nat}
+  for +right_fill: F32
+  for +right_ops: List<&2, StorageLaws.Op>
+  for -right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_ops)) == Shape.logical_numel(Shape.dimensions(right)) : Nat}
+  MatmulPairContract<a, left, Contracts.matrix_rows(shape, right, first), Contracts.matrix_columns(shape, right, first),
+    row => column => DotFold.dot_fold(Contracts.factors(row, column,
+      Contracts.matrix_inner(shape, right, first), Contracts.matrix_columns(shape, right, first),
+      shape, fill, ops, right, right_fill, right_ops, Contracts.matrix_inner(shape, right, first)), 0.0),
+    b, right,
+    Contracts.product_rows(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second),
+    Contracts.product_columns(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second),
+    row => column => DotFold.dot_fold(Contracts.product_factors(row, column, Matrix.Swapped{}, Matrix.Swapped{},
+      Contracts.product_inner(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second),
+      Contracts.product_rows(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second),
+      Contracts.product_columns(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second),
+      shape, fill, ops, left, left_fill, left_ops, Contracts.product_inner(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second)), 0.0),
+    Backward.vjp(Backward.MatmulNT{a, b, left, right},
+      Backward.Operands{Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
+        Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}}},
+      Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}})>
