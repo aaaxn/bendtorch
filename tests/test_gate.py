@@ -214,8 +214,8 @@ class DefaultTests(unittest.TestCase):
         expected = {
             1: [1, 1, 1, 1, 1, 1],
             4: [4, 2, 1, 1, 1, 4],
-            16: [16, 9, 5, 1, 2, 8],
-            64: [64, 36, 20, 4, 8, 8],
+            16: [16, 9, 5, 2, 2, 8],
+            64: [64, 36, 20, 8, 8, 8],
         }
         for count, values in expected.items():
             if count <= len(allowed):

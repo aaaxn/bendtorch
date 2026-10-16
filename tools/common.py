@@ -35,18 +35,20 @@ def share(fraction: float) -> int:
 
     The default worker counts split the CPUs so that a full round, which runs
     the families, the contracts, two `tools.check` suites and `tools.test` at
-    once, keeps about one busy process per CPU. Every Bend checker and BendTT
-    command they run keeps one CPU busy.
+    once, keeps every CPU busy: the families and the contracts take 7/8 of
+    them, and the short `tools.check` and `tools.test` runs add up to 3/8 more
+    while they last. Every Bend checker and BendTT command keeps one CPU busy.
     """
     return max(1, int(cpus() * fraction))
 
 
 # Default commands at once for each runner. The families have about twice the
-# contracts' work; a `tools.check` suite rarely keeps more than four commands
-# busy, because one kernel check takes most of its time.
+# contracts' work. On 64 CPUs the autograd gate took 120 s at 8 jobs and
+# 155 s at 4; the tensor gate, which waits on one kernel check, took 107 s at
+# both.
 FAMILY_WORKERS = share(9 / 16)
 CONTRACT_WORKERS = share(5 / 16)
-CHECK_JOBS = share(1 / 16)
+CHECK_JOBS = share(1 / 8)
 TEST_JOBS = share(1 / 8)
 
 

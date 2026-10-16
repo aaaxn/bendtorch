@@ -102,10 +102,10 @@ count in the recorded commands and `identity.json`, and the artifacts a failing
 gate leaves behind do change. The families and the contracts run several
 commands at once (`--workers`). Every default is a share of the CPUs the
 process may use (`os.sched_getaffinity`, which `taskset` narrows), sized so
-the checks above, the families and the contracts run together keep about one
-command per CPU:
-families 9/16, contracts 5/16, `tools.check` 1/16 per suite, `tools.test` 1/8
-(36, 20, 4 and 8 on 64 CPUs), never below 1. Each Bend checker or BendTT
+the checks above, the families and the contracts run together keep every CPU
+busy without running many more commands than CPUs:
+families 9/16, contracts 5/16, `tools.check` 1/8, `tools.test` 1/8 (36, 20, 8
+and 8 on 64 CPUs), never below 1. Each Bend checker or BendTT
 command keeps one CPU busy, and the native gate cases finish in milliseconds,
 so more native threads would not speed a gate up. Pass the flags to override.
 The checks above are independent, so run them
