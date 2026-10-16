@@ -33,7 +33,7 @@ VALUE_COUNT_MISMATCH = 10
 MATMUL_RANK = 105
 MATMUL_INNER = 106
 INFINITY = 0x7F800000
-BINARY = ("add", "sub", "mul", "matmul")
+BINARY = ("add", "sub", "mul", "matmul", "matmul_nt")
 
 RUNTIME_CONTROLS = {
     "seed-newest-node": (
@@ -53,6 +53,31 @@ RUNTIME_CONTROLS = {
         "Transforms.transpose_dynamic(y, 0, 1)))",
         "matmul_second(b, right, x, g, left_product(a, left, copy, "
         "Transforms.transpose_dynamic(y, 0, 0)))",
+    ),
+    "nt-reads-weight-untransposed": (
+        "src/tensor/matmul.bend",
+        "  product(Kept{}, Kept{}, left, right)",
+        "  product(Kept{}, Swapped{}, left, right)",
+    ),
+    "nt-vjp-tn-swaps-operands": (
+        "(left, multiplied(target, shape, Matrix.matmul_tn(copy, flipped)))",
+        "(left, multiplied(target, shape, Matrix.matmul_tn(flipped, copy)))",
+    ),
+    "nt-vjp-weight-gradient-untransposed": (
+        "src/tensor/matmul.bend",
+        "  product(Swapped{}, Swapped{}, left, right)",
+        "  product(Kept{}, Swapped{}, left, right)",
+    ),
+    "linear-drops-bias": (
+        "      add(tape, product, bias)",
+        "      (tape, Done{product})",
+    ),
+    "linear-bias-gradient-sums-rows": (
+        "src/autograd/reduce.bend",
+        "        fiber(rest, others, first_span(rest, others), inner, "
+        "Nat.add(base, Nat.mul(right, digit)), first_digit(rest, inner),",
+        "        fiber(rest, others, first_span(rest, others), inner, "
+        "Nat.add(base, Nat.mul(left, digit)), first_digit(rest, inner),",
     ),
     "merge-overwrites-slot": (
         "merged_entry(node, shape, value, saved, Gradient.accumulate(shape, slot, g), "
@@ -94,8 +119,13 @@ def forge(node: dict, shape: list[int], words: list[int]) -> dict:
 ZERO_GRAD = {"op": "zero_grad"}
 
 
+def linear(x: int, w: int, bias: int) -> dict:
+    return {"op": "linear", "a": x, "b": w, "bias": bias}
+
+
 def program_case(identifier: str, steps: list[dict], output: int) -> dict:
     count = sum(step["op"] in ("leaf", "sum", *BINARY) for step in steps)
+    count += 2 * sum(step["op"] == "linear" for step in steps)
     return {"id": identifier, "steps": [*steps, run(output), *reads(count)]}
 
 
@@ -110,6 +140,8 @@ def handwritten() -> list[dict]:
     right = leaf([3, 2], f(2.0, 1.0, -1.0, 4.0, 0.5, -3.0))
     weight = leaf([3, 4], f(*[0.5 * k - 2.0 for k in range(12)]))
     bias = leaf([4], f(0.25, -0.5, 1.0, 2.0))
+    layer = leaf([4, 3], f(*[0.5 * k - 2.0 for k in range(12)]))
+    layer_bias = leaf([4], f(0.25, -0.5, 1.0, 2.0))
     return [
         program_case(
             "mul_broadcast_row", [grid, row, op("mul", 0, 1), op("sum", 2)], 3
@@ -144,6 +176,60 @@ def handwritten() -> list[dict]:
             "linear",
             [left, weight, bias, op("matmul", 0, 1), op("add", 3, 2), op("sum", 4)],
             5,
+        ),
+        # Linear in PyTorch's layout: W is [out, in], so the product reads W
+        # transposed in place, and the bias is an Add of [out] to every row.
+        program_case(
+            "linear_layer",
+            [left, layer, layer_bias, linear(0, 1, 2), op("sum", 4)],
+            5,
+        ),
+        program_case("linear_seed", [left, layer, layer_bias, linear(0, 1, 2)], 4),
+        program_case(
+            "linear_rounds",
+            [
+                leaf([3, 2], f(0.1, 0.2, 0.3, 0.7, 1.0 / 3.0, -0.6)),
+                leaf([2, 2], f(1.0 / 3.0, 3.0, -0.1, 7.0)),
+                leaf([2], f(0.1, -0.3)),
+                linear(0, 1, 2),
+                op("mul", 4, 4),
+                op("sum", 5),
+            ],
+            6,
+        ),
+        program_case(
+            "linear_two_layers",
+            [
+                left,
+                layer,
+                layer_bias,
+                leaf([2, 4], f(*[0.25 * k - 1.0 for k in range(8)])),
+                leaf([2], f(0.5, -0.25)),
+                linear(0, 1, 2),
+                linear(6, 3, 4),
+                op("sum", 8),
+            ],
+            9,
+        ),
+        program_case(
+            "matmul_nt_self",
+            [left, op("matmul_nt", 0, 0), op("sum", 1)],
+            2,
+        ),
+        program_case(
+            "linear_inner_mismatch",
+            [left, leaf([4, 2], f(*range(1, 9))), layer_bias, linear(0, 1, 2)],
+            0,
+        ),
+        program_case(
+            "linear_bias_mismatch",
+            [left, layer, leaf([3], f(1.0, 2.0, 3.0)), linear(0, 1, 2)],
+            3,
+        ),
+        program_case(
+            "matmul_nt_rank",
+            [leaf([], f(2.0)), layer, op("matmul_nt", 0, 1)],
+            1,
         ),
         program_case(
             "matmul_rounds",
@@ -582,6 +668,11 @@ def vjp(node: dict, gradient: tuple) -> list[tuple[int, tuple]]:
             (node["b"], sum_to_size(second, node["right"])),
         ]
     left, right = node["saved"]
+    if name == "matmul_nt":
+        return [
+            (node["a"], accepted(matmul(gradient, right))),
+            (node["b"], accepted(matmul(transpose(gradient), left))),
+        ]
     return [
         (node["a"], accepted(matmul(gradient, transpose(right)))),
         (node["b"], accepted(matmul(transpose(left), gradient))),
@@ -631,6 +722,11 @@ def forward(name: str, values: list[tuple]) -> tuple | int:
         return ([], [total(values[0][1])])
     if name == "matmul":
         return matmul(*values)
+    if name == "matmul_nt":
+        left, right = values
+        if len(left[0]) != 2 or len(right[0]) != 2:
+            return MATMUL_RANK
+        return matmul(left, transpose(right))
     combine = {"add": add_word, "sub": sub_word, "mul": mul_word}[name]
     return elementwise(combine, *values)
 
@@ -640,10 +736,30 @@ def reference(case: dict) -> list[str]:
     slots: list[tuple | None] = []
     lines = []
 
-    def push(node: dict) -> None:
-        lines.append(f"autograd:id:{len(nodes)}")
+    def push(node: dict, shown: bool = True) -> None:
+        if shown:
+            lines.append(f"autograd:id:{len(nodes)}")
         nodes.append(node)
         slots.append(None)
+
+    def record(name: str, step: dict, shown: bool = True) -> bool:
+        ids = operands(step)
+        if any(identifier >= len(nodes) for identifier in ids):
+            lines.append(f"autograd:error:{UNKNOWN_NODE}")
+            return False
+        values = [nodes[identifier]["value"] for identifier in ids]
+        result = forward(name, values)
+        if isinstance(result, int):
+            lines.append(f"autograd:error:{result}")
+            return False
+        node = {"op": name, "a": step["a"], "shape": result[0], "value": result}
+        node["left"] = values[0][0]
+        if name != "sum":
+            node |= {"b": step["b"], "right": values[1][0]}
+        if name in ("mul", "matmul", "matmul_nt"):
+            node["saved"] = values
+        push(node, shown)
+        return True
 
     for step in case["steps"]:
         name = step["op"]
@@ -658,22 +774,12 @@ def reference(case: dict) -> list[str]:
             else:
                 push({"op": "leaf", "shape": shape, "value": (shape, list(words))})
         elif name in BINARY or name == "sum":
-            ids = operands(step)
-            if any(identifier >= len(nodes) for identifier in ids):
-                lines.append(f"autograd:error:{UNKNOWN_NODE}")
-                continue
-            values = [nodes[identifier]["value"] for identifier in ids]
-            result = forward(name, values)
-            if isinstance(result, int):
-                lines.append(f"autograd:error:{result}")
-                continue
-            node = {"op": name, "a": step["a"], "shape": result[0], "value": result}
-            node["left"] = values[0][0]
-            if name != "sum":
-                node |= {"b": step["b"], "right": values[1][0]}
-            if name in ("mul", "matmul"):
-                node["saved"] = values
-            push(node)
+            record(name, step)
+        elif name == "linear":
+            # The product, then the bias added to it; only the sum's id is
+            # printed, and the product stays recorded if the sum is refused.
+            if record("matmul_nt", step, shown=False):
+                record("add", {"a": len(nodes) - 1, "b": step["bias"]})
         elif name == "forge":
             node = dict(step["node"])
             node |= {"shape": step["shape"], "value": (step["shape"], step["words"])}
@@ -737,8 +843,11 @@ def step_source(step: dict) -> str:
         if node["op"] == "add":
             return f"Harness.ForgeAdd{{{node['a']}n, {node['b']}n, {tensor}}}"
         return f"Harness.ForgeSum{{{node['a']}n, {tensor}}}"
+    if name == "linear":
+        return f"Harness.Linear{{{step['a']}n, {step['b']}n, {step['bias']}n}}"
     fields = ", ".join(f"{identifier}n" for identifier in operands(step))
-    return f"Harness.{name.capitalize()}{{{fields}}}"
+    title = "".join(part.capitalize() for part in name.split("_"))
+    return f"Harness.{title}{{{fields}}}"
 
 
 def program(selected: list[dict], directory: Path, source_root: Path) -> str:
@@ -858,10 +967,15 @@ def run_gate(tool_root: Path, output: Path) -> dict:
 def runtime_controls(tool_root: Path, output: Path, selected: list[dict]) -> list[str]:
     evidence = Evidence(output, tool_root)
     rejected = []
-    for name, (original, mutated) in RUNTIME_CONTROLS.items():
+    for name, control in RUNTIME_CONTROLS.items():
+        path, original, mutated = (
+            control
+            if len(control) == 3
+            else ("src/autograd/tensor-backward.bend", *control)
+        )
         copy = output / name
         shutil.copytree(ROOT / "src", copy / "src")
-        target = copy / "src/autograd/tensor-backward.bend"
+        target = copy / path
         text = target.read_text()
         if text.count(original) != 1:
             raise GateError(f"{name}: runtime control anchor is missing or ambiguous")

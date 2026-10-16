@@ -46,6 +46,8 @@ def operation(name: str, operands: list[torch.Tensor]) -> torch.Tensor:
         return operands[0] * operands[1]
     if name == "matmul":
         return operands[0] @ operands[1]
+    if name == "matmul_nt":
+        return torch.nn.functional.linear(operands[0], operands[1])
     return operands[0].sum()
 
 
@@ -65,10 +67,17 @@ def replay(case: Json) -> Json:
             if name == "leaf":
                 value = tensor(step["words"], step["shape"]).requires_grad_()
                 lines.append(record(value, nodes))
-            elif name in ("add", "sub", "mul", "matmul", "sum"):
+            elif name in ("add", "sub", "mul", "matmul", "matmul_nt", "sum"):
                 ids = [step[key] for key in ("a", "b") if key in step]
                 operands = [nodes[identifier] for identifier in ids]
                 lines.append(record(operation(name, operands), nodes))
+            elif name == "linear":
+                # The tape records Linear as x @ W^T, then the bias added to
+                # it, and prints the sum's id: linear(x, W), then + b.
+                x, weight = nodes[step["a"]], nodes[step["b"]]
+                bias = nodes[step["bias"]]
+                record(torch.nn.functional.linear(x, weight), nodes)
+                lines.append(record(nodes[-1] + bias, nodes))
             elif name == "backward":
                 output = nodes[step["output"]]
                 output.backward(torch.ones_like(output), retain_graph=True)
