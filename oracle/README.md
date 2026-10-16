@@ -93,3 +93,18 @@ model/capability, deterministic execution settings, and the actual
 `torch.__config__.show()` and `parallel_info()` outputs. It is rewritten by
 regeneration and is not checked: another CPU or `OMP_NUM_THREADS` changes it
 without changing `toolchain.json`.
+
+## MNIST training copy
+
+`mnist/train.py` is PyTorch's copy of `experiments/mnist/train.bend`, and
+`mnist/compare.py` runs both over seeds and checks that they agree
+([MNIST end to end](../docs/mnist.md)). They read MNIST from a directory outside
+the repository and write nothing under `fixtures/`; no gate runs them.
+`mnist/test_compare.py` tests the comparator's checks on outputs it writes:
+
+```sh
+uv run --frozen python -I -m unittest discover -s mnist -p 'test_*.py'
+```
+
+Their lint follows the commands above with `mnist` in place of
+`generate.py tests`.

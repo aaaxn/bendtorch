@@ -11,7 +11,8 @@ references. PyTorch never computes a bendtorch result.
 
 bendtorch is early research code. It is used from Bend programs; it has no
 Python API and is not a drop-in replacement for PyTorch. It runs on the CPU,
-with F32 tensors only, and it cannot train a model yet.
+with F32 tensors only. An experiment trains a 784-128-10 MLP on MNIST with
+it end to end ([MNIST](docs/mnist.md)).
 
 > **Disclaimer.** bendtorch is an experiment. Most of its code was vibe-coded
 
@@ -31,6 +32,7 @@ with F32 tensors only, and it cannot train a model yet.
 | Scalar backward | `src/autograd/backward.bend` | Reverse-mode `backward` for F32 scalars on a tape of `add`, `sub`, `mul` and `neg`. It seeds the output the caller selects, gives `None` to every node that output does not reach, adds the contributions to a node used several times in a fixed order, accumulates repeated calls like PyTorch's `retain_graph=True`, and reports unknown node ids as errors. |
 | Tensor backward | `src/autograd/tensor-backward.bend` | Reverse-mode `backward` for tensors on a tape of `add`, `sub`, `mul` (with broadcasting), whole-tensor `sum`, 2-D `matmul`, `linear` (`x @ W^T + b` with `W` of `[out, in]`, PyTorch's layout), `relu`, and the losses `mse_loss` and `cross_entropy` with mean reduction ([losses](docs/losses.md)). It seeds ones at the output the caller selects, reduces each broadcast contribution to its operand's shape with `sum_to_size`, adds the contributions to a node in the order they arrive, which two laws state for every tape as the chain rule ([chain rule](docs/tensor-backward.md#chain-rule)), and agrees with PyTorch's gradients word for word on its corpus, except the last bits of some `mse_loss` and `cross_entropy` gradient words, where PyTorch sums in another order or its backward uses a vectorized `exp` ([losses](docs/losses.md#against-pytorch)). |
 | SGD | `src/autograd/sgd.bend` | `torch.optim.SGD(params, lr)` without momentum or weight decay: `step` updates each listed leaf whose gradient slot holds `g` to `p - lr * g`, in list order, and keeps a leaf whose slot is empty. It checks every id and the learning rate (refused below zero, as PyTorch's `lr < 0.0`) first, so a refusal leaves the tape unchanged. The product and the difference each round once, as PyTorch's `DEFAULT` kernel does; its AVX2 and AVX512 kernels fuse them. |
+| MNIST training | `experiments/mnist/`, `oracle/mnist/` | An experiment that trains a 784-128-10 MLP on MNIST with the tape, `linear`, `relu`, `cross_entropy` and SGD, one new tape per mini-batch, next to PyTorch's copy from the same initial words and batches and a command that compares the two over seeds ([MNIST](docs/mnist.md)). |
 | Experimental tape | `experiments/autograd-prototypes/` | Three autograd prototypes: a reverse tape, pullback closures and forward dual numbers. The reverse tape was chosen as the base for the real engine. |
 
 Every operation either consumes its inputs or gives them back to the caller
@@ -42,7 +44,8 @@ The [tensor core](docs/tensor-core.md), [construction and clone](docs/constructi
 [transforms](docs/transforms.md), [broadcast](docs/broadcast-to.md),
 [reduce to shape](docs/reduce-to.md), [sum to size](docs/sum-to-size.md),
 [gradient slots](docs/gradient-slots.md), [scalar backward](docs/backward.md),
-[tensor backward](docs/tensor-backward.md) and
+[tensor backward](docs/tensor-backward.md),
+[MNIST end to end](docs/mnist.md) and
 [contract families](docs/contract-families.md)
 pages document each capability. The [shape](docs/shapes.md) and
 [storage](docs/storage.md) pages document the layers below them. The
@@ -148,8 +151,8 @@ request that PyTorch accepts and bendtorch rejects.
 
 The road from Bend to PyTorch has nine phases. bendtorch has finished the
 tensor layer, the pieces that autograd needs and a backward pass over
-tensors, `Linear`, `relu`, `mse_loss`, `cross_entropy` and SGD. It cannot
-train a model yet: it has no training loop.
+tensors, `Linear`, `relu`, `mse_loss`, `cross_entropy` and SGD. An
+experiment trains a 784-128-10 MLP on MNIST with them end to end.
 
 | # | Phase | Status | What it delivers |
 | --- | --- | --- | --- |
@@ -159,7 +162,7 @@ train a model yet: it has no training loop.
 | 4 | Autograd building blocks | Done | `broadcast_to`, `reduce_to`, `sum_to_size` and gradient slots that accumulate in arrival order and read as `None` until they receive a value. |
 | 5 | Reverse-mode engine | Done | `backward` on a tape, built on the gradient slots: for scalars (`add`, `sub`, `mul`, `neg`) and for tensors (`add`, `sub`, `mul` with broadcasting, `sum`, `matmul`). |
 | 6 | Neural-network modules | In progress | `Linear` is done: `x @ W^T + b` on the tape, `W` read in place, with value laws for its gradients. `relu` is done, with PyTorch's words at `-0.0`, NaN and the gradient at `0`. `mse_loss` and `cross_entropy` with mean reduction are done, in PyTorch's operation order, with value laws for their gradients. |
-| 7 | Optimizers and training | In progress | SGD is done: `step` over a list of tape parameters, `p - lr * g` with the learning rate only, on the parallel elementwise build, and `zero_grad`. A training loop that trains a small model end to end remains. |
+| 7 | Optimizers and training | In progress | SGD is done: `step` over a list of tape parameters, `p - lr * g` with the learning rate only, on the parallel elementwise build, and `zero_grad`. An experiment trains a 784-128-10 MLP on MNIST for an epoch, its loss at every step within `1e-2` of PyTorch's copy and its test accuracy within a band of one binomial standard error ([MNIST](docs/mnist.md)). Momentum, weight decay and other optimizers remain. |
 | 8 | An API closer to PyTorch | Planned | More dtypes, views and strides, `dim` and `keepdim` on reductions, negative axes and indices, slicing and batched `matmul`. |
 | 9 | Performance | In progress | Parallel CPU code and GPU kernels. `matmul` and the elementwise operations build large outputs in parallel; reductions and GPU kernels remain. |
 
