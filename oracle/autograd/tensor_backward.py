@@ -73,11 +73,15 @@ def replay(case: Json) -> Json:
                 lines.append(record(operation(name, operands), nodes))
             elif name == "linear":
                 # The tape records Linear as x @ W^T, then the bias added to
-                # it, and prints the sum's id: linear(x, W), then + b.
+                # it, and prints the sum's id: linear(x, W), then + b. Both
+                # are computed before either is recorded, so a refusal
+                # records nothing.
                 x, weight = nodes[step["a"]], nodes[step["b"]]
                 bias = nodes[step["bias"]]
-                record(torch.nn.functional.linear(x, weight), nodes)
-                lines.append(record(nodes[-1] + bias, nodes))
+                product = torch.nn.functional.linear(x, weight)
+                total = product + bias
+                record(product, nodes)
+                lines.append(record(total, nodes))
             elif name == "backward":
                 output = nodes[step["output"]]
                 output.backward(torch.ones_like(output), retain_graph=True)

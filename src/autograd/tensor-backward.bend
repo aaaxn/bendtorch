@@ -773,20 +773,54 @@ def matmul(tape: Tape, +a: Nat, +b: Nat) -> Tape & Result<&2, &2, Error, Nat>:
 def matmul_nt(tape: Tape, +a: Nat, +b: Nat) -> Tape & Result<&2, &2, Error, Nat>:
   binary(tape, ProductNT{}, a, b)
 
+# The tape without its newest entry.
+def popped(tape: Tape) -> Tape:
+  Tape{entries} = tape
+  match entries:
+    case Nil{}:
+      Tape{Nil{}}
+    case Con{entry, rest}:
+      Tape{rest}
+
+# A refused sum drops the product, the newest entry, so the tape comes back
+# as it was before the product was recorded.
+def unrecorded(pair: Tape & Result<&2, &2, Error, Nat>) -> Tape & Result<&2, &2, Error, Nat>:
+  (tape, result) = pair
+  match result:
+    case Fail{error}:
+      (popped(tape), Fail{error})
+    case Done{id}:
+      (tape, Done{id})
+
 def biased(+bias: Nat, pair: Tape & Result<&2, &2, Error, Nat>) -> Tape & Result<&2, &2, Error, Nat>:
   (tape, result) = pair
   match result:
     case Fail{error}:
       (tape, Fail{error})
     case Done{+product}:
-      add(tape, product, bias)
+      unrecorded(add(tape, product, bias))
+
+def linear_checked(+x: Nat, +w: Nat, +bias: Nat, entries: List<&1, Entry>, known: Bool) -> Tape & Result<&2, &2, Error, Nat>:
+  match known:
+    case False{}:
+      (Tape{entries}, Fail{UnknownNode{}})
+    case True{}:
+      biased(bias, matmul_nt(Tape{entries}, x, w))
+
+def linear_counted(+x: Nat, +w: Nat, +bias: Nat, pair: List<&1, Entry> & Nat) -> Tape & Result<&2, &2, Error, Nat>:
+  (entries, +count) = pair
+  linear_checked(x, w, bias, entries, Nat.is_lt(bias, count))
 
 # Linear: records x @ W^T with W of [out, in], PyTorch's layout, then adds
 # the bias b of [out] to every row. The id is the sum's; the product is the
-# entry before it. A refusal of either step comes back with its error, and
-# the product stays recorded if only the sum is refused.
+# entry before it. The bias id is checked against the tape the call receives,
+# before the product is recorded, so the product's own id never stands in
+# for a missing bias. A refusal of any step (an unknown id, a product or a
+# sum the tensor layer refuses) comes back with its error and the tape as it
+# was.
 def linear(tape: Tape, +x: Nat, +w: Nat, +bias: Nat) -> Tape & Result<&2, &2, Error, Nat>:
-  biased(bias, matmul_nt(tape, x, w))
+  Tape{entries} = tape
+  linear_counted(x, w, bias, counted(entries))
 
 def summed(+a: Nat, entries: List<&1, Entry>, +shape: Shape.Shape, result: Result<&2, &1, Core.Error, Core.Dynamic & Core.Dynamic>) ->
   Tape & Result<&2, &2, Error, Nat>:
