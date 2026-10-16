@@ -30,9 +30,9 @@ loop below reads, computed from a recipe of strides worked out once per
 build instead of three coordinate lists per cell
 (`permute-build-proof.bend` proves the two indexes equal). The input comes
 back as the First half of its clone and the build reads the Second half.
-On a `[1024,1024]` transpose this takes 98 ms on one thread and 36 ms on
-eight, against 1.7 s and 2.4 s for the loop; the words are the same at every
-thread count.
+On a `[1024,1024]` transpose this takes 95 ms on one thread and 38 ms on
+eight, against 1.60 s and 2.32 s for the loop (medians of five alternating
+runs); the words are the same at every thread count.
 
 The tensor gate's parallel probe (`probes/parallel_builds.bend`) runs a
 transpose of `[256,257]` and a permute of `[16,64,40]`, which fork two levels
