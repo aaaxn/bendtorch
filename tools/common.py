@@ -21,6 +21,35 @@ class GateError(RuntimeError):
     pass
 
 
+def cpus() -> int:
+    """How many CPUs this process may run on.
+
+    This is the affinity mask, which `taskset` and cgroup cpusets narrow, not
+    the machine's core count.
+    """
+    return len(os.sched_getaffinity(0))
+
+
+def share(fraction: float) -> int:
+    """`fraction` of `cpus()`, rounded down, and at least one.
+
+    The default worker counts split the CPUs so that a full round, which runs
+    the families, the contracts, two `tools.check` suites and `tools.test` at
+    once, keeps about one busy process per CPU. Every Bend checker and BendTT
+    command they run keeps one CPU busy.
+    """
+    return max(1, int(cpus() * fraction))
+
+
+# Default commands at once for each runner. The families have about twice the
+# contracts' work; a `tools.check` suite rarely keeps more than four commands
+# busy, because one kernel check takes most of its time.
+FAMILY_WORKERS = share(9 / 16)
+CONTRACT_WORKERS = share(5 / 16)
+CHECK_JOBS = share(1 / 16)
+TEST_JOBS = share(1 / 8)
+
+
 # Gate steps that do not depend on each other run through `parallel`. Every
 # subprocess an Evidence runs holds one of `JOBS` slots, so a gate never runs
 # more than `JOBS` commands at once. With one job, `parallel` calls its tasks
@@ -37,8 +66,10 @@ NEXT: ContextVar[list[int] | None] = ContextVar("NEXT", default=None)
 # Native Bend programs run with `THREADS` worker threads. Their output does not
 # depend on the count: every native gate command, and a probe whose elementwise
 # builds fork, printed the same bytes at 1 to 24 threads. Timing runs pin one
-# thread so their numbers stay comparable.
-THREADS = 8
+# thread so their numbers stay comparable. The gate cases run in milliseconds
+# at any count, so the count costs nothing; it stays above one so the gates run
+# the multithreaded runtime.
+THREADS = min(8, cpus())
 
 
 def set_threads(threads: int) -> None:

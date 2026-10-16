@@ -1,5 +1,7 @@
 import importlib
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -477,6 +479,31 @@ class ExperimentRunnerTests(unittest.TestCase):
         )
         with self.assertRaises(runner.GateError):
             permutes.kernel_reason(witness, "grid_kept_witness")
+
+
+class RunnerTests(unittest.TestCase):
+    def test_workers_below_one_are_rejected_before_any_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "contracts"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "verification.contracts.run",
+                    "--output",
+                    str(output),
+                    "--workers",
+                    "0",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("--workers needs at least one worker", result.stderr)
+            self.assertFalse(output.exists())
 
 
 if __name__ == "__main__":
