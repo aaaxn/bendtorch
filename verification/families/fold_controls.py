@@ -222,9 +222,9 @@ FAMILY = controls.Family(
             "contracts_2f_dot_2d_proof.total_factors",
             ("contracts_2f_dot.right_index",),
         ),
-        "matmul-reversed-order": Site(
+        "matmul-swapped-strides": Site(
             "dot_eq",
-            "Nat.mul(rest, columns)",
+            "Matrix.product_run(rest, columns, 1n,",
             "contracts_2f_matmul_2d_parallel_2d_proof.dot_eq",
             ("matmul.cell_dot",),
         ),
@@ -235,9 +235,9 @@ FAMILY = controls.Family(
             ("matmul.dot_of",),
         ),
         "matmul-transposed-right": Site(
-            "dot_right_eq",
+            "run_last",
             "Nat.mul(column, columns)",
-            "contracts_2f_matmul_2d_parallel_2d_proof.dot_right_eq",
+            "contracts_2f_matmul_2d_parallel_2d_proof.run_last",
             ("matmul.right_index",),
         ),
         "nt-reads-weight-untransposed": Site(
@@ -257,6 +257,18 @@ FAMILY = controls.Family(
             "Nat.add(Nat.mul(k, inner), outer)",
             "contracts_2f_product_2d_parallel_2d_proof.read_below",
             ("matmul.read_offset",),
+        ),
+        "product-row-crossed-terms": Site(
+            "row_last",
+            "columns, c3, cursor",
+            "contracts_2f_product_2d_parallel_2d_proof.row_last",
+            ("matmul.eight_terms",),
+        ),
+        "product-row-unchecked": Site(
+            "row_block_tree",
+            "Nat.divmod(7n+base,",
+            "contracts_2f_product_2d_parallel_2d_proof.row_block_tree",
+            ("matmul.one_row",),
         ),
     },
     prefix=TENSOR,

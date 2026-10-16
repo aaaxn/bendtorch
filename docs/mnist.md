@@ -50,8 +50,9 @@ These are the published hashes; the MD5 sums equal torchvision's list.
 
 ## A step
 
-Each step builds a new tape: the four parameters (ids 0 to 3) and the batch
-(id 4) as leaves, then `linear`, `relu`, `linear` and `cross_entropy` with the
+Each step builds a new tape: the four parameters (ids 0 to 3) as leaves and
+the batch (id 4) as a constant, a leaf that takes no gradient, as PyTorch's
+input does not, then `linear`, `relu`, `linear` and `cross_entropy` with the
 ids each recording returns, `backward` of the loss, and `Sgd.step` over ids 0
 to 3. It reads the loss and the four updated parameters with
 `Backward.value` and drops the tape. A new tape starts with every gradient

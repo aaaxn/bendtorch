@@ -70,8 +70,8 @@ RUNTIME_CONTROLS = {
         "  product(Kept{}, Swapped{}, left, right)",
     ),
     "nt-vjp-tn-swaps-operands": (
-        "(left, multiplied(target, shape, Matrix.matmul_tn(copy, flipped)))",
-        "(left, multiplied(target, shape, Matrix.matmul_tn(flipped, copy)))",
+        "  Matrix.matmul_tn(copy, flipped)",
+        "  Matrix.matmul_tn(flipped, copy)",
     ),
     "nt-vjp-weight-gradient-untransposed": (
         "src/tensor/matmul.bend",
@@ -186,7 +186,8 @@ RUNTIME_CONTROLS = {
         "    case True{}:\n      freeze(ids, nodes, count, node)\n",
     ),
     "frozen-keeps-contribution": (
-        "kept_one(target, shape, gradient, Nat.is_eq(id, target), kept_others(id, rest))",
+        "kept_one(target, shape, gradient, Nat.is_eq(id, target), "
+        "kept_others(id, rest))",
         "kept_one(target, shape, gradient, False{}, kept_others(id, rest))",
     ),
     "frozen-skip-sends-input-gradient": (

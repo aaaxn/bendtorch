@@ -2,6 +2,7 @@ import Base
 import ../storage/model.bend as Model
 import ../storage/refinement.bend as Refinement
 import ./matmul.bend as Matrix
+import ./matrix-index-proof.bend as MatrixIndex
 import ./dot-fold.bend as DotFold
 import ./elementwise.bend as Elementwise
 import ./elementwise-parallel-proof.bend as Parallel
@@ -57,64 +58,97 @@ def dot_extend(+rest: Nat, +dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +
     {\{Parallel.Fact: p => p} : Parallel.Fact<DotRun<rest, dl, dr, A, B, inner, columns, row, column, 1n+cursor, F32.add(accumulator, F32.mul(x, y)), result>> ->
       DotRun<rest, dl, dr, A, B, inner, columns, row, column, 1n+cursor, F32.add(accumulator, F32.mul(x, y)), result>}(run))}
 
-def dot_right(+rest: Nat, +dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat,
-  +row: Nat, +column: Nat, +cursor: Nat,
-  -rec: F32 -> Array<F32> -> Array<F32> -> F32 & (Array<F32> & Array<F32>), -accumulator: F32, -x: F32, -la: Array<F32>,
-  -ra: Array<F32>, pair: Array<F32> & F32,
-  -exact: {pair == Array.get(F32, ra, Matrix.right_index(columns, column, cursor)) : Array<F32> & F32},
-  -ex: {Model.observe(F32, dl, A, Refinement.route(dl, Matrix.left_index(inner, row, cursor))) == Some{x} : Maybe<&2, F32>},
-  -el: {la == A : Array<F32>}, -er: {ra == B : Array<F32>}, -right_valid: Model.Balanced(F32, dr, B),
-  -next: @value: F32 -> @l: Array<F32> -> @r: Array<F32> -> @-el: {l == A : Array<F32>} -> @-er: {r == B : Array<F32>} ->
-    Parallel.Fact<DotRun<rest, dl, dr, A, B, inner, columns, row, column, 1n+cursor, value, rec(value, l, r)>>) ->
-  Parallel.Fact<DotRun<1n+rest, dl, dr, A, B, inner, columns, row, column, cursor, accumulator, Matrix.term_right(rec, accumulator, x, la, pair)>>:
-  (kept, y) = pair
-  dot_extend(rest, dl, dr, A, B, inner, columns, row, column, cursor, accumulator, x, y, ex,
-    Equal.sym(Maybe<&2, F32>, Some{y}, Model.observe(F32, dr, B, Refinement.route(dr, Matrix.right_index(columns, column, cursor))),
-      {\{Parallel.Fact: p => p} : Parallel.Fact<({Some{Refinement.second(F32, (kept, y))} == Model.observe(F32, dr, B, Refinement.route(dr, Matrix.right_index(columns, column, cursor))) : Maybe<&2, F32>})> ->
-        {Some{Refinement.second(F32, (kept, y))} == Model.observe(F32, dr, B, Refinement.route(dr, Matrix.right_index(columns, column, cursor))) : Maybe<&2, F32>}}(
-        Parallel.read_value(dr, ra, B, Matrix.right_index(columns, column, cursor), (kept, y), exact, er, right_valid))),
-    rec(F32.add(accumulator, F32.mul(x, y)), la, kept),
-    next(F32.add(accumulator, F32.mul(x, y)))(la)(kept)(el)(
-      {\{Parallel.Fact: p => p} : Parallel.Fact<({Refinement.first(F32, (kept, y)) == B : Array<F32>})> -> {Refinement.first(F32, (kept, y)) == B : Array<F32>}}(
-        Parallel.read_keeps(dr, ra, B, Matrix.right_index(columns, column, cursor), (kept, y), exact, er, right_valid))))
+# The last term of a run: the reads hold the words of A and B, and both
+# arrays come back.
+def run_last(+dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat,
+  +row: Nat, +column: Nat, +cursor: Nat, -accumulator: F32,
+  -la: Array<F32>, -ra: Array<F32>, -el: {la == A : Array<F32>}, -er: {ra == B : Array<F32>}, -left_valid: Model.Balanced(F32, dl, A), -right_valid: Model.Balanced(F32, dr, B),
+  pl: Array<F32> & F32, -exact_l: {pl == Array.get(F32, la, Matrix.left_index(inner, row, cursor)) : Array<F32> & F32},
+  pr: Array<F32> & F32, -exact_r: {pr == Array.get(F32, ra, Matrix.right_index(columns, column, cursor)) : Array<F32> & F32}) ->
+  Parallel.Fact<DotRun<1n, dl, dr, A, B, inner, columns, row, column, cursor, accumulator, Matrix.product_run(0n, 1n, columns, Nat.add(Nat.mul(row, inner), cursor), Nat.add(Nat.mul(cursor, columns), column), accumulator, pl, pr)>>:
+  (kl, x) = pl
+  (kr, y) = pr
+  -ex = Equal.sym(Maybe<&2, F32>, Some{x}, Model.observe(F32, dl, A, Refinement.route(dl, Matrix.left_index(inner, row, cursor))),
+    {\{Parallel.Fact: p => p} : Parallel.Fact<({Some{Refinement.second(F32, (kl, x))} == Model.observe(F32, dl, A, Refinement.route(dl, Matrix.left_index(inner, row, cursor))) : Maybe<&2, F32>})> ->
+      {Some{Refinement.second(F32, (kl, x))} == Model.observe(F32, dl, A, Refinement.route(dl, Matrix.left_index(inner, row, cursor))) : Maybe<&2, F32>}}(
+      Parallel.read_value(dl, la, A, Matrix.left_index(inner, row, cursor), (kl, x), exact_l, el, left_valid)))
+  -ey = Equal.sym(Maybe<&2, F32>, Some{y}, Model.observe(F32, dr, B, Refinement.route(dr, Matrix.right_index(columns, column, cursor))),
+    {\{Parallel.Fact: p => p} : Parallel.Fact<({Some{Refinement.second(F32, (kr, y))} == Model.observe(F32, dr, B, Refinement.route(dr, Matrix.right_index(columns, column, cursor))) : Maybe<&2, F32>})> ->
+      {Some{Refinement.second(F32, (kr, y))} == Model.observe(F32, dr, B, Refinement.route(dr, Matrix.right_index(columns, column, cursor))) : Maybe<&2, F32>}}(
+      Parallel.read_value(dr, ra, B, Matrix.right_index(columns, column, cursor), (kr, y), exact_r, er, right_valid)))
+  -kl_kept = {\{Parallel.Fact: p => p} : Parallel.Fact<({Refinement.first(F32, (kl, x)) == A : Array<F32>})> -> {Refinement.first(F32, (kl, x)) == A : Array<F32>}}(
+    Parallel.read_keeps(dl, la, A, Matrix.left_index(inner, row, cursor), (kl, x), exact_l, el, left_valid))
+  -kr_kept = {\{Parallel.Fact: p => p} : Parallel.Fact<({Refinement.first(F32, (kr, y)) == B : Array<F32>})> -> {Refinement.first(F32, (kr, y)) == B : Array<F32>}}(
+    Parallel.read_keeps(dr, ra, B, Matrix.right_index(columns, column, cursor), (kr, y), exact_r, er, right_valid))
+  dot_extend(0n, dl, dr, A, B, inner, columns, row, column, cursor, accumulator, x, y, ex, ey, (F32.add(accumulator, F32.mul(x, y)), (kl, kr)),
+    Parallel.Fact{DotRun{Nil{}, Unit{}, {==}, kl_kept, kr_kept}})
 
-def dot_left(+rest: Nat, +dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat,
-  +row: Nat, +column: Nat, +cursor: Nat,
-  -rec: F32 -> Array<F32> -> Array<F32> -> F32 & (Array<F32> & Array<F32>), -accumulator: F32, -la: Array<F32>, ra: Array<F32>,
-  pair: Array<F32> & F32,
-  -exact: {pair == Array.get(F32, la, Matrix.left_index(inner, row, cursor)) : Array<F32> & F32},
-  -el: {la == A : Array<F32>}, -er: {ra == B : Array<F32>},
-  -left_valid: Model.Balanced(F32, dl, A), -right_valid: Model.Balanced(F32, dr, B),
-  -next: @value: F32 -> @l: Array<F32> -> @r: Array<F32> -> @-el: {l == A : Array<F32>} -> @-er: {r == B : Array<F32>} ->
-    Parallel.Fact<DotRun<rest, dl, dr, A, B, inner, columns, row, column, 1n+cursor, value, rec(value, l, r)>>) ->
-  Parallel.Fact<DotRun<1n+rest, dl, dr, A, B, inner, columns, row, column, cursor, accumulator,
-    Matrix.term_left(rec, accumulator, ra, Matrix.right_index(columns, column, cursor), pair)>>:
-  (kept, x) = pair
-  dot_right(rest, dl, dr, A, B, inner, columns, row, column, cursor, rec, accumulator, x, kept, ra,
-    Array.get(F32, ra, Matrix.right_index(columns, column, cursor)), {==},
-    Equal.sym(Maybe<&2, F32>, Some{x}, Model.observe(F32, dl, A, Refinement.route(dl, Matrix.left_index(inner, row, cursor))),
-      {\{Parallel.Fact: p => p} : Parallel.Fact<({Some{Refinement.second(F32, (kept, x))} == Model.observe(F32, dl, A, Refinement.route(dl, Matrix.left_index(inner, row, cursor))) : Maybe<&2, F32>})> ->
-        {Some{Refinement.second(F32, (kept, x))} == Model.observe(F32, dl, A, Refinement.route(dl, Matrix.left_index(inner, row, cursor))) : Maybe<&2, F32>}}(
-        Parallel.read_value(dl, la, A, Matrix.left_index(inner, row, cursor), (kept, x), exact, el, left_valid))),
-    {\{Parallel.Fact: p => p} : Parallel.Fact<({Refinement.first(F32, (kept, x)) == A : Array<F32>})> -> {Refinement.first(F32, (kept, x)) == A : Array<F32>}}(
-      Parallel.read_keeps(dl, la, A, Matrix.left_index(inner, row, cursor), (kept, x), exact, el, left_valid)),
-    er, right_valid, next)
+# The offsets of the next term are the stepped ones.
+def run_stepped(+rest: Nat, +dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat,
+  +row: Nat, +column: Nat, +cursor: Nat, -value: F32, -l: Array<F32>, -r: Array<F32>,
+  run: Parallel.Fact<DotRun<1n+rest, dl, dr, A, B, inner, columns, row, column, 1n+cursor, value, Matrix.product_run(rest, 1n, columns, Nat.add(Nat.mul(row, inner), 1n+cursor), Nat.add(Nat.mul(1n+cursor, columns), column), value, Array.get(F32, l, Matrix.left_index(inner, row, 1n+cursor)), Array.get(F32, r, Matrix.right_index(columns, column, 1n+cursor)))>>) ->
+  Parallel.Fact<DotRun<1n+rest, dl, dr, A, B, inner, columns, row, column, 1n+cursor, value, Matrix.product_run(rest, 1n, columns, Nat.add(1n, Nat.add(Nat.mul(row, inner), cursor)), Nat.add(columns, Nat.add(Nat.mul(cursor, columns), column)), value, Array.get(F32, l, U32.from_nat(Nat.add(1n, Nat.add(Nat.mul(row, inner), cursor)))), Array.get(F32, r, U32.from_nat(Nat.add(columns, Nat.add(Nat.mul(cursor, columns), column)))))>>:
+  %Equal.sym(Nat, Nat.add(1n, Nat.add(Nat.mul(row, inner), cursor)), Nat.add(Nat.mul(row, inner), 1n+cursor), MatrixIndex.stepped_left(inner, row, cursor)) :
+    Parallel.Fact<DotRun<1n+rest, dl, dr, A, B, inner, columns, row, column, 1n+cursor, value, Matrix.product_run(rest, 1n, columns, _, Nat.add(columns, Nat.add(Nat.mul(cursor, columns), column)), value, Array.get(F32, l, U32.from_nat(_)), Array.get(F32, r, U32.from_nat(Nat.add(columns, Nat.add(Nat.mul(cursor, columns), column)))))>>
+  %Equal.sym(Nat, Nat.add(columns, Nat.add(Nat.mul(cursor, columns), column)), Nat.add(Nat.mul(1n+cursor, columns), column), MatrixIndex.stepped_right(columns, column, cursor)) :
+    Parallel.Fact<DotRun<1n+rest, dl, dr, A, B, inner, columns, row, column, 1n+cursor, value, Matrix.product_run(rest, 1n, columns, Nat.add(Nat.mul(row, inner), 1n+cursor), _, value, Array.get(F32, l, U32.from_nat(Nat.add(Nat.mul(row, inner), 1n+cursor))), Array.get(F32, r, U32.from_nat(_)))>>
+  run
+
+# A term with more after it: its reads hold the words of A and B, and the
+# run goes on from the next term's reads of the arrays they hand back.
+def run_next(+rest: Nat, +dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat,
+  +row: Nat, +column: Nat, +cursor: Nat, -accumulator: F32,
+  -la: Array<F32>, -ra: Array<F32>, -el: {la == A : Array<F32>}, -er: {ra == B : Array<F32>}, -left_valid: Model.Balanced(F32, dl, A), -right_valid: Model.Balanced(F32, dr, B),
+  pl: Array<F32> & F32, -exact_l: {pl == Array.get(F32, la, Matrix.left_index(inner, row, cursor)) : Array<F32> & F32},
+  pr: Array<F32> & F32, -exact_r: {pr == Array.get(F32, ra, Matrix.right_index(columns, column, cursor)) : Array<F32> & F32},
+  -next: @value: F32 -> @-l: Array<F32> -> @-r: Array<F32> -> @-el: {l == A : Array<F32>} -> @-er: {r == B : Array<F32>} ->
+    Parallel.Fact<DotRun<1n+rest, dl, dr, A, B, inner, columns, row, column, 1n+cursor, value, Matrix.product_run(rest, 1n, columns, Nat.add(Nat.mul(row, inner), 1n+cursor), Nat.add(Nat.mul(1n+cursor, columns), column), value, Array.get(F32, l, Matrix.left_index(inner, row, 1n+cursor)), Array.get(F32, r, Matrix.right_index(columns, column, 1n+cursor)))>>) ->
+  Parallel.Fact<DotRun<2n+rest, dl, dr, A, B, inner, columns, row, column, cursor, accumulator, Matrix.product_run(1n+rest, 1n, columns, Nat.add(Nat.mul(row, inner), cursor), Nat.add(Nat.mul(cursor, columns), column), accumulator, pl, pr)>>:
+  (kl, x) = pl
+  (kr, y) = pr
+  -ex = Equal.sym(Maybe<&2, F32>, Some{x}, Model.observe(F32, dl, A, Refinement.route(dl, Matrix.left_index(inner, row, cursor))),
+    {\{Parallel.Fact: p => p} : Parallel.Fact<({Some{Refinement.second(F32, (kl, x))} == Model.observe(F32, dl, A, Refinement.route(dl, Matrix.left_index(inner, row, cursor))) : Maybe<&2, F32>})> ->
+      {Some{Refinement.second(F32, (kl, x))} == Model.observe(F32, dl, A, Refinement.route(dl, Matrix.left_index(inner, row, cursor))) : Maybe<&2, F32>}}(
+      Parallel.read_value(dl, la, A, Matrix.left_index(inner, row, cursor), (kl, x), exact_l, el, left_valid)))
+  -ey = Equal.sym(Maybe<&2, F32>, Some{y}, Model.observe(F32, dr, B, Refinement.route(dr, Matrix.right_index(columns, column, cursor))),
+    {\{Parallel.Fact: p => p} : Parallel.Fact<({Some{Refinement.second(F32, (kr, y))} == Model.observe(F32, dr, B, Refinement.route(dr, Matrix.right_index(columns, column, cursor))) : Maybe<&2, F32>})> ->
+      {Some{Refinement.second(F32, (kr, y))} == Model.observe(F32, dr, B, Refinement.route(dr, Matrix.right_index(columns, column, cursor))) : Maybe<&2, F32>}}(
+      Parallel.read_value(dr, ra, B, Matrix.right_index(columns, column, cursor), (kr, y), exact_r, er, right_valid)))
+  -kl_kept = {\{Parallel.Fact: p => p} : Parallel.Fact<({Refinement.first(F32, (kl, x)) == A : Array<F32>})> -> {Refinement.first(F32, (kl, x)) == A : Array<F32>}}(
+    Parallel.read_keeps(dl, la, A, Matrix.left_index(inner, row, cursor), (kl, x), exact_l, el, left_valid))
+  -kr_kept = {\{Parallel.Fact: p => p} : Parallel.Fact<({Refinement.first(F32, (kr, y)) == B : Array<F32>})> -> {Refinement.first(F32, (kr, y)) == B : Array<F32>}}(
+    Parallel.read_keeps(dr, ra, B, Matrix.right_index(columns, column, cursor), (kr, y), exact_r, er, right_valid))
+  dot_extend(1n+rest, dl, dr, A, B, inner, columns, row, column, cursor, accumulator, x, y, ex, ey,
+    Matrix.product_run(rest, 1n, columns, Nat.add(1n, Nat.add(Nat.mul(row, inner), cursor)), Nat.add(columns, Nat.add(Nat.mul(cursor, columns), column)), F32.add(accumulator, F32.mul(x, y)), Array.get(F32, kl, U32.from_nat(Nat.add(1n, Nat.add(Nat.mul(row, inner), cursor)))), Array.get(F32, kr, U32.from_nat(Nat.add(columns, Nat.add(Nat.mul(cursor, columns), column))))),
+    run_stepped(rest, dl, dr, A, B, inner, columns, row, column, cursor, F32.add(accumulator, F32.mul(x, y)), kl, kr, next(F32.add(accumulator, F32.mul(x, y)))(kl)(kr)(kl_kept)(kr_kept)))
+
+# A run of fuel + 1 terms from cursor folds the factor pairs it read, and
+# both arrays come back.
+def run_eq(+fuel: Nat, +dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat,
+  +row: Nat, +column: Nat, +cursor: Nat, -accumulator: F32,
+  -la: Array<F32>, -ra: Array<F32>, -el: {la == A : Array<F32>}, -er: {ra == B : Array<F32>}, -left_valid: Model.Balanced(F32, dl, A), -right_valid: Model.Balanced(F32, dr, B),
+  pl: Array<F32> & F32, -exact_l: {pl == Array.get(F32, la, Matrix.left_index(inner, row, cursor)) : Array<F32> & F32},
+  pr: Array<F32> & F32, -exact_r: {pr == Array.get(F32, ra, Matrix.right_index(columns, column, cursor)) : Array<F32> & F32}) ->
+  Parallel.Fact<DotRun<1n+fuel, dl, dr, A, B, inner, columns, row, column, cursor, accumulator, Matrix.product_run(fuel, 1n, columns, Nat.add(Nat.mul(row, inner), cursor), Nat.add(Nat.mul(cursor, columns), column), accumulator, pl, pr)>>:
+  match fuel:
+    case 0n:
+      run_last(dl, dr, A, B, inner, columns, row, column, cursor, accumulator, la, ra, el, er, left_valid, right_valid, pl, exact_l, pr, exact_r)
+    case 1n+rest:
+      run_next(rest, dl, dr, A, B, inner, columns, row, column, cursor, accumulator, la, ra, el, er, left_valid, right_valid, pl, exact_l, pr, exact_r,
+        value => l => r => el => er => run_eq(rest, dl, dr, A, B, inner, columns, row, column, 1n+cursor, value, l, r, el, er, left_valid, right_valid,
+          Array.get(F32, l, Matrix.left_index(inner, row, 1n+cursor)), {==}, Array.get(F32, r, Matrix.right_index(columns, column, 1n+cursor)), {==}))
 
 def dot_run(fuel: Nat, +dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat,
   +row: Nat, +column: Nat, +cursor: Nat, -accumulator: F32, la: Array<F32>, ra: Array<F32>,
   -el: {la == A : Array<F32>}, -er: {ra == B : Array<F32>},
   -left_valid: Model.Balanced(F32, dl, A), -right_valid: Model.Balanced(F32, dr, B)) ->
-  Parallel.Fact<DotRun<fuel, dl, dr, A, B, inner, columns, row, column, cursor, accumulator,
-    Matrix.cell_dot(fuel, inner, columns, row, column, cursor, accumulator, la, ra)>>:
+  Parallel.Fact<DotRun<fuel, dl, dr, A, B, inner, columns, row, column, cursor, accumulator, Matrix.cell_dot(fuel, inner, columns, row, column, cursor, accumulator, la, ra)>>:
   match fuel:
     case 0n:
       Parallel.Fact{DotRun{Nil{}, Unit{}, {==}, el, er}}
     case 1n+rest:
-      dot_left(rest, dl, dr, A, B, inner, columns, row, column, cursor,
-        value => l => r => Matrix.cell_dot(rest, inner, columns, row, column, 1n+cursor, value, l, r), accumulator, la, ra,
-        Array.get(F32, la, Matrix.left_index(inner, row, cursor)), {==}, el, er, left_valid, right_valid,
-        value => l => r => el => er => dot_run(rest, dl, dr, A, B, inner, columns, row, column, 1n+cursor, value, l, r, el, er,
-          left_valid, right_valid))
+      run_eq(rest, dl, dr, A, B, inner, columns, row, column, cursor, accumulator, la, ra, el, er, left_valid, right_valid,
+        Array.get(F32, la, Matrix.left_index(inner, row, cursor)), {==}, Array.get(F32, ra, Matrix.right_index(columns, column, cursor)), {==})
 
 # What output cell `position` holds: +0.0 at or above `count`; below it, a
 # word that folds the factor pairs of row `position / columns` and column

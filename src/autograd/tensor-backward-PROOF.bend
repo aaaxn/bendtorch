@@ -163,7 +163,7 @@ def right_spared(+id: Nat, +b: Nat, +right: Shape.Shape, -y: Core.Dynamic, -g: C
   {Laws.sends_to(id, Backward.nt_alone_second(y, g, Backward.nt_right(b, right, copy, pair))) == False{} : Bool}:
   match pair:
     case (left, flipped):
-      alone_spared(id, b, right, left, y, g, other, Matrix.matmul_tn(copy, flipped))
+      alone_spared(id, b, right, left, y, g, other, Backward.weight_product(copy, flipped))
 
 def first_spared(+id: Nat, +b: Nat, +right: Shape.Shape, x: Core.Dynamic, -y: Core.Dynamic,
   other: {Nat.is_eq(id, b) == False{} : Bool}, pair: Core.Dynamic & Core.Dynamic) ->

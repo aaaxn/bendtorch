@@ -307,7 +307,7 @@ the public operation, builds its output in parallel. Each output position `p`
 sits at row `p / columns` and column `p % columns`; its cell folds
 `left[row * inner + k] * right[k * columns + column]` for `k` from 0 to
 `inner - 1` from `+0.0`, reading the words of a copy of each input with
-`Array.get`. The cells form a balanced tree: the top `Matrix.splits` levels
+`Array.get`. The cells form a balanced tree: the top `Matrix.product_splits` levels
 fork, each half with its own clone of both input arrays, and a thread builds
 the cells below the forks in index order. The law `matmul_ordered` in
 `src/tensor/contracts/LAWS.bend` states what that build computes. It takes:
@@ -369,6 +369,10 @@ for every pair of orders: `matmul_nt` is `Kept`, `Kept` and `matmul_tn` is
 `product-parallel-proof.bend` and `product-proof.bend` are the matmul walk
 with each read at `read_offset`; `Fits(order, inner, outers, shape)` names the
 extents each order needs, and `read_below` bounds each read for either order.
+A product's tree runs eight cells of one row as one loop
+([sum and matmul](sum-and-matmul.md)); `row_eq` walks that loop and
+`row_block_tree` turns the run-time check `Matrix.one_row` into the bounds and
+the shared row its eight cells need.
 `matmul_nt_ordered` and `matmul_tn_ordered` state `product_ordered` for the
 public `matmul_nt` and `matmul_tn`, so the orders each passes are part of a
 law.
