@@ -10,9 +10,12 @@ agree. PyTorch runs only in the oracle environment; no gate imports it.
 ## Data and shared files
 
 The program reads the four uncompressed IDX files of MNIST from a directory
-given on its command line, outside the repository. It checks each header:
-magic 2051 with 28 x 28 images, magic 2049 for labels, and the same count in
-both files of a pair; anything else stops it with exit code 4. A pixel is its
+given on its command line, outside the repository. It checks each file before
+it trains: magic 2051 with 28 x 28 images, magic 2049 for labels, the same
+count in both files of a pair, and a file size of exactly the header and that
+many records (784 bytes an image, one byte a label); anything else stops it
+with exit code 4. Every read must also return all the bytes it asks for, so a
+parameter or order file that is too short stops it with exit code 4 too. A pixel is its
 byte divided by 255 with one F32 rounding, as `uint8.float() / 255` is in
 PyTorch.
 
@@ -73,19 +76,27 @@ cd oracle
 uv run --frozen python -I mnist/train.py prepare 0 WORK
 ../train MNIST WORK/init-0.bin WORK/order-0-b64.bin 64 937 0.1 --threads 24 --gpu off
 uv run --frozen python -I mnist/train.py train MNIST WORK/init-0.bin WORK/order-0-b64.bin 64 937 0.1
-uv run --frozen python -I mnist/compare.py ../train MNIST WORK --kernel default
+uv run --frozen python -I mnist/compare.py run ../train MNIST WORK --kernel default
+uv run --frozen python -I mnist/compare.py check BEND_OUTPUT TORCH_OUTPUT
 ```
 
-`compare.py` prepares each seed, runs both, prints the table below and exits
-1 when a seed fails a check. `--kernel default` runs PyTorch with
+`compare.py run` prepares each seed, runs both, prints the table below and
+exits 1 when a seed fails a check. `--kernel default` runs PyTorch with
 `ATEN_CPU_CAPABILITY=default`; `--kernel native` lets it pick its AVX512
-kernels on this machine.
+kernels on this machine. `compare.py check` applies the same checks to two
+saved outputs. Before any number is compared, each output must hold exactly
+937 `loss` lines numbered in order and one `correct N 10000` line with
+`N <= 10000`. `oracle/mnist/test_compare.py` tests these checks with a NaN or
+an infinity at the first, a middle and the last step on either side, a
+count of other than 10000 rows, a missing or repeated line, and differences
+just inside and outside each tolerance.
 
 `tests/test_mnist_training.py`, in the unit tests, builds the program and
 trains two steps of batch 3 on a tiny IDX set it writes: every loss word, the
 test count and every trained parameter word must equal the tape reference in
-`tools/autograd_tensor_backward.py`, at one thread and at several, and a label
-file with the wrong count must be refused.
+`tools/autograd_tensor_backward.py`, at one thread and at several. A label
+file with the wrong count, data files cut short or one byte too long, and a
+short parameter file must each be refused with exit code 4 and no output.
 
 ## Against PyTorch
 
@@ -123,21 +134,23 @@ only the final accuracy can be compared.
 
 ## Tolerance and band
 
-`compare.py` checks three things for each seed:
+`compare.py` checks each step on its own, and the test count:
 
-- every step's loss within `1e-2` relative, over one epoch;
-- the first 100 steps within `1e-4` relative;
-- the test count within one binomial standard error of PyTorch's accuracy
-  `p` on the `n = 10000` test rows, `ceil(sqrt(p (1 - p) n))` rows, 26 or 27
-  at 92 to 93%.
+- both losses of every step finite;
+- each of the first 100 steps within `1e-4` relative;
+- each later step, to the end of the epoch, within `1e-2` relative;
+- the test count within a band of `ceil(sqrt(p (1 - p) n))` rows, with `p`
+  PyTorch's accuracy on the `n = 10000` test rows: 26 or 27 at 92 to 93%.
 
 They were fixed from PyTorch's runs before Bend's epoch was compared, not fit
 to Bend's numbers. A run that differs from PyTorch only in the order of its
 F32 roundings must pass whatever PyTorch's own rounding change passes. That
 change, its AVX512 kernels against its `default` ones, reaches 2.7e-3 in one
-epoch, and `1e-2` is the next power of ten. The band is the sampling noise of
-the test set itself: a smaller difference in accuracy cannot be told apart on
-10000 rows.
+epoch, and `1e-2` is the next power of ten. The band is a chosen acceptance
+rule, scaled by the binomial standard error of one model's accuracy on 10000
+rows. It is not a significance test: both models are scored on the same rows,
+so the uncertainty of their difference depends on the rows where they
+disagree, and a smaller difference can be real.
 
 A per-step tolerance over the whole epoch is a weak test, because rounding
 drift late in the epoch is as large as the effect of a bug. PyTorch runs with
@@ -154,7 +167,8 @@ The band catches none of them and the epoch tolerance misses the last one.
 Each shows by 3e-4 within ten steps, while PyTorch's own rounding change stays
 below 2.4e-7 for 100 steps. The early check at `1e-4` sits between the two,
 400 times above the rounding drift and 3 times below the smallest change, and
-it catches all four.
+it catches all four. `compare.py check` on the saved outputs: the six Bend runs of the table
+above exit 0, and the four planted changes exit 1.
 
 ## Time
 

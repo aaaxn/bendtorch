@@ -99,6 +99,12 @@ without changing `toolchain.json`.
 `mnist/train.py` is PyTorch's copy of `experiments/mnist/train.bend`, and
 `mnist/compare.py` runs both over seeds and checks that they agree
 ([MNIST end to end](../docs/mnist.md)). They read MNIST from a directory outside
-the repository and write nothing under `fixtures/`; no gate runs them. Their
-lint follows the commands above with `mnist/train.py mnist/compare.py` in place
-of `generate.py tests`.
+the repository and write nothing under `fixtures/`; no gate runs them.
+`mnist/test_compare.py` tests the comparator's checks on outputs it writes:
+
+```sh
+uv run --frozen python -I -m unittest discover -s mnist -p 'test_*.py'
+```
+
+Their lint follows the commands above with `mnist` in place of
+`generate.py tests`.

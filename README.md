@@ -11,7 +11,8 @@ references. PyTorch never computes a bendtorch result.
 
 bendtorch is early research code. It is used from Bend programs; it has no
 Python API and is not a drop-in replacement for PyTorch. It runs on the CPU,
-with F32 tensors only, and it cannot train a model yet.
+with F32 tensors only. An experiment trains a 784-128-10 MLP on MNIST with
+it end to end ([MNIST](docs/mnist.md)).
 
 > **Disclaimer.** bendtorch is an experiment. Most of its code was vibe-coded
 
@@ -161,7 +162,7 @@ experiment trains a 784-128-10 MLP on MNIST with them end to end.
 | 4 | Autograd building blocks | Done | `broadcast_to`, `reduce_to`, `sum_to_size` and gradient slots that accumulate in arrival order and read as `None` until they receive a value. |
 | 5 | Reverse-mode engine | Done | `backward` on a tape, built on the gradient slots: for scalars (`add`, `sub`, `mul`, `neg`) and for tensors (`add`, `sub`, `mul` with broadcasting, `sum`, `matmul`). |
 | 6 | Neural-network modules | In progress | `Linear` is done: `x @ W^T + b` on the tape, `W` read in place, with value laws for its gradients. `relu` is done, with PyTorch's words at `-0.0`, NaN and the gradient at `0`. `mse_loss` and `cross_entropy` with mean reduction are done, in PyTorch's operation order, with value laws for their gradients. |
-| 7 | Optimizers and training | In progress | SGD is done: `step` over a list of tape parameters, `p - lr * g` with the learning rate only, on the parallel elementwise build, and `zero_grad`. An experiment trains a 784-128-10 MLP on MNIST for an epoch, its loss at every step within `1e-2` of PyTorch's copy and its test accuracy within one standard error ([MNIST](docs/mnist.md)). Momentum, weight decay and other optimizers remain. |
+| 7 | Optimizers and training | In progress | SGD is done: `step` over a list of tape parameters, `p - lr * g` with the learning rate only, on the parallel elementwise build, and `zero_grad`. An experiment trains a 784-128-10 MLP on MNIST for an epoch, its loss at every step within `1e-2` of PyTorch's copy and its test accuracy within a band of one binomial standard error ([MNIST](docs/mnist.md)). Momentum, weight decay and other optimizers remain. |
 | 8 | An API closer to PyTorch | Planned | More dtypes, views and strides, `dim` and `keepdim` on reductions, negative axes and indices, slicing and batched `matmul`. |
 | 9 | Performance | In progress | Parallel CPU code and GPU kernels. `matmul` and the elementwise operations build large outputs in parallel; reductions and GPU kernels remain. |
 
