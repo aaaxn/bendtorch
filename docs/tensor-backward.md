@@ -12,10 +12,10 @@ operand's shape with [`sum_to_size`](sum-to-size.md) before it is added.
 ## Tape and recording
 
 A `Tape` is a list of `Entry{node, shape, value, saved, grad}`, newest first.
-`node` is `Leaf`, `Add{a, b, left, right}`, `Sub{...}`, `Mul{...}`,
+`node` is `Leaf`, `Constant`, `Add{a, b, left, right}`, `Sub{...}`, `Mul{...}`,
 `Matmul{...}`, `MatmulNT{...}`, `Sum{a, input}`, `Relu{a, input}`,
-`MseLoss{a, b, left, right}` or `CrossEntropy{a, input}`: the operand
-ids and the operand shapes. `MatmulNT` is `left @ right^T` with `right` read in place,
+`MseLoss{a, b, left, right}`, `CrossEntropy{a, input}` or `Frozen{id, node}`:
+the operand ids and the operand shapes. `MatmulNT` is `left @ right^T` with `right` read in place,
 PyTorch's `linear(left, right)` without a bias. `value` is the forward value,
 `saved` holds the operand values a product needs for its VJP
 (`Operands{left, right}` for `Mul`, `Matmul` and `MatmulNT`, `Operands{x, zero}`
@@ -48,6 +48,22 @@ dimension mismatch (106), `cross_entropy` logits that are not of rank 2
 tape back unchanged.
 
 Every call hands the tape back, because tensors have one owner.
+
+`TensorBackward.constant(tape, value)` records a constant: a leaf that takes
+no gradient, PyTorch's tensor with `requires_grad=False`, such as a batch of
+inputs or a target. A recording whose operands are all constants records a
+`Constant` too, as PyTorch's result of operations on such tensors does not
+require grad. Any other recording that reads a constant wraps its node in
+`Frozen{id, node}`, once for each operand id that is a constant, the first
+operand outermost. The VJP of `Frozen{id, node}` is `node`'s VJP without its
+contributions to `id`, so a constant's slot reads `None` after any backward
+that does not start at it, as PyTorch's `.grad` does. For `x @ W^T` with a
+constant `x` and a `W` that is not `x`, the VJP does not compute `g @ W` at
+all; it runs only the `g^T @ x` of `MatmulNT`'s VJP. `linear` of a constant
+input is the MNIST step's first layer: its `g @ W1` was a third of the
+products of a step. `Sgd.step` takes a constant as a leaf and keeps it, since
+its slot is empty. A backward that starts at a constant seeds it with ones,
+like any other output; PyTorch refuses that call.
 
 ## backward
 
@@ -137,12 +153,22 @@ does.
 
 ## Laws
 
-`src/autograd/tensor-backward-LAWS.bend` states 16 laws, and
+`src/autograd/tensor-backward-LAWS.bend` states 19 laws, and
 `tensor-backward-PROOF.bend` proves them. They quantify over every tape, list
 of slots, shape and tensor.
 
 - `negate_left_scalar`: `scalar(NegateLeft, left, right) == F32.neg(left)`.
-- `tensor_vjp_leaf`: a leaf sends nothing.
+- `tensor_vjp_leaf`: a leaf sends nothing. `tensor_vjp_constant`: a constant
+  sends nothing.
+- `tensor_vjp_frozen_unsent`: for every node, saved values and `g`, the VJP of
+  `Frozen{id, node}` is `node`'s VJP with every contribution to `id` removed,
+  the others kept in order, wherever `Backward.skips(id, node)` is false.
+  `skips` holds only for `x @ W^T` with `id` the input `x` and not the weight;
+  there the VJP skips the product, and `tensor_matmul_nt_frozen_vjp_values`
+  states the one it computes.
+- `tensor_vjp_frozen_spares`: for every node, saved values and `g`, no
+  contribution of the VJP of `Frozen{id, node}` goes to `id`, the skipping
+  case included.
 - `tensor_sum_vjp_pointwise`: through the live `broadcast_to_pointwise` law of
   the pointwise family, for a replayed gradient `g` whose shape broadcasts to
   exactly the operand's shape, the `Sum` VJP sends one contribution, to the
@@ -171,7 +197,8 @@ of slots, shape and tensor.
 
 These laws state the engine's structure and the `Sum` VJP's values. The
 [VJP values](#vjp-values) below state the `Add`, `Sub`, `Mul`, `Matmul`,
-`MatmulNT`, `Relu`, `MseLoss` and `CrossEntropy` VJPs' values.
+`MatmulNT`, `Relu`, `MseLoss` and `CrossEntropy` VJPs' values, and the
+`MatmulNT` VJP of a constant input.
 
 The family controls in [`verification/families/tensor_vjp/`](../verification/families/README.md#tensor-vjp)
 check the VJP value laws: five literal consumers, seven false twins and eighteen
@@ -325,6 +352,16 @@ and `second_factors` turn the factor pairs read on the copies into the pairs
 stated on `g`, `x` and `y`. No sum is reduced: each product already has its
 operand's dimensions.
 
+`tensor_matmul_nt_frozen_vjp_values`: for a `MatmulNT{a, b, left, right}`
+whose input `a` is a constant and is not `b`, the VJP of
+`Frozen{a, MatmulNT{...}}`, with replayed `x`, `W` and `g`, sends exactly one
+contribution, to `b`, with `W`'s dimensions, and cell `(j, l)` holds the
+ordered dot product over `i` of `g[i, j] * x[i, l]` from `+0.0`: the words of
+the second contribution of `tensor_matmul_nt_vjp_values`. Its proof is that
+law's proof without the first product: the clone halves of `g` and `x` are
+`ops ++ [Second]`, and `frozen_factors` turns the pairs read on them into the
+pairs stated on `g` and `x`.
+
 ## Chain rule
 
 `src/autograd/tensor-chain-LAWS.bend` states what the whole sweep returns, and
@@ -462,7 +499,7 @@ each of the nine as a runtime control too.
 
 ## Runtime lanes
 
-`tools/autograd_tensor_backward.py` runs 181 scripts on native Bend CPU
+`tools/autograd_tensor_backward.py` runs 188 scripts on native Bend CPU
 (`--threads N --gpu off`, N from `tools.check --threads`, default 8, or the CPU count if lower) and on the generated JavaScript. Each script records
 leaves and operations, runs `backward` on chosen outputs, sometimes calls
 `zero_grad` or an SGD `step`, and reads the value and gradient of every node, word by word. The
@@ -470,7 +507,7 @@ harness (`src/autograd/tensor-backward-harness.bend`) calls the public
 functions; `ForgeAdd` and `ForgeSum` push an entry without checks so the gate
 can build tapes with dangling operands.
 
-- 93 handwritten scripts: broadcasting along rows, columns, a `[1, 3]` operand,
+- 100 handwritten scripts: broadcasting along rows, columns, a `[1, 3]` operand,
   a rank-0 operand and rank 4; `x*x`, `x+x` and `x-x`; matmul, a square
   `A @ A` and a linear layer `x @ W + b`; a non-scalar output seeded with
   ones; the unused-node graph with each output selected; repeated backward on
@@ -516,6 +553,12 @@ can build tapes with dangling operands.
   `-0.25`, `-inf` and the smallest negative denormal, each refused; `-0.0`
   and `+0.0` on parameters of both zero signs; a NaN rate of each sign; and
   `+inf`, with a zero gradient word.
+  Seven read constants: `linear` of a constant input, then the sum; the
+  MNIST step's shape, `linear`, `relu`, `linear` and `cross_entropy` on a
+  constant batch; a constant weight of `matmul_nt`; a constant `mse_loss`
+  target; products and a `relu` of constants only, which record constants,
+  read by a sum with a leaf; a constant left operand of `matmul`; and an SGD
+  step whose list holds the constant input, which it keeps.
 - 32 generated scripts (fixed seed) over shapes `[]`, `[2]`, `[3]`, `[1, 3]`,
   `[2, 1]`, `[2, 3]`, `[3, 2]` and `[2, 2]`, with words whose sums and products
   stay exact, and 24 more with words that round, cancel and overflow. 16 more
@@ -539,7 +582,7 @@ as `0x7FC00000`, without its sign or payload, so it keeps the NaN allowance,
 and only the native lane and the laws check the NaN words `relu` keeps and
 passes.
 
-The subgate also builds forty runtime controls from a mutated copy of the
+The subgate also builds forty-four runtime controls from a mutated copy of the
 sources and requires the JavaScript lane to reject each one: a seed at the
 newest node, a `Mul` VJP with swapped operands, a `Sub` VJP without the sign,
 a `Matmul` VJP without the transpose, a merge that overwrites the slot, a
@@ -557,8 +600,11 @@ reads `g` as the input, a `mean` that divides by 1, an inverted `2 / N`, a
 everywhere, a target gradient without the division by `N`, a `SoftmaxGrad`
 with its operands swapped, and a `CrossEntropy` VJP that adds `+0.0` to the
 row sum of one-class logits, the nine SGD mutants of the [SGD](#sgd) section,
-the four broken sweeps of the [chain rule](#chain-rule) and a `zero_grad`
-that keeps the slot. Two more controls run on the native lane only, since
+the four broken sweeps of the [chain rule](#chain-rule), a `zero_grad`
+that keeps the slot, a constant recorded as a leaf, a recording on constants
+only that records a frozen node, a frozen node that keeps its contribution
+to the constant, and a skipped `g @ W` that computes and sends both
+products. Two more controls run on the native lane only, since
 the JavaScript lane cannot tell NaNs apart: a `relu` and a `relu` gradient
 that replace each NaN word, of `x` or of `g`, with `0x7FC00000`. The
 reference accepts both, and the exact `relu` words reject each.
@@ -576,7 +622,7 @@ The comparison is level 2 of the [numeric policy](../AGENTS.md#numeric-policy).
 Each row of the table below keeps the check it had before the rounding-error
 bound, and the bound is an extra check on the words that row lets differ:
 
-- The 131 scripts that agree line for line must still do so.
+- The 138 scripts that agree line for line must still do so.
 - The six `mse_loss` scripts must differ in exactly their 16 pinned words
   (`MSE_ROUNDING`, PyTorch's word and the reference's), and each of those
   words, on both sides, must now also lie within its bound.
@@ -596,12 +642,12 @@ replay prints the reference's lines. A word is fixed when only operations
 with one rounding build it from the leaves; it must be PyTorch's word, bit
 for bit. The bound holds under the policy's conditions (round to nearest,
 gradual underflow, no intermediate overflow in any order); a word where
-another order could overflow gets no bound. The bound reads 148 scripts:
-the 131 that agree line for line and the bounded and pinned rows of the
-table. Their reference lines hold 5452 fixed words, 1808 words with a bound
-and 382 words with none, built on `exp` or `log`.
+another order could overflow gets no bound. The bound reads 155 scripts:
+the 138 that agree line for line and the bounded and pinned rows of the
+table. Their reference lines hold 5709 fixed words, 1968 words with a bound
+and 431 words with none, built on `exp` or `log`.
 
-131 of the 181 scripts agree with PyTorch line for line: every id, shape, value,
+138 of the 188 scripts agree with PyTorch line for line: every id, shape, value,
 gradient word and `None`, including the arrival-order and fold-order scripts,
 `-0.0`, infinities and subnormals, and every `relu` script but four, with
 PyTorch's `-0.0`, NaN and zero-gradient words. Those four are listed below:
@@ -637,15 +683,15 @@ bound for them would have to assume one.
 
 `tests/test_autograd_tensor_backward.py` shows the record rejects wrong
 results. Every clean script passes first. A planted sum that leaves out its
-last term, on the reference's side as a wrong Bend result would, changes 81
-scripts. The bound comparison, with the `cross_entropy` pins, rejects 80 of
-them: 66 with a word outside its bound, 12 with a word that has no bound
-and no pin (6 `cross_entropy` scripts and 6 others) and 2 with a word off
-its pin (the other 2 `cross_entropy` scripts). In `loss_07` the omitted
+last term, on the reference's side as a wrong Bend result would, changes 88
+scripts. The bound comparison, with the `cross_entropy` pins, rejects 87 of
+them: 72 with a word outside its bound, 13 with a word that has no bound
+and no pin (scripts whose words are built on `cross_entropy`) and 2 with a
+word off its pin. In `loss_07` the omitted
 square adds about 9e-5 to a loss of 144, 6 ulp, inside that word's 15-ulp
 bound, so the bound alone accepts it; its pins reject it, and the whole rule
-rejects all 81. A planted reduction and a planted matmul that leave out
-their last term change 62 and 27 scripts, and both the bound and the whole
+rejects all 88. A planted reduction and a planted matmul that leave out
+their last term change 65 and 32 scripts, and both the bound and the whole
 rule reject every one. The `cross_entropy` words are rejected by their pins
 or for differing with no pin, never by a bound. Four words that the rule
 before the bound rejected lie within their bound, and the bound alone accepts

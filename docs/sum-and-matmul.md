@@ -80,6 +80,21 @@ extents (`InnerDimensionMismatch`). The replayed laws `product_ordered` and
 `Linear` uses `matmul_nt` for its forward product and `matmul_tn` for its
 weight gradient ([tensor backward](tensor-backward.md)).
 
+A cell runs as one flat loop, `Matrix.product_run`: it carries the reads of
+the current term and both read offsets, and steps each offset by its
+operand's stride (`Matrix.stride`: 1 for `Kept`, `outers` for `Swapped`)
+instead of computing `read_offset` again for every term; `stepped` in
+`product-parallel-proof.bend` proves the step lands on `read_offset` of the
+next term. The compiler turns the loop into a C loop with no allocation per
+term. On this repository's 64-core x86-64 machine, `matmul_nt` of a
+`[64, 784]` and a `[128, 784]` operand took 276 ms on one thread and 59 ms on
+eight when each term went through closures and recomputed its offsets, and
+takes 5.9 ms and 2.6 ms now, with the same words (a program that times 5 to
+20 products, three runs each). One cell's terms form one chain of dependent
+F32 additions, about 3 cycles each, so the loop alone needs about 3.7 ms on
+one thread; the rest is the parallel build's copies of both operands.
+`matmul` keeps its own `cell_dot`.
+
 ## Public math completeness supplement
 
 The original eight reduction laws and seven matrix laws, their definitions,

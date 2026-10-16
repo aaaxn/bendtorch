@@ -101,7 +101,7 @@ record is compared under level 2 of the
 [numeric policy](../AGENTS.md#numeric-policy): fixed words bit for bit, the
 `mse_loss` words on their pins and within the rounding-error bound, the
 forward `sum` and `matmul` words within the bound with exact gradients, and
-the `cross_entropy` words, which no bound covers, on their pins. 131 of the 181 scripts agree line for line, the five `linear`
+the `cross_entropy` words, which no bound covers, on their pins. 138 of the 188 scripts agree line for line, the five `linear`
 scripts that PyTorch accepts among them, and every `relu` script but four:
 `relu_edges` and `relu_nan_gradient` (NaN payloads of `NaN * NaN` in the
 product after `relu`), `relu_13` (a one-term matmul) and
@@ -135,5 +135,6 @@ accepted. The differences:
 | Forward `sum` and `matmul` | Ordered folds from `+0.0` (see above) | Another order, and `-0.0` from a one-term matmul (3 scripts, within the bound; the gradients agree) |
 | SGD step `p - lr * g` | The product rounded, then the difference | One rounding on AVX2 and AVX512, two on the `DEFAULT` kernel; `sgd_two_layers` and `sgd_rounding` match a one-rounding reference word for word (2 scripts; 6 of 337 words differ, by 1 to 6 ulp) |
 | SGD step over a node that is not a leaf | `NotLeaf` (109) | `torch.optim.SGD` accepts a non-leaf that retains its gradient, as every non-leaf of the replay does (1 script) |
+| `backward` of a constant, or of an operation on constants only | Seeds the output with ones and sends nothing on | `RuntimeError`: the output does not require grad (no script) |
 
 [docs/tensor-backward.md](tensor-backward.md) has the contract.
