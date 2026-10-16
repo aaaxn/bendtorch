@@ -269,6 +269,81 @@ RUNTIME_CONTROLS |= {
     name: (path, original, mutated)
     for name, (path, original, mutated, _) in SGD_CONTROLS.items()
 }
+# Sweeps that break the chain rule: a dropped contribution, one added twice,
+# a VJP's contributions delivered in reverse operand order, and a contribution
+# sent to the next slot. The proof of tensor-chain-PROOF.bend, checked on its
+# own, fails at the named def for each, and the JavaScript lane rejects each.
+BUMP_HIT = (
+    "# Accumulates a contribution into the slot of node target, in a newest-first\n"
+    "# list of count slots; same says whether the head is that node. A target the\n"
+    "# list does not hold changes nothing.\n"
+    "def bump(slots: List<&1, Gradient.Slot>, +count: Nat, +target: Nat, "
+    "+shape: Shape.Shape, gradient: Core.Dynamic, same: Bool) ->\n"
+    "  Result<&2, &1, Error, List<&1, Gradient.Slot>>:\n"
+    "  match slots count same:\n"
+    "    case Nil{} count same:\n"
+    "      Done{Nil{}}\n"
+    "    case Con{slot, rest} 0n same:\n"
+    "      Done{slot <> rest}\n"
+    "    case Con{slot, rest} 1n+below True{}:\n"
+    "      placed(rest, Gradient.accumulate(shape, slot, gradient))"
+)
+PLACED_TWICE = """def again(+shape: Shape.Shape, rest: List<&1, Gradient.Slot>,
+  outcome: Gradient.Outcome, extra: Core.Dynamic) ->
+  Result<&2, &1, Error, List<&1, Gradient.Slot>>:
+  match outcome:
+    case Gradient.Accumulated{slot}:
+      placed(rest, Gradient.accumulate(shape, slot, extra))
+    case Gradient.Refused{slot, contribution, error}:
+      Fail{GradientError{error}}
+
+def placed_twice(rest: List<&1, Gradient.Slot>, +shape: Shape.Shape,
+  slot: Gradient.Slot, pair: Core.Dynamic & Core.Dynamic) ->
+  Result<&2, &1, Error, List<&1, Gradient.Slot>>:
+  (one, two) = pair
+  again(shape, rest, Gradient.accumulate(shape, slot, one), two)
+
+"""
+DELIVERED = (
+    "      deliver(rest, count, bump(slots, count, target, shape, gradient, "
+    "at_head(count, target)))"
+)
+CHAIN_CONTROLS = {
+    "sweep-drops-contribution": (
+        "src/autograd/tensor-backward.bend",
+        DELIVERED,
+        "      deliver(rest, count, Done{slots})",
+        "Location: relay",
+    ),
+    "sweep-adds-contribution-twice": (
+        "src/autograd/tensor-backward.bend",
+        BUMP_HIT,
+        PLACED_TWICE
+        + BUMP_HIT.replace(
+            "      placed(rest, Gradient.accumulate(shape, slot, gradient))",
+            "      placed_twice(rest, shape, slot, Core.clone_dynamic(gradient))",
+        ),
+        "Location: hit_bumped",
+    ),
+    "sweep-swaps-delivery-order": (
+        "src/autograd/tensor-backward.bend",
+        "      deliver(items, count, Done{slots})",
+        "      deliver(List.reverse(&1, Contribution, items), count, Done{slots})",
+        "Location: fired_stop",
+    ),
+    "sweep-sends-to-wrong-slot": (
+        "src/autograd/tensor-backward.bend",
+        DELIVERED,
+        "      deliver(rest, count, bump(slots, count, 1n+target, shape, gradient, "
+        "at_head(count, 1n+target)))",
+        "Location: relay",
+    ),
+}
+
+RUNTIME_CONTROLS |= {
+    name: (path, original, mutated)
+    for name, (path, original, mutated, _) in CHAIN_CONTROLS.items()
+}
 RUNTIME_CONTROLS["zero-grad-keeps-slot"] = (
     "Entry{node, shape, value, saved, Gradient.reset(slot)} <> cleared(rest)",
     "Entry{node, shape, value, saved, slot} <> cleared(rest)",
