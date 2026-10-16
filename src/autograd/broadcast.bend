@@ -6,6 +6,9 @@ import ../tensor/layout.bend as Layout
 
 # Materialized broadcast: an owned tensor of the requested shape whose every
 # position holds the input value at its right-aligned broadcast projection.
+# The elementwise parallel build writes it, KeepLeft with the input on the left
+# and a +0.0 tensor of the target on the right, so an output above 2^15 cells
+# is built in parallel halves.
 
 type Error is Data:
   TensorError{error: Core.Error}
@@ -26,7 +29,7 @@ def zeroed(input: Core.Dynamic, +target: Shape.Shape, +plan: Shape.BroadcastPlan
     case Fail{error}:
       (input, Fail{TensorError{error}})
     case Done{zeros}:
-      finish(Elementwise.allocated(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros},
+      finish(Elementwise.parallel_allocated(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros},
         Core.new(Shape.output_shape(plan), 0.0)))
 
 def fitted(input: Core.Dynamic, +target: Shape.Shape, +plan: Shape.BroadcastPlan, same: Bool) ->
