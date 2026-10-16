@@ -58,37 +58,41 @@ code. The [guarantee ledger](docs/guarantees.md) lists the full boundary.
 **Live and erased proofs.** Erased evidence is checked and then removed, so
 other code cannot take it as an input; live evidence is an ordinary value that
 later proofs and operations can receive
-([proof boundary](docs/proof-boundary.md)). Live today: construction,
+([proof boundary](docs/proof-boundary.md)). Live laws include: construction,
 `from_values`, reads and writes, clone and metadata, reshape, the values and
 failures of permute and transpose, the values of the pointwise and
 ordered-fold families with their broadcast, sum, dot and `matmul` instances,
-the values of `broadcast_to`, `reduce_to` and `sum_to_size`, and the values the
-tensor backward's `add`, `sub`, `mul`, `sum`, `matmul` and `linear` VJPs send.
-The public `Elementwise.binary`, built in parallel halves, exports the
-pointwise family's words for replayed inputs; `Reduction.sum` runs its own
-loop, which no live law relates to the families yet, and the other autograd
-laws are erased.
+the values of `broadcast_to`, `reduce_to` and `sum_to_size`, the values the
+tensor backward's `add`, `sub`, `mul`, `sum`, `matmul`, `linear`, `relu`,
+`mse_loss` and `cross_entropy` VJPs send, and the values of an SGD step. The
+public `Elementwise.binary`, built in parallel halves, exports the pointwise
+family's words for replayed inputs; `Reduction.sum` runs its own loop, which
+no live law relates to the families yet.
 
 **Tested.** The numerical results are tested, not proved. The frozen corpus in
 `oracle/tensor/fixtures/s2-v2.json` has 161 successful operation cases, 45
 expected errors and 7 shape-only cases, including empty and scalar tensors,
-signed zeros, subnormals, infinities and NaNs. The tensor gate runs every case
-natively and as generated JavaScript. Data-moving operations must match bit for
-bit, except for NaN payloads. Finite `add`, `sub` and `mul` results must be the
-correctly rounded word, which is also PyTorch's word. IEEE edge cases must give
-the exact word, or the same class (NaN or signed infinity) when the result is
-not finite. `sum` and `matmul` must be within a published rounding-error
-bound, and a zero result must have PyTorch's sign. The
-[numerical policy](oracle/tensor/README.md) defines these rules. Version 2 was
-frozen before any Bend result was compared with it; version 3 only adds checks,
-and a supplement adds 29 cases and 2 errors. The cases were then used during
-development, so they are regression evidence, not held-out evidence. The
-autograd building blocks have their own native and JavaScript lanes, which
-compare each output word, bit for bit, with a Python reference that follows
-the same order. A frozen [PyTorch record](oracle/autograd/README.md) of those
-requests ties the references to PyTorch's `expand`, `sum_to_size` and
-`backward`: they agree word for word, apart from the listed rank, capacity,
-NaN-payload and `None`-gradient differences.
+signed zeros, subnormals, infinities and NaNs. The tensor gate runs 202 of
+these 213 cases natively and as generated JavaScript (the 161 successes, 34
+errors and the 7 shape-only cases); the Python decoder refuses 4 errors whose
+values fall outside the unsigned 32-bit range, and the 7 unsupported-dtype
+errors become programs that the Bend checker and BendTT must reject.
+Data-moving operations must match bit for bit, except for NaN payloads. Finite
+`add`, `sub` and `mul` results must be the correctly rounded word, which is
+also PyTorch's word. IEEE edge cases must give the exact word, or the same
+class (NaN or signed infinity) when the result is not finite. `sum` and
+`matmul` must be within a published rounding-error bound, and a zero result
+must have PyTorch's sign. The [numerical policy](oracle/tensor/README.md)
+defines these rules. Version 2 was frozen before any Bend result was compared
+with it; version 3 only adds checks, and a supplement adds 29 cases and 2
+errors. The cases were then used during development, so they are regression
+evidence, not held-out evidence. The autograd building blocks have their own
+native and JavaScript lanes, which compare each output word, bit for bit, with
+a Python reference that follows the same order. A frozen
+[PyTorch record](oracle/autograd/README.md) of those requests ties the
+references to PyTorch's `expand`, `sum_to_size` and `backward`: they agree
+word for word, apart from the listed rank, capacity, NaN-payload and
+`None`-gradient differences.
 
 ## Limits
 
@@ -203,14 +207,15 @@ the sum 415 and the matrix `[[59, 63], [140, 153]]`.
 ### Full verification
 
 These checks are slower and use several GB of memory. Each gate writes its
-evidence to a new directory and refuses to overwrite an existing one.
+evidence to a new directory and refuses to overwrite an existing one, so pick
+a fresh name for each run:
 
 ```sh
 bend PROOF.bend --verdict
 uv run --locked python -m tools.test
-uv run --locked python -m tools.check all --output .evidence/<new directory>
-uv run --locked python -m verification.contracts.run --output <new directory>
-uv run --locked python -m verification.families.run --output <new directory>
+uv run --locked python -m tools.check all --output .evidence/check-run-1
+uv run --locked python -m verification.contracts.run --output .evidence/contracts-run-1
+uv run --locked python -m verification.families.run --output .evidence/families-run-1
 ```
 
 `PROOF.bend` checks the laws of every module. `tools.check all` runs one gate
