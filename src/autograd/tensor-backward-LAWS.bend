@@ -51,6 +51,8 @@ def targets(node: Backward.Node) -> List<&2, Nat>:
       [a, b]
     case Backward.MatmulNT{a, b, left, right}:
       [a, b]
+    case Backward.Relu{a, input}:
+      [a]
 
 def bounded(ids: List<&2, Nat>, +bound: Nat) -> Bool:
   match ids:

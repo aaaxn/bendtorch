@@ -438,3 +438,44 @@ law tn_reads_transpose:
     left, left_fill, left_ops, right, right_fill, right_ops, count) ==
     left_transposed_factors(row, column, U32.to_nat(inner), columns, left, left_fill, left_ops, swapped(left),
       right, right_fill, right_ops, count) : List<&2, DotFold.Factors>}
+
+# What a VJP that sends one contribution promises: it goes to node a with the
+# target's dimensions and holds cell(i) at every in-bounds i.
+type OneContract<-a: Nat, -target: Shape.Shape, -cell: U32 -> Maybe<&2, F32>, -pass: Backward.Pass> is Type:
+  OneContract{
+    target_id: {TensorBackward.sole_target(TensorBackward.sole(pass)) == Some{a} : Maybe<&2, Nat>},
+    dimensions: {TensorBackward.sole_dimensions(TensorBackward.sole(pass)) == Some{Shape.dimensions(target)} : Maybe<&2, List<&2, U32>>},
+    value: @+index: U32 -> @inside: {Nat.is_lt(U32.to_nat(index), Shape.logical_numel(Shape.dimensions(target))) == True{} : Bool} ->
+      {TensorBackward.sole_point(TensorBackward.sole(pass), index) == cell(index) : Maybe<&2, F32>}}
+
+# d relu(a)/da: with the saved input x (input's shape) and the gradient g
+# (shape), the Relu VJP sends the pointwise ReluBackward of x and g, reduced
+# to the input's shape, to a, and nothing else. Word k of the product is
+# scalar(ReluBackward, x[left_map(plan, k)], g[right_map(plan, k)]): +0.0
+# where that word of x is at most zero (`at_most_zero`, IEEE x <= 0), else
+# g's own word, as PyTorch's threshold_backward(g, relu(x), 0). The rank-0
+# value saved beside x is not read.
+law tensor_relu_vjp_values:
+  for +a: Nat
+  for +input: Shape.Shape
+  for +shape: Shape.Shape
+  for +plan: Shape.BroadcastPlan
+  for planned: {Shape.broadcast_checked(input, shape) == Done{plan} : Result<&2, &2, Shape.Error, Shape.BroadcastPlan>}
+  for +input_plan: Shape.BroadcastPlan
+  for input_planned: {Shape.broadcast_checked(input, Shape.output_shape(plan)) == Done{input_plan} :
+    Result<&2, &2, Shape.Error, Shape.BroadcastPlan>}
+  for input_same: {Shape.dimensions(Shape.output_shape(input_plan)) == Shape.dimensions(Shape.output_shape(plan)) : List<&2, U32>}
+  for zero: Core.Dynamic
+  for +fill: F32
+  for +ops: List<&2, StorageLaws.Op>
+  for -fits: {Lifecycle.logical_length(Replayed.storage(shape, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}
+  for +input_fill: F32
+  for +input_ops: List<&2, StorageLaws.Op>
+  for -input_fits: {Lifecycle.logical_length(Replayed.storage(input, input_fill, input_ops)) == Shape.logical_numel(Shape.dimensions(input)) : Nat}
+  OneContract<a, input, index => reduced(input, Shape.output_shape(plan), input_plan,
+      cells(Elementwise.ReluBackward{}, plan, input, input_fill, input_ops, shape, fill, ops,
+        Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan)))),
+      index),
+    Backward.vjp(Backward.Relu{a, input},
+      Backward.Operands{Core.Packed{input, Core.TTensor{Replayed.storage(input, input_fill, input_ops), input_fits}}, zero},
+      Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}})>

@@ -128,6 +128,8 @@ def operands_bounded(+node: Backward.Node, +bound: Nat) ->
       pair_bounded(a, b, bound)
     case Backward.MatmulNT{a, b, left, right}:
       pair_bounded(a, b, bound)
+    case Backward.Relu{a, input}:
+      Equal.sym(Bool, Bool.and(Nat.is_lt(a, bound), True{}), Nat.is_lt(a, bound), and_true(Nat.is_lt(a, bound)))
 
 def Laws.tensor_wired_matches_operand_bounds(graph):
   match graph:

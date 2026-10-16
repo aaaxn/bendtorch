@@ -10,6 +10,7 @@ from tools.autograd_broadcast import is_nan, word
 from tools.autograd_tensor_backward import (
     MATMUL_INNER,
     MATMUL_RANK,
+    NATIVE_CONTROLS,
     RUNTIME_CONTROLS,
     ZERO_GRAD,
     cases,
@@ -26,7 +27,7 @@ from tools.autograd_tensor_backward import (
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "523838f2a3864f4312fb665dad99c65ef167d71afd1ca73f37a3eee57e0e96b2"
+FIXTURE_SHA256 = "5b00cfd56abc6ec69d963503cca9ce00570ef4346c7345f38c2d86b582bb9e1e"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
@@ -42,16 +43,19 @@ REJECTIONS = {
     "linear_bias_next",
     "linear_bias_unknown",
     "matmul_nt_rank",
+    "relu_unknown_operand",
 }
 RUNTIME_ERROR_CODES = {6, MATMUL_RANK, MATMUL_INNER, 10}
 FORGED = {"dangling_self", "dangling_newer", "dangling_missing"}
 # NaN * NaN: the payload is not specified by the tensor layer.
-NAN_PAYLOAD = {"specials"}
+NAN_PAYLOAD = {"specials", "relu_edges", "relu_nan_gradient"}
 # The forward value differs, not the backward: rounding_09 sums six words in
 # ascending order where PyTorch's vectorized sum takes another order, and
 # rounding_14 has a matmul with inner dimension 1 whose only product is -0.0:
 # the ordered dot adds it to +0.0 and gives +0.0, PyTorch's gemm keeps -0.0.
-FORWARD_ORDER = {"rounding_09", "rounding_14"}
+# relu_13 has the same inner-dimension-1 matmul, whose products 0.5 * -1e-45
+# and 0.5 * -0.0 are -0.0.
+FORWARD_ORDER = {"rounding_09", "rounding_14", "relu_13"}
 
 
 def case(steps: list[dict]) -> dict:
@@ -317,6 +321,54 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
         )
 
 
+def canonicalized(lines: list[str], index: int) -> list[str]:
+    changed = list(lines)
+    changed[index] = f"tensor:word:{CANONICAL}"
+    return changed
+
+
+CANONICAL = 0x7FC00000
+
+
+class ReluExactWordTests(unittest.TestCase):
+    """The native lane holds relu's words exact, NaNs included; any NaN for any
+    NaN is still accepted elsewhere and on the JavaScript lane."""
+
+    def selected(self, identifier: str) -> dict:
+        return next(row for row in cases() if row["id"] == identifier)
+
+    def word_index(self, lines: list[str], header: str, nth: int, word: int) -> int:
+        start = [i for i, line in enumerate(lines) if line == header][nth] + 3
+        return lines.index(f"tensor:word:{word}", start)
+
+    def test_reference_lines_pass_on_both_lanes(self):
+        for identifier in ("relu_edges", "relu_nan_gradient", "relu_two_layers"):
+            row = self.selected(identifier)
+            observed = [{"id": identifier, "lines": reference(row)}]
+            verify([row], observed, "native", native=True)
+            verify([row], observed, "javascript")
+
+    def test_a_canonical_nan_from_relu_fails_only_the_native_check(self):
+        row = self.selected("relu_edges")
+        lines = reference(row)
+        # Node 1 is relu(x): its word for the negative signaling NaN.
+        index = self.word_index(lines, "autograd:value", 1, 0xFF800001)
+        observed = [{"id": row["id"], "lines": canonicalized(lines, index)}]
+        verify([row], observed, "javascript")
+        with self.assertRaisesRegex(GateError, "relu of node 0 is not exact"):
+            verify([row], observed, "native", native=True)
+
+    def test_a_canonical_nan_in_the_passed_gradient_fails_the_native_check(self):
+        row = self.selected("relu_nan_gradient")
+        lines = reference(row)
+        # Node 0's gradient where x = 1.0: g's own word, a negative NaN.
+        index = self.word_index(lines, "autograd:grad", 0, 0xFFC00001)
+        observed = [{"id": row["id"], "lines": canonicalized(lines, index)}]
+        verify([row], observed, "javascript")
+        with self.assertRaisesRegex(GateError, "relu gradient of node 0 is not exact"):
+            verify([row], observed, "native", native=True)
+
+
 class GateRegistrationTests(unittest.TestCase):
     def test_autograd_gate_registers_tensor_backward_and_its_laws(self):
         self.assertIn("tensor_backward", SUBGATES)
@@ -338,6 +390,7 @@ class GateRegistrationTests(unittest.TestCase):
                 "tensor_2d_vjp_2d_LAWS.tensor_matmul_nt_vjp_values",
                 "tensor_2d_vjp_2d_LAWS.nt_reads_transpose",
                 "tensor_2d_vjp_2d_LAWS.tn_reads_transpose",
+                "tensor_2d_vjp_2d_LAWS.tensor_relu_vjp_values",
             ],
         )
         controls = [
@@ -348,8 +401,17 @@ class GateRegistrationTests(unittest.TestCase):
         for path, original, _ in PROOF_CONTROLS.values():
             self.assertEqual((ROOT / path).read_text().count(original), 1)
 
+    def test_native_controls_apply_once(self):
+        self.assertEqual(
+            set(NATIVE_CONTROLS),
+            {"relu-canonicalizes-nan", "relu-backward-canonicalizes-nan"},
+        )
+        for path, original, mutated in NATIVE_CONTROLS.values():
+            self.assertEqual((ROOT / path).read_text().count(original), 1)
+            self.assertIn("quiet(2143289344)", mutated)
+
     def test_runtime_controls_apply_once(self):
-        self.assertEqual(len(RUNTIME_CONTROLS), 13)
+        self.assertEqual(len(RUNTIME_CONTROLS), 17)
         for control in RUNTIME_CONTROLS.values():
             path, original, mutated = (
                 control
@@ -368,7 +430,9 @@ class TensorBackwardRuntimeTests(unittest.TestCase):
             summary = run_gate(ROOT / ".tools", Path(directory) / "run")
         self.assertEqual(summary["native"], summary["javascript"])
         self.assertEqual(summary["native"]["cases"], len(cases()))
-        self.assertEqual(summary["runtime_controls"], list(RUNTIME_CONTROLS))
+        self.assertEqual(
+            summary["runtime_controls"], [*RUNTIME_CONTROLS, *NATIVE_CONTROLS]
+        )
 
 
 if __name__ == "__main__":

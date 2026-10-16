@@ -8,7 +8,12 @@ from pathlib import Path
 from unittest.mock import Mock
 
 from tools.common import ROOT, Evidence, GateError
-from tools.tensor import certificate_controls, verify_lane
+from tools.tensor import (
+    RELU_CONTROLS,
+    RELU_WITNESSES,
+    certificate_controls,
+    verify_lane,
+)
 from tools.tensor_runtime import (
     ERROR_CODES,
     SUCCESS_GROUPS,
@@ -115,6 +120,25 @@ class GateAcceptanceTests(unittest.TestCase):
         self.assertTrue(laws)
         self.assertLessEqual(laws, set(required))
         self.assertEqual(len(required), len(set(required)))
+
+    def test_relu_controls_apply_once_and_name_a_relu_law(self):
+        source = (ROOT / "src/tensor/elementwise.bend").read_text()
+        laws = (ROOT / "src/tensor/relu-LAWS.bend").read_text()
+        self.assertEqual(len(RELU_CONTROLS), 7)
+        for original, mutated, location in RELU_CONTROLS.values():
+            self.assertEqual(source.count(original), 1)
+            self.assertNotEqual(original, mutated)
+            if location.startswith("Laws."):
+                law = location.removeprefix("Laws.")
+            else:
+                # A witness is an instance of the law its name starts with.
+                self.assertIn(location, RELU_WITNESSES)
+                law = location.rsplit("_at_", 1)[0]
+            self.assertIn(f"law {law}:\n", laws)
+        self.assertEqual(
+            RELU_CONTROLS["relu-backward-ignores-gradient"][2],
+            "scalar_relu_backward_passed_at_one",
+        )
 
     def test_law_exports_name_every_law_and_each_template_law_once(self):
         text = (
