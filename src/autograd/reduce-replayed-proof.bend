@@ -585,6 +585,33 @@ def tree_node_eq(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
   tree_join_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, lower, base, a,
     Parallel.tree(~Reduce.Fibers, ~Array<F32>, ~Unit, ~Reduce.cell_at, Reduce.fibers(Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}), lower, count, Nat.add(Model.capacity(lower), base), (Api.arr(h, d, f), Unit{})), ea, next)
 
+# The depth-1 tree: the leaf of cell `base` and the leaf of the cell after
+# it, which reads the state the first hands back.
+def pair_join_eq(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
+  +rows_exact: {rows == Shape.index_table(Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan))) : List<&2, Shape.Row>},
+  +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +h: List<&2, Api.Effect>, +d: Nat, +f: F32, +count: Nat, +base: Nat, x: F32, high: F32 & Array<F32> & Unit,
+  ex: {ALeaf{x} == out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, 0n, base) : Array<F32>},
+  leaf_facts: TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, 0n, Nat.add(1n, base), Parallel.leaf(~(Array<F32> & Unit), high))) ->
+  TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, 1n, base, Parallel.pair_join(~(Array<F32> & Unit), x, high)):
+  (y, inputs) = high
+  (ey, kept) = leaf_facts
+  (%Equal.sym(Array<F32>, ALeaf{x}, out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, 0n, base), ex) : {ANode{_, ALeaf{y}} == ANode{out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, 0n, base), out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, 0n, Nat.add(1n, base))} : Array<F32>}
+   %Equal.sym(Array<F32>, ALeaf{y}, out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, 0n, Nat.add(1n, base)), ey) : {ANode{out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, 0n, base), _} == ANode{out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, 0n, base), out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, 0n, Nat.add(1n, base))} : Array<F32>}
+   {==}, kept)
+
+def pair_eq(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
+  +rows_exact: {rows == Shape.index_table(Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan))) : List<&2, Shape.Row>},
+  +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +h: List<&2, Api.Effect>, +d: Nat, +f: F32, +count: Nat, +source: Par.Source<shape, fill, ops, h, d, f>, +facts: Facts<plan, shape, count>, +base: Nat, low: F32 & Array<F32> & Unit,
+  leaf_facts: TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, 0n, base, Parallel.leaf(~(Array<F32> & Unit), low))) ->
+  TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, 1n, base, Parallel.pair(~Reduce.Fibers, ~Array<F32>, ~Unit, ~Reduce.cell_at, Reduce.fibers(Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}), count, base, low)):
+  (x, state) = low
+  (array, none) = state
+  (ex, ek) = leaf_facts
+  %Equal.sym(Array<F32> & Unit, (array, none), (Api.arr(h, d, f), Unit{}), ek) :
+    TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, 1n, base, Parallel.pair_join(~(Array<F32> & Unit), x, Reduce.cell_at(Reduce.fibers(Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}), Nat.add(1n, base), _, Nat.is_lt(Nat.add(1n, base), count))))
+  pair_join_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, base, x, Reduce.cell_at(Reduce.fibers(Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}), Nat.add(1n, base), (Api.arr(h, d, f), Unit{}), Nat.is_lt(Nat.add(1n, base), count)), ex,
+    cell_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, source, facts, Nat.add(1n, base), Nat.is_lt(Nat.add(1n, base), count), {==}))
+
 def tree_eq(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
   +rows_exact: {rows == Shape.index_table(Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan))) : List<&2, Shape.Row>},
   +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +h: List<&2, Api.Effect>, +d: Nat, +f: F32, +count: Nat,
@@ -595,10 +622,15 @@ def tree_eq(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
     case 0n:
       cell_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, source, facts, base, Nat.is_lt(base, count), {==})
     case 1n+lower:
-      tree_node_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, lower, base,
-        Parallel.tree(~Reduce.Fibers, ~Array<F32>, ~Unit, ~Reduce.cell_at, Reduce.fibers(Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}), lower, count, base, (Api.arr(h, d, f), Unit{})),
-        tree_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, source, facts, lower, base),
-        tree_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, source, facts, lower, Nat.add(Model.capacity(lower), base)))
+      match lower:
+        case 0n:
+          pair_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, source, facts, base, Reduce.cell_at(Reduce.fibers(Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}), base, (Api.arr(h, d, f), Unit{}), Nat.is_lt(base, count)),
+            cell_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, source, facts, base, Nat.is_lt(base, count), {==}))
+        case 1n+below:
+          tree_node_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, lower, base,
+            Parallel.tree(~Reduce.Fibers, ~Array<F32>, ~Unit, ~Reduce.cell_at, Reduce.fibers(Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}), lower, count, base, (Api.arr(h, d, f), Unit{})),
+            tree_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, source, facts, lower, base),
+            tree_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, source, facts, lower, Nat.add(Model.capacity(lower), base)))
 
 def tree_first(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
   +rows_exact: {rows == Shape.index_table(Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan))) : List<&2, Shape.Row>},

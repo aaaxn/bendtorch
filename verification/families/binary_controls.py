@@ -107,6 +107,14 @@ FAMILY = controls.Family(
             f"{BUILD}.cell_right_eq",
             tuple(f"parallel.leaf.qv{suffix}" for suffix in ("", "_1", "_2", "_3")),
         ),
+        "pair-writes-zero": Site(
+            "pair_join_eq",
+            ", 0.0]",
+            f"{BUILD}.pair_join_eq",
+            tuple(
+                f"parallel.pair_join.qv{suffix}" for suffix in ("", "_1", "_2", "_3")
+            ),
+        ),
     },
     proof="src/tensor/contracts/binary-PROOF.bend",
     prefix=SRC,

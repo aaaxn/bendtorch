@@ -11,13 +11,23 @@ independent hands it:
   pair `A & B`: the two input arrays for elementwise and matmul, the
   contribution array and a `Unit` for `reduce_to`.
 - `prepare(q)`: what every cell reads, built from the build's parameters `q`.
-  Each thread below the forks prepares its own, so no two threads share it.
+  It runs once per subtree below the forks. It builds a new record but does
+  not copy the lists inside it, so subtrees may share them; a subtree is not
+  tied to one worker thread.
 
 The cells `base .. base + 2^depth` form a balanced tree. The top `splits`
 levels fork, each half with its own copy of the state, and each subtree below
 the forks fills its cells in index order on one thread. `cell`, `split` and
 `prepare` are templates (`~` parameters), so each operation compiles its own
-copy of the build with its functions inlined, as if written by hand.
+copy of the build, with no function argument passed at run time. That does
+not inline their bodies: the cell stays a call of its own.
+
+The bottom level of the tree is `pair`: it calls the cell for `base`, then for
+`base + 1` with the state the first hands back, and builds the node of the two
+leaves itself. So no leaf pays for an extra return through `leaf`, and the
+bottom level, half of the tree's nodes, creates no closure. `leaf` builds
+only a one-cell output. For `mul` on `[1024, 1024]` at one thread this makes
+the build about 35% faster than the build with one call per leaf.
 
 | Operation | `q` | `prepare(q)` | state | cell |
 | --- | --- | --- | --- | --- |
@@ -60,7 +70,8 @@ A new operation, such as a convolution or a softmax row, writes its cell
 function and these three facts; the tree, the forks, the balance certificate
 and the per-cell walk come from the generic law.
 
-The mutants `high-fork-reuses-base` and `leaf-writes-zero` of the binary
-family edit `parallel.bend`; both keep the build balanced, so the certificate
-still checks, and the laws reject them, `parallel_build_cells` among them
-(`node_cell`, `leaf_facts`).
+The mutants `high-fork-reuses-base`, `leaf-writes-zero` and
+`pair-writes-zero` of the binary family edit `parallel.bend`; all keep the
+build balanced, so the certificate still checks, and the laws reject them,
+`parallel_build_cells` among them (`node_cell`, `leaf_facts`,
+`pair_join_facts`).

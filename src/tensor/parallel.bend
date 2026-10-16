@@ -6,13 +6,12 @@ import ../storage/model.bend as Model
 # function: `cell(p, position, state, inside)` returns the F32 of output
 # cell `position` and hands its input state back, and `split(state)` copies
 # the state for the two halves of a fork. `p = prepare(q)` holds what every
-# cell needs, such as an index map; each thread below the forks prepares
-# its own, so no two threads share it. The state is a pair `A & B`, such
-# as two input arrays. The cells `base .. base + 2^depth` form a balanced
-# tree. The top `splits` levels fork, each half with its own copy of the
+# cell needs, such as an index map; each subtree below the forks prepares
+# it once. The state is a pair `A & B`, such as two input arrays. The cells
+# `base .. base + 2^depth` form a balanced tree. The top `splits` levels fork, each half with its own copy of the
 # state, and each subtree below the forks fills its cells in index order on
-# one thread. `cell` and `split` are templates, so each operation compiles its
-# own copy of the build with its cell inlined, as if written by hand.
+# one thread. `cell`, `split` and `prepare` are templates, so each operation
+# compiles its own copy of the build; the cell is still called, not inlined.
 
 def leaf(~S: Type, pair: F32 & S) -> Array<F32> & S:
   (value, state) = pair
@@ -33,6 +32,21 @@ def node(~A: Type, ~B: Type, rec: A -> B -> Array<F32> & (A & B), low: Array<F32
 def upper(+inner: Nat, +base: Nat) -> Nat:
   Nat.add(Model.capacity(inner), base)
 
+# The depth-1 tree, cells `base` and `base + 1`: the second cell reads the
+# state the first hands back, and the node of the two leaves is built here.
+# The bottom level of every deeper tree runs this, so no leaf returns
+# through `leaf` and half of the tree's nodes create no closure. The second
+# cell is `Nat.add(1n, base)`, which is `upper(0n, base)` but a flat add.
+def pair_join(~S: Type, x: F32, high: F32 & S) -> Array<F32> & S:
+  (y, state) = high
+  (ANode{ALeaf{x}, ALeaf{y}}, state)
+
+def pair(~P: Data, ~A: Type, ~B: Type, ~cell: @+p: P -> @+position: Nat -> A & B -> Bool -> F32 & (A & B),
+  +p: P, +count: Nat, +base: Nat, low: F32 & (A & B)) -> Array<F32> & (A & B):
+  (x, state) = low
+  (l, r) = state
+  pair_join(~(A & B), x, cell(p, Nat.add(1n, base), (l, r), Nat.is_lt(Nat.add(1n, base), count)))
+
 # The cells `base .. base + 2^depth` as a balanced tree, built in index order
 # on one thread. A cell at or past `count` is padding.
 def tree(~P: Data, ~A: Type, ~B: Type, ~cell: @+p: P -> @+position: Nat -> A & B -> Bool -> F32 & (A & B),
@@ -41,8 +55,12 @@ def tree(~P: Data, ~A: Type, ~B: Type, ~cell: @+p: P -> @+position: Nat -> A & B
     case 0n:
       leaf(~(A & B), cell(p, base, state, Nat.is_lt(base, count)))
     case 1n+inner:
-      node(~A, ~B, l => r => tree(~P, ~A, ~B, ~cell, p, inner, count, upper(inner, base), (l, r)),
-        tree(~P, ~A, ~B, ~cell, p, inner, count, base, state))
+      match inner:
+        case 0n:
+          pair(~P, ~A, ~B, ~cell, p, count, base, cell(p, base, state, Nat.is_lt(base, count)))
+        case 1n+below:
+          node(~A, ~B, l => r => tree(~P, ~A, ~B, ~cell, p, inner, count, upper(inner, base), (l, r)),
+            tree(~P, ~A, ~B, ~cell, p, inner, count, base, state))
 
 def fork(~A: Type, ~B: Type, pair: (A & B) & (A & B), low: A -> B -> Array<F32>, high: A -> B -> Array<F32>) -> Array<F32>:
   (first, second) = pair
@@ -101,6 +119,16 @@ def node_certified(~A: Type, ~B: Type, +inner: Nat, -rec: A -> B -> Array<F32> &
   Certified{result, same, balanced} = certified
   node_split(~A, ~B, inner, rec, low, result, same, balanced, next)
 
+def pair_joined(~S: Type, x: F32, high: F32 & S) -> Certified<S, 1n, pair_join(~S, x, high)>:
+  (y, rest) = high
+  Certified{pair_join(~S, x, (y, rest)), {==}, (Unit{}, Unit{})}
+
+def pair_certified(~P: Data, ~A: Type, ~B: Type, ~cell: @+p: P -> @+position: Nat -> A & B -> Bool -> F32 & (A & B),
+  +p: P, +count: Nat, +base: Nat, low: F32 & (A & B)) -> Certified<(A & B), 1n, pair(~P, ~A, ~B, ~cell, p, count, base, low)>:
+  (x, state) = low
+  (l, r) = state
+  pair_joined(~(A & B), x, cell(p, Nat.add(1n, base), (l, r), Nat.is_lt(Nat.add(1n, base), count)))
+
 def tree_certified(~P: Data, ~A: Type, ~B: Type, ~cell: @+p: P -> @+position: Nat -> A & B -> Bool -> F32 & (A & B),
   +p: P, +depth: Nat, +count: Nat, +base: Nat, state: A & B) ->
   Certified<(A & B), depth, tree(~P, ~A, ~B, ~cell, p, depth, count, base, state)>:
@@ -108,10 +136,14 @@ def tree_certified(~P: Data, ~A: Type, ~B: Type, ~cell: @+p: P -> @+position: Na
     case 0n:
       leaf_certified(~(A & B), cell(p, base, state, Nat.is_lt(base, count)))
     case 1n+inner:
-      node_certified(~A, ~B, inner, l => r => tree(~P, ~A, ~B, ~cell, p, inner, count, upper(inner, base), (l, r)),
-        tree(~P, ~A, ~B, ~cell, p, inner, count, base, state),
-        tree_certified(~P, ~A, ~B, ~cell, p, inner, count, base, state),
-        l => r => tree_certified(~P, ~A, ~B, ~cell, p, inner, count, upper(inner, base), (l, r)))
+      match inner:
+        case 0n:
+          pair_certified(~P, ~A, ~B, ~cell, p, count, base, cell(p, base, state, Nat.is_lt(base, count)))
+        case 1n+below:
+          node_certified(~A, ~B, inner, l => r => tree(~P, ~A, ~B, ~cell, p, inner, count, upper(inner, base), (l, r)),
+            tree(~P, ~A, ~B, ~cell, p, inner, count, base, state),
+            tree_certified(~P, ~A, ~B, ~cell, p, inner, count, base, state),
+            l => r => tree_certified(~P, ~A, ~B, ~cell, p, inner, count, upper(inner, base), (l, r)))
 
 # The one-thread tree is balanced at its depth.
 def tree_balanced(~P: Data, ~A: Type, ~B: Type, ~cell: @+p: P -> @+position: Nat -> A & B -> Bool -> F32 & (A & B),

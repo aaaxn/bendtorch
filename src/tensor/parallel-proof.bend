@@ -127,6 +127,35 @@ def node_facts(~P: Data, ~A: Type, ~B: Type, ~cell: @+p: P -> @+position: Nat ->
     next(l)(r)({\{Fact: q => q} : Fact<({Pair.snd(Array<F32>, (A & B), (a, (l, r))) == start : (A & B)})> -> {Pair.snd(Array<F32>, (A & B), (a, (l, r))) == start : (A & B)}}(
       facts_kept(~P, ~A, ~B, ~cell, p, start, inner, count, base, (a, (l, r)), facts))))
 
+# The depth-1 tree: the leaf of cell `base` next to the leaf of the cell
+# after it, which reads the state the first hands back.
+def pair_join_facts(~P: Data, ~A: Type, ~B: Type, ~cell: @+p: P -> @+position: Nat -> (A & B) -> Bool -> F32 & (A & B),
+  +p: P, -start: (A & B), +count: Nat, +base: Nat, x: F32, high: F32 & (A & B),
+  -low: Fact<Cells(~P, ~A, ~B, ~cell, p, start, 0n, count, base, ALeaf{x})>,
+  -exact: {high == cell(p, Nat.add(1n, base), start, Nat.is_lt(Nat.add(1n, base), count)) : F32 & (A & B)},
+  -keeps: Keeps(~P, ~A, ~B, ~cell, p, start)) ->
+  Fact<TreeFacts(~P, ~A, ~B, ~cell, p, start, 1n, count, base, Build.pair_join(~(A & B), x, high))>:
+  (y, rest) = high
+  join_facts(~P, ~A, ~B, ~cell, p, start, 0n, count, base, ALeaf{x}, Build.leaf(~(A & B), (y, rest)), low,
+    leaf_facts(~P, ~A, ~B, ~cell, p, start, count, Build.upper(0n, base), (y, rest), exact, keeps))
+
+def pair_facts(~P: Data, ~A: Type, ~B: Type, ~cell: @+p: P -> @+position: Nat -> (A & B) -> Bool -> F32 & (A & B),
+  +p: P, -start: (A & B), +count: Nat, +base: Nat, low: F32 & (A & B),
+  -exact: {low == cell(p, base, start, Nat.is_lt(base, count)) : F32 & (A & B)},
+  -keeps: Keeps(~P, ~A, ~B, ~cell, p, start)) ->
+  Fact<TreeFacts(~P, ~A, ~B, ~cell, p, start, 1n, count, base, Build.pair(~P, ~A, ~B, ~cell, p, count, base, low))>:
+  (x, s) = low
+  (l, r) = s
+  pair_join_facts(~P, ~A, ~B, ~cell, p, start, count, base, x, cell(p, Nat.add(1n, base), (l, r), Nat.is_lt(Nat.add(1n, base), count)),
+    facts_cells(~P, ~A, ~B, ~cell, p, start, 0n, count, base, Build.leaf(~(A & B), (x, (l, r))),
+      leaf_facts(~P, ~A, ~B, ~cell, p, start, count, base, (x, (l, r)), exact, keeps)),
+    Equal.cong((A & B), F32 & (A & B), q => cell(p, Nat.add(1n, base), q, Nat.is_lt(Nat.add(1n, base), count)), (l, r), start,
+      {\{Fact: q => q} : Fact<({Pair.snd(Array<F32>, (A & B), Build.leaf(~(A & B), (x, (l, r)))) == start : (A & B)})> ->
+        {Pair.snd(Array<F32>, (A & B), Build.leaf(~(A & B), (x, (l, r)))) == start : (A & B)}}(
+        facts_kept(~P, ~A, ~B, ~cell, p, start, 0n, count, base, Build.leaf(~(A & B), (x, (l, r))),
+          leaf_facts(~P, ~A, ~B, ~cell, p, start, count, base, (x, (l, r)), exact, keeps)))),
+    keeps)
+
 # The one-thread tree hands `start` back and fills every cell as CellIs
 # says.
 def tree_facts(~P: Data, ~A: Type, ~B: Type, ~cell: @+p: P -> @+position: Nat -> (A & B) -> Bool -> F32 & (A & B),
@@ -138,11 +167,16 @@ def tree_facts(~P: Data, ~A: Type, ~B: Type, ~cell: @+p: P -> @+position: Nat ->
       leaf_facts(~P, ~A, ~B, ~cell, p, start, count, base, cell(p, base, state, Nat.is_lt(base, count)),
         Equal.cong((A & B), F32 & (A & B), s => cell(p, base, s, Nat.is_lt(base, count)), state, start, at), keeps)
     case 1n+inner:
-      node_facts(~P, ~A, ~B, ~cell, p, start, inner, count, base,
-        l => r => Build.tree(~P, ~A, ~B, ~cell, p, inner, count, Build.upper(inner, base), (l, r)),
-        Build.tree(~P, ~A, ~B, ~cell, p, inner, count, base, state),
-        tree_facts(~P, ~A, ~B, ~cell, p, start, inner, count, base, state, at, keeps),
-        l => r => at => tree_facts(~P, ~A, ~B, ~cell, p, start, inner, count, Build.upper(inner, base), (l, r), at, keeps))
+      match inner:
+        case 0n:
+          pair_facts(~P, ~A, ~B, ~cell, p, start, count, base, cell(p, base, state, Nat.is_lt(base, count)),
+            Equal.cong((A & B), F32 & (A & B), s => cell(p, base, s, Nat.is_lt(base, count)), state, start, at), keeps)
+        case 1n+below:
+          node_facts(~P, ~A, ~B, ~cell, p, start, inner, count, base,
+            l => r => Build.tree(~P, ~A, ~B, ~cell, p, inner, count, Build.upper(inner, base), (l, r)),
+            Build.tree(~P, ~A, ~B, ~cell, p, inner, count, base, state),
+            tree_facts(~P, ~A, ~B, ~cell, p, start, inner, count, base, state, at, keeps),
+            l => r => at => tree_facts(~P, ~A, ~B, ~cell, p, start, inner, count, Build.upper(inner, base), (l, r), at, keeps))
 
 def half_equal(-S: Type, -start: S, -state: S, -half: S, -split: S -> S & S, -pick: (S & S) -> S,
   picked: {half == pick(split(state)) : S}, at: {state == start : S}, copied: {pick(split(start)) == start : S}) ->

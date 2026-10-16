@@ -36,3 +36,10 @@ before = '''
   (ALeaf{value}, state)'''
 after = '''
   (ALeaf{0.0}, state)'''
+
+[pair-writes-zero]
+file = "src/tensor/parallel.bend"
+before = '''
+  (ANode{ALeaf{x}, ALeaf{y}}, state)'''
+after = '''
+  (ANode{ALeaf{x}, ALeaf{0.0}}, state)'''

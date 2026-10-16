@@ -375,14 +375,17 @@ of the fold family fail those walks, so they cover the transport laws too.
 | Cell swaps returned inputs | `cell_right` hands the input arrays back swapped | `cell_right_eq` | `cell_right_eq` |
 | Padding not zero | a cell past the count holds `1.0` | `cell_eq` | `cell_eq` |
 | Leaf writes zero | `Parallel.leaf` stores `0.0` instead of the cell's F32 | `cell_right_eq` | `cell_right_eq` |
+| Pair writes zero | `Parallel.pair_join` stores `0.0` in the second leaf of a depth-1 node | `pair_join_eq` | `pair_join_eq` |
 
-Three mutants change `src/tensor/elementwise.bend`, and two change
+Three mutants change `src/tensor/elementwise.bend`, and three change
 `src/tensor/parallel.bend`, the build that elementwise, matmul and reduce_to
-share: there `upper` and `leaf` keep the build balanced, so its certificate
-still checks, and only the laws reject them. The generic law
-`parallel_build_cells` (`src/tensor/parallel-LAWS.bend`) rejects both too, in
-`node_cell` and `leaf_facts` of `src/tensor/parallel-proof.bend`, for every
-operation. The erased `elementwise-parallel-proof.bend` would reject most of
+share: there `upper`, `leaf` and `pair_join` keep the build balanced, so its
+certificate still checks, and only the laws reject them. `leaf` builds only
+a one-cell output; every deeper tree builds its bottom level with
+`pair_join`. The generic law `parallel_build_cells`
+(`src/tensor/parallel-LAWS.bend`) rejects all three too, in `node_cell`,
+`leaf_facts` and `pair_join_facts` of `src/tensor/parallel-proof.bend`, for
+every operation. The erased `elementwise-parallel-proof.bend` would reject most of
 the mutants too, so the source check runs
 `src/tensor/contracts/binary-PROOF.bend`, which imports only the live proof. The erased `BinaryModel` states only the cells below the count;
 `binary_replayed` states the whole output storage, so its statement, and not

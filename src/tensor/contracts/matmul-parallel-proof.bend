@@ -613,6 +613,37 @@ def tree_node_eq(+span: Nat, +columns: Nat, +left: Shape.Shape, +left_fill: F32,
     TreeEq(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, count, 1n+lower, base, Parallel.join(~(Array<F32> & Array<F32>), a, Parallel.tree(~Matrix.Dims, ~Array<F32>, ~Array<F32>, ~Matrix.cell_at, Matrix.dims(Matrix.Dims{span, columns}), lower, count, Nat.add(Model.capacity(lower), base), (Api.arr(ha, dl, fa), _))))
   tree_join_eq(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, count, lower, base, a, Parallel.tree(~Matrix.Dims, ~Array<F32>, ~Array<F32>, ~Matrix.cell_at, Matrix.dims(Matrix.Dims{span, columns}), lower, count, Nat.add(Model.capacity(lower), base), (Api.arr(ha, dl, fa), Api.arr(hb, dr, fb))), ea, next)
 
+# The depth-1 tree: the leaf of cell `base` and the leaf of the cell after
+# it, which reads the state the first hands back.
+def pair_join_eq(+span: Nat, +columns: Nat, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>, +ha: List<&2, Api.Effect>, +dl: Nat, +fa: F32, +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +hb: List<&2, Api.Effect>, +dr: Nat, +fb: F32, +count: Nat, +base: Nat, x: F32, high: F32 & Array<F32> & Array<F32>,
+  ex: {ALeaf{x} == out_spec(span, columns, left, left_fill, left_ops, right, right_fill, right_ops, count, 0n, base) : Array<F32>},
+  leaf_facts: TreeEq(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, count, 0n, Nat.add(1n, base), Parallel.leaf(~(Array<F32> & Array<F32>), high))) ->
+  TreeEq(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, count, 1n, base, Parallel.pair_join(~(Array<F32> & Array<F32>), x, high)):
+  (y, inputs) = high
+  (ey, kept) = leaf_facts
+  (%Equal.sym(Array<F32>, ALeaf{x}, out_spec(span, columns, left, left_fill, left_ops, right, right_fill, right_ops, count, 0n, base), ex) : {ANode{_, ALeaf{y}} == ANode{out_spec(span, columns, left, left_fill, left_ops, right, right_fill, right_ops, count, 0n, base), out_spec(span, columns, left, left_fill, left_ops, right, right_fill, right_ops, count, 0n, Nat.add(1n, base))} : Array<F32>}
+   %Equal.sym(Array<F32>, ALeaf{y}, out_spec(span, columns, left, left_fill, left_ops, right, right_fill, right_ops, count, 0n, Nat.add(1n, base)), ey) : {ANode{out_spec(span, columns, left, left_fill, left_ops, right, right_fill, right_ops, count, 0n, base), _} == ANode{out_spec(span, columns, left, left_fill, left_ops, right, right_fill, right_ops, count, 0n, base), out_spec(span, columns, left, left_fill, left_ops, right, right_fill, right_ops, count, 0n, Nat.add(1n, base))} : Array<F32>}
+   {==}, kept)
+
+def pair_eq(+span: Nat, +columns: Nat, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>, +ha: List<&2, Api.Effect>, +dl: Nat, +fa: F32, +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +hb: List<&2, Api.Effect>, +dr: Nat, +fb: F32, +count: Nat, +lsrc: Source<left, left_fill, left_ops, ha, dl, fa>, +rsrc: Source<right, right_fill, right_ops, hb, dr, fb>,
+  +output: Shape.Shape, +rows: Nat,
+  +left_extents: {Shape.extents(left) == [rows, span] : List<&2, Nat>},
+  +right_extents: {Shape.extents(right) == [span, columns] : List<&2, Nat>},
+  +output_extents: {Shape.extents(output) == [rows, columns] : List<&2, Nat>},
+  +count_exact: {count == Shape.logical_numel(Shape.dimensions(output)) : Nat}, +base: Nat, low: F32 & Array<F32> & Array<F32>,
+  leaf_facts: TreeEq(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, count, 0n, base, Parallel.leaf(~(Array<F32> & Array<F32>), low))) ->
+  TreeEq(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, count, 1n, base, Parallel.pair(~Matrix.Dims, ~Array<F32>, ~Array<F32>, ~Matrix.cell_at, Matrix.dims(Matrix.Dims{span, columns}), count, base, low)):
+  (x, inputs) = low
+  (la, ra) = inputs
+  (ex, kept) = leaf_facts
+  (el, er) = kept
+  %Equal.sym(Array<F32>, la, Api.arr(ha, dl, fa), el) :
+    TreeEq(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, count, 1n, base, Parallel.pair_join(~(Array<F32> & Array<F32>), x, Matrix.cell_at(Matrix.dims(Matrix.Dims{span, columns}), Nat.add(1n, base), (_, ra), Nat.is_lt(Nat.add(1n, base), count))))
+  %Equal.sym(Array<F32>, ra, Api.arr(hb, dr, fb), er) :
+    TreeEq(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, count, 1n, base, Parallel.pair_join(~(Array<F32> & Array<F32>), x, Matrix.cell_at(Matrix.dims(Matrix.Dims{span, columns}), Nat.add(1n, base), (Api.arr(ha, dl, fa), _), Nat.is_lt(Nat.add(1n, base), count))))
+  pair_join_eq(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, count, base, x, Matrix.cell_at(Matrix.dims(Matrix.Dims{span, columns}), Nat.add(1n, base), (Api.arr(ha, dl, fa), Api.arr(hb, dr, fb)), Nat.is_lt(Nat.add(1n, base), count)), ex,
+    cell_eq(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, count, lsrc, rsrc, output, rows, left_extents, right_extents, output_extents, count_exact, Nat.add(1n, base), Nat.is_lt(Nat.add(1n, base), count), {==}))
+
 def tree_eq(+span: Nat, +columns: Nat, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>, +ha: List<&2, Api.Effect>, +dl: Nat, +fa: F32, +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +hb: List<&2, Api.Effect>, +dr: Nat, +fb: F32, +count: Nat, +lsrc: Source<left, left_fill, left_ops, ha, dl, fa>, +rsrc: Source<right, right_fill, right_ops, hb, dr, fb>,
   +output: Shape.Shape, +rows: Nat,
   +left_extents: {Shape.extents(left) == [rows, span] : List<&2, Nat>},
@@ -624,9 +655,14 @@ def tree_eq(+span: Nat, +columns: Nat, +left: Shape.Shape, +left_fill: F32, +lef
     case 0n:
       cell_eq(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, count, lsrc, rsrc, output, rows, left_extents, right_extents, output_extents, count_exact, base, Nat.is_lt(base, count), {==})
     case 1n+lower:
-      tree_node_eq(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, count, lower, base, Parallel.tree(~Matrix.Dims, ~Array<F32>, ~Array<F32>, ~Matrix.cell_at, Matrix.dims(Matrix.Dims{span, columns}), lower, count, base, (Api.arr(ha, dl, fa), Api.arr(hb, dr, fb))),
-        tree_eq(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, count, lsrc, rsrc, output, rows, left_extents, right_extents, output_extents, count_exact, lower, base),
-        tree_eq(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, count, lsrc, rsrc, output, rows, left_extents, right_extents, output_extents, count_exact, lower, Nat.add(Model.capacity(lower), base)))
+      match lower:
+        case 0n:
+          pair_eq(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, count, lsrc, rsrc, output, rows, left_extents, right_extents, output_extents, count_exact, base, Matrix.cell_at(Matrix.dims(Matrix.Dims{span, columns}), base, (Api.arr(ha, dl, fa), Api.arr(hb, dr, fb)), Nat.is_lt(base, count)),
+            cell_eq(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, count, lsrc, rsrc, output, rows, left_extents, right_extents, output_extents, count_exact, base, Nat.is_lt(base, count), {==}))
+        case 1n+below:
+          tree_node_eq(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, count, lower, base, Parallel.tree(~Matrix.Dims, ~Array<F32>, ~Array<F32>, ~Matrix.cell_at, Matrix.dims(Matrix.Dims{span, columns}), lower, count, base, (Api.arr(ha, dl, fa), Api.arr(hb, dr, fb))),
+            tree_eq(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, count, lsrc, rsrc, output, rows, left_extents, right_extents, output_extents, count_exact, lower, base),
+            tree_eq(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, count, lsrc, rsrc, output, rows, left_extents, right_extents, output_extents, count_exact, lower, Nat.add(Model.capacity(lower), base)))
 
 def tree_first(+span: Nat, +columns: Nat, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>, +ha: List<&2, Api.Effect>, +dl: Nat, +fa: F32, +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +hb: List<&2, Api.Effect>, +dr: Nat, +fb: F32, +count: Nat, +depth: Nat, +base: Nat, -result: Array<F32> & (Array<F32> & Array<F32>), facts: TreeEq(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, count, depth, base, result)) ->
   {Pair.fst(Array<F32>, Array<F32> & Array<F32>, result) == out_spec(span, columns, left, left_fill, left_ops, right, right_fill, right_ops, count, depth, base) : Array<F32>}:
