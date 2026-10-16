@@ -123,6 +123,89 @@ RUNTIME_CONTROLS = {
     ),
 }
 
+# SGD mutants: the tensor backward lanes reject each one, and the autograd
+# gate's check of src/autograd/PROOF.bend rejects each at the law named last.
+DESCEND_HEAD = (
+    "def descend(+lr: F32, entry: Backward.Entry) -> "
+    "Backward.Entry & Result<&2, &2, Error, Unit>:\n"
+    "  Backward.Entry{node, +shape, value, saved, slot} = entry\n"
+    "  match slot:\n"
+    "    case Gradient.Unset{}:\n"
+    "      (Backward.Entry{node, shape, value, saved, Gradient.Unset{}}, Done{Unit{}})"
+)
+# Reads an empty slot as zeros, as Gradient.gradient does, and updates with them.
+ZEROED = (
+    "def zeroed(+lr: F32, node: Backward.Node, +shape: Shape.Shape, "
+    "value: Core.Dynamic, saved: Backward.Saved,\n"
+    "  zeros: Result<&2, &1, Core.Error, Core.Dynamic>) -> "
+    "Backward.Entry & Result<&2, &2, Error, Unit>:\n"
+    "  match zeros:\n"
+    "    case Fail{error}:\n"
+    "      (Backward.Entry{node, shape, value, saved, Gradient.Unset{}}, "
+    "Done{Unit{}})\n"
+    "    case Done{g}:\n"
+    "      descended(node, shape, saved, "
+    "Elementwise.binary(Elementwise.Descend{lr}, value, g))\n\n"
+)
+SGD_CONTROLS = {
+    "sgd-step-adds": (
+        "src/tensor/elementwise.bend",
+        "      F32.sub(left, F32.mul(lr, right))",
+        "      F32.add(left, F32.mul(lr, right))",
+        "Laws.sgd_descend_scalar",
+    ),
+    "sgd-step-doubles-lr": (
+        "src/autograd/sgd.bend",
+        "Elementwise.binary(Elementwise.Descend{lr}, value, g)",
+        "Elementwise.binary(Elementwise.Descend{F32.add(lr, lr)}, value, g)",
+        "Laws.sgd_step_values",
+    ),
+    "sgd-step-skips-later-params": (
+        "src/autograd/sgd.bend",
+        "continued(entries => descend_all(lr, count, rest, entries), ",
+        "continued(entries => (entries, Done{Unit{}}), ",
+        "Laws.sgd_params_in_order",
+    ),
+    "sgd-step-updates-empty-slot": (
+        "src/autograd/sgd.bend",
+        DESCEND_HEAD,
+        ZEROED
+        + DESCEND_HEAD.replace(
+            "      (Backward.Entry{node, shape, value, saved, Gradient.Unset{}}, "
+            "Done{Unit{}})",
+            "      zeroed(lr, node, shape, value, saved, "
+            "Gradient.gradient(shape, Gradient.Unset{}))",
+        ),
+        "Laws.sgd_empty_slot_kept",
+    ),
+    "sgd-update-reaches-neighbor": (
+        "src/autograd/sgd.bend",
+        "kept(entry, descend_at(lr, rest, below, id, Backward.at_head(below, id)))",
+        "kept(entry, descend_at(lr, rest, below, id, Backward.at_head(below, 1n+id)))",
+        "Laws.sgd_update_reaches_target",
+    ),
+    "sgd-step-updates-before-checking": (
+        "src/autograd/sgd.bend",
+        "checked(lr, entries, count, params, refusal(nodes, count, params))",
+        "checked(lr, entries, count, params, None{})",
+        "Laws.sgd_step_refused",
+    ),
+    "sgd-step-accepts-non-leaf": (
+        "src/autograd/sgd.bend",
+        "    case Backward.Mul{a, b, left, right}:\n      Some{NotLeaf{}}",
+        "    case Backward.Mul{a, b, left, right}:\n      None{}",
+        "Laws.sgd_only_leaves_accepted",
+    ),
+}
+RUNTIME_CONTROLS |= {
+    name: (path, original, mutated)
+    for name, (path, original, mutated, _) in SGD_CONTROLS.items()
+}
+RUNTIME_CONTROLS["zero-grad-keeps-slot"] = (
+    "Entry{node, shape, value, saved, Gradient.reset(slot)} <> cleared(rest)",
+    "Entry{node, shape, value, saved, slot} <> cleared(rest)",
+)
+
 # Controls that only the native lane can reject: the JavaScript lane prints
 # every NaN as 0x7FC00000, so a relu that replaces a NaN word with that
 # canonical NaN looks right there. Each replaces x's or g's NaN word, sign,

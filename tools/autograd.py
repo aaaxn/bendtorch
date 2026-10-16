@@ -9,6 +9,7 @@ from tools.autograd_gradient import run_gate as gradient
 from tools.autograd_lifecycle import run_gate as lifecycle
 from tools.autograd_reduce import run_gate as reduce
 from tools.autograd_sum_to_size import run_gate as sum_to_size
+from tools.autograd_tensor_backward import SGD_CONTROLS
 from tools.autograd_tensor_backward import run_gate as tensor_backward
 from tools.common import (
     ROOT,
@@ -385,6 +386,20 @@ def proof_controls(evidence: Evidence, source: Path) -> None:
             for name, (path, original, mutated, root, location) in (
                 ERROR_CONTROLS.items()
             )
+        ),
+        *(
+            partial(
+                mutant_control,
+                evidence,
+                source,
+                name,
+                path,
+                original,
+                mutated,
+                "src/autograd/PROOF.bend",
+                ("SOME PROOFS FAIL", f"Location: {law}"),
+            )
+            for name, (path, original, mutated, law) in SGD_CONTROLS.items()
         ),
     )
 

@@ -16,6 +16,7 @@ from tools.autograd_tensor_backward import (
     NATIVE_CONTROLS,
     NOT_LEAF,
     RUNTIME_CONTROLS,
+    SGD_CONTROLS,
     ZERO_GRAD,
     cases,
     descend_word,
@@ -440,6 +441,19 @@ class ReluExactWordTests(unittest.TestCase):
 
 
 class GateRegistrationTests(unittest.TestCase):
+    def test_sgd_controls_apply_once_and_name_a_required_law(self):
+        required = json.loads((ROOT / "verification/autograd.json").read_text())[
+            "required_exports"
+        ]
+        self.assertEqual(len(SGD_CONTROLS), 7)
+        for name, (path, original, mutated, law) in SGD_CONTROLS.items():
+            with self.subTest(control=name):
+                self.assertEqual((ROOT / path).read_text().count(original), 1)
+                self.assertNotEqual(original, mutated)
+                self.assertIn(law.replace("Laws.", "sgd_2d_LAWS."), required)
+                self.assertEqual(RUNTIME_CONTROLS[name], (path, original, mutated))
+        self.assertIn("zero-grad-keeps-slot", RUNTIME_CONTROLS)
+
     def test_autograd_gate_registers_tensor_backward_and_its_laws(self):
         self.assertIn("tensor_backward", SUBGATES)
         required = json.loads((ROOT / "verification/autograd.json").read_text())[
@@ -481,7 +495,7 @@ class GateRegistrationTests(unittest.TestCase):
             self.assertIn("quiet(2143289344)", mutated)
 
     def test_runtime_controls_apply_once(self):
-        self.assertEqual(len(RUNTIME_CONTROLS), 17)
+        self.assertEqual(len(RUNTIME_CONTROLS), 25)
         for control in RUNTIME_CONTROLS.values():
             path, original, mutated = (
                 control
