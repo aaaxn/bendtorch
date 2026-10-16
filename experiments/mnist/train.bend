@@ -178,10 +178,12 @@ def leaf_tape(pair: Backward.Tape & Nat) -> Backward.Tape:
   (tape, id) = pair
   tape
 
-# The tape of the parameters, ids 0 to 3, and the batch, id 4.
+# The tape of the parameters, ids 0 to 3, and the batch, id 4. The batch is a
+# constant, as PyTorch's input tensor has requires_grad=False, so backward
+# never computes its gradient.
 def leaves(params: Params, x: Core.Dynamic) -> Backward.Tape:
   Params{w1, b1, w2, b2} = params
-  leaf_tape(Backward.leaf(leaf_tape(Backward.leaf(leaf_tape(Backward.leaf(leaf_tape(Backward.leaf(
+  leaf_tape(Backward.constant(leaf_tape(Backward.leaf(leaf_tape(Backward.leaf(leaf_tape(Backward.leaf(
     leaf_tape(Backward.leaf(Backward.empty(), w1)), b1)), w2)), b2)), x))
 
 # A tape, the code of the first failure so far (0 for none) and the id the
