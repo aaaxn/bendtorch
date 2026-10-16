@@ -8,6 +8,17 @@ adds in another order. This module computes, for every word the reference
 prints, that exact value, the bound and whether the word is fixed, and
 compares PyTorch's lines with the reference's under that rule.
 
+The bounds hold under these conditions, and a word is marked bounded only
+where the replay can show them: binary32 arithmetic that rounds to nearest,
+ties to even, with gradual underflow (subnormals kept, so an addition is exact
+in the subnormal range); no intermediate overflow in any order, which the
+replay requires as `(1 + gamma(n)) * sum |terms| <= LARGEST` for every sum
+and dot product and `(1 + u) * (|exact| + spread) <= LARGEST` for every other
+rounding that is not fixed; and `n * u < 1` for every count `n`. A word for
+which a condition fails, or which is not finite, has no bound and goes to the
+special-word checks. An empty sum and a dot product of no terms are the fixed
+word `+0.0` in every order, compared bit for bit.
+
 It replays the reference itself (`autograd_tensor_backward.reference`) with
 its arithmetic functions replaced by ones that return the same word together
 with that information, so the replay runs the same operations in the same
@@ -29,6 +40,8 @@ from tools.common import GateError
 UNIT = Fraction(1, 2**24)
 UNDERFLOW = Fraction(1, 2**150)
 ZERO = Fraction(0)
+# The largest finite binary32 value, 0x7F7FFFFF.
+LARGEST = (2 - Fraction(1, 2**23)) * 2**127
 
 div_word = tape.div_word
 exp_word = tape.exp_word
@@ -44,15 +57,22 @@ def gamma(count: int) -> Fraction:
     return count * UNIT / (1 - count * UNIT)
 
 
+# Whether no partial result of `count` roundings in any order can overflow,
+# when the terms' magnitudes, with their spreads, add up to `magnitude`.
+def in_range(count: int, magnitude: Fraction) -> bool:
+    return count * UNIT < 1 and (1 + gamma(count)) * magnitude <= LARGEST
+
+
 class Bounded(int):
     """An F32 word with what every run that follows the policy agrees on.
 
     `exact` is the value of the script's arithmetic on its leaf words, done
     without rounding. `error` bounds the distance from `exact` of the word that
     any run gives which takes the reference's operations and adds each sum or
-    matmul in any order, with or without fused multiply-adds. `bounded` is
-    False when the word is not finite or when no bound is stated (exp, log);
-    `exact` and `error` mean nothing then. `fixed` says that every such run
+    matmul in any order, with or without fused multiply-adds, under the
+    module's conditions. `bounded` is False when the word is not finite, when
+    no bound is stated (exp, log) or when a run in another order could
+    overflow; `exact` and `error` mean nothing then. `fixed` says that every such run
     gives this very word: no sum, matmul, exp or log comes before it.
     """
 
@@ -103,7 +123,8 @@ def rounded(
     underflow: Fraction = ZERO,
 ) -> Bounded:
     error = spread + UNIT * (abs(exact) + spread) + underflow
-    return Bounded(number, exact, error, True, fixed)
+    safe = fixed or in_range(1, abs(exact) + spread)
+    return Bounded(number, exact, error, safe, fixed)
 
 
 # An addition rounds once and is exact in the subnormal range.
@@ -207,8 +228,9 @@ def bounded_total(words: list[int]) -> Bounded:
     spread = sum((term.error for term in terms), ZERO)
     magnitude = sum((abs(term.exact) for term in terms), ZERO) + spread
     exact = sum((term.exact for term in terms), ZERO)
-    error = spread + gamma(len(terms) - 1) * magnitude
-    bounded = all(term.bounded for term in terms)
+    count = len(terms) - 1
+    bounded = all(term.bounded for term in terms) and in_range(count, magnitude)
+    error = spread + gamma(count) * magnitude if bounded else ZERO
     return Bounded(number, exact, error, bounded, False)
 
 
@@ -223,10 +245,12 @@ def bounded_dot(pairs: list[tuple[int, int]], number: int) -> Bounded:
     spread = sum((product_spread(a, b) for a, b in factors), ZERO)
     magnitude = sum((abs(a.exact * b.exact) for a, b in factors), ZERO)
     exact = sum((a.exact * b.exact for a, b in factors), ZERO)
+    bounded = all(a.bounded and b.bounded for a, b in factors)
+    if not (bounded and in_range(count, magnitude + spread)):
+        return unbounded(number, False)
     underflow = count * UNDERFLOW / (1 - count * UNIT)
     error = spread + gamma(count) * (magnitude + spread) + underflow
-    bounded = all(a.bounded and b.bounded for a, b in factors)
-    return Bounded(number, exact, error, bounded, False)
+    return Bounded(number, exact, error, True, False)
 
 
 # The reference's matmul, each cell the ordered fold of its products from +0.0.
@@ -367,6 +391,8 @@ def compare(
             continue
         if bound.fixed:
             raise GateError(f"{identifier}:{index}: {number} is not the fixed {own}")
+        if not bound.bounded:
+            raise GateError(f"{identifier}:{index}: {number} has no bound and no pin")
         if not within(number, bound) or not within(own, bound):
             raise GateError(f"{identifier}:{index}: {number} is outside the bound")
         bounded += 1
