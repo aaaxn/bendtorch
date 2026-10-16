@@ -392,7 +392,7 @@ another sign or payload, no other word differs; on AVX512, 629 bit for bit,
   list order.
 
 The autograd gate applies nine SGD mutants to a copy of the sources, and the
-check of `src/autograd/PROOF.bend` fails at the law each one makes false: a
+check of `src/autograd/PROOF.bend` fails at the named proof for each one: a
 step that adds (`sgd_descend_scalar`), twice the learning rate
 (`sgd_step_values`), a step that skips every parameter after the first
 (`sgd_params_in_order`), an empty slot read as zeros and applied
@@ -401,7 +401,9 @@ step that adds (`sgd_descend_scalar`), twice the learning rate
 (`sgd_step_refused`), a `Mul` node accepted as a parameter
 (`sgd_only_leaves_accepted`), a step that skips the rate check
 (`sgd_step_rate_refused`) and a rate check that also refuses `+0.0` and
-`-0.0` (`sgd_negative_rate_refused`). The tensor backward subgate rejects
+`-0.0` (`sgd_negative_rate_refused`, whose proof stops checking although the
+law stays true; `sgd_rate_accepted` and `sgd_rate_edges` are the laws it
+makes false). The tensor backward subgate rejects
 each of the nine as a runtime control too.
 
 ## Runtime lanes
