@@ -25,6 +25,7 @@ import ../tensor/contracts/binary-storage-proof.bend as Owned
 import ../tensor/contracts/binary-build-proof.bend as Build
 import ../tensor/contracts/matmul-parallel-proof.bend as Par
 import ../tensor/matmul.bend as Matrix
+import ../tensor/parallel.bend as Parallel
 import ./reduce.bend as Reduce
 import ./reduce-LAWS.bend as ReduceLaws
 import ./reduce-fiber-proof.bend as Fiber
@@ -528,9 +529,9 @@ def walk_below(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
 def TreeEq(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
   +rows_exact: {rows == Shape.index_table(Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan))) : List<&2, Shape.Row>},
   +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +h: List<&2, Api.Effect>, +d: Nat, +f: F32, +count: Nat, +depth: Nat, +base: Nat,
-  -result: Array<F32> & Array<F32>) -> Type:
-  {Pair.fst(Array<F32>, Array<F32>, result) == out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, depth, base) : Array<F32>} &
-    {Pair.snd(Array<F32>, Array<F32>, result) == Api.arr(h, d, f) : Array<F32>}
+  -result: Array<F32> & (Array<F32> & Unit)) -> Type:
+  {Pair.fst(Array<F32>, Array<F32> & Unit, result) == out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, depth, base) : Array<F32>} &
+    {Pair.snd(Array<F32>, Array<F32> & Unit, result) == (Api.arr(h, d, f), Unit{}) : Array<F32> & Unit}
 
 def cell_eq(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
   +rows_exact: {rows == Shape.index_table(Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan))) : List<&2, Shape.Row>},
@@ -538,7 +539,7 @@ def cell_eq(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
   +source: Par.Source<shape, fill, ops, h, d, f>, +facts: Facts<plan, shape, count>, +base: Nat, inside: Bool,
   +decided: {inside == Nat.is_lt(base, count) : Bool}) ->
   TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, 0n, base,
-    Reduce.cell(rows, Shape.extents(Shape.output_shape(plan)), base, Api.arr(h, d, f), inside)):
+    Parallel.leaf(~(Array<F32> & Unit), Reduce.keep(Reduce.cell(rows, Shape.extents(Shape.output_shape(plan)), base, Api.arr(h, d, f), inside), Unit{}))):
   match inside:
     case False{}:
       (%decided : {ALeaf{0.0} == ALeaf{out_leaf(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, base, _)} : Array<F32>}
@@ -549,17 +550,17 @@ def cell_eq(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
       %Equal.sym(F32 & Array<F32>, Reduce.fiber_of(rows, output, base, Api.arr(h, d, f)), (word, Api.arr(h, d, f)),
         fiber_eq(rows, output, Reduce.first_span(rows, output), base, 0n, Reduce.first_digit(rows, base), 0.0, shape, fill, ops, h, d, f, source,
           walk_below(plan, rows, rows_exact, shape, count, facts, base, Equal.sym(Bool, True{}, Nat.is_lt(base, count), decided)))) :
-        TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, 0n, base, Reduce.cell_leaf(_))
+        TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, 0n, base, Parallel.leaf(~(Array<F32> & Unit), Reduce.keep(_, Unit{})))
       (%decided : {ALeaf{word} == ALeaf{out_leaf(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, base, _)} : Array<F32>}
        {==}, {==})
 
 def tree_join_eq(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
   +rows_exact: {rows == Shape.index_table(Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan))) : List<&2, Shape.Row>},
   +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +h: List<&2, Api.Effect>, +d: Nat, +f: F32, +count: Nat, +lower: Nat, +base: Nat,
-  -a: Array<F32>, high: Array<F32> & Array<F32>,
+  -a: Array<F32>, high: Array<F32> & (Array<F32> & Unit),
   ea: {a == out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, lower, base) : Array<F32>},
   facts: TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, lower, Nat.add(Model.capacity(lower), base), high)) ->
-  TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, 1n+lower, base, Reduce.tree_join(a, high)):
+  TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, 1n+lower, base, Parallel.join(~(Array<F32> & Unit), a, high)):
   (b, array) = high
   (eb, kept) = facts
   (%Equal.sym(Array<F32>, a, out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, lower, base), ea) : {ANode{_, b} == ANode{out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, lower, base), out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, lower, Nat.add(Model.capacity(lower), base))} : Array<F32>}
@@ -569,40 +570,73 @@ def tree_join_eq(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
 def tree_node_eq(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
   +rows_exact: {rows == Shape.index_table(Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan))) : List<&2, Shape.Row>},
   +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +h: List<&2, Api.Effect>, +d: Nat, +f: F32, +count: Nat, +lower: Nat, +base: Nat,
-  low: Array<F32> & Array<F32>,
+  low: Array<F32> & (Array<F32> & Unit),
   facts: TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, lower, base, low),
   next: TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, lower, Nat.add(Model.capacity(lower), base),
-    Reduce.tree(lower, rows, Shape.extents(Shape.output_shape(plan)), count, Nat.add(Model.capacity(lower), base), Api.arr(h, d, f)))) ->
+    Parallel.tree(~Reduce.Fibers, ~Array<F32>, ~Unit, ~Reduce.cell_at, Reduce.fibers(Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}), lower, count, Nat.add(Model.capacity(lower), base), (Api.arr(h, d, f), Unit{})))) ->
   TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, 1n+lower, base,
-    Reduce.tree_node(x => Reduce.tree(lower, rows, Shape.extents(Shape.output_shape(plan)), count, Nat.add(Model.capacity(lower), base), x), low)):
-  (a, array) = low
+    Parallel.node(~Array<F32>, ~Unit, l => r => Parallel.tree(~Reduce.Fibers, ~Array<F32>, ~Unit, ~Reduce.cell_at, Reduce.fibers(Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}), lower, count, Nat.add(Model.capacity(lower), base), (l, r)), low)):
+  (a, state) = low
+  (array, none) = state
   (ea, ek) = facts
-  %Equal.sym(Array<F32>, array, Api.arr(h, d, f), ek) :
+  %Equal.sym(Array<F32> & Unit, (array, none), (Api.arr(h, d, f), Unit{}), ek) :
     TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, 1n+lower, base,
-      Reduce.tree_join(a, Reduce.tree(lower, rows, Shape.extents(Shape.output_shape(plan)), count, Nat.add(Model.capacity(lower), base), _)))
+      Parallel.join(~(Array<F32> & Unit), a, Parallel.tree(~Reduce.Fibers, ~Array<F32>, ~Unit, ~Reduce.cell_at, Reduce.fibers(Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}), lower, count, Nat.add(Model.capacity(lower), base), _)))
   tree_join_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, lower, base, a,
-    Reduce.tree(lower, rows, Shape.extents(Shape.output_shape(plan)), count, Nat.add(Model.capacity(lower), base), Api.arr(h, d, f)), ea, next)
+    Parallel.tree(~Reduce.Fibers, ~Array<F32>, ~Unit, ~Reduce.cell_at, Reduce.fibers(Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}), lower, count, Nat.add(Model.capacity(lower), base), (Api.arr(h, d, f), Unit{})), ea, next)
+
+# The depth-1 tree: the leaf of cell `base` and the leaf of the cell after
+# it, which reads the state the first hands back.
+def pair_join_eq(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
+  +rows_exact: {rows == Shape.index_table(Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan))) : List<&2, Shape.Row>},
+  +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +h: List<&2, Api.Effect>, +d: Nat, +f: F32, +count: Nat, +base: Nat, x: F32, high: F32 & Array<F32> & Unit,
+  ex: {ALeaf{x} == out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, 0n, base) : Array<F32>},
+  leaf_facts: TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, 0n, Nat.add(1n, base), Parallel.leaf(~(Array<F32> & Unit), high))) ->
+  TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, 1n, base, Parallel.pair_join(~(Array<F32> & Unit), x, high)):
+  (y, inputs) = high
+  (ey, kept) = leaf_facts
+  (%Equal.sym(Array<F32>, ALeaf{x}, out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, 0n, base), ex) : {ANode{_, ALeaf{y}} == ANode{out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, 0n, base), out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, 0n, Nat.add(1n, base))} : Array<F32>}
+   %Equal.sym(Array<F32>, ALeaf{y}, out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, 0n, Nat.add(1n, base)), ey) : {ANode{out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, 0n, base), _} == ANode{out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, 0n, base), out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, 0n, Nat.add(1n, base))} : Array<F32>}
+   {==}, kept)
+
+def pair_eq(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
+  +rows_exact: {rows == Shape.index_table(Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan))) : List<&2, Shape.Row>},
+  +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +h: List<&2, Api.Effect>, +d: Nat, +f: F32, +count: Nat, +source: Par.Source<shape, fill, ops, h, d, f>, +facts: Facts<plan, shape, count>, +base: Nat, low: F32 & Array<F32> & Unit,
+  leaf_facts: TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, 0n, base, Parallel.leaf(~(Array<F32> & Unit), low))) ->
+  TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, 1n, base, Parallel.pair(~Reduce.Fibers, ~Array<F32>, ~Unit, ~Reduce.cell_at, Reduce.fibers(Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}), count, base, low)):
+  (x, state) = low
+  (array, none) = state
+  (ex, ek) = leaf_facts
+  %Equal.sym(Array<F32> & Unit, (array, none), (Api.arr(h, d, f), Unit{}), ek) :
+    TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, 1n, base, Parallel.pair_join(~(Array<F32> & Unit), x, Reduce.cell_at(Reduce.fibers(Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}), Nat.add(1n, base), _, Nat.is_lt(Nat.add(1n, base), count))))
+  pair_join_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, base, x, Reduce.cell_at(Reduce.fibers(Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}), Nat.add(1n, base), (Api.arr(h, d, f), Unit{}), Nat.is_lt(Nat.add(1n, base), count)), ex,
+    cell_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, source, facts, Nat.add(1n, base), Nat.is_lt(Nat.add(1n, base), count), {==}))
 
 def tree_eq(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
   +rows_exact: {rows == Shape.index_table(Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan))) : List<&2, Shape.Row>},
   +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +h: List<&2, Api.Effect>, +d: Nat, +f: F32, +count: Nat,
   +source: Par.Source<shape, fill, ops, h, d, f>, +facts: Facts<plan, shape, count>, +depth: Nat, +base: Nat) ->
   TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, depth, base,
-    Reduce.tree(depth, rows, Shape.extents(Shape.output_shape(plan)), count, base, Api.arr(h, d, f))):
+    Parallel.tree(~Reduce.Fibers, ~Array<F32>, ~Unit, ~Reduce.cell_at, Reduce.fibers(Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}), depth, count, base, (Api.arr(h, d, f), Unit{}))):
   match depth:
     case 0n:
       cell_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, source, facts, base, Nat.is_lt(base, count), {==})
     case 1n+lower:
-      tree_node_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, lower, base,
-        Reduce.tree(lower, rows, Shape.extents(Shape.output_shape(plan)), count, base, Api.arr(h, d, f)),
-        tree_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, source, facts, lower, base),
-        tree_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, source, facts, lower, Nat.add(Model.capacity(lower), base)))
+      match lower:
+        case 0n:
+          pair_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, source, facts, base, Reduce.cell_at(Reduce.fibers(Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}), base, (Api.arr(h, d, f), Unit{}), Nat.is_lt(base, count)),
+            cell_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, source, facts, base, Nat.is_lt(base, count), {==}))
+        case 1n+below:
+          tree_node_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, lower, base,
+            Parallel.tree(~Reduce.Fibers, ~Array<F32>, ~Unit, ~Reduce.cell_at, Reduce.fibers(Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}), lower, count, base, (Api.arr(h, d, f), Unit{})),
+            tree_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, source, facts, lower, base),
+            tree_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, source, facts, lower, Nat.add(Model.capacity(lower), base)))
 
 def tree_first(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
   +rows_exact: {rows == Shape.index_table(Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan))) : List<&2, Shape.Row>},
   +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +h: List<&2, Api.Effect>, +d: Nat, +f: F32, +count: Nat, +depth: Nat, +base: Nat,
-  -result: Array<F32> & Array<F32>, facts: TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, depth, base, result)) ->
-  {Pair.fst(Array<F32>, Array<F32>, result) == out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, depth, base) : Array<F32>}:
+  -result: Array<F32> & (Array<F32> & Unit), facts: TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, depth, base, result)) ->
+  {Pair.fst(Array<F32>, Array<F32> & Unit, result) == out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, depth, base) : Array<F32>}:
   (first, kept) = facts
   first
 
@@ -615,8 +649,9 @@ def fork_eq(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
   high: {Reduce.build(lower, rest, rows, Shape.extents(Shape.output_shape(plan)), count, Nat.add(Model.capacity(lower), base), Api.arr(h, d, f)) ==
     out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, lower, Nat.add(Model.capacity(lower), base)) : Array<F32>},
   pair: Array<F32> & Array<F32>, +exact: {pair == Array.clone(F32, Api.arr(h, d, f)) : Array<F32> & Array<F32>}) ->
-  {Reduce.fork(pair, x => Reduce.build(lower, rest, rows, Shape.extents(Shape.output_shape(plan)), count, base, x),
-    x => Reduce.build(lower, rest, rows, Shape.extents(Shape.output_shape(plan)), count, Nat.add(Model.capacity(lower), base), x)) ==
+  {Parallel.fork(~Array<F32>, ~Unit, Reduce.halves(pair),
+    l => r => Parallel.build(~Reduce.Fibers, ~Reduce.Fibers, ~Array<F32>, ~Unit, ~Reduce.fibers, ~Reduce.split, ~Reduce.cell_at, Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}, lower, rest, count, base, (l, r)),
+    l => r => Parallel.build(~Reduce.Fibers, ~Reduce.Fibers, ~Array<F32>, ~Unit, ~Reduce.fibers, ~Reduce.split, ~Reduce.cell_at, Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}, lower, rest, count, Nat.add(Model.capacity(lower), base), (l, r))) ==
     out_spec(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, count, 1n+lower, base) : Array<F32>}:
   (first, second) = pair
   +output = Shape.extents(Shape.output_shape(plan))
@@ -648,11 +683,11 @@ def build_eq(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
         Array.clone(F32, Api.arr(h, d, f)), {==})
     case 0n _:
       tree_first(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, 0n, base,
-        Reduce.tree(0n, rows, Shape.extents(Shape.output_shape(plan)), count, base, Api.arr(h, d, f)),
+        Parallel.tree(~Reduce.Fibers, ~Array<F32>, ~Unit, ~Reduce.cell_at, Reduce.fibers(Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}), 0n, count, base, (Api.arr(h, d, f), Unit{})),
         tree_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, source, facts, 0n, base))
     case 1n+lower 0n:
       tree_first(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, 1n+lower, base,
-        Reduce.tree(1n+lower, rows, Shape.extents(Shape.output_shape(plan)), count, base, Api.arr(h, d, f)),
+        Parallel.tree(~Reduce.Fibers, ~Array<F32>, ~Unit, ~Reduce.cell_at, Reduce.fibers(Reduce.Fibers{rows, Shape.extents(Shape.output_shape(plan))}), 1n+lower, count, base, (Api.arr(h, d, f), Unit{})),
         tree_eq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, source, facts, 1n+lower, base))
 
 # As in reduce-fold-PROOF.bend: below the count, the listed words are the

@@ -38,7 +38,7 @@ def neg(word: str) -> str:
 FAMILY = controls.Family(
     name="binary",
     entry=("src/tensor/elementwise.bend",),
-    operations=frozenset({"src/tensor/elementwise.bend"}),
+    operations=frozenset({"src/tensor/elementwise.bend", "src/tensor/parallel.bend"}),
     laws={f"{LAWS}.binary_replayed": Law(OPERATION, "elementwise.binary")},
     live_records=("consumers.BinaryCase.arms",),
     consumers=tuple(
@@ -78,10 +78,10 @@ FAMILY = controls.Family(
     mutants=controls.load_mutants("binary"),
     sites={
         "high-fork-reuses-base": Site(
-            "build_eq",
-            "count, Nat.add(Model.capacity(inner), base), l, r)) ==",
-            f"{BUILD}.build_eq",
-            ("elementwise.upper",),
+            "tree_eq",
+            "Model.capacity(below)), base), (l, r))",
+            f"{BUILD}.tree_eq",
+            ("parallel.upper",),
         ),
         "cell-swaps-operands": Site(
             "cell_right_eq",
@@ -100,6 +100,20 @@ FAMILY = controls.Family(
             "[1.0]",
             f"{BUILD}.cell_eq",
             ("elementwise.cell",),
+        ),
+        "leaf-writes-zero": Site(
+            "cell_right_eq",
+            "[0.0]",
+            f"{BUILD}.cell_right_eq",
+            tuple(f"parallel.leaf.qv{suffix}" for suffix in ("", "_1", "_2", "_3")),
+        ),
+        "pair-writes-zero": Site(
+            "pair_join_eq",
+            ", 0.0]",
+            f"{BUILD}.pair_join_eq",
+            tuple(
+                f"parallel.pair_join.qv{suffix}" for suffix in ("", "_1", "_2", "_3")
+            ),
         ),
     },
     proof="src/tensor/contracts/binary-PROOF.bend",

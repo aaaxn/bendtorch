@@ -1,6 +1,7 @@
 import copy
 import json
 import math
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,6 +16,26 @@ from tools.tensor_runtime import (
     decode_case,
     load_corpus,
 )
+
+LAW = re.compile(r"^law ([A-Za-z_][A-Za-z0-9_]*):\n((?:  for .*\n)*)", re.M)
+TEMPLATE = re.compile(r"^  for ~", re.M)
+
+
+def law_exports(text: str, prefix: str) -> set[str]:
+    """The BendTT names under which a LAWS file's laws are exported.
+
+    A law is exported under its own name. bend2's exporter checks a law with
+    template (`~`) parameters at one opaque constant per parameter and names
+    that root with `.q` and one `v` per template parameter (`item_ref` in
+    `bend2/safe.ts`). The gate's inventory check fails if an export is named
+    otherwise, so a wrong name here cannot pass unnoticed.
+    """
+    names = set()
+    for match in LAW.finditer(text):
+        templates = len(TEMPLATE.findall(match.group(2)))
+        tag = ".q" + "v" * templates if templates else ""
+        names.add(prefix + match.group(1) + tag)
+    return names
 
 
 class GateAcceptanceTests(unittest.TestCase):
@@ -90,14 +111,37 @@ class GateAcceptanceTests(unittest.TestCase):
             path = ROOT / "src/tensor" / line.split()[1]
             module = path.relative_to(ROOT / "src/tensor").with_suffix("")
             prefix = module.as_posix().replace("-", "_2d_").replace("/", "_2f_") + "."
-            laws.update(
-                prefix + declaration.removeprefix("law ").split(":", 1)[0]
-                for declaration in path.read_text().splitlines()
-                if declaration.startswith("law ")
-            )
+            laws.update(law_exports(path.read_text(), prefix))
         self.assertTrue(laws)
         self.assertLessEqual(laws, set(required))
         self.assertEqual(len(required), len(set(required)))
+
+    def test_law_exports_name_every_law_and_each_template_law_once(self):
+        text = (
+            "law first:\n"
+            "  for x: Nat\n"
+            "  {x == x : Nat}\n"
+            "\n"
+            "# A law with template parameters.\n"
+            "law generic:\n"
+            "  for ~A: Type\n"
+            "  for ~f: A -> A\n"
+            "  for x: A\n"
+            "  {f(x) == f(x) : A}\n"
+            "law closed:\n"
+            "  {0n == 0n : Nat}\n"
+        )
+        self.assertEqual(
+            law_exports(text, "m."), {"m.first", "m.generic.qvv", "m.closed"}
+        )
+        parallel = (ROOT / "src/tensor/parallel-LAWS.bend").read_text()
+        self.assertEqual(
+            law_exports(parallel, "parallel_2d_LAWS."),
+            {
+                f"parallel_2d_LAWS.parallel_build_{name}.qvvvvvvv"
+                for name in ("balanced", "cells", "sequential")
+            },
+        )
 
     def test_complete_reference_observations_satisfy_each_lane(self):
         for native, rows in ((True, self.native), (False, self.javascript)):

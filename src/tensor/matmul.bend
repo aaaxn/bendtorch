@@ -5,6 +5,7 @@ import ../storage/model.bend as Model
 import ./core.bend as Core
 import ./lifecycle.bend as Lifecycle
 import ./elementwise.bend as Elementwise
+import ./parallel.bend as Parallel
 
 type Error is Data:
   TensorError{error: Core.Error}
@@ -271,40 +272,34 @@ def cell_dot(fuel: Nat, +inner: Nat, +columns: Nat, +row: Nat, +column: Nat, +cu
 def dot_of(+inner: Nat, +columns: Nat, +position: Nat, la: Array<F32>, ra: Array<F32>) -> F32 & (Array<F32> & Array<F32>):
   cell_dot(inner, inner, columns, row_of(columns, position), column_of(columns, position), 0n, 0.0, la, ra)
 
-def cell_leaf(pair: F32 & (Array<F32> & Array<F32>)) -> Array<F32> & (Array<F32> & Array<F32>):
-  (value, inputs) = pair
-  (ALeaf{value}, inputs)
-
 # One output cell: its total when the cell is below `count`, else +0.0.
 def cell(+inner: Nat, +columns: Nat, +position: Nat, la: Array<F32>, ra: Array<F32>, inside: Bool) ->
-  Array<F32> & (Array<F32> & Array<F32>):
+  F32 & (Array<F32> & Array<F32>):
   match inside:
     case False{}:
-      (ALeaf{0.0}, (la, ra))
+      (0.0, (la, ra))
     case True{}:
-      cell_leaf(dot_of(inner, columns, position, la, ra))
+      dot_of(inner, columns, position, la, ra)
 
-# The cells `base .. base + 2^depth` as a balanced tree, built in index order
-# on one thread.
-def tree(+depth: Nat, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat, la: Array<F32>, ra: Array<F32>) ->
-  Array<F32> & (Array<F32> & Array<F32>):
-  match depth:
-    case 0n:
-      cell(inner, columns, base, la, ra, Nat.is_lt(base, count))
-    case 1n+lower:
-      Elementwise.tree_node(l => r => tree(lower, inner, columns, count, Nat.add(Model.capacity(lower), base), l, r),
-        tree(lower, inner, columns, count, base, la, ra))
+# What every cell of a build needs: the inner extent and the column count.
+type Dims is Data:
+  Dims{inner: Nat, columns: Nat}
+
+# Each thread below the forks reads its own copy.
+def dims(+given: Dims) -> Dims:
+  Dims{+inner, +columns} = given
+  Dims{inner, columns}
+
+# The cell function `Parallel.build` runs: its state is the pair of input
+# arrays, split for a fork as `Elementwise.split` splits them.
+def cell_at(+dims: Dims, +position: Nat, inputs: Array<F32> & Array<F32>, inside: Bool) -> F32 & (Array<F32> & Array<F32>):
+  Dims{+inner, +columns} = dims
+  (la, ra) = inputs
+  cell(inner, columns, position, la, ra, inside)
 
 def build(+depth: Nat, +splits: Nat, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat,
   la: Array<F32>, ra: Array<F32>) -> Array<F32>:
-  match depth splits:
-    case 1n+lower 1n+rest:
-      +high = Nat.add(Model.capacity(lower), base)
-      Elementwise.fork(Array.clone(F32, la), Array.clone(F32, ra),
-        l => r => build(lower, rest, inner, columns, count, base, l, r),
-        l => r => build(lower, rest, inner, columns, count, high, l, r))
-    case _ _:
-      Pair.fst(Array<F32>, Array<F32> & Array<F32>, tree(depth, inner, columns, count, base, la, ra))
+  Parallel.build(~Dims, ~Dims, ~Array<F32>, ~Array<F32>, ~dims, ~Elementwise.split, ~cell_at, Dims{inner, columns}, depth, splits, count, base, (la, ra))
 
 def halvings_step(rec: Nat -> Nat, +number: Nat, small: Bool) -> Nat:
   match small:
@@ -341,82 +336,10 @@ def at_most(+a: Nat, +b: Nat) -> Nat:
 def splits(+depth: Nat, +inner: Nat) -> Nat:
   at_most(at_most(Nat.sub(Nat.add(depth, halvings(inner, inner)), 13n), 6n), depth)
 
-# A run of the build next to its proof of balance, as `Elementwise.Certified`.
-def cell_leaf_certified(pair: F32 & (Array<F32> & Array<F32>)) -> Elementwise.Certified<0n, cell_leaf(pair)>:
-  (value, inputs) = pair
-  Elementwise.Certified{cell_leaf((value, inputs)), {==}, Unit{}}
-
-def cell_certified(+inner: Nat, +columns: Nat, +position: Nat, la: Array<F32>, ra: Array<F32>, inside: Bool) ->
-  Elementwise.Certified<0n, cell(inner, columns, position, la, ra, inside)>:
-  match inside:
-    case False{}:
-      Elementwise.Certified{cell(inner, columns, position, la, ra, False{}), {==}, Unit{}}
-    case True{}:
-      cell_leaf_certified(dot_of(inner, columns, position, la, ra))
-
-def node_joined(+lower: Nat, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat, -la: Array<F32>, -ra: Array<F32>, a: Array<F32>,
-  -l: Array<F32>, -r: Array<F32>,
-  same: {(a, (l, r)) == tree(lower, inner, columns, count, base, la, ra) : Array<F32> & (Array<F32> & Array<F32>)},
-  balanced: Model.Balanced(F32, lower, a),
-  high: Elementwise.Certified<lower, tree(lower, inner, columns, count, Nat.add(Model.capacity(lower), base), l, r)>) ->
-  Elementwise.Certified<1n+lower, tree(1n+lower, inner, columns, count, base, la, ra)>:
-  Elementwise.Certified{result, high_same, high_balanced} = high
-  (b, rest) = result
-  Elementwise.Certified{(ANode{a, b}, rest),
-    %same : {(ANode{a, b}, rest) == Elementwise.tree_node(x => y => tree(lower, inner, columns, count, Nat.add(Model.capacity(lower), base), x, y), _) : Array<F32> & (Array<F32> & Array<F32>)}
-    %high_same : {(ANode{a, b}, rest) == Elementwise.tree_join(a, _) : Array<F32> & (Array<F32> & Array<F32>)}
-    {==},
-    (balanced, high_balanced)}
-
-def node_split(+lower: Nat, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat, -la: Array<F32>, -ra: Array<F32>,
-  result: Array<F32> & (Array<F32> & Array<F32>),
-  same: {result == tree(lower, inner, columns, count, base, la, ra) : Array<F32> & (Array<F32> & Array<F32>)},
-  balanced: Model.Balanced(F32, lower, Pair.fst(Array<F32>, Array<F32> & Array<F32>, result)),
-  next: @l: Array<F32> -> @r: Array<F32> -> Elementwise.Certified<lower, tree(lower, inner, columns, count, Nat.add(Model.capacity(lower), base), l, r)>) ->
-  Elementwise.Certified<1n+lower, tree(1n+lower, inner, columns, count, base, la, ra)>:
-  (a, inputs) = result
-  (l, r) = inputs
-  node_joined(lower, inner, columns, count, base, la, ra, a, l, r, same, balanced, next(l, r))
-
-def tree_node_certified(+lower: Nat, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat, -la: Array<F32>, -ra: Array<F32>,
-  low: Elementwise.Certified<lower, tree(lower, inner, columns, count, base, la, ra)>,
-  next: @l: Array<F32> -> @r: Array<F32> -> Elementwise.Certified<lower, tree(lower, inner, columns, count, Nat.add(Model.capacity(lower), base), l, r)>) ->
-  Elementwise.Certified<1n+lower, tree(1n+lower, inner, columns, count, base, la, ra)>:
-  Elementwise.Certified{result, same, balanced} = low
-  node_split(lower, inner, columns, count, base, la, ra, result, same, balanced, next)
-
-def tree_certified(+depth: Nat, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat, la: Array<F32>, ra: Array<F32>) ->
-  Elementwise.Certified<depth, tree(depth, inner, columns, count, base, la, ra)>:
-  match depth:
-    case 0n:
-      cell_certified(inner, columns, base, la, ra, Nat.is_lt(base, count))
-    case 1n+lower:
-      tree_node_certified(lower, inner, columns, count, base, la, ra,
-        tree_certified(lower, inner, columns, count, base, la, ra),
-        l => r => tree_certified(lower, inner, columns, count, Nat.add(Model.capacity(lower), base), l, r))
-
-def tree_balanced(+depth: Nat, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat, -la: Array<F32>, -ra: Array<F32>,
-  certified: Elementwise.Certified<depth, tree(depth, inner, columns, count, base, la, ra)>) ->
-  Model.Balanced(F32, depth, Pair.fst(Array<F32>, Array<F32> & Array<F32>, tree(depth, inner, columns, count, base, la, ra))):
-  Elementwise.Certified{result, same, balanced} = certified
-  %same : Model.Balanced(F32, depth, Pair.fst(Array<F32>, Array<F32> & Array<F32>, _))
-  balanced
-
 # The parallel build returns a balanced tree of its depth, whatever the split.
 def build_balanced(+depth: Nat, +splits: Nat, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat,
   la: Array<F32>, ra: Array<F32>) -> Model.Balanced(F32, depth, build(depth, splits, inner, columns, count, base, la, ra)):
-  match depth splits:
-    case 1n+lower 1n+rest:
-      +high = Nat.add(Model.capacity(lower), base)
-      Elementwise.fork_balanced(lower, Array.clone(F32, la), Array.clone(F32, ra),
-        l => r => build(lower, rest, inner, columns, count, base, l, r),
-        l => r => build(lower, rest, inner, columns, count, high, l, r),
-        l => r => build_balanced(lower, rest, inner, columns, count, base, l, r),
-        l => r => build_balanced(lower, rest, inner, columns, count, high, l, r))
-    case 0n _:
-      tree_balanced(0n, inner, columns, count, base, la, ra, tree_certified(0n, inner, columns, count, base, la, ra))
-    case 1n+lower 0n:
-      tree_balanced(1n+lower, inner, columns, count, base, la, ra, tree_certified(1n+lower, inner, columns, count, base, la, ra))
+  Parallel.balanced(~Dims, ~Dims, ~Array<F32>, ~Array<F32>, ~dims, ~Elementwise.split, ~cell_at, Dims{inner, columns}, depth, splits, count, base, (la, ra))
 
 # Both inputs come back to the caller as the kept halves of their clones,
 # and the build reads the other halves.

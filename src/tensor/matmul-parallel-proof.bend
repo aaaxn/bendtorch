@@ -5,6 +5,7 @@ import ./matmul.bend as Matrix
 import ./dot-fold.bend as DotFold
 import ./elementwise.bend as Elementwise
 import ./elementwise-parallel-proof.bend as Parallel
+import ./parallel-proof.bend as Generic
 
 # Proofs that the parallel matmul build writes, at every cell of its output
 # tree, the value the cell's dot names: for two balanced arrays A and B, a
@@ -142,204 +143,97 @@ def Cells(+depth: Nat, +dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inne
   @+path: Model.Path(depth) ->
     CellIs(dl, dr, A, B, inner, columns, count, Nat.add(Model.offset(depth, path), base), Model.observe(F32, depth, out, path))
 
-def TreeFacts(+depth: Nat, +dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat,
-  -result: Array<F32> & (Array<F32> & Array<F32>)) -> Type:
-  {Pair.fst(Array<F32>, Array<F32>, Pair.snd(Array<F32>, Array<F32> & Array<F32>, result)) == A : Array<F32>} &
-    ({Pair.snd(Array<F32>, Array<F32>, Pair.snd(Array<F32>, Array<F32> & Array<F32>, result)) == B : Array<F32>} &
-      Cells(depth, dl, dr, A, B, inner, columns, count, base, Pair.fst(Array<F32>, Array<F32> & Array<F32>, result)))
+# The matmul cell function of `Parallel.build`, from the input arrays.
+def cell_of(+inner: Nat, +columns: Nat, +position: Nat, A: Array<F32>, B: Array<F32>, inside: Bool) -> F32 & (Array<F32> & Array<F32>):
+  Matrix.cell_at(Matrix.dims(Matrix.Dims{inner, columns}), position, (A, B), inside)
 
-def facts_left(+depth: Nat, +dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat,
-  -result: Array<F32> & (Array<F32> & Array<F32>),
-  -facts: Parallel.Fact<TreeFacts(depth, dl, dr, A, B, inner, columns, count, base, result)>) ->
-  Parallel.Fact<{Pair.fst(Array<F32>, Array<F32>, Pair.snd(Array<F32>, Array<F32> & Array<F32>, result)) == A : Array<F32>}>:
-  Parallel.Fact{Pair.fst({Pair.fst(Array<F32>, Array<F32>, Pair.snd(Array<F32>, Array<F32> & Array<F32>, result)) == A : Array<F32>},
-    ({Pair.snd(Array<F32>, Array<F32>, Pair.snd(Array<F32>, Array<F32> & Array<F32>, result)) == B : Array<F32>} &
-      Cells(depth, dl, dr, A, B, inner, columns, count, base, Pair.fst(Array<F32>, Array<F32> & Array<F32>, result))),
-    {\{Parallel.Fact: p => p} : Parallel.Fact<(TreeFacts(depth, dl, dr, A, B, inner, columns, count, base, result))> ->
-      TreeFacts(depth, dl, dr, A, B, inner, columns, count, base, result)}(facts))}
+def eta(-X: Type, -Y: Type, pair: X & Y) -> {pair == (Pair.fst(X, Y, pair), Pair.snd(X, Y, pair)) : X & Y}:
+  (x, y) = pair
+  {==}
 
-def facts_right(+depth: Nat, +dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat,
-  -result: Array<F32> & (Array<F32> & Array<F32>),
-  -facts: Parallel.Fact<TreeFacts(depth, dl, dr, A, B, inner, columns, count, base, result)>) ->
-  Parallel.Fact<{Pair.snd(Array<F32>, Array<F32>, Pair.snd(Array<F32>, Array<F32> & Array<F32>, result)) == B : Array<F32>}>:
-  Parallel.Fact{Pair.fst({Pair.snd(Array<F32>, Array<F32>, Pair.snd(Array<F32>, Array<F32> & Array<F32>, result)) == B : Array<F32>},
-    Cells(depth, dl, dr, A, B, inner, columns, count, base, Pair.fst(Array<F32>, Array<F32> & Array<F32>, result)),
-    Pair.snd({Pair.fst(Array<F32>, Array<F32>, Pair.snd(Array<F32>, Array<F32> & Array<F32>, result)) == A : Array<F32>},
-      ({Pair.snd(Array<F32>, Array<F32>, Pair.snd(Array<F32>, Array<F32> & Array<F32>, result)) == B : Array<F32>} &
-        Cells(depth, dl, dr, A, B, inner, columns, count, base, Pair.fst(Array<F32>, Array<F32> & Array<F32>, result))),
-      {\{Parallel.Fact: p => p} : Parallel.Fact<(TreeFacts(depth, dl, dr, A, B, inner, columns, count, base, result))> ->
-        TreeFacts(depth, dl, dr, A, B, inner, columns, count, base, result)}(facts)))}
-
-def facts_cells(+depth: Nat, +dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat,
-  -result: Array<F32> & (Array<F32> & Array<F32>),
-  -facts: Parallel.Fact<TreeFacts(depth, dl, dr, A, B, inner, columns, count, base, result)>) ->
-  Parallel.Fact<Cells(depth, dl, dr, A, B, inner, columns, count, base, Pair.fst(Array<F32>, Array<F32> & Array<F32>, result))>:
-  Parallel.Fact{Pair.snd({Pair.snd(Array<F32>, Array<F32>, Pair.snd(Array<F32>, Array<F32> & Array<F32>, result)) == B : Array<F32>},
-    Cells(depth, dl, dr, A, B, inner, columns, count, base, Pair.fst(Array<F32>, Array<F32> & Array<F32>, result)),
-    Pair.snd({Pair.fst(Array<F32>, Array<F32>, Pair.snd(Array<F32>, Array<F32> & Array<F32>, result)) == A : Array<F32>},
-      ({Pair.snd(Array<F32>, Array<F32>, Pair.snd(Array<F32>, Array<F32> & Array<F32>, result)) == B : Array<F32>} &
-        Cells(depth, dl, dr, A, B, inner, columns, count, base, Pair.fst(Array<F32>, Array<F32> & Array<F32>, result))),
-      {\{Parallel.Fact: p => p} : Parallel.Fact<(TreeFacts(depth, dl, dr, A, B, inner, columns, count, base, result))> ->
-        TreeFacts(depth, dl, dr, A, B, inner, columns, count, base, result)}(facts)))}
-
-def cell_leaf_facts(+dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat,
-  pair: F32 & (Array<F32> & Array<F32>), -decided: {True{} == Nat.is_lt(base, count) : Bool},
-  -run: Parallel.Fact<DotRun<inner, dl, dr, A, B, inner, columns, Matrix.row_of(columns, base), Matrix.column_of(columns, base), 0n, 0.0, pair>>) ->
-  Parallel.Fact<TreeFacts(0n, dl, dr, A, B, inner, columns, count, base, Matrix.cell_leaf(pair))>:
-  (value, inputs) = pair
-  (l, r) = inputs
-  Parallel.Fact{{\{DotRun: values => logical => fold => left_kept => right_kept =>
-    (left_kept, (right_kept, path =>
-      %decided : CellSpec(dl, dr, A, B, inner, columns, base, _, Some{value})
-      CellAt{value, {==}, values, logical, fold}))} :
-    DotRun<inner, dl, dr, A, B, inner, columns, Matrix.row_of(columns, base), Matrix.column_of(columns, base), 0n, 0.0, (value, (l, r))> ->
-    TreeFacts(0n, dl, dr, A, B, inner, columns, count, base, (ALeaf{value}, (l, r)))}(
-      {\{Parallel.Fact: p => p} :
-        Parallel.Fact<DotRun<inner, dl, dr, A, B, inner, columns, Matrix.row_of(columns, base), Matrix.column_of(columns, base), 0n, 0.0, (value, (l, r))>> ->
-        DotRun<inner, dl, dr, A, B, inner, columns, Matrix.row_of(columns, base), Matrix.column_of(columns, base), 0n, 0.0, (value, (l, r))>}(run))}
-
-def cell_facts(+dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat,
-  la: Array<F32>, ra: Array<F32>, inside: Bool, -decided: {inside == Nat.is_lt(base, count) : Bool},
-  -el: {la == A : Array<F32>}, -er: {ra == B : Array<F32>},
+# Every cell hands both input arrays back.
+def cell_keeps(+dl: Nat, +dr: Nat, A: Array<F32>, B: Array<F32>, +inner: Nat, +columns: Nat, +position: Nat, inside: Bool,
   -left_valid: Model.Balanced(F32, dl, A), -right_valid: Model.Balanced(F32, dr, B)) ->
-  Parallel.Fact<TreeFacts(0n, dl, dr, A, B, inner, columns, count, base, Matrix.cell(inner, columns, base, la, ra, inside))>:
+  Parallel.Fact<{Pair.snd(F32, Array<F32> & Array<F32>, cell_of(inner, columns, position, A, B, inside)) == (A, B) : Array<F32> & Array<F32>}>:
   match inside:
     case False{}:
-      Parallel.Fact{(el, (er, path =>
-        %decided : CellSpec(dl, dr, A, B, inner, columns, base, _, Some{0.0})
-        {==}))}
+      Parallel.Fact{{==}}
     case True{}:
-      cell_leaf_facts(dl, dr, A, B, inner, columns, count, base,
-        Matrix.dot_of(inner, columns, base, la, ra), decided,
-        dot_run(inner, dl, dr, A, B, inner, columns, Matrix.row_of(columns, base), Matrix.column_of(columns, base), 0n, 0.0, la, ra, el, er,
-          left_valid, right_valid))
+      Parallel.Fact{{\{DotRun: values => logical => fold => left_kept => right_kept =>
+        Equal.trans(Array<F32> & Array<F32>, Pair.snd(F32, Array<F32> & Array<F32>, cell_of(inner, columns, position, A, B, True{})),
+          (Pair.fst(Array<F32>, Array<F32>, Pair.snd(F32, Array<F32> & Array<F32>, cell_of(inner, columns, position, A, B, True{}))),
+            Pair.snd(Array<F32>, Array<F32>, Pair.snd(F32, Array<F32> & Array<F32>, cell_of(inner, columns, position, A, B, True{})))),
+          (A, B),
+          eta(Array<F32>, Array<F32>, Pair.snd(F32, Array<F32> & Array<F32>, cell_of(inner, columns, position, A, B, True{}))),
+          Parallel.pair_equal(Pair.fst(Array<F32>, Array<F32>, Pair.snd(F32, Array<F32> & Array<F32>, cell_of(inner, columns, position, A, B, True{}))),
+            Pair.snd(Array<F32>, Array<F32>, Pair.snd(F32, Array<F32> & Array<F32>, cell_of(inner, columns, position, A, B, True{}))),
+            A, B, left_kept, right_kept))} :
+        DotRun<inner, dl, dr, A, B, inner, columns, Matrix.row_of(columns, position), Matrix.column_of(columns, position), 0n, 0.0,
+          cell_of(inner, columns, position, A, B, True{})> ->
+        {Pair.snd(F32, Array<F32> & Array<F32>, cell_of(inner, columns, position, A, B, True{})) == (A, B) : Array<F32> & Array<F32>}}(
+        {\{Parallel.Fact: p => p} :
+          Parallel.Fact<DotRun<inner, dl, dr, A, B, inner, columns, Matrix.row_of(columns, position), Matrix.column_of(columns, position), 0n, 0.0,
+            cell_of(inner, columns, position, A, B, True{})>> ->
+          DotRun<inner, dl, dr, A, B, inner, columns, Matrix.row_of(columns, position), Matrix.column_of(columns, position), 0n, 0.0,
+            cell_of(inner, columns, position, A, B, True{})>}(
+          dot_run(inner, dl, dr, A, B, inner, columns, Matrix.row_of(columns, position), Matrix.column_of(columns, position), 0n, 0.0, A, B,
+            {==}, {==}, left_valid, right_valid)))}
 
-def node_cell(+lower: Nat, +dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat,
-  -a: Array<F32>, -b: Array<F32>, +path: Model.Path(1n+lower),
-  -low: Parallel.Fact<Cells(lower, dl, dr, A, B, inner, columns, count, base, a)>,
-  -high: Parallel.Fact<Cells(lower, dl, dr, A, B, inner, columns, count, Nat.add(Model.capacity(lower), base), b)>) ->
-  Parallel.Fact<CellIs(dl, dr, A, B, inner, columns, count, Nat.add(Model.offset(1n+lower, path), base),
-    Model.observe(F32, 1n+lower, ANode{a, b}, path))>:
-  Model.Step{+bit, +rest} = path
-  match bit:
-    case False{}:
-      Parallel.Fact{{\{Parallel.Fact: p => p} : Parallel.Fact<(Cells(lower, dl, dr, A, B, inner, columns, count, base, a))> ->
-        Cells(lower, dl, dr, A, B, inner, columns, count, base, a)}(low)(rest)}
-    case True{}:
-      Parallel.Fact{
-        %Parallel.position_step(Model.capacity(lower), Model.offset(lower, rest), base) :
-          CellIs(dl, dr, A, B, inner, columns, count, _, Model.observe(F32, lower, b, rest))
-        {\{Parallel.Fact: p => p} : Parallel.Fact<(Cells(lower, dl, dr, A, B, inner, columns, count, Nat.add(Model.capacity(lower), base), b))> ->
-          Cells(lower, dl, dr, A, B, inner, columns, count, Nat.add(Model.capacity(lower), base), b)}(high)(rest)}
-
-def node_cells(+lower: Nat, +dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat,
-  -a: Array<F32>, -b: Array<F32>,
-  -low: Parallel.Fact<Cells(lower, dl, dr, A, B, inner, columns, count, base, a)>,
-  -high: Parallel.Fact<Cells(lower, dl, dr, A, B, inner, columns, count, Nat.add(Model.capacity(lower), base), b)>) ->
-  Parallel.Fact<Cells(1n+lower, dl, dr, A, B, inner, columns, count, base, ANode{a, b})>:
-  Parallel.Fact{path => {\{Parallel.Fact: p => p} :
-    Parallel.Fact<(CellIs(dl, dr, A, B, inner, columns, count, Nat.add(Model.offset(1n+lower, path), base), Model.observe(F32, 1n+lower, ANode{a, b}, path)))> ->
-    CellIs(dl, dr, A, B, inner, columns, count, Nat.add(Model.offset(1n+lower, path), base), Model.observe(F32, 1n+lower, ANode{a, b}, path))}(
-      node_cell(lower, dl, dr, A, B, inner, columns, count, base, a, b, path, low, high))}
-
-def tree_join_facts(+lower: Nat, +dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat,
-  -a: Array<F32>, high: Array<F32> & (Array<F32> & Array<F32>),
-  -low: Parallel.Fact<Cells(lower, dl, dr, A, B, inner, columns, count, base, a)>,
-  -facts: Parallel.Fact<TreeFacts(lower, dl, dr, A, B, inner, columns, count, Nat.add(Model.capacity(lower), base), high)>) ->
-  Parallel.Fact<TreeFacts(1n+lower, dl, dr, A, B, inner, columns, count, base, Elementwise.tree_join(a, high))>:
-  (b, inputs) = high
-  Parallel.Fact{(
-    {\{Parallel.Fact: p => p} : Parallel.Fact<({Pair.fst(Array<F32>, Array<F32>, Pair.snd(Array<F32>, Array<F32> & Array<F32>, (b, inputs))) == A : Array<F32>})> ->
-      {Pair.fst(Array<F32>, Array<F32>, Pair.snd(Array<F32>, Array<F32> & Array<F32>, (b, inputs))) == A : Array<F32>}}(
-      facts_left(lower, dl, dr, A, B, inner, columns, count, Nat.add(Model.capacity(lower), base), (b, inputs), facts)),
-    ({\{Parallel.Fact: p => p} : Parallel.Fact<({Pair.snd(Array<F32>, Array<F32>, Pair.snd(Array<F32>, Array<F32> & Array<F32>, (b, inputs))) == B : Array<F32>})> ->
-      {Pair.snd(Array<F32>, Array<F32>, Pair.snd(Array<F32>, Array<F32> & Array<F32>, (b, inputs))) == B : Array<F32>}}(
-      facts_right(lower, dl, dr, A, B, inner, columns, count, Nat.add(Model.capacity(lower), base), (b, inputs), facts)),
-      {\{Parallel.Fact: p => p} : Parallel.Fact<(Cells(1n+lower, dl, dr, A, B, inner, columns, count, base, ANode{a, b}))> ->
-        Cells(1n+lower, dl, dr, A, B, inner, columns, count, base, ANode{a, b})}(
-        node_cells(lower, dl, dr, A, B, inner, columns, count, base, a, b, low,
-          facts_cells(lower, dl, dr, A, B, inner, columns, count, Nat.add(Model.capacity(lower), base), (b, inputs), facts)))))}
-
-def tree_node_facts(+lower: Nat, +dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat,
-  rec: Array<F32> -> Array<F32> -> Array<F32> & (Array<F32> & Array<F32>), low: Array<F32> & (Array<F32> & Array<F32>),
-  -facts: Parallel.Fact<TreeFacts(lower, dl, dr, A, B, inner, columns, count, base, low)>,
-  -next: @l: Array<F32> -> @r: Array<F32> -> @-el: {l == A : Array<F32>} -> @-er: {r == B : Array<F32>} ->
-    Parallel.Fact<TreeFacts(lower, dl, dr, A, B, inner, columns, count, Nat.add(Model.capacity(lower), base), rec(l, r))>) ->
-  Parallel.Fact<TreeFacts(1n+lower, dl, dr, A, B, inner, columns, count, base, Elementwise.tree_node(rec, low))>:
-  (a, inputs) = low
-  (la, ra) = inputs
-  tree_join_facts(lower, dl, dr, A, B, inner, columns, count, base, a, rec(la, ra),
-    facts_cells(lower, dl, dr, A, B, inner, columns, count, base, (a, (la, ra)), facts),
-    next(la)(ra)(
-      {\{Parallel.Fact: p => p} : Parallel.Fact<({Pair.fst(Array<F32>, Array<F32>, Pair.snd(Array<F32>, Array<F32> & Array<F32>, (a, (la, ra)))) == A : Array<F32>})> ->
-        {Pair.fst(Array<F32>, Array<F32>, Pair.snd(Array<F32>, Array<F32> & Array<F32>, (a, (la, ra)))) == A : Array<F32>}}(
-        facts_left(lower, dl, dr, A, B, inner, columns, count, base, (a, (la, ra)), facts)))(
-      {\{Parallel.Fact: p => p} : Parallel.Fact<({Pair.snd(Array<F32>, Array<F32>, Pair.snd(Array<F32>, Array<F32> & Array<F32>, (a, (la, ra)))) == B : Array<F32>})> ->
-        {Pair.snd(Array<F32>, Array<F32>, Pair.snd(Array<F32>, Array<F32> & Array<F32>, (a, (la, ra)))) == B : Array<F32>}}(
-        facts_right(lower, dl, dr, A, B, inner, columns, count, base, (a, (la, ra)), facts))))
-
-def tree_facts(+depth: Nat, +dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat,
-  la: Array<F32>, ra: Array<F32>, -el: {la == A : Array<F32>}, -er: {ra == B : Array<F32>},
+# What the cell function computes is what CellSpec names.
+def cell_spec(+dl: Nat, +dr: Nat, A: Array<F32>, B: Array<F32>, +inner: Nat, +columns: Nat, +position: Nat, inside: Bool,
+  -observed: Maybe<&2, F32>, -computed: {observed == Some{Pair.fst(F32, Array<F32> & Array<F32>, cell_of(inner, columns, position, A, B, inside))} : Maybe<&2, F32>},
   -left_valid: Model.Balanced(F32, dl, A), -right_valid: Model.Balanced(F32, dr, B)) ->
-  Parallel.Fact<TreeFacts(depth, dl, dr, A, B, inner, columns, count, base, Matrix.tree(depth, inner, columns, count, base, la, ra))>:
-  match depth:
-    case 0n:
-      cell_facts(dl, dr, A, B, inner, columns, count, base, la, ra, Nat.is_lt(base, count), {==}, el, er, left_valid, right_valid)
-    case 1n+lower:
-      tree_node_facts(lower, dl, dr, A, B, inner, columns, count, base,
-        l => r => Matrix.tree(lower, inner, columns, count, Nat.add(Model.capacity(lower), base), l, r),
-        Matrix.tree(lower, inner, columns, count, base, la, ra),
-        tree_facts(lower, dl, dr, A, B, inner, columns, count, base, la, ra, el, er, left_valid, right_valid),
-        l => r => el => er => tree_facts(lower, dl, dr, A, B, inner, columns, count, Nat.add(Model.capacity(lower), base), l, r, el, er,
-          left_valid, right_valid))
-
-def fork_cells(+lower: Nat, +dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat,
-  -la: Array<F32>, -ra: Array<F32>,
-  lp: Array<F32> & Array<F32>, -left_exact: {lp == Array.clone(F32, la) : Array<F32> & Array<F32>},
-  rp: Array<F32> & Array<F32>, -right_exact: {rp == Array.clone(F32, ra) : Array<F32> & Array<F32>},
-  -low: Array<F32> -> Array<F32> -> Array<F32>, -high: Array<F32> -> Array<F32> -> Array<F32>,
-  -el: {la == A : Array<F32>}, -er: {ra == B : Array<F32>},
-  -left_valid: Model.Balanced(F32, dl, A), -right_valid: Model.Balanced(F32, dr, B),
-  -low_cells: @l: Array<F32> -> @r: Array<F32> -> @-el: {l == A : Array<F32>} -> @-er: {r == B : Array<F32>} ->
-    Parallel.Fact<Cells(lower, dl, dr, A, B, inner, columns, count, base, low(l, r))>,
-  -high_cells: @l: Array<F32> -> @r: Array<F32> -> @-el: {l == A : Array<F32>} -> @-er: {r == B : Array<F32>} ->
-    Parallel.Fact<Cells(lower, dl, dr, A, B, inner, columns, count, Nat.add(Model.capacity(lower), base), high(l, r))>) ->
-  Parallel.Fact<Cells(1n+lower, dl, dr, A, B, inner, columns, count, base, Elementwise.fork(lp, rp, low, high))>:
-  (l1, l2) = lp
-  (r1, r2) = rp
-  node_cells(lower, dl, dr, A, B, inner, columns, count, base, low(l1, r1), high(l2, r2),
-    low_cells(l1)(r1)(
-      {\{Parallel.Fact: p => p} : Parallel.Fact<({Pair.fst(Array<F32>, Array<F32>, (l1, l2)) == A : Array<F32>})> -> {Pair.fst(Array<F32>, Array<F32>, (l1, l2)) == A : Array<F32>}}(
-        Parallel.clone_first(dl, la, A, (l1, l2), left_exact, el, left_valid)))(
-      {\{Parallel.Fact: p => p} : Parallel.Fact<({Pair.fst(Array<F32>, Array<F32>, (r1, r2)) == B : Array<F32>})> -> {Pair.fst(Array<F32>, Array<F32>, (r1, r2)) == B : Array<F32>}}(
-        Parallel.clone_first(dr, ra, B, (r1, r2), right_exact, er, right_valid))),
-    high_cells(l2)(r2)(
-      {\{Parallel.Fact: p => p} : Parallel.Fact<({Pair.snd(Array<F32>, Array<F32>, (l1, l2)) == A : Array<F32>})> -> {Pair.snd(Array<F32>, Array<F32>, (l1, l2)) == A : Array<F32>}}(
-        Parallel.clone_second(dl, la, A, (l1, l2), left_exact, el, left_valid)))(
-      {\{Parallel.Fact: p => p} : Parallel.Fact<({Pair.snd(Array<F32>, Array<F32>, (r1, r2)) == B : Array<F32>})> -> {Pair.snd(Array<F32>, Array<F32>, (r1, r2)) == B : Array<F32>}}(
-        Parallel.clone_second(dr, ra, B, (r1, r2), right_exact, er, right_valid))))
+  Parallel.Fact<CellSpec(dl, dr, A, B, inner, columns, position, inside, observed)>:
+  match inside:
+    case False{}:
+      Parallel.Fact{computed}
+    case True{}:
+      Parallel.Fact{{\{DotRun: values => logical => fold => left_kept => right_kept =>
+        CellAt{Pair.fst(F32, Array<F32> & Array<F32>, cell_of(inner, columns, position, A, B, True{})), computed, values, logical, fold}} :
+        DotRun<inner, dl, dr, A, B, inner, columns, Matrix.row_of(columns, position), Matrix.column_of(columns, position), 0n, 0.0,
+          cell_of(inner, columns, position, A, B, True{})> ->
+        CellAt<dl, dr, A, B, inner, columns, position, observed>}(
+        {\{Parallel.Fact: p => p} :
+          Parallel.Fact<DotRun<inner, dl, dr, A, B, inner, columns, Matrix.row_of(columns, position), Matrix.column_of(columns, position), 0n, 0.0,
+            cell_of(inner, columns, position, A, B, True{})>> ->
+          DotRun<inner, dl, dr, A, B, inner, columns, Matrix.row_of(columns, position), Matrix.column_of(columns, position), 0n, 0.0,
+            cell_of(inner, columns, position, A, B, True{})>}(
+          dot_run(inner, dl, dr, A, B, inner, columns, Matrix.row_of(columns, position), Matrix.column_of(columns, position), 0n, 0.0, A, B,
+            {==}, {==}, left_valid, right_valid)))}
 
 # Whatever the split, every cell of the parallel build holds what CellIs
-# names.
+# names: the generic law of `Parallel.build`, with the matmul cell.
 def build_cells(+depth: Nat, +splits: Nat, +dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat,
   +count: Nat, +base: Nat, la: Array<F32>, ra: Array<F32>, -el: {la == A : Array<F32>}, -er: {ra == B : Array<F32>},
   -left_valid: Model.Balanced(F32, dl, A), -right_valid: Model.Balanced(F32, dr, B)) ->
   Parallel.Fact<Cells(depth, dl, dr, A, B, inner, columns, count, base, Matrix.build(depth, splits, inner, columns, count, base, la, ra))>:
-  match depth splits:
-    case 1n+lower 1n+rest:
-      fork_cells(lower, dl, dr, A, B, inner, columns, count, base, la, ra, Array.clone(F32, la), {==}, Array.clone(F32, ra), {==},
-        l => r => Matrix.build(lower, rest, inner, columns, count, base, l, r),
-        l => r => Matrix.build(lower, rest, inner, columns, count, Nat.add(Model.capacity(lower), base), l, r),
-        el, er, left_valid, right_valid,
-        l => r => el => er => build_cells(lower, rest, dl, dr, A, B, inner, columns, count, base, l, r, el, er, left_valid, right_valid),
-        l => r => el => er => build_cells(lower, rest, dl, dr, A, B, inner, columns, count, Nat.add(Model.capacity(lower), base), l, r, el, er,
-          left_valid, right_valid))
-    case 0n _:
-      facts_cells(0n, dl, dr, A, B, inner, columns, count, base, Matrix.tree(0n, inner, columns, count, base, la, ra),
-        tree_facts(0n, dl, dr, A, B, inner, columns, count, base, la, ra, el, er, left_valid, right_valid))
-    case 1n+lower 0n:
-      facts_cells(1n+lower, dl, dr, A, B, inner, columns, count, base, Matrix.tree(1n+lower, inner, columns, count, base, la, ra),
-        tree_facts(1n+lower, dl, dr, A, B, inner, columns, count, base, la, ra, el, er, left_valid, right_valid))
+  -split = {\{Parallel.Fact: q => q} : Parallel.Fact<({Pair.fst(Array<F32> & Array<F32>, Array<F32> & Array<F32>, Elementwise.split((A, B))) == (A, B) : Array<F32> & Array<F32>} &
+    {Pair.snd(Array<F32> & Array<F32>, Array<F32> & Array<F32>, Elementwise.split((A, B))) == (A, B) : Array<F32> & Array<F32>})> ->
+    {Pair.fst(Array<F32> & Array<F32>, Array<F32> & Array<F32>, Elementwise.split((A, B))) == (A, B) : Array<F32> & Array<F32>} &
+    {Pair.snd(Array<F32> & Array<F32>, Array<F32> & Array<F32>, Elementwise.split((A, B))) == (A, B) : Array<F32> & Array<F32>}}(
+    Parallel.split_equal(dl, dr, A, B, left_valid, right_valid))
+  -cells = {\{Generic.Fact: q => q} :
+    Generic.Fact<Generic.Cells(~Matrix.Dims, ~Array<F32>, ~Array<F32>, ~Matrix.cell_at, Matrix.dims(Matrix.Dims{inner, columns}), (A, B), depth, count, base,
+      Matrix.build(depth, splits, inner, columns, count, base, la, ra))> ->
+    Generic.Cells(~Matrix.Dims, ~Array<F32>, ~Array<F32>, ~Matrix.cell_at, Matrix.dims(Matrix.Dims{inner, columns}), (A, B), depth, count, base,
+      Matrix.build(depth, splits, inner, columns, count, base, la, ra))}(
+    Generic.build_cells(~Matrix.Dims, ~Matrix.Dims, ~Array<F32>, ~Array<F32>, ~Matrix.dims, ~Elementwise.split, ~Matrix.cell_at,
+      Matrix.Dims{inner, columns}, (A, B), depth, splits, count, base, (la, ra), Parallel.pair_equal(la, ra, A, B, el, er),
+      at => inside => {\{Parallel.Fact: q => q} :
+        Parallel.Fact<({Pair.snd(F32, Array<F32> & Array<F32>, cell_of(inner, columns, at, A, B, inside)) == (A, B) : Array<F32> & Array<F32>})> ->
+        {Pair.snd(F32, Array<F32> & Array<F32>, cell_of(inner, columns, at, A, B, inside)) == (A, B) : Array<F32> & Array<F32>}}(
+        cell_keeps(dl, dr, A, B, inner, columns, at, inside, left_valid, right_valid)),
+      Pair.fst({Pair.fst(Array<F32> & Array<F32>, Array<F32> & Array<F32>, Elementwise.split((A, B))) == (A, B) : Array<F32> & Array<F32>},
+        {Pair.snd(Array<F32> & Array<F32>, Array<F32> & Array<F32>, Elementwise.split((A, B))) == (A, B) : Array<F32> & Array<F32>}, split),
+      Pair.snd({Pair.fst(Array<F32> & Array<F32>, Array<F32> & Array<F32>, Elementwise.split((A, B))) == (A, B) : Array<F32> & Array<F32>},
+        {Pair.snd(Array<F32> & Array<F32>, Array<F32> & Array<F32>, Elementwise.split((A, B))) == (A, B) : Array<F32> & Array<F32>}, split)))
+  Parallel.Fact{path => {\{Parallel.Fact: q => q} :
+    Parallel.Fact<CellSpec(dl, dr, A, B, inner, columns, Nat.add(Model.offset(depth, path), base), Nat.is_lt(Nat.add(Model.offset(depth, path), base), count),
+      Model.observe(F32, depth, Matrix.build(depth, splits, inner, columns, count, base, la, ra), path))> ->
+    CellSpec(dl, dr, A, B, inner, columns, Nat.add(Model.offset(depth, path), base), Nat.is_lt(Nat.add(Model.offset(depth, path), base), count),
+      Model.observe(F32, depth, Matrix.build(depth, splits, inner, columns, count, base, la, ra), path))}(
+    cell_spec(dl, dr, A, B, inner, columns, Nat.add(Model.offset(depth, path), base), Nat.is_lt(Nat.add(Model.offset(depth, path), base), count),
+      Model.observe(F32, depth, Matrix.build(depth, splits, inner, columns, count, base, la, ra), path), cells(path), left_valid, right_valid))}
 
 # A cell named at an equal index, and a CellIs below the count is a CellAt.
 def cell_shift(+dl: Nat, +dr: Nat, -A: Array<F32>, -B: Array<F32>, +inner: Nat, +columns: Nat, +count: Nat,

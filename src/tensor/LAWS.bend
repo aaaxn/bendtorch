@@ -9,6 +9,7 @@ import ./transpose-LAWS.bend as Transpose
 import ./transform-LAWS.bend as Transforms
 import ./reduction-LAWS.bend as Reduction
 import ./matmul-LAWS.bend as Matrix
+import ./parallel-LAWS.bend as Parallel
 import ./construction-contract-LAWS.bend as ConstructionContract
 import ./read-write-contract-LAWS.bend as ReadWriteContract
 import ./clone-metadata-contract-LAWS.bend as CloneMetadataContract

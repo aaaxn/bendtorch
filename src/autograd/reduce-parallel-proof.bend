@@ -2,6 +2,7 @@ import Base
 import ../storage/model.bend as Model
 import ../storage/refinement.bend as Refinement
 import ../tensor/elementwise-parallel-proof.bend as Parallel
+import ../tensor/parallel-proof.bend as Generic
 import ../shape/core.bend as Shape
 import ../shape/flat.bend as Flat
 import ../shape/broadcast_proofs.bend as Broadcast
@@ -365,161 +366,107 @@ def Cells(+depth: Nat, +d: Nat, -A: Array<F32>, +rows: List<&2, Shape.Row>, +ext
   @+path: Model.Path(depth) ->
     CellIs(d, A, rows, extents, count, Nat.add(Model.offset(depth, path), base), Model.observe(F32, depth, out, path))
 
-def TreeFacts(+depth: Nat, +d: Nat, -A: Array<F32>, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +count: Nat, +base: Nat,
-  -result: Array<F32> & Array<F32>) -> Type:
-  {Pair.snd(Array<F32>, Array<F32>, result) == A : Array<F32>} &
-    Cells(depth, d, A, rows, extents, count, base, Pair.fst(Array<F32>, Array<F32>, result))
+# The reduce cell function of `Parallel.build`, from the contribution array.
+def cell_of(+rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +position: Nat, A: Array<F32>, inside: Bool) -> F32 & (Array<F32> & Unit):
+  Reduce.cell_at(Reduce.fibers(Reduce.Fibers{rows, extents}), position, (A, Unit{}), inside)
 
-def facts_kept(+depth: Nat, +d: Nat, -A: Array<F32>, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +count: Nat, +base: Nat,
-  -result: Array<F32> & Array<F32>, -facts: Parallel.Fact<TreeFacts(depth, d, A, rows, extents, count, base, result)>) ->
-  Parallel.Fact<{Pair.snd(Array<F32>, Array<F32>, result) == A : Array<F32>}>:
-  Parallel.Fact{Pair.fst({Pair.snd(Array<F32>, Array<F32>, result) == A : Array<F32>},
-    Cells(depth, d, A, rows, extents, count, base, Pair.fst(Array<F32>, Array<F32>, result)),
-    {\{Parallel.Fact: p => p} : Parallel.Fact<(TreeFacts(depth, d, A, rows, extents, count, base, result))> ->
-      TreeFacts(depth, d, A, rows, extents, count, base, result)}(facts))}
-
-def facts_cells(+depth: Nat, +d: Nat, -A: Array<F32>, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +count: Nat, +base: Nat,
-  -result: Array<F32> & Array<F32>, -facts: Parallel.Fact<TreeFacts(depth, d, A, rows, extents, count, base, result)>) ->
-  Parallel.Fact<Cells(depth, d, A, rows, extents, count, base, Pair.fst(Array<F32>, Array<F32>, result))>:
-  Parallel.Fact{Pair.snd({Pair.snd(Array<F32>, Array<F32>, result) == A : Array<F32>},
-    Cells(depth, d, A, rows, extents, count, base, Pair.fst(Array<F32>, Array<F32>, result)),
-    {\{Parallel.Fact: p => p} : Parallel.Fact<(TreeFacts(depth, d, A, rows, extents, count, base, result))> ->
-      TreeFacts(depth, d, A, rows, extents, count, base, result)}(facts))}
-
-def cell_leaf_facts(+d: Nat, -A: Array<F32>, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +count: Nat, +base: Nat,
-  pair: F32 & Array<F32>, -decided: {True{} == Nat.is_lt(base, count) : Bool},
-  -run: Parallel.Fact<FiberRun<d, A, visited_of(rows, extents, base), 0.0, pair>>) ->
-  Parallel.Fact<TreeFacts(0n, d, A, rows, extents, count, base, Reduce.cell_leaf(pair))>:
+def keep_equal(pair: F32 & Array<F32>, -none: Unit) ->
+  {Reduce.keep(pair, none) == (Pair.fst(F32, Array<F32>, pair), (Pair.snd(F32, Array<F32>, pair), none)) : F32 & (Array<F32> & Unit)}:
   (value, array) = pair
-  Parallel.Fact{{\{FiberRun: words => seen => total => kept =>
-    (kept, path =>
-      %decided : CellSpec(d, A, rows, extents, base, _, Some{value})
-      CellAt{value, {==}, words, seen, total})} :
-    FiberRun<d, A, visited_of(rows, extents, base), 0.0, (value, array)> ->
-    TreeFacts(0n, d, A, rows, extents, count, base, (ALeaf{value}, array))}(
-      {\{Parallel.Fact: p => p} : Parallel.Fact<FiberRun<d, A, visited_of(rows, extents, base), 0.0, (value, array)>> ->
-        FiberRun<d, A, visited_of(rows, extents, base), 0.0, (value, array)>}(run))}
+  {==}
 
-def cell_facts(+d: Nat, -A: Array<F32>, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +count: Nat, +base: Nat,
-  array: Array<F32>, inside: Bool, -decided: {inside == Nat.is_lt(base, count) : Bool},
-  -same: {array == A : Array<F32>}, -valid: Model.Balanced(F32, d, A)) ->
-  Parallel.Fact<TreeFacts(0n, d, A, rows, extents, count, base, Reduce.cell(rows, extents, base, array, inside))>:
+def run_of(+d: Nat, A: Array<F32>, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +position: Nat, -valid: Model.Balanced(F32, d, A)) ->
+  Parallel.Fact<FiberRun<d, A, visited_of(rows, extents, position), 0.0, Reduce.fiber_of(rows, extents, position, A)>>:
+  fiber_run(rows, extents, Reduce.first_span(rows, extents), position, 0n, Reduce.first_digit(rows, position), d, A, 0.0, A, {==}, valid)
+
+# Every cell hands the contribution array back.
+def cell_keeps(+d: Nat, A: Array<F32>, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +position: Nat, inside: Bool,
+  -valid: Model.Balanced(F32, d, A)) ->
+  Parallel.Fact<{Pair.snd(F32, Array<F32> & Unit, cell_of(rows, extents, position, A, inside)) == (A, Unit{}) : Array<F32> & Unit}>:
   match inside:
     case False{}:
-      Parallel.Fact{(same, path =>
-        %decided : CellSpec(d, A, rows, extents, base, _, Some{0.0})
-        {==})}
+      Parallel.Fact{{==}}
     case True{}:
-      cell_leaf_facts(d, A, rows, extents, count, base, Reduce.fiber_of(rows, extents, base, array), decided,
-        fiber_run(rows, extents, Reduce.first_span(rows, extents), base, 0n, Reduce.first_digit(rows, base), d, A, 0.0, array, same, valid))
+      Parallel.Fact{{\{FiberRun: words => seen => total => kept =>
+        %Equal.sym(F32 & (Array<F32> & Unit), Reduce.keep(Reduce.fiber_of(rows, extents, position, A), Unit{}),
+          (Pair.fst(F32, Array<F32>, Reduce.fiber_of(rows, extents, position, A)), (Pair.snd(F32, Array<F32>, Reduce.fiber_of(rows, extents, position, A)), Unit{})),
+          keep_equal(Reduce.fiber_of(rows, extents, position, A), Unit{})) :
+          {Pair.snd(F32, Array<F32> & Unit, _) == (A, Unit{}) : Array<F32> & Unit}
+        Equal.cong(Array<F32>, Array<F32> & Unit, a => (a, Unit{}), Pair.snd(F32, Array<F32>, Reduce.fiber_of(rows, extents, position, A)), A, kept)} :
+        FiberRun<d, A, visited_of(rows, extents, position), 0.0, Reduce.fiber_of(rows, extents, position, A)> ->
+        {Pair.snd(F32, Array<F32> & Unit, cell_of(rows, extents, position, A, True{})) == (A, Unit{}) : Array<F32> & Unit}}(
+        {\{Parallel.Fact: p => p} : Parallel.Fact<FiberRun<d, A, visited_of(rows, extents, position), 0.0, Reduce.fiber_of(rows, extents, position, A)>> ->
+          FiberRun<d, A, visited_of(rows, extents, position), 0.0, Reduce.fiber_of(rows, extents, position, A)>}(
+          run_of(d, A, rows, extents, position, valid)))}
 
-def node_cell(+lower: Nat, +d: Nat, -A: Array<F32>, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +count: Nat, +base: Nat,
-  -a: Array<F32>, -b: Array<F32>, +path: Model.Path(1n+lower),
-  -low: Parallel.Fact<Cells(lower, d, A, rows, extents, count, base, a)>,
-  -high: Parallel.Fact<Cells(lower, d, A, rows, extents, count, Nat.add(Model.capacity(lower), base), b)>) ->
-  Parallel.Fact<CellIs(d, A, rows, extents, count, Nat.add(Model.offset(1n+lower, path), base), Model.observe(F32, 1n+lower, ANode{a, b}, path))>:
-  Model.Step{+bit, +rest} = path
-  match bit:
+# What the cell function computes is what CellSpec names.
+def cell_spec(+d: Nat, A: Array<F32>, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +position: Nat, inside: Bool,
+  -observed: Maybe<&2, F32>, -computed: {observed == Some{Pair.fst(F32, Array<F32> & Unit, cell_of(rows, extents, position, A, inside))} : Maybe<&2, F32>},
+  -valid: Model.Balanced(F32, d, A)) ->
+  Parallel.Fact<CellSpec(d, A, rows, extents, position, inside, observed)>:
+  match inside:
     case False{}:
-      Parallel.Fact{{\{Parallel.Fact: p => p} : Parallel.Fact<(Cells(lower, d, A, rows, extents, count, base, a))> ->
-        Cells(lower, d, A, rows, extents, count, base, a)}(low)(rest)}
+      Parallel.Fact{computed}
     case True{}:
-      Parallel.Fact{
-        %Parallel.position_step(Model.capacity(lower), Model.offset(lower, rest), base) :
-          CellIs(d, A, rows, extents, count, _, Model.observe(F32, lower, b, rest))
-        {\{Parallel.Fact: p => p} : Parallel.Fact<(Cells(lower, d, A, rows, extents, count, Nat.add(Model.capacity(lower), base), b))> ->
-          Cells(lower, d, A, rows, extents, count, Nat.add(Model.capacity(lower), base), b)}(high)(rest)}
+      Parallel.Fact{{\{FiberRun: words => seen => total => kept =>
+        CellAt{Pair.fst(F32, Array<F32>, Reduce.fiber_of(rows, extents, position, A)),
+          %keep_equal(Reduce.fiber_of(rows, extents, position, A), Unit{}) :
+            {observed == Some{Pair.fst(F32, Array<F32> & Unit, _)} : Maybe<&2, F32>}
+          computed,
+          words, seen, total}} :
+        FiberRun<d, A, visited_of(rows, extents, position), 0.0, Reduce.fiber_of(rows, extents, position, A)> ->
+        CellAt<d, A, rows, extents, position, observed>}(
+        {\{Parallel.Fact: p => p} : Parallel.Fact<FiberRun<d, A, visited_of(rows, extents, position), 0.0, Reduce.fiber_of(rows, extents, position, A)>> ->
+          FiberRun<d, A, visited_of(rows, extents, position), 0.0, Reduce.fiber_of(rows, extents, position, A)>}(
+          run_of(d, A, rows, extents, position, valid)))}
 
-def node_cells(+lower: Nat, +d: Nat, -A: Array<F32>, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +count: Nat, +base: Nat,
-  -a: Array<F32>, -b: Array<F32>,
-  -low: Parallel.Fact<Cells(lower, d, A, rows, extents, count, base, a)>,
-  -high: Parallel.Fact<Cells(lower, d, A, rows, extents, count, Nat.add(Model.capacity(lower), base), b)>) ->
-  Parallel.Fact<Cells(1n+lower, d, A, rows, extents, count, base, ANode{a, b})>:
-  Parallel.Fact{path => {\{Parallel.Fact: p => p} :
-    Parallel.Fact<(CellIs(d, A, rows, extents, count, Nat.add(Model.offset(1n+lower, path), base), Model.observe(F32, 1n+lower, ANode{a, b}, path)))> ->
-    CellIs(d, A, rows, extents, count, Nat.add(Model.offset(1n+lower, path), base), Model.observe(F32, 1n+lower, ANode{a, b}, path))}(
-      node_cell(lower, d, A, rows, extents, count, base, a, b, path, low, high))}
-
-def tree_join_facts(+lower: Nat, +d: Nat, -A: Array<F32>, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +count: Nat, +base: Nat,
-  -a: Array<F32>, high: Array<F32> & Array<F32>,
-  -low: Parallel.Fact<Cells(lower, d, A, rows, extents, count, base, a)>,
-  -facts: Parallel.Fact<TreeFacts(lower, d, A, rows, extents, count, Nat.add(Model.capacity(lower), base), high)>) ->
-  Parallel.Fact<TreeFacts(1n+lower, d, A, rows, extents, count, base, Reduce.tree_join(a, high))>:
-  (b, array) = high
-  Parallel.Fact{(
-    {\{Parallel.Fact: p => p} : Parallel.Fact<({Pair.snd(Array<F32>, Array<F32>, (b, array)) == A : Array<F32>})> ->
-      {Pair.snd(Array<F32>, Array<F32>, (b, array)) == A : Array<F32>}}(
-      facts_kept(lower, d, A, rows, extents, count, Nat.add(Model.capacity(lower), base), (b, array), facts)),
-    {\{Parallel.Fact: p => p} : Parallel.Fact<(Cells(1n+lower, d, A, rows, extents, count, base, ANode{a, b}))> ->
-      Cells(1n+lower, d, A, rows, extents, count, base, ANode{a, b})}(
-      node_cells(lower, d, A, rows, extents, count, base, a, b, low,
-        facts_cells(lower, d, A, rows, extents, count, Nat.add(Model.capacity(lower), base), (b, array), facts))))}
-
-def tree_node_facts(+lower: Nat, +d: Nat, -A: Array<F32>, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +count: Nat, +base: Nat,
-  rec: Array<F32> -> Array<F32> & Array<F32>, low: Array<F32> & Array<F32>,
-  -facts: Parallel.Fact<TreeFacts(lower, d, A, rows, extents, count, base, low)>,
-  -next: @array: Array<F32> -> @-same: {array == A : Array<F32>} ->
-    Parallel.Fact<TreeFacts(lower, d, A, rows, extents, count, Nat.add(Model.capacity(lower), base), rec(array))>) ->
-  Parallel.Fact<TreeFacts(1n+lower, d, A, rows, extents, count, base, Reduce.tree_node(rec, low))>:
-  (a, array) = low
-  tree_join_facts(lower, d, A, rows, extents, count, base, a, rec(array),
-    facts_cells(lower, d, A, rows, extents, count, base, (a, array), facts),
-    next(array)(
-      {\{Parallel.Fact: p => p} : Parallel.Fact<({Pair.snd(Array<F32>, Array<F32>, (a, array)) == A : Array<F32>})> ->
-        {Pair.snd(Array<F32>, Array<F32>, (a, array)) == A : Array<F32>}}(
-        facts_kept(lower, d, A, rows, extents, count, base, (a, array), facts))))
-
-def tree_facts(+depth: Nat, +d: Nat, -A: Array<F32>, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +count: Nat, +base: Nat,
-  array: Array<F32>, -same: {array == A : Array<F32>}, -valid: Model.Balanced(F32, d, A)) ->
-  Parallel.Fact<TreeFacts(depth, d, A, rows, extents, count, base, Reduce.tree(depth, rows, extents, count, base, array))>:
-  match depth:
-    case 0n:
-      cell_facts(d, A, rows, extents, count, base, array, Nat.is_lt(base, count), {==}, same, valid)
-    case 1n+lower:
-      tree_node_facts(lower, d, A, rows, extents, count, base,
-        a => Reduce.tree(lower, rows, extents, count, Nat.add(Model.capacity(lower), base), a),
-        Reduce.tree(lower, rows, extents, count, base, array),
-        tree_facts(lower, d, A, rows, extents, count, base, array, same, valid),
-        a => same => tree_facts(lower, d, A, rows, extents, count, Nat.add(Model.capacity(lower), base), a, same, valid))
-
-def fork_cells(+lower: Nat, +d: Nat, -A: Array<F32>, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +count: Nat, +base: Nat,
-  -array: Array<F32>, pair: Array<F32> & Array<F32>, -exact: {pair == Array.clone(F32, array) : Array<F32> & Array<F32>},
-  -low: Array<F32> -> Array<F32>, -high: Array<F32> -> Array<F32>,
-  -same: {array == A : Array<F32>}, -valid: Model.Balanced(F32, d, A),
-  -low_cells: @a: Array<F32> -> @-same: {a == A : Array<F32>} -> Parallel.Fact<Cells(lower, d, A, rows, extents, count, base, low(a))>,
-  -high_cells: @a: Array<F32> -> @-same: {a == A : Array<F32>} ->
-    Parallel.Fact<Cells(lower, d, A, rows, extents, count, Nat.add(Model.capacity(lower), base), high(a))>) ->
-  Parallel.Fact<Cells(1n+lower, d, A, rows, extents, count, base, Reduce.fork(pair, low, high))>:
+# A split hands each half the contribution array.
+def halves_equal(+d: Nat, -A: Array<F32>, pair: Array<F32> & Array<F32>, -exact: {pair == Array.clone(F32, A) : Array<F32> & Array<F32>},
+  -valid: Model.Balanced(F32, d, A)) ->
+  Parallel.Fact<({Pair.fst(Array<F32> & Unit, Array<F32> & Unit, Reduce.halves(pair)) == (A, Unit{}) : Array<F32> & Unit} &
+    {Pair.snd(Array<F32> & Unit, Array<F32> & Unit, Reduce.halves(pair)) == (A, Unit{}) : Array<F32> & Unit})>:
   (first, second) = pair
-  node_cells(lower, d, A, rows, extents, count, base, low(first), high(second),
-    low_cells(first)(
+  Parallel.Fact{(
+    Equal.cong(Array<F32>, Array<F32> & Unit, a => (a, Unit{}), first, A,
       {\{Parallel.Fact: p => p} : Parallel.Fact<({Pair.fst(Array<F32>, Array<F32>, (first, second)) == A : Array<F32>})> ->
-        {Pair.fst(Array<F32>, Array<F32>, (first, second)) == A : Array<F32>}}(
-        Parallel.clone_first(d, array, A, (first, second), exact, same, valid))),
-    high_cells(second)(
+        {Pair.fst(Array<F32>, Array<F32>, (first, second)) == A : Array<F32>}}(Parallel.clone_first(d, A, A, (first, second), exact, {==}, valid))),
+    Equal.cong(Array<F32>, Array<F32> & Unit, a => (a, Unit{}), second, A,
       {\{Parallel.Fact: p => p} : Parallel.Fact<({Pair.snd(Array<F32>, Array<F32>, (first, second)) == A : Array<F32>})> ->
-        {Pair.snd(Array<F32>, Array<F32>, (first, second)) == A : Array<F32>}}(
-        Parallel.clone_second(d, array, A, (first, second), exact, same, valid))))
+        {Pair.snd(Array<F32>, Array<F32>, (first, second)) == A : Array<F32>}}(Parallel.clone_second(d, A, A, (first, second), exact, {==}, valid))))}
 
 # Whatever the split, every cell of the parallel build holds what CellIs
-# names.
+# names: the generic law of `Parallel.build`, with the reduce cell.
 def build_cells(+depth: Nat, +splits: Nat, +d: Nat, -A: Array<F32>, +rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +count: Nat,
   +base: Nat, array: Array<F32>, -same: {array == A : Array<F32>}, -valid: Model.Balanced(F32, d, A)) ->
   Parallel.Fact<Cells(depth, d, A, rows, extents, count, base, Reduce.build(depth, splits, rows, extents, count, base, array))>:
-  match depth splits:
-    case 1n+lower 1n+rest:
-      fork_cells(lower, d, A, rows, extents, count, base, array, Array.clone(F32, array), {==},
-        a => Reduce.build(lower, rest, rows, extents, count, base, a),
-        a => Reduce.build(lower, rest, rows, extents, count, Nat.add(Model.capacity(lower), base), a),
-        same, valid,
-        a => same => build_cells(lower, rest, d, A, rows, extents, count, base, a, same, valid),
-        a => same => build_cells(lower, rest, d, A, rows, extents, count, Nat.add(Model.capacity(lower), base), a, same, valid))
-    case 0n _:
-      facts_cells(0n, d, A, rows, extents, count, base, Reduce.tree(0n, rows, extents, count, base, array),
-        tree_facts(0n, d, A, rows, extents, count, base, array, same, valid))
-    case 1n+lower 0n:
-      facts_cells(1n+lower, d, A, rows, extents, count, base, Reduce.tree(1n+lower, rows, extents, count, base, array),
-        tree_facts(1n+lower, d, A, rows, extents, count, base, array, same, valid))
+  -split = {\{Parallel.Fact: q => q} : Parallel.Fact<({Pair.fst(Array<F32> & Unit, Array<F32> & Unit, Reduce.halves(Array.clone(F32, A))) == (A, Unit{}) : Array<F32> & Unit} &
+    {Pair.snd(Array<F32> & Unit, Array<F32> & Unit, Reduce.halves(Array.clone(F32, A))) == (A, Unit{}) : Array<F32> & Unit})> ->
+    {Pair.fst(Array<F32> & Unit, Array<F32> & Unit, Reduce.halves(Array.clone(F32, A))) == (A, Unit{}) : Array<F32> & Unit} &
+    {Pair.snd(Array<F32> & Unit, Array<F32> & Unit, Reduce.halves(Array.clone(F32, A))) == (A, Unit{}) : Array<F32> & Unit}}(
+    halves_equal(d, A, Array.clone(F32, A), {==}, valid))
+  -cells = {\{Generic.Fact: q => q} :
+    Generic.Fact<Generic.Cells(~Reduce.Fibers, ~Array<F32>, ~Unit, ~Reduce.cell_at, Reduce.fibers(Reduce.Fibers{rows, extents}), (A, Unit{}), depth, count, base,
+      Reduce.build(depth, splits, rows, extents, count, base, array))> ->
+    Generic.Cells(~Reduce.Fibers, ~Array<F32>, ~Unit, ~Reduce.cell_at, Reduce.fibers(Reduce.Fibers{rows, extents}), (A, Unit{}), depth, count, base,
+      Reduce.build(depth, splits, rows, extents, count, base, array))}(
+    Generic.build_cells(~Reduce.Fibers, ~Reduce.Fibers, ~Array<F32>, ~Unit, ~Reduce.fibers, ~Reduce.split, ~Reduce.cell_at,
+      Reduce.Fibers{rows, extents}, (A, Unit{}), depth, splits, count, base, (array, Unit{}),
+      Equal.cong(Array<F32>, Array<F32> & Unit, a => (a, Unit{}), array, A, same),
+      at => inside => {\{Parallel.Fact: q => q} :
+        Parallel.Fact<({Pair.snd(F32, Array<F32> & Unit, cell_of(rows, extents, at, A, inside)) == (A, Unit{}) : Array<F32> & Unit})> ->
+        {Pair.snd(F32, Array<F32> & Unit, cell_of(rows, extents, at, A, inside)) == (A, Unit{}) : Array<F32> & Unit}}(
+        cell_keeps(d, A, rows, extents, at, inside, valid)),
+      Pair.fst({Pair.fst(Array<F32> & Unit, Array<F32> & Unit, Reduce.halves(Array.clone(F32, A))) == (A, Unit{}) : Array<F32> & Unit},
+        {Pair.snd(Array<F32> & Unit, Array<F32> & Unit, Reduce.halves(Array.clone(F32, A))) == (A, Unit{}) : Array<F32> & Unit}, split),
+      Pair.snd({Pair.fst(Array<F32> & Unit, Array<F32> & Unit, Reduce.halves(Array.clone(F32, A))) == (A, Unit{}) : Array<F32> & Unit},
+        {Pair.snd(Array<F32> & Unit, Array<F32> & Unit, Reduce.halves(Array.clone(F32, A))) == (A, Unit{}) : Array<F32> & Unit}, split)))
+  Parallel.Fact{path => {\{Parallel.Fact: q => q} :
+    Parallel.Fact<CellSpec(d, A, rows, extents, Nat.add(Model.offset(depth, path), base), Nat.is_lt(Nat.add(Model.offset(depth, path), base), count),
+      Model.observe(F32, depth, Reduce.build(depth, splits, rows, extents, count, base, array), path))> ->
+    CellSpec(d, A, rows, extents, Nat.add(Model.offset(depth, path), base), Nat.is_lt(Nat.add(Model.offset(depth, path), base), count),
+      Model.observe(F32, depth, Reduce.build(depth, splits, rows, extents, count, base, array), path))}(
+    cell_spec(d, A, rows, extents, Nat.add(Model.offset(depth, path), base), Nat.is_lt(Nat.add(Model.offset(depth, path), base), count),
+      Model.observe(F32, depth, Reduce.build(depth, splits, rows, extents, count, base, array), path), cells(path), valid))}
 
 # The words a walk saw are the contribution's words at the offsets it read.
 def Reads(+d: Nat, -A: Array<F32>, +values: List<&2, F32>, +bound: Nat) -> Type:

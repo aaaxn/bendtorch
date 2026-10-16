@@ -7,6 +7,7 @@ import ../../storage/clone.bend as Clone
 import ../../storage/api.bend as Api
 import ../../storage/arith.bend as Arith
 import ../elementwise.bend as Elementwise
+import ../parallel.bend as Parallel
 import ../word-conversion.bend as Conversion
 import ../read-contract.bend as Reads
 import ./replayed.bend as Replayed
@@ -175,7 +176,7 @@ def cell_right_eq(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan,
   -x: F32, -kept: Array<F32>, pair: Array<F32> & F32,
   +exact: {pair == Array.get(F32, Api.arr(hb, dr, fb), right_index(plan, base)) : Array<F32> & F32},
   ex: {x == Api.current(ha, left_index(plan, base), fa) : F32}, ek: {kept == Api.arr(ha, dl, fa) : Array<F32>}) ->
-  TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 0n, base, Elementwise.cell_right(operation, x, kept, pair)):
+  TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 0n, base, Parallel.leaf(~(Array<F32> & Array<F32>), Elementwise.cell_right(operation, x, kept, pair))):
   (other, y) = pair
   +ey = got_value(dr, hb, fb, nr, right_index(plan, base), (other, y), exact, rfits,
     right_below(plan, count, nr, base, count_exact, right_count, decided), rvalid)
@@ -188,7 +189,7 @@ def cell_right_eq(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan,
 
 def cell_left_eq(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +count: Nat, +ha: List<&2, Api.Effect>, +dl: Nat, +fa: F32, +nl: Nat, +hb: List<&2, Api.Effect>, +dr: Nat, +fb: F32, +nr: Nat, +lfits: {Storage.bounds(dl, nl) == True{} : Bool}, +rfits: {Storage.bounds(dr, nr) == True{} : Bool}, +lvalid: {written(nl, ha) == True{} : Bool}, +rvalid: {written(nr, hb) == True{} : Bool}, +count_exact: {count == Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))) : Nat}, +left_count: {nl == Shape.logical_numel(Shape.dimensions(Shape.left_shape(plan))) : Nat}, +right_count: {nr == Shape.logical_numel(Shape.dimensions(Shape.right_shape(plan))) : Nat}, +base: Nat, +decided: {True{} == Nat.is_lt(base, count) : Bool},
   pair: Array<F32> & F32, +exact: {pair == Array.get(F32, Api.arr(ha, dl, fa), left_index(plan, base)) : Array<F32> & F32}) ->
-  TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 0n, base, Elementwise.cell_left(operation, Api.arr(hb, dr, fb), right_index(plan, base), pair)):
+  TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 0n, base, Parallel.leaf(~(Array<F32> & Array<F32>), Elementwise.cell_left(operation, Api.arr(hb, dr, fb), right_index(plan, base), pair))):
   (kept, x) = pair
   cell_right_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, lfits, rfits, lvalid, rvalid, count_exact, left_count, right_count, base, decided, x, kept, Array.get(F32, Api.arr(hb, dr, fb), right_index(plan, base)), {==},
     got_value(dl, ha, fa, nl, left_index(plan, base), (kept, x), exact, lfits,
@@ -196,7 +197,7 @@ def cell_left_eq(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, 
     got_kept(dl, ha, fa, left_index(plan, base), (kept, x), exact))
 
 def cell_eq(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +count: Nat, +ha: List<&2, Api.Effect>, +dl: Nat, +fa: F32, +nl: Nat, +hb: List<&2, Api.Effect>, +dr: Nat, +fb: F32, +nr: Nat, +lfits: {Storage.bounds(dl, nl) == True{} : Bool}, +rfits: {Storage.bounds(dr, nr) == True{} : Bool}, +lvalid: {written(nl, ha) == True{} : Bool}, +rvalid: {written(nr, hb) == True{} : Bool}, +count_exact: {count == Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))) : Nat}, +left_count: {nl == Shape.logical_numel(Shape.dimensions(Shape.left_shape(plan))) : Nat}, +right_count: {nr == Shape.logical_numel(Shape.dimensions(Shape.right_shape(plan))) : Nat}, +base: Nat, inside: Bool, decided: {inside == Nat.is_lt(base, count) : Bool}) ->
-  TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 0n, base, Elementwise.cell(operation, Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan)), Shape.index_map(plan), base, Api.arr(ha, dl, fa), Api.arr(hb, dr, fb), inside)):
+  TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 0n, base, Parallel.leaf(~(Array<F32> & Array<F32>), Elementwise.cell(operation, Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan)), Shape.index_map(plan), base, Api.arr(ha, dl, fa), Api.arr(hb, dr, fb), inside))):
   match inside:
     case False{}:
       (%decided : {ALeaf{0.0} == ALeaf{leaf(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, base, _)} : Array<F32>}
@@ -207,7 +208,7 @@ def cell_eq(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +coun
 def tree_join_eq(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +count: Nat, +ha: List<&2, Api.Effect>, +dl: Nat, +fa: F32, +nl: Nat, +hb: List<&2, Api.Effect>, +dr: Nat, +fb: F32, +nr: Nat, +inner: Nat, +base: Nat, -a: Array<F32>, high: Array<F32> & (Array<F32> & Array<F32>),
   ea: {a == spec(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, inner, base) : Array<F32>},
   facts: TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, inner, Nat.add(Model.capacity(inner), base), high)) ->
-  TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 1n+inner, base, Elementwise.tree_join(a, high)):
+  TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 1n+inner, base, Parallel.join(~(Array<F32> & Array<F32>), a, high)):
   (b, inputs) = high
   (eb, kept) = facts
   (%Equal.sym(Array<F32>, a, spec(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, inner, base), ea) : {ANode{_, b} == ANode{spec(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, inner, base), spec(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, inner, Nat.add(Model.capacity(inner), base))} : Array<F32>}
@@ -215,26 +216,57 @@ def tree_join_eq(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, 
    {==}, kept)
 
 def tree_node_eq(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +count: Nat, +ha: List<&2, Api.Effect>, +dl: Nat, +fa: F32, +nl: Nat, +hb: List<&2, Api.Effect>, +dr: Nat, +fb: F32, +nr: Nat, +inner: Nat, +base: Nat, low: Array<F32> & (Array<F32> & Array<F32>), facts: TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, inner, base, low),
-  next: TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, inner, Nat.add(Model.capacity(inner), base), Elementwise.tree(inner, operation, Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan)), Shape.index_map(plan), count, Nat.add(Model.capacity(inner), base), Api.arr(ha, dl, fa), Api.arr(hb, dr, fb)))) ->
-  TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 1n+inner, base, Elementwise.tree_node(l => r => Elementwise.tree(inner, operation, Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan)), Shape.index_map(plan), count, Nat.add(Model.capacity(inner), base), l, r), low)):
+  next: TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, inner, Nat.add(Model.capacity(inner), base), Parallel.tree(~Elementwise.Walk, ~Array<F32>, ~Array<F32>, ~Elementwise.cell_at, Elementwise.walk(Elementwise.Request{operation, plan}), inner, count, Nat.add(Model.capacity(inner), base), (Api.arr(ha, dl, fa), Api.arr(hb, dr, fb))))) ->
+  TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 1n+inner, base, Parallel.node(~Array<F32>, ~Array<F32>, l => r => Parallel.tree(~Elementwise.Walk, ~Array<F32>, ~Array<F32>, ~Elementwise.cell_at, Elementwise.walk(Elementwise.Request{operation, plan}), inner, count, Nat.add(Model.capacity(inner), base), (l, r)), low)):
   (a, inputs) = low
   (la, ra) = inputs
   (ea, kept) = facts
   (el, er) = kept
   %Equal.sym(Array<F32>, la, Api.arr(ha, dl, fa), el) :
-    TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 1n+inner, base, Elementwise.tree_join(a, Elementwise.tree(inner, operation, Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan)), Shape.index_map(plan), count, Nat.add(Model.capacity(inner), base), _, ra)))
+    TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 1n+inner, base, Parallel.join(~(Array<F32> & Array<F32>), a, Parallel.tree(~Elementwise.Walk, ~Array<F32>, ~Array<F32>, ~Elementwise.cell_at, Elementwise.walk(Elementwise.Request{operation, plan}), inner, count, Nat.add(Model.capacity(inner), base), (_, ra))))
   %Equal.sym(Array<F32>, ra, Api.arr(hb, dr, fb), er) :
-    TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 1n+inner, base, Elementwise.tree_join(a, Elementwise.tree(inner, operation, Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan)), Shape.index_map(plan), count, Nat.add(Model.capacity(inner), base), Api.arr(ha, dl, fa), _)))
-  tree_join_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, inner, base, a, Elementwise.tree(inner, operation, Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan)), Shape.index_map(plan), count, Nat.add(Model.capacity(inner), base), Api.arr(ha, dl, fa), Api.arr(hb, dr, fb)), ea, next)
+    TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 1n+inner, base, Parallel.join(~(Array<F32> & Array<F32>), a, Parallel.tree(~Elementwise.Walk, ~Array<F32>, ~Array<F32>, ~Elementwise.cell_at, Elementwise.walk(Elementwise.Request{operation, plan}), inner, count, Nat.add(Model.capacity(inner), base), (Api.arr(ha, dl, fa), _))))
+  tree_join_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, inner, base, a, Parallel.tree(~Elementwise.Walk, ~Array<F32>, ~Array<F32>, ~Elementwise.cell_at, Elementwise.walk(Elementwise.Request{operation, plan}), inner, count, Nat.add(Model.capacity(inner), base), (Api.arr(ha, dl, fa), Api.arr(hb, dr, fb))), ea, next)
+
+# The depth-1 tree: the leaf of cell `base` and the leaf of the cell after
+# it, which reads the arrays the first hands back.
+def pair_join_eq(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +count: Nat, +ha: List<&2, Api.Effect>, +dl: Nat, +fa: F32, +nl: Nat, +hb: List<&2, Api.Effect>, +dr: Nat, +fb: F32, +nr: Nat, +base: Nat, x: F32, high: F32 & (Array<F32> & Array<F32>),
+  ex: {ALeaf{x} == spec(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 0n, base) : Array<F32>},
+  leaf_facts: TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 0n, Nat.add(1n, base), Parallel.leaf(~(Array<F32> & Array<F32>), high))) ->
+  TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 1n, base, Parallel.pair_join(~(Array<F32> & Array<F32>), x, high)):
+  (y, inputs) = high
+  (ey, kept) = leaf_facts
+  (%Equal.sym(Array<F32>, ALeaf{x}, spec(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 0n, base), ex) : {ANode{_, ALeaf{y}} == ANode{spec(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 0n, base), spec(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 0n, Nat.add(1n, base))} : Array<F32>}
+   %Equal.sym(Array<F32>, ALeaf{y}, spec(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 0n, Nat.add(1n, base)), ey) : {ANode{spec(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 0n, base), _} == ANode{spec(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 0n, base), spec(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 0n, Nat.add(1n, base))} : Array<F32>}
+   {==}, kept)
+
+def pair_eq(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +count: Nat, +ha: List<&2, Api.Effect>, +dl: Nat, +fa: F32, +nl: Nat, +hb: List<&2, Api.Effect>, +dr: Nat, +fb: F32, +nr: Nat, +lfits: {Storage.bounds(dl, nl) == True{} : Bool}, +rfits: {Storage.bounds(dr, nr) == True{} : Bool}, +lvalid: {written(nl, ha) == True{} : Bool}, +rvalid: {written(nr, hb) == True{} : Bool}, +count_exact: {count == Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))) : Nat}, +left_count: {nl == Shape.logical_numel(Shape.dimensions(Shape.left_shape(plan))) : Nat}, +right_count: {nr == Shape.logical_numel(Shape.dimensions(Shape.right_shape(plan))) : Nat}, +base: Nat, low: F32 & (Array<F32> & Array<F32>),
+  leaf_facts: TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 0n, base, Parallel.leaf(~(Array<F32> & Array<F32>), low))) ->
+  TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 1n, base, Parallel.pair(~Elementwise.Walk, ~Array<F32>, ~Array<F32>, ~Elementwise.cell_at, Elementwise.walk(Elementwise.Request{operation, plan}), count, base, low)):
+  (x, inputs) = low
+  (la, ra) = inputs
+  (ex, kept) = leaf_facts
+  (el, er) = kept
+  %Equal.sym(Array<F32>, la, Api.arr(ha, dl, fa), el) :
+    TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 1n, base, Parallel.pair_join(~(Array<F32> & Array<F32>), x, Elementwise.cell_at(Elementwise.walk(Elementwise.Request{operation, plan}), Nat.add(1n, base), (_, ra), Nat.is_lt(Nat.add(1n, base), count))))
+  %Equal.sym(Array<F32>, ra, Api.arr(hb, dr, fb), er) :
+    TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 1n, base, Parallel.pair_join(~(Array<F32> & Array<F32>), x, Elementwise.cell_at(Elementwise.walk(Elementwise.Request{operation, plan}), Nat.add(1n, base), (Api.arr(ha, dl, fa), _), Nat.is_lt(Nat.add(1n, base), count))))
+  pair_join_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, base, x, Elementwise.cell_at(Elementwise.walk(Elementwise.Request{operation, plan}), Nat.add(1n, base), (Api.arr(ha, dl, fa), Api.arr(hb, dr, fb)), Nat.is_lt(Nat.add(1n, base), count)), ex,
+    cell_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, lfits, rfits, lvalid, rvalid, count_exact, left_count, right_count, Nat.add(1n, base), Nat.is_lt(Nat.add(1n, base), count), {==}))
 
 def tree_eq(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +count: Nat, +ha: List<&2, Api.Effect>, +dl: Nat, +fa: F32, +nl: Nat, +hb: List<&2, Api.Effect>, +dr: Nat, +fb: F32, +nr: Nat, +lfits: {Storage.bounds(dl, nl) == True{} : Bool}, +rfits: {Storage.bounds(dr, nr) == True{} : Bool}, +lvalid: {written(nl, ha) == True{} : Bool}, +rvalid: {written(nr, hb) == True{} : Bool}, +count_exact: {count == Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))) : Nat}, +left_count: {nl == Shape.logical_numel(Shape.dimensions(Shape.left_shape(plan))) : Nat}, +right_count: {nr == Shape.logical_numel(Shape.dimensions(Shape.right_shape(plan))) : Nat}, +depth: Nat, +base: Nat) ->
-  TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, depth, base, Elementwise.tree(depth, operation, Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan)), Shape.index_map(plan), count, base, Api.arr(ha, dl, fa), Api.arr(hb, dr, fb))):
+  TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, depth, base, Parallel.tree(~Elementwise.Walk, ~Array<F32>, ~Array<F32>, ~Elementwise.cell_at, Elementwise.walk(Elementwise.Request{operation, plan}), depth, count, base, (Api.arr(ha, dl, fa), Api.arr(hb, dr, fb)))):
   match depth:
     case 0n:
       cell_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, lfits, rfits, lvalid, rvalid, count_exact, left_count, right_count, base, Nat.is_lt(base, count), {==})
     case 1n+inner:
-      tree_node_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, inner, base, Elementwise.tree(inner, operation, Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan)), Shape.index_map(plan), count, base, Api.arr(ha, dl, fa), Api.arr(hb, dr, fb)), tree_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, lfits, rfits, lvalid, rvalid, count_exact, left_count, right_count, inner, base),
-        tree_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, lfits, rfits, lvalid, rvalid, count_exact, left_count, right_count, inner, Nat.add(Model.capacity(inner), base)))
+      match inner:
+        case 0n:
+          pair_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, lfits, rfits, lvalid, rvalid, count_exact, left_count, right_count, base, Elementwise.cell_at(Elementwise.walk(Elementwise.Request{operation, plan}), base, (Api.arr(ha, dl, fa), Api.arr(hb, dr, fb)), Nat.is_lt(base, count)),
+            cell_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, lfits, rfits, lvalid, rvalid, count_exact, left_count, right_count, base, Nat.is_lt(base, count), {==}))
+        case 1n+below:
+          tree_node_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, inner, base, Parallel.tree(~Elementwise.Walk, ~Array<F32>, ~Array<F32>, ~Elementwise.cell_at, Elementwise.walk(Elementwise.Request{operation, plan}), inner, count, base, (Api.arr(ha, dl, fa), Api.arr(hb, dr, fb))), tree_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, lfits, rfits, lvalid, rvalid, count_exact, left_count, right_count, inner, base),
+            tree_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, lfits, rfits, lvalid, rvalid, count_exact, left_count, right_count, inner, Nat.add(Model.capacity(inner), base)))
 
 def tree_first(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +count: Nat, +ha: List<&2, Api.Effect>, +dl: Nat, +fa: F32, +nl: Nat, +hb: List<&2, Api.Effect>, +dr: Nat, +fb: F32, +nr: Nat, +depth: Nat, +base: Nat, -result: Array<F32> & (Array<F32> & Array<F32>), facts: TreeEq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, depth, base, result)) ->
   {Pair.fst(Array<F32>, Array<F32> & Array<F32>, result) == spec(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, depth, base) : Array<F32>}:
@@ -260,8 +292,11 @@ def fork_eq(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +coun
   high: {Elementwise.build(inner, rest, operation, plan, count, Nat.add(Model.capacity(inner), base), Api.arr(ha, dl, fa), Api.arr(hb, dr, fb)) == spec(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, inner, Nat.add(Model.capacity(inner), base)) : Array<F32>},
   lp: Array<F32> & Array<F32>, +le: {lp == Array.clone(F32, Api.arr(ha, dl, fa)) : Array<F32> & Array<F32>},
   rp: Array<F32> & Array<F32>, +re: {rp == Array.clone(F32, Api.arr(hb, dr, fb)) : Array<F32> & Array<F32>}) ->
-  {Elementwise.fork(lp, rp, l => r => Elementwise.build(inner, rest, operation, plan, count, base, l, r),
-    l => r => Elementwise.build(inner, rest, operation, plan, count, Nat.add(Model.capacity(inner), base), l, r)) ==
+  {Parallel.fork(~Array<F32>, ~Array<F32>, Elementwise.halves(lp, rp),
+    l => r => Parallel.build(~Elementwise.Request, ~Elementwise.Walk, ~Array<F32>, ~Array<F32>, ~Elementwise.walk, ~Elementwise.split, ~Elementwise.cell_at,
+      Elementwise.Request{operation, plan}, inner, rest, count, base, (l, r)),
+    l => r => Parallel.build(~Elementwise.Request, ~Elementwise.Walk, ~Array<F32>, ~Array<F32>, ~Elementwise.walk, ~Elementwise.split, ~Elementwise.cell_at,
+      Elementwise.Request{operation, plan}, inner, rest, count, Nat.add(Model.capacity(inner), base), (l, r))) ==
     spec(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 1n+inner, base) : Array<F32>}:
   (l1, l2) = lp
   (r1, r2) = rp
@@ -288,6 +323,6 @@ def build_eq(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +cou
       fork_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, inner, rest, base, build_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, lfits, rfits, lvalid, rvalid, count_exact, left_count, right_count, inner, rest, base),
         build_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, lfits, rfits, lvalid, rvalid, count_exact, left_count, right_count, inner, rest, Nat.add(Model.capacity(inner), base)), Array.clone(F32, Api.arr(ha, dl, fa)), {==}, Array.clone(F32, Api.arr(hb, dr, fb)), {==})
     case 0n _:
-      tree_first(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 0n, base, Elementwise.tree(0n, operation, Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan)), Shape.index_map(plan), count, base, Api.arr(ha, dl, fa), Api.arr(hb, dr, fb)), tree_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, lfits, rfits, lvalid, rvalid, count_exact, left_count, right_count, 0n, base))
+      tree_first(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 0n, base, Parallel.tree(~Elementwise.Walk, ~Array<F32>, ~Array<F32>, ~Elementwise.cell_at, Elementwise.walk(Elementwise.Request{operation, plan}), 0n, count, base, (Api.arr(ha, dl, fa), Api.arr(hb, dr, fb))), tree_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, lfits, rfits, lvalid, rvalid, count_exact, left_count, right_count, 0n, base))
     case 1n+inner 0n:
-      tree_first(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 1n+inner, base, Elementwise.tree(1n+inner, operation, Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), Shape.extents(Shape.output_shape(plan)), Shape.index_map(plan), count, base, Api.arr(ha, dl, fa), Api.arr(hb, dr, fb)), tree_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, lfits, rfits, lvalid, rvalid, count_exact, left_count, right_count, 1n+inner, base))
+      tree_first(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, 1n+inner, base, Parallel.tree(~Elementwise.Walk, ~Array<F32>, ~Array<F32>, ~Elementwise.cell_at, Elementwise.walk(Elementwise.Request{operation, plan}), 1n+inner, count, base, (Api.arr(ha, dl, fa), Api.arr(hb, dr, fb))), tree_eq(operation, plan, count, ha, dl, fa, nl, hb, dr, fb, nr, lfits, rfits, lvalid, rvalid, count_exact, left_count, right_count, 1n+inner, base))

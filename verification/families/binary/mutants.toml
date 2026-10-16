@@ -1,5 +1,5 @@
 [high-fork-reuses-base]
-file = "src/tensor/elementwise.bend"
+file = "src/tensor/parallel.bend"
 before = '''
 def upper(+inner: Nat, +base: Nat) -> Nat:
   Nat.add(Model.capacity(inner), base)'''
@@ -10,22 +10,36 @@ def upper(+inner: Nat, +base: Nat) -> Nat:
 [cell-swaps-operands]
 file = "src/tensor/elementwise.bend"
 before = '''
-  (ALeaf{scalar(operation, x, y)}, (la, ra))'''
+  (scalar(operation, x, y), (la, ra))'''
 after = '''
-  (ALeaf{scalar(operation, y, x)}, (la, ra))'''
+  (scalar(operation, y, x), (la, ra))'''
 
 [cell-swaps-returned-inputs]
 file = "src/tensor/elementwise.bend"
 before = '''
-  (ALeaf{scalar(operation, x, y)}, (la, ra))'''
+  (scalar(operation, x, y), (la, ra))'''
 after = '''
-  (ALeaf{scalar(operation, x, y)}, (ra, la))'''
+  (scalar(operation, x, y), (ra, la))'''
 
 [padding-not-zero]
 file = "src/tensor/elementwise.bend"
 before = '''
     case False{}:
-      (ALeaf{0.0}, (la, ra))'''
+      (0.0, (la, ra))'''
 after = '''
     case False{}:
-      (ALeaf{1.0}, (la, ra))'''
+      (1.0, (la, ra))'''
+
+[leaf-writes-zero]
+file = "src/tensor/parallel.bend"
+before = '''
+  (ALeaf{value}, state)'''
+after = '''
+  (ALeaf{0.0}, state)'''
+
+[pair-writes-zero]
+file = "src/tensor/parallel.bend"
+before = '''
+  (ANode{ALeaf{x}, ALeaf{y}}, state)'''
+after = '''
+  (ANode{ALeaf{x}, ALeaf{0.0}}, state)'''
