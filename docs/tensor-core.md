@@ -301,7 +301,7 @@ inputs, rank four, invalid coordinates/count/rank/capacity, maximum-U32 index
 rejection, retained reads/writes, independent clones and empty access. No
 PyTorch runtime or widened numerical tolerance is involved. The emitted-C
 packed-array audit must report no split and no join other than those of the
-parallel elementwise build, `2^depth - 1` per output of `n > 0` cells at depth
+parallel elementwise and matmul builds, `2^depth - 1` per output of `n > 0` cells at depth
 `ceil(log2 n)` (see `docs/runtime-corpus.md`).
 
 Negative controls require their intended type/equality diagnostic as well as

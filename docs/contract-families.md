@@ -253,10 +253,10 @@ the fold reads is the `k`-th entry of `words`.
 
 `reduce_fold_fiber` states one cell of `ReduceFold.cell`, a separate function.
 `Reduce.reduce_to` in `src/autograd/reduce.bend`, the function that autograd
-calls, runs its own loop. It visits contribution positions in increasing
-order, reads the target cell that each position lands on, and writes back that
-cell plus the word. The law `reduce_to_fiber` in
-`src/autograd/reduce-fold-LAWS.bend` states what that loop computes. It takes:
+calls, builds its cells in parallel: each target cell walks only the
+contribution positions that land on it, in increasing order (see
+[reduce to shape](reduce-to.md#parallel-build)). The law `reduce_to_fiber` in
+`src/autograd/reduce-fold-LAWS.bend` states what that build computes. It takes:
 
 - a target and a contribution shape;
 - the plan with `Shape.broadcast_checked(target, shape) == Done{plan}`, and
@@ -273,18 +273,21 @@ Its conclusion is a `ReduceToContract`, with live fields:
   `reduce_fold_fiber` states for `ReduceFold.cell`.
 - `kept`: the returned contribution still holds every word.
 
-The proof in `src/autograd/reduce-to-fold-PROOF.bend` walks the `reduce_to`
-loop with live code, without changing it. After `k` steps the contribution is
-the replayed tensor with history `ops ++ reads(k)`, and the output is the
-replayed tensor over `+0.0` with history `history(k)`: step `k` reads the cell
-that position `k` lands on and writes back that cell plus word `k`.
-`history_value` shows that cell `index` of that output is the family total
-`Fold.total` with the read map `ReduceFold.source` and the mask
-`ReduceFold.lands` for `index`, after `k` steps. `fiber_total` then turns that
-total into `ReduceLaws.fiber`. A wrong landing map or another addition order
-in `reduce.bend` fails `step_lift`, the step of the walk. A wrong landing map or
-an inverted mask in `reduce-fold.bend` fails `fiber_total`, which both laws
-use.
+The proof in `src/autograd/reduce-to-fold-PROOF.bend` (`run_lift`) follows
+the parallel build with live code, as `contracts/matmul-parallel-proof.bend`
+does for matmul. The contribution comes back replayed with the history
+`ops ++ [First]` of its kept clone, and the build reads the copy
+`Api.arr(history(ops))`. `reduce-replayed-proof.bend` shows that the build over
+that copy is the tree whose cell `t` holds `cell_word(t)`, the replayed words
+at the offsets the walk of `t` reads added from `+0.0` (`fiber_eq`,
+`build_eq`), and that writing those words cell by cell over the `+0.0`
+target gives the same owned storage (`output_eq`). So the output is the
+replayed tensor with history `writes(count)`. `word_fiber` turns `cell_word(t)`
+into `ReduceLaws.fiber`, through `Fiber.fiber_walk`. A walk over the wrong
+offsets, a skipped digit, another addition order or a `-0.0` start in
+`reduce.bend` fails the proofs of the build (`fiber_run`, `fiber_cons`,
+`leaf_run`, `cell_facts`). A wrong landing map or an inverted mask in
+`reduce-fold.bend` fails `fiber_total`, which `reduce_fold_fiber` uses.
 
 `words` and `factors` are in `src/tensor/contracts/LAWS.bend`. `words` lists
 the first `count` words of a replayed input in index order. `factors` lists
@@ -300,12 +303,14 @@ from `lt_mul_add`: `a * n + b < m * n` when `a < m` and `b < n`.
 ### `matmul` meets the dot specification
 
 `Dot.dot` is a separate function. `Matrix.matmul` in `src/tensor/matmul.bend`,
-the public operation, runs its own loops. For each output position `p` in
-increasing order it decodes `p` into `(row, column)` with
-`Shape.unflatten_checked`, folds `left[row, k] * right[k, column]` for `k`
-from 0 to `inner - 1` from `+0.0`, reading each word through
-`Core.read_coordinate`, and writes the total at `p`. The law `matmul_ordered`
-in `src/tensor/contracts/LAWS.bend` states what those loops compute. It takes:
+the public operation, builds its output in parallel. Each output position `p`
+sits at row `p / columns` and column `p % columns`; its cell folds
+`left[row * inner + k] * right[k * columns + column]` for `k` from 0 to
+`inner - 1` from `+0.0`, reading the words of a copy of each input with
+`Array.get`. The cells form a balanced tree: the top `Matrix.splits` levels
+fork, each half with its own clone of both input arrays, and a thread builds
+the cells below the forks in index order. The law `matmul_ordered` in
+`src/tensor/contracts/LAWS.bend` states what that build computes. It takes:
 
 - two shapes and the plan with `Matrix.plan(left, right) == Done{plan}`, the
   case where `matmul` succeeds;
@@ -321,24 +326,35 @@ Its conclusion is a `MatmulContract` in `fold-records.bend`, with live fields:
   the total that `dot_ordered` states for `Dot.dot`.
 - `left_kept` and `right_kept`: both returned inputs still hold every word.
 
-The proof in `matmul-proof.bend` walks both loops with live code, without
-changing them. It first reads the dimension facts back from `Matrix.plan`,
-since the fields of `Matrix.Plan` are erased. After `p` cells each input is the
-replayed tensor whose history adds the dot reads of cells `0` to `p - 1`, and
-the output is the replayed tensor over `+0.0` that writes those cells' totals
-in order. The dot walk is the `Fold.pair_loop` walk with coordinate reads:
-`flatten_checked` of `[row, k]` and `[k, column]` lands on `Dot.left_index`
-and `Dot.right_index`. At the end `total_factors` turns each total into
-`dot_fold`, and `Nat.divmod` maps `row * columns + column` back to its row and
-column. A wrong start, another order of `k` or a transposed read in
-`matmul.bend` fails a step of the walk.
+The proof in `matmul-parallel-proof.bend` walks the build with live code, as
+the elementwise export does. A replayed input with a cell is an owned storage
+whose array is `Api.arr` of its normalized history; `take` hands back the
+First half of its clone, which lists the same words, and the build reads the
+Second half. Every read of such an array keeps it and returns the word the
+history names, and every clone is two copies of it, so whatever the split the
+build returns `out_spec`, the tree whose cell `p` holds the total above below
+the output count and `+0.0` above it (`build_eq`). The writes of every cell in
+index order, replayed on the storage `Core.new` makes for the output, give the
+owned storage that holds `out_spec` (`chain`), so the output is a replayed
+tensor. `fold_factors` turns each cell's fold into `dot_fold` of `factors`,
+and `Nat.divmod` maps `row * columns + column` back to its row and column. A
+wrong start, another order of `k` or a transposed read in `matmul.bend` fails
+a step of the walk. An input with no cell (`inner == 0`) has no word to read;
+its copy is `Array.new` of depth 0 and every cell is the empty fold, `+0.0`.
 
 `matmul_replayed` exports the same walk in the transport form of
 `broadcast_to_replayed`: for every `P`, if `P` holds for every result that
 hands both inputs back with the same words, next to an output of the plan's
 shape, replayed over `+0.0`, whose cell `(row, column)` holds the total above,
-then `P` holds for the product. Its input histories are the walk's `ops ++`
-dot reads, and its output history is the walk's cell writes.
+then `P` holds for the product. Its input histories are the inputs' histories
+with a `First` clone half appended (or unchanged for an input with no cell),
+and its output history writes each cell's total in index order.
+
+The sequential loops `Matrix.multiply`, `natural_product_loop` and
+`natural_dot` remain the definition the laws in `src/tensor/matmul-LAWS.bend`
+state for them; the gate's parallel probe checks, at 1, 8 and 24 threads, that
+the public product returns the same words as `Matrix.multiply` on products
+that fork.
 
 ### `permute_copy` and `transpose_copy` through the index-map copy
 

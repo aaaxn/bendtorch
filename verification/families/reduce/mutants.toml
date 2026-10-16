@@ -26,29 +26,35 @@ Cell{plan, index}, Shape.elements(Shape.right_shape(plan)), input)'''
 after = '''
 Cell{plan, index}, Shape.elements(Shape.left_shape(plan)), input)'''
 
-[reduce-to-lands-on-source]
+[reduce-to-walks-target-stride]
 file = "src/autograd/reduce.bend"
 before = '''
-      (+target_index, source_index) = indices
-      step_input(target, target_index, output, Core.read_dynamic(input, source_index))'''
+        fiber(rest, others, first_span(rest, others), inner, Nat.add(base, Nat.mul(right, digit)), first_digit(rest, inner),'''
 after = '''
-      (+target_index, +source_index) = indices
-      step_input(target, source_index, output, Core.read_dynamic(input, source_index))'''
+        fiber(rest, others, first_span(rest, others), inner, Nat.add(base, Nat.mul(left, digit)), first_digit(rest, inner),'''
 
-[reduce-to-reversed-order]
+[reduce-to-skips-last-digit]
 file = "src/autograd/reduce.bend"
 before = '''
-  step_indices(target, state, Elementwise.input_indices(plan, index))'''
+    case 0n:
+      extent'''
 after = '''
-  step_indices(target, state, Elementwise.input_indices(plan,
-    U32.from_nat(Nat.sub(Nat.sub(Shape.elements(Shape.output_shape(plan)), 1n), U32.to_nat(index)))))'''
+    case 0n:
+      Nat.sub(extent, 1n)'''
+
+[reduce-to-starts-negative-zero]
+file = "src/autograd/reduce.bend"
+before = '''
+  fiber(rows, extents, first_span(rows, extents), target, 0n, first_digit(rows, target), 0.0, array)'''
+after = '''
+  fiber(rows, extents, first_span(rows, extents), target, 0n, first_digit(rows, target), F32.neg(0.0), array)'''
 
 [reduce-to-swapped-add]
 file = "src/autograd/reduce.bend"
 before = '''
-F32.add(accumulated, value)'''
+  (F32.add(accumulator, word), kept)'''
 after = '''
-F32.add(value, accumulated)'''
+  (F32.add(word, accumulator), kept)'''
 
 [sum-to-size-identity-folds]
 file = "src/autograd/sum-to-size.bend"

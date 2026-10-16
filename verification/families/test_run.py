@@ -66,8 +66,6 @@ class PointwiseControlTests(unittest.TestCase):
             expected = (
                 "verification/families/fold/consumers.bend"
                 if label in failures
-                else "src/tensor/contracts/matmul-proof.bend"
-                if fold.mutants[label].file == "src/tensor/matmul.bend"
                 else controls.PROOF
             )
             self.assertEqual(path, expected, label)

@@ -20,6 +20,7 @@ from tools.common import (
 from tools.tensor_families import run_gate as pointwise_family
 from tools.tensor_numerics import special, verify_case
 from tools.tensor_ordered import verify_ordered_case, verify_ordered_lane
+from tools.tensor_parallel import run_gate as parallel_builds
 from tools.tensor_runtime import (
     CORPUS,
     ORDERED_CONTROLS,
@@ -411,6 +412,8 @@ def run_gate(tool_root: Path, output: Path) -> None:
         ROOT / "tools/tensor_families.py",
         ROOT / "tools/tensor_numerics.py",
         ROOT / "tools/tensor_ordered.py",
+        ROOT / "tools/tensor_parallel.py",
+        ROOT / "probes/parallel_builds.bend",
         ROOT / "tools/common.py",
         ROOT / "tools/storage.py",
         ROOT / "oracle/tensor/ordered_reference.py",
@@ -505,14 +508,16 @@ def run_gate(tool_root: Path, output: Path) -> None:
                 for lane, observations in result["results"].items()
             }
 
-        acceptance, supplement_acceptance, family = parallel(
+        acceptance, supplement_acceptance, family, builds = parallel(
             corpus,
             supplement,
             partial(pointwise_family, tool_root, output / "pointwise-family"),
+            partial(parallel_builds, tool_root, output / "parallel-builds"),
         )
         for lane, accepted in supplement_acceptance.items():
             acceptance[lane]["supplement"] = accepted
         acceptance["pointwise_family"] = family
+        acceptance["parallel_builds"] = builds
         (output / "acceptance.json").write_text(json.dumps(acceptance, indent=2) + "\n")
         links = evidence.run(
             "native-dependencies", ["ldd", str(output / "runtime/corpus")]

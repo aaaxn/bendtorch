@@ -24,7 +24,7 @@ with F32 tensors only, and it cannot train a model yet.
 | Tensor core | `src/tensor/core.bend` | `Core.new`, `from_values`, `construct`, flat and coordinate reads and writes, `clone`, and the metadata queries `length`, `shape` and `count`. |
 | Elementwise ops | `src/tensor/elementwise.bend` | `add`, `sub` and `mul` with PyTorch-style broadcasting. Each output element is one F32 operation. Both inputs come back to the caller. |
 | Sum | `src/tensor/reduction.bend` | Sum of a whole tensor to a scalar, in row-major order, starting from `+0.0`. |
-| Matmul | `src/tensor/matmul.bend` | `[m,k] @ [k,n]`. Each dot product adds in increasing `k`, starting from `+0.0`. |
+| Matmul | `src/tensor/matmul.bend` | `[m,k] @ [k,n]`. Each dot product adds in increasing `k`, starting from `+0.0`. Large products build their output cells in parallel. |
 | Reshape, permute, transpose | `src/tensor/transforms.bend` | `reshape` keeps the linear order. `permute_copy` and `transpose_copy` write a new contiguous tensor. |
 | Proved contracts | `src/tensor/*-contract-LAWS.bend`, `src/tensor/contracts/` | Laws that later proofs can use as inputs, for construction, reads and writes, clone and metadata, and reshape, plus the error cases of permute and transpose. A generic theorem for pointwise loops proves the values that a broadcast binary operation writes. A second one, for ordered folds, proves the total of a sum and of one matmul dot product, with its addition order. |
 | Autograd building blocks | `src/autograd/` | `broadcast_to` (copies a tensor to a larger shape), `reduce_to` (sums a gradient back to the shape of its input), `sum_to_size` (the PyTorch-facing form of `reduce_to`, which keeps the input unchanged when no axis is reduced) and gradient slots (`Gradient.accumulate`, `Gradient.grad`, `Gradient.reset`, `Gradient.gradient`) that add the contributions to a gradient in the order they arrive, read as `None` until they receive one, and reset to `None`. |
@@ -131,9 +131,12 @@ NaN-payload and `None`-gradient differences.
   gradients a whole `backward` leaves in the slots; those are checked by the
   runtime lanes and the PyTorch record. The prototype tape in `experiments/` is not checked by any
   gate and is not used.
-- CPU only. The gates run native code on 8 threads, but no gate case is large
-  enough to split the parallel elementwise build, and no performance work has
-  been done yet.
+- CPU only. The gates run native code on 8 threads. `matmul` forks by work
+  (cells times inner terms) and the gates run products that fork at 1, 8 and
+  24 threads; no gate case is large enough to split the parallel elementwise
+  build. `reduce_to` and `sum_to_size` fork only when every fiber is
+  contiguous (row sums); column and batch sums, such as bias gradients, build
+  on one thread. The full `sum` still runs on one thread.
 
 The [differences from PyTorch](docs/torch-differences.md) page lists each
 request that PyTorch accepts and bendtorch rejects.
@@ -155,7 +158,7 @@ optimizers.
 | 6 | Neural-network modules | Planned | `Linear`, activations and losses, each with its forward and backward pass. |
 | 7 | Optimizers and training | Planned | SGD-style optimizers and a training loop that trains a small model end to end. |
 | 8 | An API closer to PyTorch | Planned | More dtypes, views and strides, `dim` and `keepdim` on reductions, negative axes and indices, slicing and batched `matmul`. |
-| 9 | Performance | Planned | Parallel CPU code and GPU kernels. Today no gate case is large enough to run the parallel elementwise build. |
+| 9 | Performance | In progress | Parallel CPU code and GPU kernels. `matmul` and the elementwise operations build large outputs in parallel; reductions and GPU kernels remain. |
 
 Each phase lands as a series of capabilities, each with its laws, proofs and a
 gate. No step weakens an existing law, removes a test case or widens a
