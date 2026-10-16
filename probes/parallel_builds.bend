@@ -173,7 +173,7 @@ def reduce_planned(+name: String, +cells: Nat, +depth: Nat, input: Core.Dynamic,
   result: Result<&2, &2, Shape.Error, Shape.BroadcastPlan>) -> IO(Unit):
   match result:
     case Done{+plan}:
-      reduce_report(name, cells, Matrix.splits(depth, Reduce.terms(plan, cells)), plan, Reduce.reduce_to(input, target))
+      reduce_report(name, cells, Reduce.splits(plan, depth, cells), plan, Reduce.reduce_to(input, target))
     case Fail{error}:
       IO.print(name ++ " failed")
 
@@ -214,4 +214,5 @@ def main() -> IO(Unit):
     reduction("reduce-256x128-to-1x128-rounding", True{}, [256, 128], [1, 128], 128n, 7n)
     reduction("reduce-256x64-to-256x1-rounding", True{}, [256, 64], [256, 1], 256n, 8n)
     reduction("reduce-64x16x32-to-16x1-rounding", True{}, [64, 16, 32], [16, 1], 16n, 4n)
+    reduction("reduce-64x16x32-to-64x1x1-rounding", True{}, [64, 16, 32], [64, 1, 1], 64n, 6n)
     reduction("reduce-6x5x4-to-5x1", False{}, [6, 5, 4], [5, 1], 5n, 3n)

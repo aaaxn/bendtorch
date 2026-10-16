@@ -1,3 +1,4 @@
+import math
 import re
 from pathlib import Path
 
@@ -29,30 +30,57 @@ PRODUCTS = {
     "matmul-2x3x2": (2, 3, 2),
     "matmul-64x48x64-rounding": (64, 48, 64),
 }
-# Each reduction the probe runs, as (contribution cells, target cells). The
-# reduce build splits like the matmul build, by the terms of a target cell:
-# `Matrix.splits(depth, contribution cells / target cells)`.
+# Each reduction the probe runs, as (contribution dimensions, target
+# dimensions).
 REDUCTIONS = {
-    "reduce-256x128-to-1x128-rounding": (256 * 128, 128),
-    "reduce-256x64-to-256x1-rounding": (256 * 64, 256),
-    "reduce-64x16x32-to-16x1-rounding": (64 * 16 * 32, 16),
-    "reduce-6x5x4-to-5x1": (6 * 5 * 4, 5),
+    "reduce-256x128-to-1x128-rounding": ((256, 128), (1, 128)),
+    "reduce-256x64-to-256x1-rounding": ((256, 64), (256, 1)),
+    "reduce-64x16x32-to-16x1-rounding": ((64, 16, 32), (16, 1)),
+    "reduce-64x16x32-to-64x1x1-rounding": ((64, 16, 32), (64, 1, 1)),
+    "reduce-6x5x4-to-5x1": ((6, 5, 4), (5, 1)),
 }
 BUILDS = (*PRODUCTS, *REDUCTIONS)
 # The builds whose inputs round, so that adding a cell's terms in another
 # order changes its bits; the products of multiples of 1/64 above cannot show
-# a reordered sum. Each must fork to check the forked build.
+# a reordered sum. Each must fork to check the forked build. The other
+# rounding reductions have strided fibers, so they build on one thread and
+# check the fiber walk alone.
 ROUNDING = "matmul-64x48x64-rounding"
 ROUNDING_BUILDS = (
     ROUNDING,
-    *(name for name in REDUCTIONS if name.endswith("-rounding")),
+    "reduce-256x64-to-256x1-rounding",
+    "reduce-64x16x32-to-64x1x1-rounding",
 )
+
+
+def contiguous(dims: tuple[int, ...], target: tuple[int, ...]) -> bool:
+    """`Reduce.contiguous`: no axis the target keeps comes after an axis it
+    reduces, counting only axes of extent above 1."""
+    padded = (1,) * (len(dims) - len(target)) + target
+    reduced = False
+    for extent, kept in zip(dims, padded, strict=True):
+        if extent <= 1:
+            continue
+        if kept == 1:
+            reduced = True
+        elif reduced:
+            return False
+    return True
+
+
+def reduce_splits(dims: tuple[int, ...], target: tuple[int, ...]) -> int:
+    """`Reduce.splits`: `Matrix.splits` by the terms of a target cell when
+    the fibers are contiguous, else 0."""
+    contribution = math.prod(dims)
+    cells = math.prod(target)
+    if not contiguous(dims, target):
+        return 0
+    return matmul_splits(depth(cells), contribution // cells)
 
 
 def expected_splits(name: str) -> int:
     if name in REDUCTIONS:
-        contribution, cells = REDUCTIONS[name]
-        return matmul_splits(depth(cells), contribution // cells)
+        return reduce_splits(*REDUCTIONS[name])
     rows, inner, columns = PRODUCTS[name]
     return matmul_splits(depth(rows * columns), inner)
 

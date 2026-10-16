@@ -739,7 +739,7 @@ def words_at(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +c
 
 
 def parallel_splits(+plan: Shape.BroadcastPlan, +depth: Nat, +length: Nat) -> Nat:
-  Matrix.splits(depth, Reduce.terms(plan, length))
+  Reduce.splits(plan, depth, length)
 
 # The writes of every cell, replayed on the owned storage `created` makes for
 # the target, give the owned storage the parallel build fills.

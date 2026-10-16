@@ -225,7 +225,7 @@ def Laws.reduce_retains_input(input, target):
 # holds the masked fiber sum over any list that lists the contribution.
 
 def parallel_build(+plan: Shape.BroadcastPlan, +depth: Nat, +length: Nat, +rows: List<&2, Shape.Row>, array: Array<F32>) -> Array<F32>:
-  Reduce.build(depth, Matrix.splits(depth, Reduce.terms(plan, length)), rows, Shape.extents(Shape.output_shape(plan)), length, 0n, array)
+  Reduce.build(depth, Reduce.splits(plan, depth, length), rows, Shape.extents(Shape.output_shape(plan)), length, 0n, array)
 
 def rows_cell(+shape: Shape.Shape, -tensor: Core.Tensor<shape>, +target: Shape.Shape, +plan: Shape.BroadcastPlan, +depth: Nat, +length: Nat,
   -valid: {Storage.bounds(depth, length) == True{} : Bool}, -exact: {length == Shape.logical_numel(Shape.dimensions(target)) : Nat},
@@ -241,7 +241,7 @@ def rows_cell(+shape: Shape.Shape, -tensor: Core.Tensor<shape>, +target: Shape.S
     Laws.fiber(plan, values, index, Shape.logical_numel(Shape.dimensions(shape))) : Maybe<&2, F32>}>:
   +t = U32.to_nat(index)
   +extents = Shape.extents(Shape.output_shape(plan))
-  +splits = Matrix.splits(depth, Reduce.terms(plan, length))
+  +splits = Reduce.splits(plan, depth, length)
   -built = parallel_build(plan, depth, length, rows, array)
   -inside_length : {Nat.is_lt(t, length) == True{} : Bool} =
     %Equal.sym(Nat, length, Shape.logical_numel(Shape.dimensions(target)), exact) : {Nat.is_lt(t, _) == True{} : Bool}

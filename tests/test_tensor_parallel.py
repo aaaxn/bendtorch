@@ -8,6 +8,7 @@ from tools.tensor_parallel import (
     ROUNDING,
     ROUNDING_BUILDS,
     check_lines,
+    contiguous,
     depth,
     expected_splits,
     matmul_splits,
@@ -52,18 +53,28 @@ class ParallelProbeTests(unittest.TestCase):
         self.assertEqual(expected_splits(ROUNDING), 4)
 
     def test_rounding_reductions_fork(self):
-        self.assertEqual(len(ROUNDING_BUILDS), 4)
+        self.assertEqual(len(ROUNDING_BUILDS), 3)
         for name in ROUNDING_BUILDS:
             with self.subTest(name=name):
                 self.assertTrue(expected_splits(name))
 
-    def test_reduction_splits_by_terms(self):
+    def test_only_contiguous_fibers_fork(self):
+        self.assertTrue(contiguous((256, 64), (256, 1)))
+        self.assertTrue(contiguous((64, 16, 32), (64, 1, 1)))
+        self.assertTrue(contiguous((4, 1, 8), (4, 1, 1)))
+        self.assertTrue(contiguous((5, 7), ()))
+        self.assertFalse(contiguous((256, 128), (1, 128)))
+        self.assertFalse(contiguous((16, 256, 256), (256, 256)))
+        self.assertFalse(contiguous((64, 16, 32), (16, 1)))
+
+    def test_reduction_splits_by_terms_when_contiguous(self):
         self.assertEqual(
             {name: expected_splits(name) for name in REDUCTIONS},
             {
-                "reduce-256x128-to-1x128-rounding": 2,
+                "reduce-256x128-to-1x128-rounding": 0,
                 "reduce-256x64-to-256x1-rounding": 1,
-                "reduce-64x16x32-to-16x1-rounding": 2,
+                "reduce-64x16x32-to-16x1-rounding": 0,
+                "reduce-64x16x32-to-64x1x1-rounding": 2,
                 "reduce-6x5x4-to-5x1": 0,
             },
         )
@@ -82,7 +93,7 @@ class ParallelProbeTests(unittest.TestCase):
 
     def test_check_lines_rejects_an_unforked_rounding_reduction(self):
         with self.assertRaises(GateError):
-            check_lines(probe_output(**{"reduce-256x128-to-1x128-rounding": (0, 0)}))
+            check_lines(probe_output(**{"reduce-64x16x32-to-64x1x1-rounding": (0, 0)}))
 
     def test_check_lines_rejects_a_wrong_split(self):
         with self.assertRaises(GateError):

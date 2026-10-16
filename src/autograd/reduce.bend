@@ -221,10 +221,40 @@ def build_balanced(+depth: Nat, +splits: Nat, +rows: List<&2, Shape.Row>, +exten
     case 1n+lower 0n:
       tree_balanced(1n+lower, rows, extents, count, base, array, tree_certified(1n+lower, rows, extents, count, base, array))
 
-# Split by work, as `Matrix.splits`: a target cell costs one term per
-# contribution word that lands on it.
+# A target cell costs one term per contribution word that lands on it.
 def terms(+plan: Shape.BroadcastPlan, +length: Nat) -> Nat:
   Nat.div(Shape.elements(Shape.output_shape(plan)), length)
+
+# Whether some axis below these rows has extent above 1 and is kept by the
+# target (left stride above 0).
+def kept_after(+rows: List<&2, Shape.Row>, +extents: List<&2, Nat>) -> Bool:
+  match rows extents:
+    case Shape.Row{stride, +left, right} <> +rest +extent <> +others:
+      Bool.or(Bool.and(Nat.is_lt(1n, extent), Bool.not(Nat.is_eq(left, 0n))), kept_after(rest, others))
+    case _ _:
+      False{}
+
+# Whether every fiber is one contiguous run of the contribution: no axis the
+# target keeps comes after an axis it reduces, counting only axes of extent
+# above 1. Row sums such as [n, m] to [n, 1] are contiguous; column and batch
+# sums such as [n, m] to [1, m] or [b, n, m] to [n, m] are strided.
+def contiguous(+rows: List<&2, Shape.Row>, +extents: List<&2, Nat>) -> Bool:
+  match rows extents:
+    case Shape.Row{stride, +left, right} <> +rest +extent <> +others:
+      Bool.pick(Bool, Bool.and(Nat.is_lt(1n, extent), Nat.is_eq(left, 0n)), Bool.not(kept_after(rest, others)),
+        contiguous(rest, others))
+    case _ _:
+      True{}
+
+# How many top levels of the target tree fork. Every fork clones the whole
+# contribution. A target whose fibers are contiguous splits by work, as
+# `Matrix.splits` does with the terms of a cell; a target with strided fibers
+# never forks, since there the forked build ran slower at 8 and 24 threads
+# than one thread (docs/reduce-to.md). The proofs hold for any split.
+def splits(+plan: Shape.BroadcastPlan, +depth: Nat, +length: Nat) -> Nat:
+  +extents = Shape.extents(Shape.output_shape(plan))
+  +rows = Shape.index_table(Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), extents)
+  Bool.pick(Nat, contiguous(rows, extents), Matrix.splits(depth, terms(plan, length)), 0n)
 
 def parallel_rows(+plan: Shape.BroadcastPlan, +target: Shape.Shape, +depth: Nat, +length: Nat,
   -valid: {Storage.bounds(depth, length) == True{} : Bool},
@@ -232,7 +262,7 @@ def parallel_rows(+plan: Shape.BroadcastPlan, +target: Shape.Shape, +depth: Nat,
   taken: Core.Dynamic & Array<F32>, rows: List<&2, Shape.Row>) -> Core.Dynamic & Result<&2, &1, Error, Core.Dynamic>:
   (kept, array) = taken
   +extents = Shape.extents(Shape.output_shape(plan))
-  +splits = Matrix.splits(depth, terms(plan, length))
+  +splits = splits(plan, depth, length)
   (kept, Done{Core.Packed{target, Core.TTensor{Storage.Owned{depth, length,
     build(depth, splits, rows, extents, length, 0n, array),
     build_balanced(depth, splits, rows, extents, length, 0n, array),
