@@ -96,7 +96,11 @@ PyTorch's gradients word for word on every script of
 `oracle/autograd/fixtures/tensor-backward-torch.json` that PyTorch can
 represent, including arrival order, broadcast reductions, `-0.0`, infinities
 and subnormals, except the last bits of some words in the `mse_loss` and
-`cross_entropy` scripts, which [losses](losses.md#against-pytorch) lists. 131 of the 181 scripts agree line for line, the five `linear`
+`cross_entropy` scripts, which [losses](losses.md#against-pytorch) lists. The
+record is compared under level 2 of the
+[numeric policy](../AGENTS.md#numeric-policy): fixed words bit for bit, the
+`mse_loss` and forward `sum` and `matmul` words within the rounding-error
+bound, and the `cross_entropy` words, which no bound covers, pinned. 131 of the 181 scripts agree line for line, the five `linear`
 scripts that PyTorch accepts among them, and every `relu` script but four:
 `relu_edges` and `relu_nan_gradient` (NaN payloads of `NaN * NaN` in the
 product after `relu`), `relu_13` (a one-term matmul) and
@@ -125,9 +129,9 @@ accepted. The differences:
 | SGD learning rate below zero | `InvalidLearningRate` (110) | `ValueError` (1 script) |
 | NaN losses | NaN | NaN with another payload (7 scripts) |
 | `cross_entropy` logits | `[rows, columns]` only; a target count other than the rows is `TargetOutOfRange` (108) | Also `[C]` and `[N, C, d...]`; `ValueError` for the count |
-| Sums inside `mse_loss` and `cross_entropy` | Left to right from `+0.0` | A cascade of partial sums; the loss can differ in the last bits (14 scripts, up to 3 ulp) |
+| Sums inside `mse_loss` and `cross_entropy` | Left to right from `+0.0` | A cascade of partial sums; the loss can differ in the last bits (14 scripts, up to 3 ulp; the 6 `mse_loss` scripts within the bound, the 8 `cross_entropy` scripts pinned) |
 | `exp` in the `cross_entropy` backward | Correctly rounded in practice (binary64 `exp`, rounded) | A vectorized `exp`; about 1 gradient word in 10 differs by 1 or 2 ulp |
-| Forward `sum` and `matmul` | Ordered folds from `+0.0` (see above) | Another order, and `-0.0` from a one-term matmul (3 scripts; the gradients agree) |
+| Forward `sum` and `matmul` | Ordered folds from `+0.0` (see above) | Another order, and `-0.0` from a one-term matmul (3 scripts, within the bound; the gradients agree) |
 | SGD step `p - lr * g` | The product rounded, then the difference | One rounding on AVX2 and AVX512, two on the `DEFAULT` kernel; `sgd_two_layers` and `sgd_rounding` match a one-rounding reference word for word (2 scripts; 6 of 337 words differ, by 1 to 6 ulp) |
 | SGD step over a node that is not a leaf | `NotLeaf` (109) | `torch.optim.SGD` accepts a non-leaf that retains its gradient, as every non-leaf of the replay does (1 script) |
 

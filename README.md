@@ -106,7 +106,11 @@ compare each output word, bit for bit, with a Python reference that follows
 the same order. A frozen [PyTorch record](oracle/autograd/README.md) of every one of
 those requests ties the references to PyTorch's `expand`, `sum_to_size` and
 `backward`: they agree word for word, apart from the listed rank, capacity,
-NaN-payload and `None`-gradient differences.
+NaN-payload and `None`-gradient differences. The tensor backward's record
+follows the [numeric policy](AGENTS.md#numeric-policy): PyTorch's word, bit
+for bit, where only operations with one rounding build it, a word within a
+rounding-error bound where a sum or a matmul does, and listed words for
+`cross_entropy`, which no bound covers.
 
 ## Limits
 

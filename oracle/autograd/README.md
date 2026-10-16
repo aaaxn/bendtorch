@@ -68,9 +68,11 @@ refuses, updates nothing); every `backward` seeds `torch.ones_like(output)` and 
 (`retain_graph=True`), every non-leaf keeps its gradient (`retain_grad()`), and
 `zero_grad` sets every `.grad` to `None`. Lines carry decimal F32 words in the
 gate's own format. `tests/test_autograd_tensor_backward.py` in the root suite
-compares the gate's Python reference with this file: 131 of 181 scripts agree
-line for line, and [docs/tensor-backward.md](../../docs/tensor-backward.md)
-lists the other 50.
+compares the gate's Python reference with this file, under level 2 of the
+[numeric policy](../../AGENTS.md#numeric-policy) (`tools/autograd_tensor_bound.py`
+computes each word's rounding-error bound): 131 of 181 scripts agree line for
+line, and [docs/tensor-backward.md](../../docs/tensor-backward.md) lists the
+other 50.
 
 ## Reproduce
 

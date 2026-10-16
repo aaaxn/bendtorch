@@ -108,6 +108,12 @@ ulp:
 | `mse_loss` `[64, 10]` loss and gradient | 641 | 641 | 0 |
 | `mse_loss` `[4096, 10]` loss and gradient | 40961 | 40961 | 0 |
 
+The PyTorch record ([tensor backward](tensor-backward.md#pytorch-record))
+compares these words under level 2 of the
+[numeric policy](../AGENTS.md#numeric-policy): the `mse_loss` words within
+the rounding-error bound of their sums, and the `cross_entropy` words, built
+on `exp` and `log`, which no bound covers, on pins.
+
 Where they differ, and why:
 
 - The nll sum. PyTorch adds the `-lp` terms in a cascade of partial sums

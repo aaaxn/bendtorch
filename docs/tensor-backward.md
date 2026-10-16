@@ -414,7 +414,9 @@ instructions on both sides, and no law or gate states it. On the 11 SGD
 scripts that both accept or both refuse (648 words), bendtorch's native words
 against PyTorch's: on `DEFAULT`, 637 bit for bit, 11 NaN on both sides with
 another sign or payload, no other word differs; on AVX512, 629 bit for bit,
-13 such NaNs, and 6 words 1 to 6 ulp apart.
+13 such NaNs, and 6 words 1 to 6 ulp apart. Under the
+[numeric policy](../AGENTS.md#numeric-policy) the PyTorch record compares the
+two fused scripts with a reference that rounds once, word for word.
 
 `src/autograd/sgd-LAWS.bend` states 15 laws and `sgd-PROOF.bend` proves them:
 
@@ -570,6 +572,21 @@ retain_graph=True)`, `retain_grad()` on every non-leaf) and writes
 `tests/test_autograd_tensor_backward.py` compares it with the Python
 reference. Bend never calls PyTorch.
 
+The comparison is level 2 of the [numeric policy](../AGENTS.md#numeric-policy).
+A line that is not a word must be PyTorch's line. A fixed word, one that only
+operations with one rounding build from the leaves, must be PyTorch's word,
+bit for bit. A word built on a sum or a matmul must lie, with the reference's
+word, within its rounding-error bound of the exact value of the script's
+arithmetic. `tools/autograd_tensor_bound.py` computes each word's exact value
+and bound in exact rational arithmetic: it replays the reference with its
+arithmetic functions replaced by ones that also carry the bound, and checks
+that the replay prints the reference's lines. A word built on `exp` or `log`
+has no bound, and its check lists PyTorch's word and the reference's
+(`LOSS_ROUNDING`). The comparison reads 148 scripts: the 131 below that agree
+line for line and the bounded and pinned rows of the table. Their reference
+lines hold 5452 fixed words, 1808 words with a bound and 382 words built on
+`exp` or `log`.
+
 131 of the 181 scripts agree with PyTorch line for line: every id, shape, value,
 gradient word and `None`, including the arrival-order and fold-order scripts,
 `-0.0`, infinities and subnormals, and every `relu` script but four, with
@@ -590,22 +607,37 @@ gradient PyTorch can represent in them agrees:
 | `dangling_self`, `dangling_newer`, `dangling_missing` | `DanglingOperand` (104) | not representable |
 | `specials`, `relu_edges`, `relu_nan_gradient`, `sgd_edges`, `sgd_rate_nan` | the value of `NaN * NaN`, and of a step with a NaN parameter, gradient or rate, is NaN | NaN with another sign or payload |
 | `mse_empty`, `cross_entropy_infinities`, `cross_entropy_nan`, `cross_entropy_empty`, `cross_entropy_empty_wide`, `cross_entropy_one_class_scaled`, `cross_entropy_two_class_scaled` | NaN losses and gradients | NaN with another payload |
-| `cross_entropy`, `cross_entropy_scaled` and 12 generated `loss_` scripts | 9 loss words up to 3 ulp, 21 gradient words up to 2 ulp and 3 gradients of a scale (a loss word) up to 2 ulp from PyTorch's | PyTorch's cascade sums and vectorized `exp` ([losses](losses.md#against-pytorch)) |
+| `loss_03`, `loss_05`, `loss_07`, `loss_09`, `loss_11`, `loss_15` (`mse_loss`) | within the bound: 8 loss words 1 to 3 ulp, 5 gradient words of a broadcast target and 3 gradients of a scale (a loss word) 1 or 2 ulp from PyTorch's, where the bound allows 10 to 58 ulp | PyTorch's cascade sums ([losses](losses.md#against-pytorch)) |
+| `rounding_09` | within the bound: the forward `sum` of six words adds them in ascending order, 127 ulp from PyTorch's word, where cancellation makes the bound 4964 ulp | PyTorch's vectorized sum gives another word |
+| `rounding_14`, `relu_13` | within the bound: a matmul with inner dimension 1 whose product is `-0.0`, or rounds to it, gives `+0.0`, because the ordered dot starts from `+0.0` (8 words of `relu_13`, 2 of `rounding_14`) | `-0.0` |
+| `cross_entropy`, `cross_entropy_scaled`, `loss_02`, `loss_06`, `loss_08`, `loss_10`, `loss_12`, `loss_14` (`cross_entropy`) | pinned, no bound: 1 loss word 1 ulp and 16 gradient words of the logits up to 2 ulp from PyTorch's | PyTorch's vectorized `exp` and cascade sums ([losses](losses.md#against-pytorch)) |
 | `sgd_rate_negative` | `InvalidLearningRate` (110) for each rate below zero | `ValueError` ("Invalid learning rate") |
 | `sgd_two_layers`, `sgd_rounding` | an SGD step rounds `lr * g`, then `p - lr * g` | one rounding on AVX2 and AVX512: the lines equal a reference that rounds once, word for word; 6 of 337 words differ from bendtorch's, by 1 to 6 ulp |
 | `sgd_not_leaf` | `NotLeaf` (109) | `torch.optim.SGD` accepts a non-leaf that retains its gradient, as every non-leaf of the replay does, and updates it |
-| `rounding_09` | the forward `sum` of six words adds them in ascending order | PyTorch's vectorized sum gives another word |
-| `rounding_14`, `relu_13` | a matmul with inner dimension 1 whose product is `-0.0` gives `+0.0`, because the ordered dot starts from `+0.0` | `-0.0` |
 
 The `rounding_09`, `rounding_14` and `relu_13` rows are forward values of the tensor layer
 ([reduction order](torch-differences.md)); the gradients of these scripts agree.
+The `cross_entropy` words keep their pins because PyTorch's `exp` and `log`
+are vectorized approximations whose error the repository does not bound; a
+bound for them would have to assume one.
+
+`tests/test_autograd_tensor_bound.py` shows the bound rejects wrong results.
+A planted sum that leaves out its last term changes 81 scripts and is
+rejected in 80 of them; in `loss_07` the dropped square is 1e-4 of a loss of
+144, 6 ulp, inside that word's 15-ulp bound. A planted reduction and a
+planted matmul that leave out their last term change 62 and 27 scripts and
+are rejected in every one. The first word past the bound of `loss_03`'s loss,
+in PyTorch's line or in the reference's, is rejected, and the last word
+inside it is accepted; a fixed
+word 1 ulp off, a zero of the other sign where the bound does not reach zero
+and a pin on a word that has a bound are rejected.
 
 ## Reproduce
 
 ```sh
 bend src/autograd/PROOF.bend --verdict
 uv run --locked python -m tools.autograd_tensor_backward --output .evidence/<new directory>
-uv run --locked python -m unittest tests.test_autograd_tensor_backward -v
+uv run --locked python -m unittest tests.test_autograd_tensor_backward tests.test_autograd_tensor_bound -v
 export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
 PYTHONDONTWRITEBYTECODE=1 uv run --project oracle --frozen --no-sync python oracle/autograd/tensor_backward.py --check
 ```
