@@ -66,11 +66,11 @@ file = "src/autograd/tensor-backward.bend"
 before = '''
   (right, multiplied(target, shape, Matrix.matmul(copy, flipped)))
 
-# g^T @ x for the right operand, g read in place.'''
+# g^T @ x, g read in place. It has its own name so that the proofs of where'''
 after = '''
   (right, multiplied(target, shape, Matrix.matmul_nt(copy, flipped)))
 
-# g^T @ x for the right operand, g read in place.'''
+# g^T @ x, g read in place. It has its own name so that the proofs of where'''
 
 [nt-vjp-sends-second-to-first]
 file = "src/autograd/tensor-backward.bend"
