@@ -24,6 +24,7 @@ type Operation is Data:
   MseGrad{scale: F32}
   OneHotGrad{count: F32}
   SoftmaxGrad{count: F32, single: Bool}
+  Descend{lr: F32}
 
 # The IEEE 754 bits of an F32, as a U32.
 def bits(x: F32) -> U32:
@@ -113,6 +114,8 @@ def scalar(operation: Operation, left: F32, right: F32) -> F32:
       zero_if(Bool.not(is_one(right)), target_gradient(left, count))
     case SoftmaxGrad{+count, +single}:
       F32.neg(F32.mul(F32.exp(right), row_sum(single, target_gradient(left, count))))
+    case Descend{lr}:
+      F32.sub(left, F32.mul(lr, right))
 
 def flat_input_indices(+plan: Shape.BroadcastPlan,
   result: Result<&2, &2, Shape.Error, Shape.FlatIndex<Shape.output_shape(plan)>>) -> Result<&2, &1, Core.Error, U32 & U32>:

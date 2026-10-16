@@ -61,13 +61,16 @@ Each script records leaves and `+`, `-`, `*`, `@`, `linear(x, W)`
 (`matmul_nt`), `linear(x, W) + b` (`linear`, two entries, as the tape records
 it; both are computed before either is recorded, so a refused `linear`
 records nothing), `torch.relu`, `mse_loss`, `cross_entropy` with class
-indices and `.sum()` in order; every `backward` seeds `torch.ones_like(output)` and keeps the graph
+indices and `.sum()` in order, and SGD steps
+(`torch.optim.SGD(params, lr=lr).step()` over the listed nodes; a rate below
+zero is recorded as `ValueError`; an empty list, which `torch.optim.SGD`
+refuses, updates nothing); every `backward` seeds `torch.ones_like(output)` and keeps the graph
 (`retain_graph=True`), every non-leaf keeps its gradient (`retain_grad()`), and
 `zero_grad` sets every `.grad` to `None`. Lines carry decimal F32 words in the
 gate's own format. `tests/test_autograd_tensor_backward.py` in the root suite
-compares the gate's Python reference with this file: 126 of 169 scripts agree
+compares the gate's Python reference with this file: 131 of 181 scripts agree
 line for line, and [docs/tensor-backward.md](../../docs/tensor-backward.md)
-lists the other 43.
+lists the other 50.
 
 ## Reproduce
 

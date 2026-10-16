@@ -94,6 +94,21 @@
     "tensor_2d_vjp_2d_LAWS.tn_reads_transpose",
     "tensor_2d_vjp_2d_LAWS.tensor_relu_vjp_values",
     "tensor_2d_vjp_2d_LAWS.tensor_mse_vjp_values",
-    "tensor_2d_vjp_2d_LAWS.tensor_cross_entropy_vjp_values"
+    "tensor_2d_vjp_2d_LAWS.tensor_cross_entropy_vjp_values",
+    "sgd_2d_LAWS.sgd_descend_scalar",
+    "sgd_2d_LAWS.sgd_empty_slot_kept",
+    "sgd_2d_LAWS.sgd_step_values",
+    "sgd_2d_LAWS.sgd_update_reaches_target",
+    "sgd_2d_LAWS.sgd_no_params",
+    "sgd_2d_LAWS.sgd_params_in_order",
+    "sgd_2d_LAWS.sgd_refusal_reads_target",
+    "sgd_2d_LAWS.sgd_only_leaves_accepted",
+    "sgd_2d_LAWS.sgd_refusal_unknown",
+    "sgd_2d_LAWS.sgd_negative_rate_refused",
+    "sgd_2d_LAWS.sgd_rate_accepted",
+    "sgd_2d_LAWS.sgd_rate_edges",
+    "sgd_2d_LAWS.sgd_step_refused",
+    "sgd_2d_LAWS.sgd_step_rate_refused",
+    "sgd_2d_LAWS.sgd_step_accepted"
   ]
 }

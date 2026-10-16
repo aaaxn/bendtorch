@@ -1,21 +1,28 @@
 import hashlib
 import json
+import math
+import struct
 import tempfile
 import unittest
+from fractions import Fraction
 from pathlib import Path
 
 from tools.autograd import PROOF_CONTROLS, SUBGATES
 from tools.autograd_backward import DANGLING_OPERAND, NEGATIVE_ZERO, UNKNOWN_NODE
 from tools.autograd_broadcast import is_nan, word
 from tools.autograd_tensor_backward import (
+    INVALID_LEARNING_RATE,
     MATMUL_INNER,
     MATMUL_RANK,
     NATIVE_CONTROLS,
+    NOT_LEAF,
     NOT_LOGITS,
     RUNTIME_CONTROLS,
+    SGD_CONTROLS,
     TARGET_OUT_OF_RANGE,
     ZERO_GRAD,
     cases,
+    descend_word,
     forge,
     leaf,
     op,
@@ -24,16 +31,18 @@ from tools.autograd_tensor_backward import (
     reference,
     run,
     run_gate,
+    same_row,
     verify,
 )
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "84b9b8fc4412dab17ba7a71b3fa19d755b8275af2c0af5246e2ac4d68ec17ae7"
+FIXTURE_SHA256 = "e4ae8a154aa8a047a301dd9c50f60e5a406bcb13701c6eae781be7bbc93b8834"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
-# dimension (106) mismatch, and a leaf with the wrong number of values (10).
+# dimension (106) mismatch, and a leaf with the wrong number of values (10);
+# InvalidLearningRate (110) where torch.optim.SGD raises ValueError.
 REJECTIONS = {
     "unknown_operands",
     "unknown_output_empty",
@@ -47,6 +56,8 @@ REJECTIONS = {
     "matmul_nt_rank",
     "relu_unknown_operand",
     "mse_refused",
+    "sgd_unknown_param",
+    "sgd_rate_negative",
 }
 RUNTIME_ERROR_CODES = {6, MATMUL_RANK, MATMUL_INNER, 10}
 # The refusals of cross_entropy_refused, step by step, as PyTorch's kind and
@@ -75,6 +86,8 @@ NAN_PAYLOAD = {
     "cross_entropy_empty_wide",
     "cross_entropy_one_class_scaled",
     "cross_entropy_two_class_scaled",
+    "sgd_edges",
+    "sgd_rate_nan",
 }
 # The forward value differs, not the backward: rounding_09 sums six words in
 # ascending order where PyTorch's vectorized sum takes another order, and
@@ -151,6 +164,53 @@ LOSS_ROUNDING = {
         97: (0xC39B3B0F, 0xC39B3B10),
     },
 }
+
+# PyTorch's CPU kernel for param.add_(grad, alpha=-lr) rounds p + (-lr) * g
+# once (a fused multiply-add) on AVX2 and AVX512; the tape rounds the product,
+# then the difference. These scripts match a reference that rounds once.
+FUSED_UPDATE = {"sgd_two_layers", "sgd_rounding"}
+# torch.optim.SGD accepts a non-leaf that retains its gradient, as every
+# non-leaf of the replay does; the tape refuses it with NotLeaf.
+NON_LEAF = {"sgd_not_leaf"}
+
+
+def f32(number: int) -> float:
+    return struct.unpack("<f", struct.pack("<I", number))[0]
+
+
+def rounded(exact: Fraction) -> int:
+    negative = exact < 0
+    magnitude = -exact if negative else exact
+    exponent = magnitude.numerator.bit_length() - magnitude.denominator.bit_length()
+    while Fraction(2) ** exponent > magnitude:
+        exponent -= 1
+    while Fraction(2) ** (exponent + 1) <= magnitude:
+        exponent += 1
+    unit = Fraction(2) ** (max(exponent, -126) - 23)
+    steps = magnitude / unit
+    whole = steps.numerator // steps.denominator
+    rest = steps - whole
+    if rest > Fraction(1, 2) or (rest == Fraction(1, 2) and whole % 2 == 1):
+        whole += 1
+    if whole * unit >= Fraction(2) ** 128 - Fraction(2) ** 103:
+        bits = 0x7F800000
+    else:
+        bits = struct.unpack("<I", struct.pack("<f", float(whole * unit)))[0]
+    return bits | 0x80000000 if negative else bits
+
+
+# p - lr * g rounded once, from the exact value, for finite words; a NaN or an
+# infinity propagates as with two roundings.
+def fused_word(lr: int, p: int, g: int) -> int:
+    rate, held, gradient = f32(lr), f32(p), f32(g)
+    if not all(math.isfinite(number) for number in (rate, held, gradient)):
+        return descend_word(lr, p, g)
+    product = Fraction(rate) * Fraction(gradient)
+    exact = Fraction(held) - product
+    if exact != 0:
+        return rounded(exact)
+    negative = math.copysign(1.0, held) < 0 and math.copysign(1.0, rate * gradient) > 0
+    return NEGATIVE_ZERO if held == 0 and product == 0 and negative else 0
 
 
 def case(steps: list[dict]) -> dict:
@@ -394,6 +454,8 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                         code = int(b.rsplit(":", 1)[1])
                         if a.endswith("IndexError"):
                             self.assertEqual(code, UNKNOWN_NODE)
+                        elif a.endswith("ValueError"):
+                            self.assertEqual(code, INVALID_LEARNING_RATE)
                         else:
                             self.assertEqual(a, "autograd:rejected:RuntimeError")
                             self.assertIn(code, RUNTIME_ERROR_CODES)
@@ -407,6 +469,21 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                     for a, b in differ:
                         self.assertTrue(is_nan(int(a.removeprefix("tensor:word:"))))
                         self.assertTrue(is_nan(int(b.removeprefix("tensor:word:"))))
+                    continue
+                if identifier in FUSED_UPDATE:
+                    self.assertTrue(differ)
+                    fused = reference(row, update=fused_word)
+                    self.assertEqual(len(seen), len(fused))
+                    for a, b in zip(seen, fused, strict=True):
+                        self.assertTrue(same_row(a, b), (a, b))
+                    continue
+                if identifier in NON_LEAF:
+                    self.assertEqual(
+                        differ[0], ("autograd:step", f"autograd:error:{NOT_LEAF}")
+                    )
+                    for a, b in differ[1:]:
+                        self.assertTrue(a.startswith("tensor:word:"))
+                        self.assertTrue(b.startswith("tensor:word:"))
                     continue
                 if identifier in FORWARD_ORDER:
                     self.assertTrue(differ)
@@ -439,6 +516,8 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
             | NAN_PAYLOAD
             | FORWARD_ORDER
             | set(LOSS_ROUNDING)
+            | FUSED_UPDATE
+            | NON_LEAF
         )
         self.assertEqual(exact, len(cases()) - len(excluded))
 
@@ -501,6 +580,19 @@ class ReluExactWordTests(unittest.TestCase):
 
 
 class GateRegistrationTests(unittest.TestCase):
+    def test_sgd_controls_apply_once_and_name_a_required_law(self):
+        required = json.loads((ROOT / "verification/autograd.json").read_text())[
+            "required_exports"
+        ]
+        self.assertEqual(len(SGD_CONTROLS), 9)
+        for name, (path, original, mutated, law) in SGD_CONTROLS.items():
+            with self.subTest(control=name):
+                self.assertEqual((ROOT / path).read_text().count(original), 1)
+                self.assertNotEqual(original, mutated)
+                self.assertIn(law.replace("Laws.", "sgd_2d_LAWS."), required)
+                self.assertEqual(RUNTIME_CONTROLS[name], (path, original, mutated))
+        self.assertIn("zero-grad-keeps-slot", RUNTIME_CONTROLS)
+
     def test_autograd_gate_registers_tensor_backward_and_its_laws(self):
         self.assertIn("tensor_backward", SUBGATES)
         required = json.loads((ROOT / "verification/autograd.json").read_text())[
@@ -544,7 +636,7 @@ class GateRegistrationTests(unittest.TestCase):
             self.assertIn("quiet(2143289344)", mutated)
 
     def test_runtime_controls_apply_once(self):
-        self.assertEqual(len(RUNTIME_CONTROLS), 26)
+        self.assertEqual(len(RUNTIME_CONTROLS), 36)
         for control in RUNTIME_CONTROLS.values():
             path, original, mutated = (
                 control

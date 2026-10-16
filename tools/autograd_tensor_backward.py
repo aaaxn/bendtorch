@@ -36,6 +36,8 @@ from tools.common import ROOT, Evidence, GateError, bend, native
 VALUE_COUNT_MISMATCH = 10
 MATMUL_RANK = 105
 MATMUL_INNER = 106
+NOT_LEAF = 109
+INVALID_LEARNING_RATE = 110
 INFINITY = 0x7F800000
 BINARY = ("add", "sub", "mul", "matmul", "matmul_nt", "mse_loss")
 UNARY = ("sum", "relu", "cross_entropy")
@@ -177,6 +179,101 @@ RUNTIME_CONTROLS = {
     ),
 }
 
+# SGD mutants: the tensor backward lanes reject each one, and the autograd
+# gate's check of src/autograd/PROOF.bend rejects each at the law named last.
+DESCEND_HEAD = (
+    "def descend(+lr: F32, entry: Backward.Entry) -> "
+    "Backward.Entry & Result<&2, &2, Error, Unit>:\n"
+    "  Backward.Entry{node, +shape, value, saved, slot} = entry\n"
+    "  match slot:\n"
+    "    case Gradient.Unset{}:\n"
+    "      (Backward.Entry{node, shape, value, saved, Gradient.Unset{}}, Done{Unit{}})"
+)
+# Reads an empty slot as zeros, as Gradient.gradient does, and updates with them.
+ZEROED = (
+    "def zeroed(+lr: F32, node: Backward.Node, +shape: Shape.Shape, "
+    "value: Core.Dynamic, saved: Backward.Saved,\n"
+    "  zeros: Result<&2, &1, Core.Error, Core.Dynamic>) -> "
+    "Backward.Entry & Result<&2, &2, Error, Unit>:\n"
+    "  match zeros:\n"
+    "    case Fail{error}:\n"
+    "      (Backward.Entry{node, shape, value, saved, Gradient.Unset{}}, "
+    "Done{Unit{}})\n"
+    "    case Done{g}:\n"
+    "      descended(node, shape, saved, "
+    "Elementwise.binary(Elementwise.Descend{lr}, value, g))\n\n"
+)
+SGD_CONTROLS = {
+    "sgd-step-adds": (
+        "src/tensor/elementwise.bend",
+        "      F32.sub(left, F32.mul(lr, right))",
+        "      F32.add(left, F32.mul(lr, right))",
+        "Laws.sgd_descend_scalar",
+    ),
+    "sgd-step-doubles-lr": (
+        "src/autograd/sgd.bend",
+        "Elementwise.binary(Elementwise.Descend{lr}, value, g)",
+        "Elementwise.binary(Elementwise.Descend{F32.add(lr, lr)}, value, g)",
+        "Laws.sgd_step_values",
+    ),
+    "sgd-step-skips-later-params": (
+        "src/autograd/sgd.bend",
+        "continued(entries => descend_all(lr, count, rest, entries), ",
+        "continued(entries => (entries, Done{Unit{}}), ",
+        "Laws.sgd_params_in_order",
+    ),
+    "sgd-step-updates-empty-slot": (
+        "src/autograd/sgd.bend",
+        DESCEND_HEAD,
+        ZEROED
+        + DESCEND_HEAD.replace(
+            "      (Backward.Entry{node, shape, value, saved, Gradient.Unset{}}, "
+            "Done{Unit{}})",
+            "      zeroed(lr, node, shape, value, saved, "
+            "Gradient.gradient(shape, Gradient.Unset{}))",
+        ),
+        "Laws.sgd_empty_slot_kept",
+    ),
+    "sgd-update-reaches-neighbor": (
+        "src/autograd/sgd.bend",
+        "kept(entry, descend_at(lr, rest, below, id, Backward.at_head(below, id)))",
+        "kept(entry, descend_at(lr, rest, below, id, Backward.at_head(below, 1n+id)))",
+        "Laws.sgd_update_reaches_target",
+    ),
+    "sgd-step-updates-before-checking": (
+        "src/autograd/sgd.bend",
+        "checked(lr, entries, count, params, refusal(nodes, count, params))",
+        "checked(lr, entries, count, params, None{})",
+        "Laws.sgd_step_refused",
+    ),
+    "sgd-step-accepts-non-leaf": (
+        "src/autograd/sgd.bend",
+        "    case Backward.Mul{a, b, left, right}:\n      Some{NotLeaf{}}",
+        "    case Backward.Mul{a, b, left, right}:\n      None{}",
+        "Laws.sgd_only_leaves_accepted",
+    ),
+    "sgd-step-skips-rate-check": (
+        "src/autograd/sgd.bend",
+        "rated(lr, entries, count, params, rate_refusal(lr))",
+        "rated(lr, entries, count, params, None{})",
+        "Laws.sgd_step_rate_refused",
+    ),
+    "sgd-rate-refuses-zero": (
+        "src/autograd/sgd.bend",
+        "  refused_if(Elementwise.below_zero(lr))",
+        "  refused_if(Elementwise.at_most_zero(lr))",
+        "Laws.sgd_negative_rate_refused",
+    ),
+}
+RUNTIME_CONTROLS |= {
+    name: (path, original, mutated)
+    for name, (path, original, mutated, _) in SGD_CONTROLS.items()
+}
+RUNTIME_CONTROLS["zero-grad-keeps-slot"] = (
+    "Entry{node, shape, value, saved, Gradient.reset(slot)} <> cleared(rest)",
+    "Entry{node, shape, value, saved, slot} <> cleared(rest)",
+)
+
 # Controls that only the native lane can reject: the JavaScript lane prints
 # every NaN as 0x7FC00000, so a relu that replaces a NaN word with that
 # canonical NaN looks right there. Each replaces x's or g's NaN word, sign,
@@ -246,6 +343,10 @@ ZERO_GRAD = {"op": "zero_grad"}
 
 def linear(x: int, w: int, bias: int) -> dict:
     return {"op": "linear", "a": x, "b": w, "bias": bias}
+
+
+def sgd(lr: int, params: list[int]) -> dict:
+    return {"op": "step", "lr": lr, "params": params}
 
 
 def program_case(identifier: str, steps: list[dict], output: int) -> dict:
@@ -681,6 +782,160 @@ def handwritten() -> list[dict]:
         {
             "id": "relu_unknown_operand",
             "steps": [row, op("relu", 3), op("relu", 0), run(1), *reads(2)],
+        },
+        *sgd_scripts(left, layer, layer_bias),
+    ]
+
+
+# SGD steps: p - lr * g for every listed leaf whose slot holds g.
+def sgd_scripts(x: dict, layer: dict, layer_bias: dict) -> list[dict]:
+    tenth, third = word(0.1), word(1.0 / 3.0)
+    head = leaf([2, 4], f(*[0.25 * k - 1.0 for k in range(8)]))
+    head_bias = leaf([2], f(0.5, -0.25))
+    mlp = [linear(0, 1, 2), op("relu", 6), linear(7, 3, 4), op("sum", 9)]
+    again = [linear(0, 1, 2), op("relu", 12), linear(13, 3, 4), op("sum", 15)]
+    pair = [leaf([3], f(0.5, -1.0, 2.0)), leaf([3], f(3.0, 0.25, -2.0))]
+    trained = [op("mul", 0, 1), op("sum", 2), run(3)]
+    # Each p is paired with a g from another edge class: x * w seeds 1.0, so
+    # p's gradient is w's word and w's is p's.
+    weights = [EDGES[(7 * k + 3) % len(EDGES)] for k in range(len(EDGES))]
+    return [
+        # Linear -> ReLU -> Linear: forward, backward, step, zero_grad, then
+        # a second forward, backward and step on the updated parameters.
+        {
+            "id": "sgd_two_layers",
+            "steps": [
+                x,
+                layer,
+                layer_bias,
+                head,
+                head_bias,
+                *mlp,
+                run(10),
+                sgd(tenth, [1, 2, 3, 4]),
+                *[{"op": "read", "id": index} for index in range(1, 5)],
+                ZERO_GRAD,
+                *again,
+                run(16),
+                sgd(tenth, [1, 2, 3, 4]),
+                *reads(17),
+            ],
+        },
+        {
+            "id": "sgd_edges",
+            "steps": [
+                leaf([len(EDGES)], list(EDGES)),
+                leaf([len(EDGES)], weights),
+                op("mul", 0, 1),
+                op("sum", 2),
+                run(3),
+                sgd(third, [0, 1]),
+                *reads(4),
+            ],
+        },
+        # Products that round, cancel, underflow to denormals and overflow.
+        {
+            "id": "sgd_rounding",
+            "steps": [
+                leaf([12], list(ROUNDING)),
+                leaf([12], [ROUNDING[(5 * k + 2) % 12] for k in range(12)]),
+                leaf([12], f(*[1e-38, -3e-39, 1e-45, 2.5e38, -3.4e38, 0.75] * 2)),
+                op("mul", 0, 1),
+                op("mul", 3, 2),
+                op("sum", 4),
+                run(5),
+                sgd(word(0.01), [0, 1, 2]),
+                sgd(third, [2, 0]),
+                *reads(6),
+            ],
+        },
+        # A parameter that backward never reaches keeps None and its value;
+        # after zero_grad, a step changes nothing.
+        {
+            "id": "sgd_empty_slot",
+            "steps": [
+                *pair,
+                leaf([], f(4.0)),
+                *trained,
+                sgd(tenth, [0, 1, 2]),
+                *reads(5),
+                ZERO_GRAD,
+                sgd(tenth, [0, 1, 2]),
+                *reads(5),
+            ],
+        },
+        # A step before any backward and a step over no parameters change
+        # nothing; a parameter listed twice is updated twice.
+        {
+            "id": "sgd_no_gradients",
+            "steps": [*pair, sgd(tenth, [0, 1]), *reads(2)],
+        },
+        {
+            "id": "sgd_duplicate",
+            "steps": [
+                *pair,
+                *trained,
+                sgd(tenth, []),
+                sgd(tenth, [1, 0, 1]),
+                *reads(4),
+            ],
+        },
+        # Every id is checked before any update: an unknown id is refused and
+        # the earlier parameter keeps its value.
+        {
+            "id": "sgd_unknown_param",
+            "steps": [*pair, *trained, sgd(tenth, [0, 4]), *reads(4)],
+        },
+        {
+            "id": "sgd_not_leaf",
+            "steps": [*pair, *trained, sgd(tenth, [0, 2]), *reads(4)],
+        },
+        # The learning rate is checked after the ids and before any update,
+        # as PyTorch's `lr < 0.0`: -0.25, -inf and the smallest negative
+        # denormal are refused and the tape keeps its values; -0.0, +0.0,
+        # NaNs of either sign and +inf are accepted.
+        {
+            "id": "sgd_rate_negative",
+            "steps": [
+                *pair,
+                *trained,
+                sgd(word(-0.25), [0, 1]),
+                sgd(0xFF800000, [0, 1]),
+                sgd(0x80000001, [0, 1]),
+                *reads(4),
+            ],
+        },
+        {
+            "id": "sgd_rate_signed_zero",
+            "steps": [
+                leaf([4], f(0.0, NEGATIVE_ZERO, 1.5, NEGATIVE_ZERO)),
+                leaf([4], f(2.0, -3.0, 0.5, 2.0)),
+                *trained,
+                sgd(NEGATIVE_ZERO, [0, 1]),
+                *reads(4),
+                sgd(0, [0, 1]),
+                *reads(4),
+            ],
+        },
+        {
+            "id": "sgd_rate_nan",
+            "steps": [
+                *pair,
+                *trained,
+                sgd(0x7FC00000, [0]),
+                sgd(0xFFC00000, [1]),
+                *reads(4),
+            ],
+        },
+        {
+            "id": "sgd_rate_infinity",
+            "steps": [
+                leaf([3], f(0.5, -1.0, 2.0)),
+                leaf([3], f(3.0, 0.0, -2.0)),
+                *trained,
+                sgd(INFINITY, [0, 1]),
+                *reads(4),
+            ],
         },
     ]
 
@@ -1376,6 +1631,12 @@ def snapshot(tensor: tuple) -> list[str]:
     ]
 
 
+# One cell of an SGD step: p - lr * g, the product rounded, then the
+# difference.
+def descend_word(lr: int, p: int, g: int) -> int:
+    return sub_word(p, mul_word(lr, g))
+
+
 def operands(node: dict) -> list[int]:
     return [node[key] for key in ("a", "b") if key in node]
 
@@ -1405,7 +1666,7 @@ def forward(name: str, values: list[tuple], step: dict) -> tuple | int:
 # each read, where its value and gradient words start in the lines ("reads",
 # keyed by the read's epoch and the node id; an epoch is a run of reads with
 # no other step between them).
-def reference(case: dict, trace: dict | None = None) -> list[str]:
+def reference(case: dict, trace: dict | None = None, update=descend_word) -> list[str]:
     nodes: list[dict] = []
     slots: list[tuple | None] = []
     lines = []
@@ -1496,6 +1757,35 @@ def reference(case: dict, trace: dict | None = None) -> list[str]:
         elif name == "zero_grad":
             slots = [None] * len(nodes)
             lines.append("autograd:zero_grad")
+        elif name == "step":
+            # Every id is checked, in list order, before any update.
+            refused = next(
+                (
+                    UNKNOWN_NODE if target >= len(nodes) else NOT_LEAF
+                    for target in step["params"]
+                    if target >= len(nodes) or nodes[target]["op"] != "leaf"
+                ),
+                None,
+            )
+            # Then the learning rate, as PyTorch's `lr < 0.0`, a NaN compares
+            # false.
+            (rate,) = struct.unpack("<f", struct.pack("<I", step["lr"]))
+            if refused is None and rate < 0.0:
+                refused = INVALID_LEARNING_RATE
+            if refused is not None:
+                lines.append(f"autograd:error:{refused}")
+                continue
+            for target in step["params"]:
+                slot = slots[target]
+                if slot is None:
+                    continue
+                shape, words = nodes[target]["value"]
+                changed = [
+                    update(step["lr"], p, g)
+                    for p, g in zip(words, slot[1], strict=True)
+                ]
+                nodes[target]["value"] = (shape, changed)
+            lines.append("autograd:step")
         else:
             identifier = step["id"]
             if identifier >= len(nodes):
@@ -1586,6 +1876,9 @@ def step_source(step: dict) -> str:
         return f"Harness.Run{{{step['output']}n}}"
     if name == "zero_grad":
         return "Harness.ZeroGrad{}"
+    if name == "step":
+        params = "[" + ", ".join(f"{target}n" for target in step["params"]) + "]"
+        return f"Harness.Step{{{step['lr']}, {params}}}"
     if name == "read":
         return f"Harness.Read{{{step['id']}n}}"
     if name == "forge":

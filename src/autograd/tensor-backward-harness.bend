@@ -5,6 +5,7 @@ import ../tensor/core.bend as Core
 import ../tensor/harness.bend as Tensor
 import ./gradient.bend as Gradient
 import ./tensor-backward.bend as Backward
+import ./sgd.bend as Sgd
 
 # Runs a script of tape operations through the public API of
 # tensor-backward.bend and prints one line for each step, and every word of
@@ -24,6 +25,7 @@ type Step is Data:
   CrossEntropy{a: Nat, targets: List<&2, U32>}
   Run{output: Nat}
   ZeroGrad{}
+  Step{lr: U32, params: List<&2, Nat>}
   Read{id: Nat}
   ForgeAdd{a: Nat, b: Nat, dimensions: List<&2, U32>, words: List<&2, U32>}
   ForgeSum{a: Nat, dimensions: List<&2, U32>, words: List<&2, U32>}
@@ -79,6 +81,18 @@ def ran(rec: Backward.Tape -> IO(Unit), pair: Backward.Tape & Result<&2, &2, Bac
     case Done{unit}:
       do IO<Unit>:
         IO.print("autograd:backward")
+        rec(tape)
+
+def stepped(rec: Backward.Tape -> IO(Unit), pair: Backward.Tape & Result<&2, &2, Sgd.Error, Unit>) -> IO(Unit):
+  (tape, result) = pair
+  match result:
+    case Fail{failure}:
+      do IO<Unit>:
+        IO.print("autograd:error:" ++ U32.show(Sgd.error_code(failure)))
+        rec(tape)
+    case Done{unit}:
+      do IO<Unit>:
+        IO.print("autograd:step")
         rec(tape)
 
 def print_value(result: Result<&2, &1, Backward.Error, Core.Dynamic>) -> IO(Unit):
@@ -173,6 +187,8 @@ def step(instruction: Step, tape: Backward.Tape, rec: Backward.Tape -> IO(Unit))
       do IO<Unit>:
         IO.print("autograd:zero_grad")
         rec(Backward.zero_grad(tape))
+    case Step{lr, params}:
+      stepped(rec, Sgd.step(tape, from_bits(lr), params))
     case Read{+id}:
       read_grad(id, rec, Backward.value(tape, id))
     case ForgeAdd{a, b, dimensions, words}:

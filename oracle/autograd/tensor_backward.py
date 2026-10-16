@@ -1,6 +1,8 @@
 import argparse
 import hashlib
 import json
+import struct
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -105,6 +107,25 @@ def replay(case: Json) -> Json:
                 for node in nodes:
                     node.grad = None
                 lines.append("autograd:zero_grad")
+            elif name == "step":
+                # torch.optim.SGD with lr only, over the listed nodes; the
+                # F32 lr word is exact as a Python float. A node listed twice
+                # is updated twice (PyTorch warns about the duplicate).
+                # torch.optim.SGD checks lr < 0.0 first (ValueError), then
+                # refuses an empty list, which updates nothing here.
+                params = [nodes[identifier] for identifier in step["params"]]
+                (lr,) = struct.unpack("<f", struct.pack("<I", step["lr"]))
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", UserWarning)
+                    try:
+                        optimizer = torch.optim.SGD(params, lr=lr)
+                    except ValueError as error:
+                        if params or "empty parameter list" not in str(error):
+                            raise
+                        optimizer = None
+                    if optimizer is not None:
+                        optimizer.step()
+                lines.append("autograd:step")
             elif step["id"] >= len(nodes):
                 lines += [
                     "autograd:value:rejected:IndexError",
