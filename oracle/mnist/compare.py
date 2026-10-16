@@ -12,9 +12,10 @@ checked on its own: both losses finite, and |bend - torch| / |torch| at most
 --early-tolerance for the first --early-steps steps and at most --tolerance
 after them. The test counts must agree within a band scaled by the
 binomial standard error of PyTorch's accuracy p on the n = 10000 test rows,
-|bend - torch| <= ceil(sqrt(p (1 - p) n)) rows. The band is a chosen
-acceptance rule, not a significance test. It prints a table, then every
-failed check, and exits 1 if any run fails one.
+|bend - torch| <= ceil(sqrt(p (1 - p) n)) rows. The band is an
+acceptance rule, not a significance test. These checks are the MNIST
+instance of level 3 of the numeric policy in AGENTS.md. It prints a table,
+then every failed check, and exits 1 if any run fails one.
 
 Run from oracle/, with the binary built as docs/mnist.md says:
   uv run --frozen python -I mnist/compare.py run BINARY MNIST_DIR WORK_DIR
@@ -38,7 +39,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 
-# The checks. docs/mnist.md says how they were chosen.
+# The checks: level 3 of AGENTS.md's numeric policy. docs/mnist.md says how
+# they were fixed from PyTorch against itself.
 TOLERANCE = 1e-2
 EARLY_TOLERANCE = 1e-4
 EARLY_STEPS = 100

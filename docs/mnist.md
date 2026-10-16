@@ -134,6 +134,10 @@ only the final accuracy can be compared.
 
 ## Tolerance and band
 
+These checks are the MNIST instance of level 3 of the
+[numeric policy](../AGENTS.md#numeric-policy): training against a PyTorch
+copy, the loss of each step within a relative tolerance and the test count
+within a band, over seeds 0 to 2, both fixed from PyTorch against itself.
 `compare.py` checks each step on its own, and the test count:
 
 - both losses of every step finite;
@@ -146,9 +150,9 @@ They were fixed from PyTorch's runs before Bend's epoch was compared, not fit
 to Bend's numbers. A run that differs from PyTorch only in the order of its
 F32 roundings must pass whatever PyTorch's own rounding change passes. That
 change, its AVX512 kernels against its `default` ones, reaches 2.7e-3 in one
-epoch, and `1e-2` is the next power of ten. The band is a chosen acceptance
-rule, scaled by the binomial standard error of one model's accuracy on 10000
-rows. It is not a significance test: both models are scored on the same rows,
+epoch, and `1e-2` is the next power of ten. The band is the policy's
+acceptance rule, scaled by the binomial standard error of one model's
+accuracy on 10000 rows. It is not a significance test: both models are scored on the same rows,
 so the uncertainty of their difference depends on the rows where they
 disagree, and a smaller difference can be real.
 
