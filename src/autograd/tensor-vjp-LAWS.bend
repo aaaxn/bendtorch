@@ -384,3 +384,57 @@ law tensor_matmul_nt_vjp_values:
       Backward.Operands{Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
         Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}}},
       Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}})>
+
+# matmul_nt reads what matmul reads from the transposed copy: for a right
+# operand of dimensions [columns, inner], the factor pairs of cell
+# (row, column) of a product of two `Kept` operands (`matmul_nt`), left[row,
+# k] and right[column, k], are the pairs `right_transposed_factors` reads
+# through `permute_source` on right^T, the pairs `tensor_matmul_vjp_values`
+# states for g @ y^T. Both fold the same words in the same order, so
+# `matmul_nt(g, y)` and `matmul(g, transpose_copy(y))` agree word for word.
+law nt_reads_transpose:
+  for +row: Nat
+  for +column: Nat
+  for +rows: Nat
+  for +left: Shape.Shape
+  for +left_fill: F32
+  for +left_ops: List<&2, StorageLaws.Op>
+  for +right: Shape.Shape
+  for +right_fill: F32
+  for +right_ops: List<&2, StorageLaws.Op>
+  for +columns: U32
+  for +inner: U32
+  for matrix: {Shape.dimensions(right) == [columns, inner] : List<&2, U32>}
+  for column_below: {Nat.is_lt(column, U32.to_nat(columns)) == True{} : Bool}
+  for +count: Nat
+  for room: {Nat.is_le(count, U32.to_nat(inner)) == True{} : Bool}
+  {Contracts.product_factors(row, column, Matrix.Kept{}, Matrix.Kept{}, U32.to_nat(inner), rows, U32.to_nat(columns),
+    left, left_fill, left_ops, right, right_fill, right_ops, count) ==
+    right_transposed_factors(row, column, U32.to_nat(inner), U32.to_nat(columns), left, left_fill, left_ops,
+      right, right_fill, right_ops, swapped(right), count) : List<&2, DotFold.Factors>}
+
+# matmul_tn likewise: for a left operand of dimensions [inner, rows], the
+# pairs of a product of two `Swapped` operands (`matmul_tn`), left[k, row] and
+# right[k, column], are the pairs `left_transposed_factors` reads through
+# `permute_source` on left^T, the pairs `tensor_matmul_vjp_values` states for
+# x^T @ g.
+law tn_reads_transpose:
+  for +row: Nat
+  for +column: Nat
+  for +columns: Nat
+  for +left: Shape.Shape
+  for +left_fill: F32
+  for +left_ops: List<&2, StorageLaws.Op>
+  for +right: Shape.Shape
+  for +right_fill: F32
+  for +right_ops: List<&2, StorageLaws.Op>
+  for +inner: U32
+  for +rows: U32
+  for matrix: {Shape.dimensions(left) == [inner, rows] : List<&2, U32>}
+  for row_below: {Nat.is_lt(row, U32.to_nat(rows)) == True{} : Bool}
+  for +count: Nat
+  for room: {Nat.is_le(count, U32.to_nat(inner)) == True{} : Bool}
+  {Contracts.product_factors(row, column, Matrix.Swapped{}, Matrix.Swapped{}, U32.to_nat(inner), U32.to_nat(rows), columns,
+    left, left_fill, left_ops, right, right_fill, right_ops, count) ==
+    left_transposed_factors(row, column, U32.to_nat(inner), columns, left, left_fill, left_ops, swapped(left),
+      right, right_fill, right_ops, count) : List<&2, DotFold.Factors>}

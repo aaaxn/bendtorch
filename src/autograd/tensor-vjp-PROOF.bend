@@ -31,6 +31,8 @@ import ../tensor/permute-values-contract-LAWS.bend as PermuteLaws
 import ../tensor/permute-values-contract-PROOF.bend as PermuteProof
 import ../tensor/contracts/matmul-proof.bend as MatmulProof
 import ../tensor/contracts/product-proof.bend as ProductProof
+import ../tensor/transpose-PROOF.bend as TransposeProof
+import ../tensor/matrix-index-proof.bend as MatrixIndex
 
 def cell(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan,
   +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
@@ -785,3 +787,132 @@ def Laws.tensor_matmul_nt_vjp_values(a, b, left, right, shape, first, first_plan
           nt_values(a, b, left, right, shape, output, rows, inner, right_inner, columns, le, re, oe, compatible, first_planned, first_same,
             back, back_rows, back_inner, back_right_inner, back_columns, back_le, back_re, back_oe, back_compatible,
             second_planned, second_same, fill, ops, fits, left_fill, left_ops, left_fits, right_fill, right_ops, right_fits)
+
+# The axes transpose_dynamic(t, 0, 1) permutes a rank-2 t by are [1, 0].
+def swapped_matrix(+shape: Shape.Shape, +a: U32, +b: U32, +matrix: {Shape.dimensions(shape) == [a, b] : List<&2, U32>}) ->
+  {Laws.swapped(shape) == [1, 0] : List<&2, U32>}:
+  %Equal.sym(List<&2, U32>, Shape.dimensions(shape), [a, b], matrix) :
+    {Transpose.requested_axes(Shape.rank_dimensions(_), U32.to_nat(0), U32.to_nat(1)) == [1, 0] : List<&2, U32>}
+  {==}
+
+# Factor k of cell (row, column) of a `Kept` right operand of dimensions
+# [columns, inner] is the word right^T holds at k * columns + column.
+def nt_word(+right: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +columns: U32, +inner: U32,
+  +matrix: {Shape.dimensions(right) == [columns, inner] : List<&2, U32>},
+  +column: Nat, +column_below: {Nat.is_lt(column, U32.to_nat(columns)) == True{} : Bool},
+  +k: Nat, +below: {Nat.is_lt(k, U32.to_nat(inner)) == True{} : Bool}) ->
+  {Replayed.value(right, fill, ops, U32.from_nat(Nat.add(Nat.mul(column, U32.to_nat(inner)), k))) ==
+    Replayed.value(right, fill, ops, U32.from_nat(Values.permute_source_index(right, Laws.swapped(right),
+      Nat.add(Nat.mul(k, U32.to_nat(columns)), column)))) : F32}:
+  +across = U32.to_nat(columns)
+  +span = U32.to_nat(inner)
+  +source = Nat.add(Nat.mul(column, span), k)
+  +extents = Equal.cong(List<&2, U32>, List<&2, Nat>, dims => Shape.naturals(dims), Shape.dimensions(right), [columns, inner], matrix)
+  %Equal.sym(List<&2, U32>, Laws.swapped(right), [1, 0], swapped_matrix(right, columns, inner, matrix)) :
+    {Replayed.value(right, fill, ops, U32.from_nat(source)) ==
+      Replayed.value(right, fill, ops, U32.from_nat(Values.permute_source_index(right, _, Nat.add(Nat.mul(k, across), column)))) : F32}
+  %Equal.sym(Maybe<&2, U32>, Values.permute_source(right, [1, 0], U32.from_nat(Nat.add(Nat.mul(k, across), column))), Some{U32.from_nat(source)},
+    TransposeProof.permute_source_transposed(right, columns, inner, matrix, k, below, column, column_below)) :
+    {Replayed.value(right, fill, ops, U32.from_nat(source)) ==
+      Replayed.value(right, fill, ops, U32.from_nat(U32.to_nat(Maybe.default(&2, U32, _, 0)))) : F32}
+  %Equal.sym(Nat, U32.to_nat(U32.from_nat(source)), source,
+    MatrixIndex.word_exact(source, right, MatrixIndex.left_below(across, span, column, column_below, right, extents, k, below))) :
+    {Replayed.value(right, fill, ops, U32.from_nat(source)) == Replayed.value(right, fill, ops, U32.from_nat(_)) : F32}
+  {==}
+
+# Factor k of cell (row, column) of a `Swapped` left operand of dimensions
+# [inner, rows] is the word left^T holds at row * inner + k.
+def tn_word(+left: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>, +inner: U32, +rows: U32,
+  +matrix: {Shape.dimensions(left) == [inner, rows] : List<&2, U32>},
+  +row: Nat, +row_below: {Nat.is_lt(row, U32.to_nat(rows)) == True{} : Bool},
+  +k: Nat, +below: {Nat.is_lt(k, U32.to_nat(inner)) == True{} : Bool}) ->
+  {Replayed.value(left, fill, ops, U32.from_nat(Nat.add(Nat.mul(k, U32.to_nat(rows)), row))) ==
+    Replayed.value(left, fill, ops, U32.from_nat(Values.permute_source_index(left, Laws.swapped(left),
+      Nat.add(Nat.mul(row, U32.to_nat(inner)), k)))) : F32}:
+  +height = U32.to_nat(rows)
+  +span = U32.to_nat(inner)
+  +source = Nat.add(Nat.mul(k, height), row)
+  +extents = Equal.cong(List<&2, U32>, List<&2, Nat>, dims => Shape.naturals(dims), Shape.dimensions(left), [inner, rows], matrix)
+  %Equal.sym(List<&2, U32>, Laws.swapped(left), [1, 0], swapped_matrix(left, inner, rows, matrix)) :
+    {Replayed.value(left, fill, ops, U32.from_nat(source)) ==
+      Replayed.value(left, fill, ops, U32.from_nat(Values.permute_source_index(left, _, Nat.add(Nat.mul(row, span), k)))) : F32}
+  %Equal.sym(Maybe<&2, U32>, Values.permute_source(left, [1, 0], U32.from_nat(Nat.add(Nat.mul(row, span), k))), Some{U32.from_nat(source)},
+    TransposeProof.permute_source_transposed(left, inner, rows, matrix, row, row_below, k, below)) :
+    {Replayed.value(left, fill, ops, U32.from_nat(source)) ==
+      Replayed.value(left, fill, ops, U32.from_nat(U32.to_nat(Maybe.default(&2, U32, _, 0)))) : F32}
+  %Equal.sym(Nat, U32.to_nat(U32.from_nat(source)), source,
+    MatrixIndex.word_exact(source, left, MatrixIndex.right_below(span, height, row, row_below, left, extents, k, below))) :
+    {Replayed.value(left, fill, ops, U32.from_nat(source)) == Replayed.value(left, fill, ops, U32.from_nat(_)) : F32}
+  {==}
+
+def nt_factors(+row: Nat, +column: Nat, +rows: Nat, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
+  +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +columns: U32, +inner: U32,
+  +matrix: {Shape.dimensions(right) == [columns, inner] : List<&2, U32>},
+  +column_below: {Nat.is_lt(column, U32.to_nat(columns)) == True{} : Bool},
+  +count: Nat, +room: {Nat.is_le(count, U32.to_nat(inner)) == True{} : Bool}) ->
+  {Contracts.product_factors(row, column, Matrix.Kept{}, Matrix.Kept{}, U32.to_nat(inner), rows, U32.to_nat(columns),
+    left, left_fill, left_ops, right, right_fill, right_ops, count) ==
+    Laws.right_transposed_factors(row, column, U32.to_nat(inner), U32.to_nat(columns), left, left_fill, left_ops,
+      right, right_fill, right_ops, Laws.swapped(right), count) : List<&2, DotFold.Factors>}:
+  match count:
+    case 0n:
+      {==}
+    case 1n+previous:
+      +span = U32.to_nat(inner)
+      +across = U32.to_nat(columns)
+      factors_snoc(
+        Contracts.product_factors(row, column, Matrix.Kept{}, Matrix.Kept{}, span, rows, across,
+          left, left_fill, left_ops, right, right_fill, right_ops, previous),
+        Laws.right_transposed_factors(row, column, span, across, left, left_fill, left_ops,
+          right, right_fill, right_ops, Laws.swapped(right), previous),
+        Replayed.value(left, left_fill, left_ops, U32.from_nat(Nat.add(Nat.mul(row, span), previous))),
+        Replayed.value(right, right_fill, right_ops, U32.from_nat(Nat.add(Nat.mul(column, span), previous))),
+        Replayed.value(left, left_fill, left_ops, U32.from_nat(Nat.add(Nat.mul(row, span), previous))),
+        Replayed.value(right, right_fill, right_ops,
+          U32.from_nat(Values.permute_source_index(right, Laws.swapped(right), Nat.add(Nat.mul(previous, across), column)))),
+        nt_factors(row, column, rows, left, left_fill, left_ops, right, right_fill, right_ops, columns, inner, matrix,
+          column_below, previous, Conversion.le_predecessor(previous, span, room)),
+        {==},
+        nt_word(right, right_fill, right_ops, columns, inner, matrix, column, column_below, previous,
+          Conversion.le_successor_lt(previous, span, room)))
+
+def tn_factors(+row: Nat, +column: Nat, +columns: Nat, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
+  +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +inner: U32, +rows: U32,
+  +matrix: {Shape.dimensions(left) == [inner, rows] : List<&2, U32>},
+  +row_below: {Nat.is_lt(row, U32.to_nat(rows)) == True{} : Bool},
+  +count: Nat, +room: {Nat.is_le(count, U32.to_nat(inner)) == True{} : Bool}) ->
+  {Contracts.product_factors(row, column, Matrix.Swapped{}, Matrix.Swapped{}, U32.to_nat(inner), U32.to_nat(rows), columns,
+    left, left_fill, left_ops, right, right_fill, right_ops, count) ==
+    Laws.left_transposed_factors(row, column, U32.to_nat(inner), columns, left, left_fill, left_ops, Laws.swapped(left),
+      right, right_fill, right_ops, count) : List<&2, DotFold.Factors>}:
+  match count:
+    case 0n:
+      {==}
+    case 1n+previous:
+      +span = U32.to_nat(inner)
+      +height = U32.to_nat(rows)
+      factors_snoc(
+        Contracts.product_factors(row, column, Matrix.Swapped{}, Matrix.Swapped{}, span, height, columns,
+          left, left_fill, left_ops, right, right_fill, right_ops, previous),
+        Laws.left_transposed_factors(row, column, span, columns, left, left_fill, left_ops, Laws.swapped(left),
+          right, right_fill, right_ops, previous),
+        Replayed.value(left, left_fill, left_ops, U32.from_nat(Nat.add(Nat.mul(previous, height), row))),
+        Replayed.value(right, right_fill, right_ops, U32.from_nat(Nat.add(Nat.mul(previous, columns), column))),
+        Replayed.value(left, left_fill, left_ops,
+          U32.from_nat(Values.permute_source_index(left, Laws.swapped(left), Nat.add(Nat.mul(row, span), previous)))),
+        Replayed.value(right, right_fill, right_ops, U32.from_nat(Nat.add(Nat.mul(previous, columns), column))),
+        tn_factors(row, column, columns, left, left_fill, left_ops, right, right_fill, right_ops, inner, rows, matrix,
+          row_below, previous, Conversion.le_predecessor(previous, span, room)),
+        tn_word(left, left_fill, left_ops, inner, rows, matrix, row, row_below, previous,
+          Conversion.le_successor_lt(previous, span, room)),
+        {==})
+
+def Laws.nt_reads_transpose(row, column, rows, left, left_fill, left_ops, right, right_fill, right_ops, columns, inner, matrix,
+  column_below, count, room):
+  nt_factors(row, column, rows, left, left_fill, left_ops, right, right_fill, right_ops, columns, inner, matrix,
+    column_below, count, room)
+
+def Laws.tn_reads_transpose(row, column, columns, left, left_fill, left_ops, right, right_fill, right_ops, inner, rows, matrix,
+  row_below, count, room):
+  tn_factors(row, column, columns, left, left_fill, left_ops, right, right_fill, right_ops, inner, rows, matrix,
+    row_below, count, room)
