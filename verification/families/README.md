@@ -380,9 +380,10 @@ of the fold family fail those walks, so they cover the transport laws too.
 Three mutants change `src/tensor/elementwise.bend`, and three change
 `src/tensor/parallel.bend`, the build that elementwise, matmul and reduce_to
 share: there `upper`, `leaf` and `pair_join` keep the build balanced, so its
-certificate still checks, and only the laws reject them. `leaf` builds only
-a one-cell output; every deeper tree builds its bottom level with
-`pair_join`. The generic law `parallel_build_cells`
+certificate still checks, and only the laws reject them. Every subtree of
+depth 1 or more below the forks builds its bottom level with `pair_join`;
+`leaf` builds a subtree of depth 0, a one-cell output or a branch of a build
+that forks down to single cells. The generic law `parallel_build_cells`
 (`src/tensor/parallel-LAWS.bend`) rejects all three too, in `node_cell`,
 `leaf_facts` and `pair_join_facts` of `src/tensor/parallel-proof.bend`, for
 every operation. The erased `elementwise-parallel-proof.bend` would reject most of

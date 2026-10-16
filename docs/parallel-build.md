@@ -22,12 +22,15 @@ the forks fills its cells in index order on one thread. `cell`, `split` and
 copy of the build, with no function argument passed at run time. That does
 not inline their bodies: the cell stays a call of its own.
 
-The bottom level of the tree is `pair`: it calls the cell for `base`, then for
-`base + 1` with the state the first hands back, and builds the node of the two
-leaves itself. So no leaf pays for an extra return through `leaf`, and the
-bottom level, half of the tree's nodes, creates no closure. `leaf` builds
-only a one-cell output. For `mul` on `[1024, 1024]` at one thread this makes
-the build about 35% faster than the build with one call per leaf.
+The bottom level of every subtree of depth 1 or more below the forks is
+`pair`: it calls the cell for `base`, then for `base + 1` with the state the
+first hands back, and builds the node of the two leaves itself. So those
+leaves pay no extra return through `leaf`, and that bottom level, half of the
+tree's nodes, creates no closure. `leaf` is left for a subtree of depth 0: a
+one-cell output, or a branch of a build that forks down to single cells, such
+as matmul `[1, 8192] @ [8192, 2]`, whose one fork level splits its two cells.
+For `mul` on `[1024, 1024]` at one thread `pair` makes the build about 35%
+faster than the build with one call per leaf.
 
 | Operation | `q` | `prepare(q)` | state | cell |
 | --- | --- | --- | --- | --- |
