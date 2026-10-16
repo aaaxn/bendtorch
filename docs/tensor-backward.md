@@ -325,6 +325,57 @@ and `second_factors` turn the factor pairs read on the copies into the pairs
 stated on `g`, `x` and `y`. No sum is reduced: each product already has its
 operand's dimensions.
 
+## Chain rule
+
+`src/autograd/tensor-chain-LAWS.bend` states what the whole sweep returns, and
+`tensor-chain-PROOF.bend` proves it for every tape. The reference, `chained`,
+is the chain rule computed by pulling, not by pushing. It visits the entries
+newest first and keeps every contribution sent so far in a log, newest first.
+At the entry with id `k` it takes out of the log every contribution whose
+target is `k` and accumulates them, oldest first, into `k`'s starting slot with
+`Gradient.accumulate`. If the entry then holds `g`, the contributions of
+`Backward.vjp(node, saved, g)` join the log, the first operand's first. So the
+gradient of a node is its starting slot plus each contribution its consumers
+sent it, consumers newest first and each consumer's operands in order, and each
+contribution is the VJP at the consumer's own chained gradient, whose words the
+[VJP value laws](#vjp-values) state. The reference shares `Backward.vjp` and
+`Gradient.accumulate` with the engine and nothing else: it has no slot list,
+no `deliver`, no `bump` and no `at_head`.
+
+- `tensor_sweep_chain_rule`: for any entries, starting working gradients and
+  count, when the sweep returns `Done{swept}`, `chained(entries, gradients,
+  count, Nil{}) == Done{swept}`.
+- `tensor_backward_chain_rule`: for any tape split into newer entries, the
+  output and the entries below it, when the pass of a backward from the output
+  succeeds, the working gradients it hands to the merge are `chained` from the
+  seeds: no gradient above the output, `Core.new(shape, 1.0)` at the output and
+  no gradient below. With `tensor_backward_success` and
+  `tensor_merge_accumulates`, these are the gradients `backward` adds to the
+  slots.
+
+The order of the float sum is part of the statement: a slot adds its
+contributions in arrival order, held total first, and each VJP computes its
+words in its own order, which its value law states. Both laws hold for every
+tape node, since they quantify over `Backward.vjp`. They say nothing about a
+sweep that fails: in a failed sweep the reference goes on computing VJPs that
+the sweep never ran, and the refusals have their own laws above. A sum over
+paths of products of local VJPs is not what either side computes in F32, since
+a node's VJP is applied once to its accumulated gradient.
+
+The proof never inspects the reference's side of the tape. Values are affine
+in Bend, so a proof that inspects a slot list or a log consumes it, and the
+sweep and the reference would each need their own copy. Instead the proof
+carries, for the sweep's pending slots, erased witnesses and equations of the
+form `take(log, k, w) == (Done{x}, left)`, and inspects only the sweep's state,
+each VJP's pass and each `Gradient.accumulate` outcome, once each.
+
+The autograd gate checks `tensor-chain-PROOF.bend` on its own against four
+broken sweeps, and the proof fails for each: a delivery that drops a
+contribution (at `relay`), a slot update that adds the contribution twice (at
+`hit_bumped`), a VJP's contributions delivered in reverse operand order (at
+`fired_stop`) and a contribution sent to the next slot (at `relay`). The
+tensor backward subgate rejects each of the four as a runtime control too.
+
 ## SGD
 
 `src/autograd/sgd.bend` is PyTorch's `torch.optim.SGD(params, lr)` with the
@@ -485,7 +536,7 @@ as `0x7FC00000`, without its sign or payload, so it keeps the NaN allowance,
 and only the native lane and the laws check the NaN words `relu` keeps and
 passes.
 
-The subgate also builds thirty-six runtime controls from a mutated copy of the
+The subgate also builds forty runtime controls from a mutated copy of the
 sources and requires the JavaScript lane to reject each one: a seed at the
 newest node, a `Mul` VJP with swapped operands, a `Sub` VJP without the sign,
 a `Matmul` VJP without the transpose, a merge that overwrites the slot, a
@@ -503,7 +554,8 @@ reads `g` as the input, a `mean` that divides by 1, an inverted `2 / N`, a
 everywhere, a target gradient without the division by `N`, a `SoftmaxGrad`
 with its operands swapped, and a `CrossEntropy` VJP that adds `+0.0` to the
 row sum of one-class logits, the nine SGD mutants of the [SGD](#sgd) section,
-and a `zero_grad` that keeps the slot. Two more controls run on the native lane only, since
+the four broken sweeps of the [chain rule](#chain-rule) and a `zero_grad`
+that keeps the slot. Two more controls run on the native lane only, since
 the JavaScript lane cannot tell NaNs apart: a `relu` and a `relu` gradient
 that replace each NaN word, of `x` or of `g`, with `0x7FC00000`. The
 reference accepts both, and the exact `relu` words reject each.
