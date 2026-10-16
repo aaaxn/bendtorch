@@ -76,6 +76,9 @@ WORKLOADS = [
     Workload("sgd", M, "[1048576]", 8, M, "param"),
     Workload("mlp_bwd", 64, "64-32-10, batch 64", 40, MLP_MACS, "mac"),
     Workload("mnist_step", 64, "784-128-10, batch 64", 1, MNIST_MACS, "mac"),
+    Workload("mul_bwd", M, "[1048576]*[1048576]", 4, M, "cell"),
+    Workload("sum_bwd", M, "sum([1048576])", 1, M, "cell"),
+    Workload("matmul_bwd", 256, "[256,256]@[256,256]", 1, 2 * 256**3, "mac"),
 ]
 
 
@@ -142,11 +145,11 @@ def line(
     w: Workload, one: list[Sample], many: list[Sample], threads: int, check: str
 ) -> str:
     m1, lo1, hi1 = spread(one, w.reps)
-    text = f"{w.name:<17} {w.shape:<24} t1 {m1:10.3f} ms [{lo1:.3f}-{hi1:.3f}]"
+    text = f"{w.name:<17} {w.shape:<24} t1 {m1:10.4g} ms [{lo1:.4g}-{hi1:.4g}]"
     if many:
         mn, lon, hin = spread(many, w.reps)
         speedup = m1 / mn if mn > 0 else float("inf")
-        text += f"  t{threads} {mn:10.3f} ms [{lon:.3f}-{hin:.3f}] x{speedup:.2f}"
+        text += f"  t{threads} {mn:10.4g} ms [{lon:.4g}-{hin:.4g}] x{speedup:.2f}"
     ns = m1 * 1e6 / w.work
     rss = max(s.rss_mb for s in one)
     text += f"  {ns:9.2f} ns/{w.unit}  work {w.work} {w.unit}s  {rss:.0f} MB"

@@ -68,10 +68,10 @@ def ratio_line(
         same += f" (expected {expected.get(key(w))})"
     text = f"{w.name:<17} {w.shape:<24}"
     text += (
-        f" A {statistics.median(per_a):10.3f} ms [{min(per_a):.3f}-{max(per_a):.3f}]"
+        f" A {statistics.median(per_a):10.4g} ms [{min(per_a):.4g}-{max(per_a):.4g}]"
     )
     text += (
-        f"  B {statistics.median(per_b):10.3f} ms [{min(per_b):.3f}-{max(per_b):.3f}]"
+        f"  B {statistics.median(per_b):10.4g} ms [{min(per_b):.4g}-{max(per_b):.4g}]"
     )
     if ratios:
         middle = statistics.median(ratios)

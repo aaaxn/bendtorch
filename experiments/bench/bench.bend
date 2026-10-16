@@ -468,7 +468,10 @@ type Prep is Data:
   ThenRelu{}
   ThenMse{}
   ThenEntropy{targets: List<&2, U32>}
-  ThenSumSwept{}
+  ThenMulSwept{}
+  ThenMul{}
+  ThenSum{}
+  ThenMatmul{}
   ThenMlp{targets: List<&2, U32>}
 
 def mlp(+targets: List<&2, U32>, tape: Backward.Tape) -> Backward.Tape:
@@ -487,8 +490,14 @@ def prepared(+prep: Prep, tape: Backward.Tape) -> Backward.Tape:
       recorded(Backward.mse_loss(tape, 0n, 1n))
     case ThenEntropy{+targets}:
       recorded(Backward.cross_entropy(tape, 0n, targets))
-    case ThenSumSwept{}:
-      swept(Backward.backward(recorded(Backward.sum(tape, 0n)), 1n))
+    case ThenMulSwept{}:
+      swept(Backward.backward(recorded(Backward.mul(tape, 0n, 1n)), 2n))
+    case ThenMul{}:
+      recorded(Backward.mul(tape, 0n, 1n))
+    case ThenSum{}:
+      recorded(Backward.sum(tape, 0n))
+    case ThenMatmul{}:
+      recorded(Backward.matmul(tape, 0n, 1n))
     case ThenMlp{+targets}:
       mlp(targets, tape)
 
@@ -611,6 +620,9 @@ type Workload is Data:
   WSgd{}
   WMlpBackward{}
   WMnistStep{}
+  WMulBackward{}
+  WSumBackward{}
+  WMatmulBackward{}
 
 type Named is Data:
   Named{name: String, workload: Workload}
@@ -623,7 +635,8 @@ def names() -> List<&2, Named>:
     Named{"matmul", WMatmul{}}, Named{"matmul_nt", WMatmulNT{}}, Named{"matmul_tn", WMatmulTN{}}, Named{"linear_fwd", WLinearForward{}},
     Named{"linear_bwd", WLinearBackward{}}, Named{"relu_bwd", WReluBackward{}}, Named{"mse_fwd", WMseForward{}},
     Named{"mse_bwd", WMseBackward{}}, Named{"ce_fwd", WEntropyForward{}}, Named{"ce_bwd", WEntropyBackward{}}, Named{"sgd", WSgd{}},
-    Named{"mlp_bwd", WMlpBackward{}}, Named{"mnist_step", WMnistStep{}}]
+    Named{"mlp_bwd", WMlpBackward{}}, Named{"mnist_step", WMnistStep{}},
+    Named{"mul_bwd", WMulBackward{}}, Named{"sum_bwd", WSumBackward{}}, Named{"matmul_bwd", WMatmulBackward{}}]
 
 def lookup(+name: String, table: List<&2, Named>) -> Maybe<&2, Workload>:
   match table:
@@ -688,11 +701,17 @@ def run_with(w: Workload, +n: U32, +reps: Nat, +sq: List<&2, U32>, +ce: List<&2,
     case WEntropyBackward{}:
       tape_job(reps, [[n, 10]], ThenEntropy{ce}, Sweep{1n}, [], [0n])
     case WSgd{}:
-      tape_job(reps, [[n]], ThenSumSwept{}, Descend{}, [0n], [])
+      tape_job(reps, [[n], [n]], ThenMulSwept{}, Descend{}, [0n], [])
     case WMlpBackward{}:
       tape_job(reps, [[32, 64], [32], [10, 32], [10], [n, 64]], ThenMlp{ce}, Sweep{8n}, [], [0n, 1n, 2n, 3n, 4n])
     case WMnistStep{}:
       mnist_job(reps, n)
+    case WMulBackward{}:
+      tape_job(reps, [[n], [n]], ThenMul{}, Sweep{2n}, [], [0n, 1n])
+    case WSumBackward{}:
+      tape_job(reps, [[n]], ThenSum{}, Sweep{1n}, [], [0n])
+    case WMatmulBackward{}:
+      tape_job(reps, [sq, sq], ThenMatmul{}, Sweep{2n}, [], [0n, 1n])
 
 def run(+w: Workload, +n: U32, +reps: Nat) -> IO(Unit):
   run_with(w, n, reps, [n, n], targets(U32.to_nat(n), 10, 0), [[64, n], [128, n], [128]])
