@@ -2,11 +2,13 @@ import Base
 import ../src/shape/core.bend as Shape
 import ../src/tensor/core.bend as Core
 import ../src/tensor/matmul.bend as Matrix
+import ../src/tensor/elementwise.bend as Elementwise
+import ../src/autograd/broadcast.bend as Broadcast
 import ../src/autograd/reduce.bend as Reduce
 import ../src/autograd/reduce-fold.bend as ReduceFold
 
 # The parallel builds next to the sequential definitions, on inputs large
-# enough to fork. For each product and reduction the program prints how many levels the
+# enough to fork. For each product, reduction and broadcast the program prints how many levels the
 # public build forks, how many output words differ from the sequential
 # definition, and a rolling hash of the public words. tools/tensor_parallel.py
 # runs it at several thread counts and requires every count to print the same
@@ -205,6 +207,60 @@ def count(dims: List<&2, U32>) -> Nat:
 def reduction(+name: String, +rounding: Bool, +dims: List<&2, U32>, +target: List<&2, U32>, +cells: Nat, +depth: Nat) -> IO(Unit):
   reduce_input(name, cells, depth, target, Core.construct(dims, reversed(words(count(dims), rounding, 0n, 7n, Nil{}), Nil{})))
 
+def broadcast_public(pair: Core.Dynamic & Result<&2, &1, Broadcast.Error, Core.Dynamic>) -> Maybe<&1, Core.Dynamic>:
+  (input, result) = pair
+  match result:
+    case Done{out}:
+      Some{out}
+    case Fail{error}:
+      None{}
+
+def broadcast_loop_result(pair: (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>) -> Maybe<&1, Core.Dynamic>:
+  (inputs, result) = pair
+  match result:
+    case Done{out}:
+      Some{out}
+    case Fail{error}:
+      None{}
+
+# The sequential definition of broadcast_to: the checked elementwise loop with
+# KeepLeft, the input on the left and the +0.0 tensor of the target on the
+# right, which broadcast_to ran before it built its output in parallel.
+def broadcast_loop_zeroed(input: Core.Dynamic, +target: Shape.Shape, +plan: Shape.BroadcastPlan,
+  zeros: Result<&2, &1, Core.Error, Core.Tensor<target>>) -> Maybe<&1, Core.Dynamic>:
+  match zeros:
+    case Done{zeros}:
+      broadcast_loop_result(Elementwise.allocated(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros},
+        Core.new(Shape.output_shape(plan), 0.0)))
+    case Fail{error}:
+      None{}
+
+def broadcast_loop_planned(input: Core.Dynamic, +target: Shape.Shape, result: Result<&2, &2, Shape.Error, Shape.BroadcastPlan>) -> Maybe<&1, Core.Dynamic>:
+  match result:
+    case Done{+plan}:
+      broadcast_loop_zeroed(input, target, plan, Core.new(target, 0.0))
+    case Fail{error}:
+      None{}
+
+def broadcast_loop(input: Core.Dynamic, +target: Shape.Shape) -> Maybe<&1, Core.Dynamic>:
+  Core.Packed{+shape, tensor} = input
+  broadcast_loop_planned(Core.Packed{shape, tensor}, target, Shape.broadcast_checked(shape, target))
+
+def broadcast_inputs(+name: String, +cells: Nat, +depth: Nat, -dims: List<&2, U32>, result: Shape.ConstructResult<dims>,
+  a: Result<&2, &1, Core.Error, Core.Dynamic>, b: Result<&2, &1, Core.Error, Core.Dynamic>) -> IO(Unit):
+  match result a b:
+    case Shape.SBuilt{+target, preserved} Done{a} Done{b}:
+      report(name, Elementwise.splits(depth), cells, broadcast_public(Broadcast.broadcast_to(a, target)), broadcast_loop(b, target))
+    case _ _ _:
+      IO.print(name ++ " inputs failed")
+
+# broadcast_to of an input of shape `dims` to `target`, whose `cells` cells
+# sit in a storage of depth `depth`.
+def broadcast(+name: String, +dims: List<&2, U32>, +target: List<&2, U32>, +cells: Nat, +depth: Nat) -> IO(Unit):
+  broadcast_inputs(name, cells, depth, target, Shape.construct(target),
+    Core.construct(dims, reversed(words(count(dims), True{}, 0n, 7n, Nil{}), Nil{})),
+    Core.construct(dims, reversed(words(count(dims), True{}, 0n, 7n, Nil{}), Nil{})))
+
 def main() -> IO(Unit):
   do IO<Unit>:
     product("matmul-128x64x64", False{}, 128, 64, 64, 13n)
@@ -216,3 +272,8 @@ def main() -> IO(Unit):
     reduction("reduce-64x16x32-to-16x1-rounding", True{}, [64, 16, 32], [16, 1], 16n, 4n)
     reduction("reduce-64x16x32-to-64x1x1-rounding", True{}, [64, 16, 32], [64, 1, 1], 64n, 6n)
     reduction("reduce-6x5x4-to-5x1", False{}, [6, 5, 4], [5, 1], 5n, 3n)
+    broadcast("broadcast-256-to-256x256", [256], [256, 256], 65536n, 16n)
+    broadcast("broadcast-300x1-to-300x400", [300, 1], [300, 400], 120000n, 17n)
+    broadcast("broadcast-scalar-to-64x1024", [], [64, 1024], 65536n, 16n)
+    broadcast("broadcast-1x128x1-to-4x128x160", [1, 128, 1], [4, 128, 160], 81920n, 17n)
+    broadcast("broadcast-3x1x5-to-7x3x4x5", [3, 1, 5], [7, 3, 4, 5], 420n, 9n)

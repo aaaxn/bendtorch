@@ -44,7 +44,15 @@ REDUCTIONS = {
     "reduce-64x16x32-to-64x1x1-rounding": ((64, 16, 32), (64, 1, 1)),
     "reduce-6x5x4-to-5x1": ((6, 5, 4), (5, 1)),
 }
-BUILDS = (*PRODUCTS, *REDUCTIONS)
+# Each broadcast_to the probe runs, as (input dimensions, target dimensions).
+BROADCASTS = {
+    "broadcast-256-to-256x256": ((256,), (256, 256)),
+    "broadcast-300x1-to-300x400": ((300, 1), (300, 400)),
+    "broadcast-scalar-to-64x1024": ((), (64, 1024)),
+    "broadcast-1x128x1-to-4x128x160": ((1, 128, 1), (4, 128, 160)),
+    "broadcast-3x1x5-to-7x3x4x5": ((3, 1, 5), (7, 3, 4, 5)),
+}
+BUILDS = (*PRODUCTS, *REDUCTIONS, *BROADCASTS)
 # The builds whose inputs round, so that adding a cell's terms in another
 # order changes its bits; the products of multiples of 1/64 above cannot show
 # a reordered sum. Each must fork to check the forked build. The other
@@ -83,7 +91,15 @@ def reduce_splits(dims: tuple[int, ...], target: tuple[int, ...]) -> int:
     return matmul_splits(depth(cells), contribution // cells)
 
 
+def elementwise_splits(cells: int) -> int:
+    """`Elementwise.splits`: depth - 15 levels, so a subtree below the forks
+    holds 2^15 cells."""
+    return max(depth(cells) - 15, 0)
+
+
 def expected_splits(name: str) -> int:
+    if name in BROADCASTS:
+        return elementwise_splits(math.prod(BROADCASTS[name][1]))
     if name in REDUCTIONS:
         return reduce_splits(*REDUCTIONS[name])
     rows, inner, columns = PRODUCTS[name]
@@ -93,8 +109,8 @@ def expected_splits(name: str) -> int:
 def check_lines(stdout: str) -> dict[str, int]:
     """The splits each probe line reports, after checking that every line
     names a known build, forks as `expected_splits` says (`Matrix.product_splits`
-    for a product, `Reduce.splits` for a reduction) and matches its
-    sequential definition word for word."""
+    for a product, `Reduce.splits` for a reduction, `Elementwise.splits` for a
+    broadcast) and matches its sequential definition word for word."""
     splits = {}
     for line in stdout.splitlines():
         match = LINE.match(line)
