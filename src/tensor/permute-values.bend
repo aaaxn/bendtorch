@@ -20,6 +20,7 @@ import ./observation.bend as Values
 import ./transform-observation.bend as Observation
 import ./permute-values-records.bend as Records
 import ./permute-build-proof.bend as PermuteProof
+import ./contracts/build-facts.bend as Facts
 import ./contracts/words-proof.bend as Words
 import ./contracts/LAWS.bend as Contracts
 import ./contracts/binary-storage-proof.bend as Owned
@@ -100,11 +101,11 @@ def chain(+input: Shape.Shape, +axes: List<&2, U32>, +fill: F32, +ops: List<&2, 
       +index = U32.from_nat(j)
       +value = PermuteProof.word(input, axes, fill, ops, j)
       +below_n = Conversion.le_successor_lt(j, n, room)
-      +exact = Conversion.natural_word_exact(j, limit, PermuteProof.le_trans(j, n, U32.to_nat(limit), Conversion.lt_le(j, n, below_n), n_limit))
+      +exact = Conversion.natural_word_exact(j, limit, Facts.le_trans(j, n, U32.to_nat(limit), Conversion.lt_le(j, n, below_n), n_limit))
       +inside = Equal.trans(Bool, Nat.is_lt(U32.to_nat(index), n), Nat.is_lt(j, n), True{},
         Equal.cong(Nat, Bool, x => Nat.is_lt(x, n), U32.to_nat(index), j, exact), below_n)
       +offset = Equal.trans(Nat, Nat.add(Model.offset(d, Refinement.route(d, index)), 0n), U32.to_nat(index), j,
-        PermuteProof.output_position(d, n, index, fits, inside), exact)
+        Facts.output_position(d, n, index, fits, inside), exact)
       +written = Equal.trans(Array<F32>, Array.set(F32, PermuteProof.spec(input, axes, fill, ops, j, d, 0n), index, value), ArrayCore.write_path(F32, d, PermuteProof.spec(input, axes, fill, ops, j, d, 0n), Refinement.route(d, index), value),
         PermuteProof.spec(input, axes, fill, ops, 1n+j, d, 0n), Refinement.law_set_refines(F32, d, PermuteProof.spec(input, axes, fill, ops, j, d, 0n), index, value, PermuteProof.spec_balanced(input, axes, fill, ops, j, d, 0n)),
         PermuteProof.write_spec(input, axes, fill, ops, j, d, 0n, Refinement.route(d, index), offset))
@@ -190,12 +191,12 @@ def empty_lift(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<inp
     s => (@-sf: {Lifecycle.logical_length(StorageLaws.replay(ops, s)) == Shape.logical_numel(Shape.dimensions(input)) : Nat} -> Kept(input, axes, plan, Q, StorageLaws.replay(ops, s), StorageLaws.replay(IndexMap.writes(~Request, ~source_of, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))), Request{input, axes}, input, fill, ops), Storage.Empty{})) ->
       Packed(input, axes, plan, Q, StorageLaws.replay(ops, s), sf, Storage.Empty{}, fo)),
     nothing => sf => hyp =>
-      PermuteProof.storage_shift(input, StorageLaws.step(StorageLaws.replay(ops, Storage.Empty{}), StorageLaws.First{}), StorageLaws.replay(ops, Storage.Empty{}),
+      Facts.storage_shift(input, StorageLaws.step(StorageLaws.replay(ops, Storage.Empty{}), StorageLaws.First{}), StorageLaws.replay(ops, Storage.Empty{}),
         Equal.trans(Storage.Storage, StorageLaws.step(StorageLaws.replay(ops, Storage.Empty{}), StorageLaws.First{}), Storage.Empty{}, StorageLaws.replay(ops, Storage.Empty{}),
           Equal.cong(Storage.Storage, Storage.Storage, st => StorageLaws.step(st, StorageLaws.First{}), StorageLaws.replay(ops, Storage.Empty{}), Storage.Empty{}, Owned.replay_empty(ops)),
           Equal.sym(Storage.Storage, StorageLaws.replay(ops, Storage.Empty{}), Storage.Empty{}, Owned.replay_empty(ops))),
         st => k => Packed(input, axes, plan, Q, st, k, Storage.Empty{}, fo),
-        k => PermuteProof.storage_shift(Layout.output(input, axes, plan), StorageLaws.replay(IndexMap.writes(~Request, ~source_of, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))), Request{input, axes}, input, fill, ops), Storage.Empty{}), Storage.Empty{}, Owned.replay_empty(IndexMap.writes(~Request, ~source_of, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))), Request{input, axes}, input, fill, ops)),
+        k => Facts.storage_shift(Layout.output(input, axes, plan), StorageLaws.replay(IndexMap.writes(~Request, ~source_of, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))), Request{input, axes}, input, fill, ops), Storage.Empty{}), Storage.Empty{}, Owned.replay_empty(IndexMap.writes(~Request, ~source_of, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))), Request{input, axes}, input, fill, ops)),
           st => ko => Packed(input, axes, plan, Q, StorageLaws.step(StorageLaws.replay(ops, Storage.Empty{}), StorageLaws.First{}), k, st, ko),
           ko => hyp(k, ko))(fo))(sf),
     d => fits => f => Empty.absurd(@-sf: {Lifecycle.logical_length(StorageLaws.replay(ops, Storage.Owned{d, U32.to_nat(Shape.count(input)), Array.new(F32, d, fill), ArrayCore.new_balanced(F32, d, fill), f})) == Shape.logical_numel(Shape.dimensions(input)) : Nat} ->
@@ -219,19 +220,19 @@ def run_lift(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input
       d => fits => f => hyp => fo =>
         +positive = Arith.and_left(Nat.is_lt(0n, U32.to_nat(Shape.count(Layout.output(input, axes, plan)))), Nat.is_le(U32.to_nat(Shape.count(Layout.output(input, axes, plan))), Model.capacity(d)),
           Arith.and_right(Nat.is_le(d, 20n), Bool.and(Nat.is_lt(0n, U32.to_nat(Shape.count(Layout.output(input, axes, plan)))), Nat.is_le(U32.to_nat(Shape.count(Layout.output(input, axes, plan))), Model.capacity(d))), fits))
-        PermuteProof.input_lift(input, fill, ops,
+        Facts.input_lift(input, fill, ops,
           %count_same(input, axes, plan) : {Nat.is_lt(0n, _) == True{} : Bool}
           positive,
           st => (@-sf: {Lifecycle.logical_length(st) == Shape.logical_numel(Shape.dimensions(input)) : Nat} -> Kept(input, axes, plan, Q, st, StorageLaws.replay(IndexMap.writes(~Request, ~source_of, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))), Request{input, axes}, input, fill, ops), Storage.Owned{d, U32.to_nat(Shape.count(Layout.output(input, axes, plan))), Array.new(F32, d, 0.0), ArrayCore.new_balanced(F32, d, 0.0), f})) ->
             Q(Transforms.copy_pack(input, axes, plan, Transforms.built_owned(input, axes, plan, d, U32.to_nat(Shape.count(Layout.output(input, axes, plan))), f, fo, Core.TTensor{st, sf})))),
           ds => fits_s => b => f2 => sf => hyp2 =>
             cloned_lift(input, axes, plan, fill, ops, d, f, fo, ds, b, f2, Array.clone(F32, Api.arr(Owned.norm(U32.to_nat(Shape.count(input)), ops, Nil{}), ds, fill)), {==}, sf, Q,
-              kf => PermuteProof.storage_shift(Layout.output(input, axes, plan), StorageLaws.replay(IndexMap.writes(~Request, ~source_of, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))), Request{input, axes}, input, fill, ops), Storage.Owned{d, U32.to_nat(Shape.count(Layout.output(input, axes, plan))), Array.new(F32, d, 0.0), ArrayCore.new_balanced(F32, d, 0.0), f}),
+              kf => Facts.storage_shift(Layout.output(input, axes, plan), StorageLaws.replay(IndexMap.writes(~Request, ~source_of, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))), Request{input, axes}, input, fill, ops), Storage.Owned{d, U32.to_nat(Shape.count(Layout.output(input, axes, plan))), Array.new(F32, d, 0.0), ArrayCore.new_balanced(F32, d, 0.0), f}),
                 Storage.Owned{d, U32.to_nat(Shape.count(Layout.output(input, axes, plan))), Build.build(d, Build.Request{input, axes}, U32.to_nat(Shape.count(Layout.output(input, axes, plan))), Api.arr(Api.Right{} <> Owned.norm(U32.to_nat(Shape.count(input)), ops, Nil{}), ds, fill)), Build.balanced(d, Build.Request{input, axes}, U32.to_nat(Shape.count(Layout.output(input, axes, plan))), Api.arr(Api.Right{} <> Owned.norm(U32.to_nat(Shape.count(input)), ops, Nil{}), ds, fill)), f},
                 made(input, axes, plan, fill, ops, d, fits, f, ds, fits_s),
                 st => ko => Packed(input, axes, plan, Q, StorageLaws.step(Storage.Owned{ds, U32.to_nat(Shape.count(input)), Api.arr(Owned.norm(U32.to_nat(Shape.count(input)), ops, Nil{}), ds, fill), b, f2}, StorageLaws.First{}), kf, st, ko),
                 ko => hyp2(kf, ko))(fo)))(source_fits, hyp))(
-      kf => ko => PermuteProof.storage_shift(input, kept_source(input, fill, ops), StorageLaws.step(Replayed.storage(input, fill, ops), StorageLaws.First{}),
+      kf => ko => Facts.storage_shift(input, kept_source(input, fill, ops), StorageLaws.step(Replayed.storage(input, fill, ops), StorageLaws.First{}),
         Replayed.replay_snoc(ops, StorageLaws.First{}, input, fill),
         st => k => Packed(input, axes, plan, Q, st, k, StorageLaws.replay(IndexMap.writes(~Request, ~source_of, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))), Request{input, axes}, input, fill, ops), StorageLaws.created(Shape.count(Layout.output(input, axes, plan)), 0.0)), ko),
         k => h(k, ko))(kf), target_fits))

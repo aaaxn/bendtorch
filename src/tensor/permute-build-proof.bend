@@ -22,8 +22,8 @@ import ./read-contract.bend as Reads
 import ./contracts/replayed.bend as Replayed
 import ./contracts/binary-build-proof.bend as BinaryBuild
 import ./contracts/binary-storage-proof.bend as Owned
+import ./contracts/build-facts.bend as Facts
 import ../shape/index_proofs.bend as Index
-import ../shape/nat_proofs.bend as Nats
 import ../storage/LAWS.bend as StorageLaws
 import ../storage/api.bend as Api
 import ../storage/array.bend as ArrayCore
@@ -351,26 +351,6 @@ def length_below(+shape: Shape.Shape, +n: Nat, +exact: {n == Shape.logical_numel
   %Equal.sym(Nat, n, Shape.logical_numel(Shape.dimensions(shape)), exact) : {Nat.is_lt(other, _) == True{} : Bool}
   earlier
 
-def add_zero_right(+number: Nat) -> {Nat.add(number, 0n) == number : Nat}:
-  match number:
-    case 0n:
-      {==}
-    case 1n+p:
-      Equal.cong(Nat, Nat, n => 1n+n, Nat.add(p, 0n), p, add_zero_right(p))
-
-# A word index below the storage length is the offset of its own route.
-def output_position(+depth: Nat, +length: Nat, +index: U32, +valid: {Storage.bounds(depth, length) == True{} : Bool},
-  +inside: {Nat.is_lt(U32.to_nat(index), length) == True{} : Bool}) ->
-  {Nat.add(Model.offset(depth, Refinement.route(depth, index)), 0n) == U32.to_nat(index) : Nat}:
-  +rest = Arith.and_right(Nat.is_le(depth, 20n), Bool.and(Nat.is_lt(0n, length), Nat.is_le(length, Model.capacity(depth))), valid)
-  Equal.trans(Nat, Nat.add(Model.offset(depth, Refinement.route(depth, index)), 0n), Model.offset(depth, Refinement.route(depth, index)), U32.to_nat(index),
-    add_zero_right(Model.offset(depth, Refinement.route(depth, index))),
-    Equal.sym(Nat, U32.to_nat(index), Model.offset(depth, Refinement.route(depth, index)),
-      Route.route_offset(depth, index,
-        Arith.and_left(Nat.is_le(depth, 20n), Bool.and(Nat.is_lt(0n, length), Nat.is_le(length, Model.capacity(depth))), valid),
-        Arith.lt_le_trans(U32.to_nat(index), length, Model.capacity(depth), inside,
-          Arith.and_right(Nat.is_lt(0n, length), Nat.is_le(length, Model.capacity(depth)), rest)))))
-
 def owned_observe(+d: Nat, +n: Nat, -array: Array<F32>, +index: U32, +valid: {Storage.bounds(d, n) == True{} : Bool},
   +inside: {Nat.is_lt(U32.to_nat(index), n) == True{} : Bool}) ->
   {Lifecycle.checked_observe_array(d, n, array, index) == Model.observe(F32, d, array, Refinement.route(d, index)) : Maybe<&2, F32>}:
@@ -422,7 +402,7 @@ def output_word(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<in
   +index = U32.from_nat(other)
   +inside = length_below(Layout.output(input, axes, plan), n, exact, other, earlier)
   +at = Equal.trans(Nat, Nat.add(Model.offset(d, Refinement.route(d, index)), 0n), U32.to_nat(index), other,
-    output_position(d, n, index, valid, inside), word_below(Layout.output(input, axes, plan), other, earlier))
+    Facts.output_position(d, n, index, valid, inside), word_below(Layout.output(input, axes, plan), other, earlier))
   +below : {Nat.is_lt(other, n) == True{} : Bool} = %Equal.sym(Nat, n, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))), exact) : {Nat.is_lt(other, _) == True{} : Bool}
     earlier
   -built = Build.build(d, Build.Request{input, axes}, n, c)
@@ -560,103 +540,6 @@ def built_success(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<
     case Storage.Owned{+d, +n, array, balanced, valid}:
       owned_success(input, axes, plan, d, n, valid, exact, source)
 
-# Natural-number facts the output walk uses.
-
-def lt_zero_false(+x: Nat) -> {Nat.is_lt(x, 0n) == False{} : Bool}:
-  match x:
-    case 0n:
-      {==}
-    case 1n+p:
-      {==}
-
-def lt_self_succ(+k: Nat) -> {Nat.is_lt(k, 1n+k) == True{} : Bool}:
-  match k:
-    case 0n:
-      {==}
-    case 1n+p:
-      lt_self_succ(p)
-
-def lt_succ_right(+b: Nat, +k: Nat, h: {Nat.is_lt(b, k) == True{} : Bool}) -> {Nat.is_lt(b, 1n+k) == True{} : Bool}:
-  match b k:
-    case 0n _:
-      {==}
-    case 1n+p 0n:
-      Empty.absurd({Nat.is_lt(1n+p, 1n) == True{} : Bool}, Arith.clash(h))
-    case 1n+p 1n+q:
-      lt_succ_right(p, q, h)
-
-# k < b gives b < 1 + k false.
-def above_false(+k: Nat, +b: Nat, h: {Nat.is_lt(k, b) == True{} : Bool}) -> {Nat.is_lt(b, 1n+k) == False{} : Bool}:
-  match k b:
-    case 0n 0n:
-      Empty.absurd({Nat.is_lt(0n, 1n) == False{} : Bool}, Arith.clash(h))
-    case 0n 1n+q:
-      lt_zero_false(q)
-    case 1n+p 0n:
-      Empty.absurd({Nat.is_lt(0n, 1n+(1n+p)) == False{} : Bool}, Arith.clash(h))
-    case 1n+p 1n+q:
-      above_false(p, q, h)
-
-def lt_asym(+k: Nat, +b: Nat, h: {Nat.is_lt(k, b) == True{} : Bool}) -> {Nat.is_lt(b, k) == False{} : Bool}:
-  match k b:
-    case 0n 0n:
-      {==}
-    case 0n 1n+q:
-      {==}
-    case 1n+p 0n:
-      Empty.absurd({Nat.is_lt(0n, 1n+p) == False{} : Bool}, Arith.clash(h))
-    case 1n+p 1n+q:
-      lt_asym(p, q, h)
-
-# 1 + b <= k gives b < k.
-def below_true(+b: Nat, +k: Nat, h: {Nat.is_le(1n+b, k) == True{} : Bool}) -> {Nat.is_lt(b, k) == True{} : Bool}:
-  match b k:
-    case 0n 0n:
-      Empty.absurd({Nat.is_lt(0n, 0n) == True{} : Bool}, Arith.clash(h))
-    case 0n 1n+q:
-      {==}
-    case 1n+p 0n:
-      Empty.absurd({Nat.is_lt(1n+p, 0n) == True{} : Bool}, Arith.clash(h))
-    case 1n+p 1n+q:
-      below_true(p, q, h)
-
-def lt_add_right(+a: Nat, +c: Nat, +b: Nat, h: {Nat.is_lt(a, c) == True{} : Bool}) ->
-  {Nat.is_lt(Nat.add(a, b), Nat.add(c, b)) == True{} : Bool}:
-  match a c:
-    case 0n 0n:
-      Empty.absurd({Nat.is_lt(b, b) == True{} : Bool}, Arith.clash(h))
-    case 0n 1n+q:
-      Arith.lt_succ(b, Nat.add(q, b), Api.le_add_left(q, b))
-    case 1n+p 0n:
-      Empty.absurd({Nat.is_lt(1n+Nat.add(p, b), b) == True{} : Bool}, Arith.clash(h))
-    case 1n+p 1n+q:
-      lt_add_right(p, q, b, h)
-
-def le_add_cong(+c: Nat, +x: Nat, +y: Nat, h: {Nat.is_le(x, y) == True{} : Bool}) ->
-  {Nat.is_le(Nat.add(c, x), Nat.add(c, y)) == True{} : Bool}:
-  match c:
-    case 0n:
-      h
-    case 1n+r:
-      le_add_cong(r, x, y, h)
-
-def le_trans(+a: Nat, +b: Nat, +c: Nat, ab: {Nat.is_le(a, b) == True{} : Bool}, bc: {Nat.is_le(b, c) == True{} : Bool}) ->
-  {Nat.is_le(a, c) == True{} : Bool}:
-  match a b c:
-    case 0n _ _:
-      Arith.le_zero(c)
-    case 1n+p 0n _:
-      Empty.absurd({Nat.is_le(1n+p, c) == True{} : Bool}, Arith.clash(ab))
-    case 1n+p 1n+q 0n:
-      Empty.absurd({Nat.is_le(1n+p, 0n) == True{} : Bool}, Arith.clash(bc))
-    case 1n+p 1n+q 1n+r:
-      le_trans(p, q, r, ab, bc)
-
-def position_step(+capacity: Nat, +offset: Nat, +base: Nat) ->
-  {Nat.add(offset, Nat.add(capacity, base)) == Nat.add(Nat.add(capacity, offset), base) : Nat}:
-  Equal.trans(Nat, Nat.add(offset, Nat.add(capacity, base)), Nat.add(capacity, Nat.add(offset, base)), Nat.add(Nat.add(capacity, offset), base),
-    Nats.add_swap(offset, capacity, base), Index.add_assoc(capacity, offset, base))
-
 def word(+input: Shape.Shape, +axes: List<&2, U32>, +fill: F32, +ops: List<&2, StorageLaws.Op>, +index: Nat) -> F32:
   Replayed.value(input, fill, ops, U32.from_nat(Values.permute_source_index(input, axes, index)))
 
@@ -684,7 +567,7 @@ def spec_balanced(+input: Shape.Shape, +axes: List<&2, U32>, +fill: F32, +ops: L
 def new_spec(+input: Shape.Shape, +axes: List<&2, U32>, +fill: F32, +ops: List<&2, StorageLaws.Op>, +depth: Nat, +base: Nat) -> {Array.new(F32, depth, 0.0) == spec(input, axes, fill, ops, 0n, depth, base) : Array<F32>}:
   match depth:
     case 0n:
-      %Equal.sym(Bool, Nat.is_lt(base, 0n), False{}, lt_zero_false(base)) :
+      %Equal.sym(Bool, Nat.is_lt(base, 0n), False{}, Facts.lt_zero_false(base)) :
         {ALeaf{0.0} == ALeaf{leaf(input, axes, fill, ops, base, _)} : Array<F32>}
       {==}
     case 1n+inner:
@@ -700,9 +583,9 @@ def above(+input: Shape.Shape, +axes: List<&2, U32>, +fill: F32, +ops: List<&2, 
   {spec(input, axes, fill, ops, k, depth, b) == spec(input, axes, fill, ops, 1n+k, depth, b) : Array<F32>}:
   match depth:
     case 0n:
-      %Equal.sym(Bool, Nat.is_lt(b, k), False{}, lt_asym(k, b, h)) :
+      %Equal.sym(Bool, Nat.is_lt(b, k), False{}, Facts.lt_asym(k, b, h)) :
         {ALeaf{leaf(input, axes, fill, ops, b, _)} == ALeaf{leaf(input, axes, fill, ops, b, Nat.is_lt(b, 1n+k))} : Array<F32>}
-      %Equal.sym(Bool, Nat.is_lt(b, 1n+k), False{}, above_false(k, b, h)) :
+      %Equal.sym(Bool, Nat.is_lt(b, 1n+k), False{}, Facts.above_false(k, b, h)) :
         {ALeaf{0.0} == ALeaf{leaf(input, axes, fill, ops, b, _)} : Array<F32>}
       {==}
     case 1n+inner:
@@ -719,10 +602,10 @@ def below(+input: Shape.Shape, +axes: List<&2, U32>, +fill: F32, +ops: List<&2, 
   {spec(input, axes, fill, ops, k, depth, b) == spec(input, axes, fill, ops, 1n+k, depth, b) : Array<F32>}:
   match depth:
     case 0n:
-      +lower = below_true(b, k, h)
+      +lower = Facts.below_true(b, k, h)
       %Equal.sym(Bool, Nat.is_lt(b, k), True{}, lower) :
         {ALeaf{leaf(input, axes, fill, ops, b, _)} == ALeaf{leaf(input, axes, fill, ops, b, Nat.is_lt(b, 1n+k))} : Array<F32>}
-      %Equal.sym(Bool, Nat.is_lt(b, 1n+k), True{}, lt_succ_right(b, k, lower)) :
+      %Equal.sym(Bool, Nat.is_lt(b, 1n+k), True{}, Facts.lt_succ_right(b, k, lower)) :
         {ALeaf{word(input, axes, fill, ops, b)} == ALeaf{leaf(input, axes, fill, ops, b, _)} : Array<F32>}
       {==}
     case 1n+inner:
@@ -730,7 +613,7 @@ def below(+input: Shape.Shape, +axes: List<&2, U32>, +fill: F32, +ops: List<&2, 
       +high = Nat.add(c, b)
       +nested = Equal.trans(Bool, Nat.is_le(Nat.add(c, high), k), Nat.is_le(Nat.add(Nat.add(c, c), b), k), True{},
         Equal.cong(Nat, Bool, x => Nat.is_le(x, k), Nat.add(c, high), Nat.add(Nat.add(c, c), b), Index.add_assoc(c, c, b)), h)
-      +low_h = le_trans(high, Nat.add(c, high), k, le_add_cong(c, b, high, Api.le_add_left(c, b)), nested)
+      +low_h = Facts.le_trans(high, Nat.add(c, high), k, Facts.le_add_cong(c, b, high, Api.le_add_left(c, b)), nested)
       %Equal.sym(Array<F32>, spec(input, axes, fill, ops, k, inner, b), spec(input, axes, fill, ops, 1n+k, inner, b), below(input, axes, fill, ops, k, inner, b, low_h)) :
         {ANode{_, spec(input, axes, fill, ops, k, inner, high)} == spec(input, axes, fill, ops, 1n+k, 1n+inner, b) : Array<F32>}
       %Equal.sym(Array<F32>, spec(input, axes, fill, ops, k, inner, high), spec(input, axes, fill, ops, 1n+k, inner, high), below(input, axes, fill, ops, k, inner, high, nested)) :
@@ -745,7 +628,7 @@ def write_spec(+input: Shape.Shape, +axes: List<&2, U32>, +fill: F32, +ops: List
   match depth:
     case 0n:
       %h : {ALeaf{word(input, axes, fill, ops, _)} == ALeaf{leaf(input, axes, fill, ops, base, Nat.is_lt(base, 1n+_))} : Array<F32>}
-      %Equal.sym(Bool, Nat.is_lt(base, 1n+base), True{}, lt_self_succ(base)) :
+      %Equal.sym(Bool, Nat.is_lt(base, 1n+base), True{}, Facts.lt_self_succ(base)) :
         {ALeaf{word(input, axes, fill, ops, base)} == ALeaf{leaf(input, axes, fill, ops, base, _)} : Array<F32>}
       {==}
     case 1n+inner:
@@ -757,7 +640,7 @@ def write_spec(+input: Shape.Shape, +axes: List<&2, U32>, +fill: F32, +ops: List
           +inside = Equal.trans(Bool, Nat.is_lt(k, high), Nat.is_lt(Nat.add(Model.offset(inner, rest), base), high), True{},
             Equal.cong(Nat, Bool, x => Nat.is_lt(x, high), k, Nat.add(Model.offset(inner, rest), base),
               Equal.sym(Nat, Nat.add(Model.offset(inner, rest), base), k, h)),
-            lt_add_right(Model.offset(inner, rest), c, base, Api.offset_lt(inner, rest)))
+            Facts.lt_add_right(Model.offset(inner, rest), c, base, Api.offset_lt(inner, rest)))
           %Equal.sym(Array<F32>, ArrayCore.write_path(F32, inner, spec(input, axes, fill, ops, k, inner, base), rest, word(input, axes, fill, ops, k)),
             spec(input, axes, fill, ops, 1n+k, inner, base), write_spec(input, axes, fill, ops, k, inner, base, rest, h)) :
             {ANode{_, spec(input, axes, fill, ops, k, inner, high)} == spec(input, axes, fill, ops, 1n+k, 1n+inner, base) : Array<F32>}
@@ -773,8 +656,8 @@ def write_spec(+input: Shape.Shape, +axes: List<&2, U32>, +fill: F32, +ops: List
               Equal.trans(Nat, k, Nat.add(Nat.add(c, off), base), Nat.add(c, Nat.add(off, base)),
                 Equal.sym(Nat, Nat.add(Nat.add(c, off), base), k, h),
                 Equal.sym(Nat, Nat.add(c, Nat.add(off, base)), Nat.add(Nat.add(c, off), base), Index.add_assoc(c, off, base)))),
-            le_add_cong(c, base, Nat.add(off, base), Api.le_add_left(off, base)))
-          +shifted = Equal.trans(Nat, Nat.add(off, high), Nat.add(Nat.add(c, off), base), k, position_step(c, off, base), h)
+            Facts.le_add_cong(c, base, Nat.add(off, base), Api.le_add_left(off, base)))
+          +shifted = Equal.trans(Nat, Nat.add(off, high), Nat.add(Nat.add(c, off), base), k, Facts.position_step(c, off, base), h)
           %Equal.sym(Array<F32>, spec(input, axes, fill, ops, k, inner, base), spec(input, axes, fill, ops, 1n+k, inner, base), below(input, axes, fill, ops, k, inner, base, lower)) :
             {ANode{_, ArrayCore.write_path(F32, inner, spec(input, axes, fill, ops, k, inner, high), rest, word(input, axes, fill, ops, k))} == spec(input, axes, fill, ops, 1n+k, 1n+inner, base) : Array<F32>}
           %Equal.sym(Array<F32>, ArrayCore.write_path(F32, inner, spec(input, axes, fill, ops, k, inner, high), rest, word(input, axes, fill, ops, k)),
@@ -924,32 +807,3 @@ def build_eq(+input: Shape.Shape, +axes: List<&2, U32>, +fill: F32, +ops: List<&
     case 1n+inner 0n:
       tree_first(input, axes, fill, ops, plan, ds, fits, count, exact, 1n+inner, base, Parallel.tree(~Build.Recipe, ~Array<F32>, ~Array<F32>, ~Build.cell, Build.recipe(Build.Request{input, axes}), 1n+inner, count, base, (Api.arr((Api.Right{} <> Owned.norm(U32.to_nat(Shape.count(input)), ops, Nil{})), ds, fill), Array.new(F32, 0n, 0.0))), tree_eq(input, axes, fill, ops, plan, ds, fits, count, exact, 1n+inner, base))
 
-# Storage facts shared with the elementwise export (contracts/binary-proof.bend).
-
-def storage_shift(-shape: Shape.Shape, -s: Storage.Storage, -t: Storage.Storage, e: {s == t : Storage.Storage},
-  -R: @st: Storage.Storage -> @-k: {Lifecycle.logical_length(st) == Shape.logical_numel(Shape.dimensions(shape)) : Nat} -> Type,
-  h: @-k: {Lifecycle.logical_length(s) == Shape.logical_numel(Shape.dimensions(shape)) : Nat} -> R(s, k)) ->
-  @-k: {Lifecycle.logical_length(t) == Shape.logical_numel(Shape.dimensions(shape)) : Nat} -> R(t, k):
-  %e : (@-k: {Lifecycle.logical_length(_) == Shape.logical_numel(Shape.dimensions(shape)) : Nat} -> R(_, k))
-  h
-
-# A replayed tensor with a cell is an owned storage whose array is `arr` of
-# its normalized history.
-def input_lift(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>,
-  +nonzero: {Nat.is_lt(0n, U32.to_nat(Shape.count(shape))) == True{} : Bool}, -Q: Storage.Storage -> Type,
-  owned: @+d: Nat -> @+fits: {Storage.bounds(d, U32.to_nat(Shape.count(shape))) == True{} : Bool} ->
-    @-b: Model.Balanced(F32, d, Api.arr(Owned.norm(U32.to_nat(Shape.count(shape)), ops, Nil{}), d, fill)) ->
-    @-f: {Storage.bounds(d, U32.to_nat(Shape.count(shape))) == True{} : Bool} ->
-    Q(Storage.Owned{d, U32.to_nat(Shape.count(shape)), Api.arr(Owned.norm(U32.to_nat(Shape.count(shape)), ops, Nil{}), d, fill), b, f})) ->
-  Q(Replayed.storage(shape, fill, ops)):
-  Owned.created_lift(Shape.count(shape), fill, Conversion.shape_count_within(shape), s => Q(StorageLaws.replay(ops, s)),
-    zero => Empty.absurd(Q(StorageLaws.replay(ops, Storage.Empty{})),
-      Arith.clash(Equal.trans(Bool, False{}, Nat.is_lt(0n, U32.to_nat(Shape.count(shape))), True{},
-        Equal.cong(Nat, Bool, x => Nat.is_lt(0n, x), 0n, U32.to_nat(Shape.count(shape)), Equal.sym(Nat, U32.to_nat(Shape.count(shape)), 0n, zero)),
-        nonzero))),
-    d => fits => f => Owned.replay_lift(ops, d, U32.to_nat(Shape.count(shape)), fill, Nil{}, Api.hit_of(U32.to_nat(Shape.count(shape)), ops), {==},
-      ArrayCore.new_balanced(F32, d, fill), f, fits, Q, c => owned(d, fits, c, f)))
-
-# Both inputs are owned storages in normal form and the output storage is
-# owned: the parallel build returns the replayed output of the family
-# history, and the inputs come back as the First halves of their clones.
