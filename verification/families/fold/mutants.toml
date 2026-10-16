@@ -145,3 +145,17 @@ before = '''
 after = '''
     case Kept{}:
       Nat.add(Nat.mul(k, inner), outer)'''
+
+[product-row-crossed-terms]
+file = "src/tensor/matmul.bend"
+before = '''
+F32.add(a3, F32.mul(x, y3))'''
+after = '''
+F32.add(a3, F32.mul(x, y4))'''
+
+[product-row-unchecked]
+file = "src/tensor/matmul.bend"
+before = '''
+Nat.is_eq(row_of(columns, Nat.add(7n, base)), row_of(columns, base)), True{}'''
+after = '''
+True{}, True{}'''

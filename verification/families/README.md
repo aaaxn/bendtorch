@@ -136,6 +136,8 @@ instance copy, only the instance copy for the swapped maps, or only
 | `matmul_nt` reads the weight untransposed | `matmul_nt` is `product(Kept, Swapped)`, which reads `W` as `[inner, columns]` | `Laws.matmul_nt_ordered` | `matmul_nt_ordered` |
 | `matmul_tn` swaps operands | `matmul_tn(g, x)` multiplies `x^T @ g` | `Laws.matmul_tn_ordered` | `matmul_tn_ordered` |
 | Product reads a `Kept` operand swapped | `read_offset` reads a `Kept` operand at `k * inner + outer` | `read_below` | `read_below` |
+| Product row crosses terms | `eight_terms` adds cell 4's right word to cell 3 | `row_last` | `row_last` |
+| Product row unchecked | `one_row` skips the same-row check of the eighth cell | `row_block_tree` | `row_block_tree` |
 
 The first nine mutants change the generic loops in `fold.bend`, and the
 generic proofs reject them. The next three change what the loops return when
@@ -154,7 +156,10 @@ same declarations. The products that read an operand in place add three:
 `matmul_nt` and `matmul_tn` pass to `Matrix.product`, so they reject a
 `matmul_nt` that reads `W` untransposed and a `matmul_tn` with swapped
 operands; `read_below`, which bounds every read of `product-parallel-proof.bend`,
-rejects a `Kept` read at the swapped index. The fold family's BendTT prefix is `src/tensor/`, so the
+rejects a `Kept` read at the swapped index. Two change the row block, the
+loop that runs eight cells of a product row: `row_last` rejects a cell that
+adds another cell's word, and `row_block_tree` a block whose eight cells are
+not checked to share a row. The fold family's BendTT prefix is `src/tensor/`, so the
 transplant also carries the mutated `matmul.bend` declarations.
 
 `fold/entry.bend` imports `broadcast.bend` before `sum.bend`, `dot.bend` and
