@@ -58,6 +58,17 @@ def first_dimension(+dimensions: List<&2, U32>) -> Nat:
 def rows(+shape: Shape.Shape) -> Nat:
   first_dimension(Shape.dimensions(shape))
 
+# Whether [rows, columns] logits have one column, one class.
+def single_column(+dimensions: List<&2, U32>) -> Bool:
+  match dimensions:
+    case [+rows, +columns]:
+      U32.is_eq(columns, 1)
+    case _:
+      False{}
+
+def one_class(+shape: Shape.Shape) -> Bool:
+  single_column(Shape.dimensions(shape))
+
 # Row maximum.
 
 # PyTorch's maximum: NaN when either word is NaN, else the larger word, and

@@ -79,11 +79,20 @@ law scalar_one_hot_grad_other:
   {Elementwise.scalar(Elementwise.OneHotGrad{count}, left, right) == 0.0 : F32}
 
 # The rest of PyTorch's log_softmax backward, for g on the left and lp on
-# the right: -(exp(lp) * r) with r = -(g / N) + 0.0, the row sum of the
-# one-hot gradient.
-law scalar_softmax_grad:
+# the right: -(exp(lp) * r) with r the row sum of the one-hot gradient. In a
+# row of one column (`single`) the sum is the target word itself,
+# r = -(g / N), -0.0 kept as PyTorch keeps it.
+law scalar_softmax_grad_one_class:
   for +count: F32
   for +left: F32
   for +right: F32
-  {Elementwise.scalar(Elementwise.SoftmaxGrad{count}, left, right) ==
+  {Elementwise.scalar(Elementwise.SoftmaxGrad{count, True{}}, left, right) ==
+    F32.neg(F32.mul(F32.exp(right), F32.neg(F32.div(left, count)))) : F32}
+
+# In a wider row the +0.0 words are added: r = -(g / N) + 0.0.
+law scalar_softmax_grad_classes:
+  for +count: F32
+  for +left: F32
+  for +right: F32
+  {Elementwise.scalar(Elementwise.SoftmaxGrad{count, False{}}, left, right) ==
     F32.neg(F32.mul(F32.exp(right), F32.add(F32.neg(F32.div(left, count)), 0.0))) : F32}

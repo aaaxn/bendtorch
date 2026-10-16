@@ -1023,7 +1023,8 @@ def Laws.tensor_cross_entropy_vjp_values(a, input, shape, plan, planned, input_p
   +input_same = input_same
   +count = Loss.count_f32(Loss.rows(input))
   +first_operation = {Elementwise.OneHotGrad{count} : Elementwise.Operation}
-  +second_operation = {Elementwise.SoftmaxGrad{count} : Elementwise.Operation}
+  +single = Loss.one_class(input)
+  +second_operation = {Elementwise.SoftmaxGrad{count, single} : Elementwise.Operation}
   +front = Shape.output_shape(plan)
   +front_count = Shape.logical_numel(Shape.dimensions(front))
   +front_values = Laws.cells(first_operation, plan, shape, fill, ops, input, hot_fill, hot_ops, front_count)
@@ -1032,7 +1033,7 @@ def Laws.tensor_cross_entropy_vjp_values(a, input, shape, plan, planned, input_p
   product_replayed(first_operation, shape, input, plan, planned, fill, ops, hot_fill, hot_ops,
     pair => Laws.PairContract<a, input, index => Laws.reduced(input, front, input_plan, front_values, index),
       a, input, index => Laws.reduced(input, front, input_plan, back_values, index),
-      Backward.entropy_first(a, input, count, x, pair)>,
+      Backward.entropy_first(a, input, count, single, x, pair)>,
     kept => kept_words => kept_fits => y => y_words => y_fits => front_ops => front_words => front_fits =>
       -g = {Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, kept), kept_fits}} : Core.Dynamic}
       -y_kept = {Core.Packed{input, Core.TTensor{Replayed.storage(input, hot_fill, y), y_fits}} : Core.Dynamic}

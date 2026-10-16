@@ -332,10 +332,14 @@ LOSS_CONTROLS = {
         "Laws.scalar_one_hot_grad_target",
     ),
     "softmax-grad-drops-zero-add": (
-        "      F32.neg(F32.mul(F32.exp(right), "
-        "F32.add(target_gradient(left, count), 0.0)))",
-        "      F32.neg(F32.mul(F32.exp(right), target_gradient(left, count)))",
-        "Laws.scalar_softmax_grad",
+        "    case False{}:\n      F32.add(t, 0.0)\n",
+        "    case False{}:\n      t\n",
+        "Laws.scalar_softmax_grad_classes",
+    ),
+    "softmax-grad-adds-zero-to-one-class": (
+        "    case True{}:\n      t\n",
+        "    case True{}:\n      F32.add(t, 0.0)\n",
+        "Laws.scalar_softmax_grad_one_class",
     ),
 }
 

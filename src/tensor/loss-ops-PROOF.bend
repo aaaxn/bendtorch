@@ -42,5 +42,8 @@ def Laws.scalar_one_hot_grad_other(count, left, right, other):
     {Elementwise.zero_if(Bool.not(_), Elementwise.target_gradient(left, count)) == 0.0 : F32}
   {==}
 
-def Laws.scalar_softmax_grad(count, left, right):
+def Laws.scalar_softmax_grad_one_class(count, left, right):
+  {==}
+
+def Laws.scalar_softmax_grad_classes(count, left, right):
   {==}

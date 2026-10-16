@@ -407,18 +407,19 @@ def entropy_second(+a: Nat, +input: Shape.Shape, first: Result<&2, &1, Error, Co
   (g, lp) = operands
   Pass{Operands{lp, onehot}, g, both(first, product_reduced(a, input, second))}
 
-def entropy_first(+a: Nat, +input: Shape.Shape, +count: F32, lp: Core.Dynamic,
+def entropy_first(+a: Nat, +input: Shape.Shape, +count: F32, +single: Bool, lp: Core.Dynamic,
   pair: (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>) -> Pass:
   (operands, first) = pair
   (g, onehot) = operands
-  entropy_second(a, input, product_reduced(a, input, first), onehot, Elementwise.binary(Elementwise.SoftmaxGrad{count}, g, lp))
+  entropy_second(a, input, product_reduced(a, input, first), onehot, Elementwise.binary(Elementwise.SoftmaxGrad{count, single}, g, lp))
 
 # d cross_entropy(a)/da, as two contributions to a that its slot adds in
 # order. The first is PyTorch's nll_loss backward, OneHotGrad of g and the
 # saved one-hot rows: -(g / N) at each row's target and +0.0 elsewhere, for
 # the N rows. The second is the rest of PyTorch's log_softmax backward,
-# SoftmaxGrad of g and the saved lp: -(exp(lp) * r) with r = -(g / N) + 0.0,
-# the row sum of the first. Added into an empty slot, first + second is
+# SoftmaxGrad of g and the saved lp: -(exp(lp) * r) with r the row sum of the
+# first, -(g / N) + 0.0, or -(g / N) itself when the logits have one column
+# (PyTorch's sum of one word keeps -0.0). Added into an empty slot, first + second is
 # PyTorch's first - exp(lp) * r word for word. The steps are the Mul VJP's,
 # with OneHotGrad and SoftmaxGrad for Mul and both contributions to a.
 def vjp_cross_entropy(+a: Nat, +input: Shape.Shape, saved: Saved, g: Core.Dynamic) -> Pass:
@@ -426,7 +427,7 @@ def vjp_cross_entropy(+a: Nat, +input: Shape.Shape, saved: Saved, g: Core.Dynami
     case Unsaved{}:
       Pass{Unsaved{}, g, Fail{TensorError{Core.StorageLengthMismatch{}}}}
     case Operands{lp, onehot}:
-      entropy_first(a, input, Loss.count_f32(Loss.rows(input)), lp,
+      entropy_first(a, input, Loss.count_f32(Loss.rows(input)), Loss.one_class(input), lp,
         Elementwise.binary(Elementwise.OneHotGrad{Loss.count_f32(Loss.rows(input))}, g, onehot))
 
 # The vector-Jacobian product of one node with gradient g: the contribution

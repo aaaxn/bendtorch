@@ -144,7 +144,7 @@ class GateAcceptanceTests(unittest.TestCase):
     def test_loss_controls_apply_once_and_name_a_loss_law(self):
         source = (ROOT / "src/tensor/elementwise.bend").read_text()
         laws = (ROOT / "src/tensor/loss-ops-LAWS.bend").read_text()
-        self.assertEqual(len(LOSS_CONTROLS), 7)
+        self.assertEqual(len(LOSS_CONTROLS), 8)
         for original, mutated, location in LOSS_CONTROLS.values():
             self.assertEqual(source.count(original), 1)
             self.assertNotEqual(original, mutated)

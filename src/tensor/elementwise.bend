@@ -23,7 +23,7 @@ type Operation is Data:
   PickNegated{}
   MseGrad{scale: F32}
   OneHotGrad{count: F32}
-  SoftmaxGrad{count: F32}
+  SoftmaxGrad{count: F32, single: Bool}
 
 # The IEEE 754 bits of an F32, as a U32.
 def bits(x: F32) -> U32:
@@ -70,6 +70,17 @@ def is_one(x: F32) -> Bool:
 def target_gradient(g: F32, +count: F32) -> F32:
   F32.neg(F32.div(g, count))
 
+# The row sum PyTorch's log_softmax backward takes of a one-hot gradient row
+# whose target word is t. A row of one column holds t alone, and PyTorch's
+# sum of one word is that word, -0.0 kept; a wider row adds its +0.0 words,
+# so the sum is t + 0.0.
+def row_sum(single: Bool, t: F32) -> F32:
+  match single:
+    case True{}:
+      t
+    case False{}:
+      F32.add(t, 0.0)
+
 def scalar(operation: Operation, left: F32, right: F32) -> F32:
   match operation:
     case Add{}:
@@ -100,8 +111,8 @@ def scalar(operation: Operation, left: F32, right: F32) -> F32:
       F32.mul(F32.mul(scale, right), left)
     case OneHotGrad{+count}:
       zero_if(Bool.not(is_one(right)), target_gradient(left, count))
-    case SoftmaxGrad{+count}:
-      F32.neg(F32.mul(F32.exp(right), F32.add(target_gradient(left, count), 0.0)))
+    case SoftmaxGrad{+count, +single}:
+      F32.neg(F32.mul(F32.exp(right), row_sum(single, target_gradient(left, count))))
 
 def flat_input_indices(+plan: Shape.BroadcastPlan,
   result: Result<&2, &2, Shape.Error, Shape.FlatIndex<Shape.output_shape(plan)>>) -> Result<&2, &1, Core.Error, U32 & U32>:

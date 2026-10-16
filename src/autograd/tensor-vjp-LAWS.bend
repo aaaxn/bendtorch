@@ -534,8 +534,10 @@ law tensor_mse_vjp_values:
 # dimensions: the pointwise OneHotGrad of g and the one-hot rows, then the
 # pointwise SoftmaxGrad of g and lp, each reduced to the input's shape. Word
 # k of the first is -(g / N) where the one-hot word is 1.0 and +0.0
-# elsewhere; word k of the second is -(exp(lp) * (-(g / N) + 0.0)); N is the
-# input's first dimension as an F32 (Loss.count_f32(Loss.rows(input))).
+# elsewhere; word k of the second is -(exp(lp) * r), with r = -(g / N) when
+# the input has one column (Loss.one_class) and r = -(g / N) + 0.0 otherwise;
+# N is the input's first dimension as an F32 (Loss.count_f32(Loss.rows(input))).
+# Both cases are stated: SoftmaxGrad carries Loss.one_class(input).
 # The slot adds the second into the first, PyTorch's one_hot gradient minus
 # exp(lp) times its row sum.
 law tensor_cross_entropy_vjp_values:
@@ -562,7 +564,7 @@ law tensor_cross_entropy_vjp_values:
         Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan)))),
       index),
     a, input, index => reduced(input, Shape.output_shape(plan), input_plan,
-      cells(Elementwise.SoftmaxGrad{Loss.count_f32(Loss.rows(input))}, plan, shape, fill, ops, input, lp_fill, lp_ops,
+      cells(Elementwise.SoftmaxGrad{Loss.count_f32(Loss.rows(input)), Loss.one_class(input)}, plan, shape, fill, ops, input, lp_fill, lp_ops,
         Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan)))),
       index),
     Backward.vjp(Backward.CrossEntropy{a, input},

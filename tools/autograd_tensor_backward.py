@@ -1260,8 +1260,13 @@ def vjp(node: dict, gradient: tuple) -> list[tuple[int, tuple]]:
         def target(g: int, mark: int) -> int:
             return neg_word(div_word(g, count)) if mark == ONE else 0
 
+        # PyTorch's row sum of the one-hot gradient: the target word alone
+        # in a row of one column (-0.0 kept), the target word + 0.0 otherwise.
+        single = node["left"][1] == 1
+
         def rest(g: int, number: int) -> int:
-            row_sum = add_word(neg_word(div_word(g, count)), 0)
+            target = neg_word(div_word(g, count))
+            row_sum = target if single else add_word(target, 0)
             return neg_word(mul_word(exp_word(number), row_sum))
 
         first = accepted(elementwise(target, gradient, onehot))
