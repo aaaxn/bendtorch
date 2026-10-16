@@ -87,7 +87,8 @@ def expected_splits(name: str) -> int:
 
 def check_lines(stdout: str) -> dict[str, int]:
     """The splits each probe line reports, after checking that every line
-    names a known build, forks as `Matrix.splits` says and matches its
+    names a known build, forks as `expected_splits` says (`Matrix.splits`
+    for a product, `Reduce.splits` for a reduction) and matches its
     sequential definition word for word."""
     splits = {}
     for line in stdout.splitlines():

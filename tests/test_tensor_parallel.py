@@ -62,10 +62,12 @@ class ParallelProbeTests(unittest.TestCase):
         self.assertTrue(contiguous((256, 64), (256, 1)))
         self.assertTrue(contiguous((64, 16, 32), (64, 1, 1)))
         self.assertTrue(contiguous((4, 1, 8), (4, 1, 1)))
+        self.assertTrue(contiguous((8, 1), (1, 1)))
         self.assertTrue(contiguous((5, 7), ()))
         self.assertFalse(contiguous((256, 128), (1, 128)))
         self.assertFalse(contiguous((16, 256, 256), (256, 256)))
         self.assertFalse(contiguous((64, 16, 32), (16, 1)))
+        self.assertFalse(contiguous((8, 1, 4), (1, 1, 4)))
 
     def test_reduction_splits_by_terms_when_contiguous(self):
         self.assertEqual(
