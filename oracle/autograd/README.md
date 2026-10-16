@@ -65,9 +65,9 @@ indices and `.sum()` in order; every `backward` seeds `torch.ones_like(output)` 
 (`retain_graph=True`), every non-leaf keeps its gradient (`retain_grad()`), and
 `zero_grad` sets every `.grad` to `None`. Lines carry decimal F32 words in the
 gate's own format. `tests/test_autograd_tensor_backward.py` in the root suite
-compares the gate's Python reference with this file: 126 of 166 scripts agree
+compares the gate's Python reference with this file: 126 of 169 scripts agree
 line for line, and [docs/tensor-backward.md](../../docs/tensor-backward.md)
-lists the other 40.
+lists the other 43.
 
 ## Reproduce
 

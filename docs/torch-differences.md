@@ -95,14 +95,15 @@ The tensor `backward` in `src/autograd/tensor-backward.bend` agrees with
 PyTorch's gradients word for word on every script of
 `oracle/autograd/fixtures/tensor-backward-torch.json` that PyTorch can
 represent, including arrival order, broadcast reductions, `-0.0`, infinities
-and subnormals. 126 of the 166 scripts agree line for line, the five `linear`
+and subnormals, except the last bits of some words in the `mse_loss` and
+`cross_entropy` scripts, which [losses](losses.md#against-pytorch) lists. 126 of the 169 scripts agree line for line, the five `linear`
 scripts that PyTorch accepts among them, and every `relu` script but four:
 `relu_edges` and `relu_nan_gradient` (NaN payloads of `NaN * NaN` in the
 product after `relu`), `relu_13` (a one-term matmul) and
 `relu_unknown_operand` (an intentional refusal); their gradients agree.
 `relu` gives PyTorch's words at `-0.0` (kept), NaN (kept, with its payload),
 `-inf` (`+0.0`), and its gradient is `+0.0` at `x = +0.0` and `-0.0` and `g`
-at a NaN `x`. 16 of the 36 `mse_loss` and `cross_entropy` scripts agree line
+at a NaN `x`. 16 of the 39 `mse_loss` and `cross_entropy` scripts agree line
 for line; [losses](losses.md#against-pytorch) has the others. The differences:
 
 | Behavior | bendtorch | PyTorch |
@@ -112,7 +113,7 @@ for line; [losses](losses.md#against-pytorch) has the others. The differences:
 | Shapes the operation refuses | The tensor layer's error code | `RuntimeError` (5 scripts) |
 | Operand that is the node itself, a newer node or a missing node | `DanglingOperand` (104) for a forged tape | Cannot be built (3 scripts) |
 | `NaN * NaN` | NaN | NaN with another payload (3 scripts) |
-| NaN losses | NaN | NaN with another payload (4 scripts) |
+| NaN losses | NaN | NaN with another payload (7 scripts) |
 | `cross_entropy` logits | `[rows, columns]` only; a target count other than the rows is `TargetOutOfRange` (108) | Also `[C]` and `[N, C, d...]`; `ValueError` for the count |
 | Sums inside `mse_loss` and `cross_entropy` | Left to right from `+0.0` | A cascade of partial sums; the loss can differ in the last bits (14 scripts, up to 3 ulp) |
 | `exp` in the `cross_entropy` backward | Correctly rounded in practice (binary64 `exp`, rounded) | A vectorized `exp`; about 1 gradient word in 10 differs by 1 or 2 ulp |

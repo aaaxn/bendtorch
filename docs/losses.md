@@ -37,6 +37,10 @@ Refusals: shapes that do not broadcast (`IncompatibleBroadcast`, 6), logits
 that are not of rank 2 (`NotLogits`, 107), a target count other than the rows
 or a target at or past `columns` (`TargetOutOfRange`, 108). PyTorch also takes
 unbatched `[C]` logits and `[N, C, d...]` logits; the tape refuses both.
+With no rows, `[0, columns]` logits have no cell for any number of columns:
+the one-hot rows are then empty and the `[1, columns]` class numbers are not
+built, so the loss is NaN (`+0.0 / +0.0`) and the gradient empty, as in
+PyTorch.
 
 ## Backward
 
@@ -47,7 +51,7 @@ broadcast) on the left and a saved word on the right, as `Mul` does in the
 | Node | First contribution | Second contribution |
 | --- | --- | --- |
 | `MseLoss` | to `a`: `MseGrad{2 / N}(g, d) = (2 / N * d) * g` | to `b`: `MseGrad{2 / N}(g, e) = (2 / N * e) * g` |
-| `CrossEntropy` | to `a`: `OneHotGrad{N}(g, onehot) = -(g / N)` at a target, `+0.0` elsewhere | to `a`: `SoftmaxGrad{N}(g, lp) = -(exp(lp) * (-(g / N) + 0.0))` |
+| `CrossEntropy` | to `a`: `OneHotGrad{N}(g, onehot) = -(g / N)` at a target, `+0.0` elsewhere | to `a`: `SoftmaxGrad{N, single}(g, lp) = -(exp(lp) * r)`, `r = -(g / N)` for one column, `r = -(g / N) + 0.0` otherwise |
 
 `2 / N` is `F32.div(2.0, N)` for the `N` cells of the broadcast shape;
 `N` for `cross_entropy` is the number of rows. Each contribution is reduced to
@@ -57,12 +61,18 @@ The orders are PyTorch's. `mse_loss_backward` computes `(norm * (a - b)) * g`
 with `norm = 2 / N`, and its gradient for the target is the same with the
 operands swapped. `nll_loss` backward gives `-(g / N)` at each target and
 `+0.0` elsewhere; `log_softmax` backward gives `grad - exp(output) * sum(grad)`
-per row, and the row sum of that one-hot gradient is `-(g / N) + 0.0`. The
+per row. The row sum of that one-hot gradient is `-(g / N) + 0.0` when the
+row has two or more columns, and `-(g / N)` itself when it has one: PyTorch's
+sum of one word is that word, so at `g = +0.0` it stays `-0.0`, and adding
+`+0.0` would turn it into `+0.0`. `SoftmaxGrad` carries `single`, whether the
+logits have one column, and the VJP passes `Loss.one_class(input)`. The
 `CrossEntropy` VJP sends the two terms as two contributions, and the logits'
 working slot adds the second into the first, `gout + (-(exp(lp) * r))`, which
 is `gout - exp(lp) * r` word for word. When the logits also feed another node,
 the slot already holds that node's gradient and adds the two terms one at a
-time, which PyTorch does not; `cross_entropy_fan_out` shows it.
+time, where PyTorch adds the finished `cross_entropy` gradient once.
+`cross_entropy_fan_out` exercises that arrival order; on its words the result
+equals PyTorch's.
 
 ## Laws
 
@@ -115,6 +125,12 @@ Where they differ, and why:
   the `exp` inside the backward kernel. The forward's `exp`
   and `log` (vectorized too) give `lp` words equal to PyTorch's in all 640
   cells there and in 1259 of 1280 at `[128, 10]`.
+- One class. With logits `[[0.0]]` or `[[2.0], [-7.5]]`, target 0, and the
+  loss times `g`, PyTorch's logits gradient is `+0.0` (`0x00000000`) at
+  `g = +0.0`, `-0.0` and `1.0`, and NaN at a NaN `g`; the tape gives the same
+  words (`cross_entropy_one_class_scaled`). With two classes the words agree
+  too (`cross_entropy_two_class_scaled`); at `g = +0.0` the target cell is
+  `-0.0` and the other `+0.0`.
 - For more than 15 columns PyTorch's row sum of `exp` adds in vector lanes,
   so `lp` differs in the last bits; for 10 columns its partial-vector path
   adds left to right, as the tape does.

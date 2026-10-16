@@ -351,6 +351,7 @@ template constant.
 | MseLoss VJP sends the second to the first node | `mse_second` sends the target's contribution to node `0` instead of `b` | `Laws.tensor_mse_vjp_values` | `tensor_mse_vjp_values` |
 | MseLoss VJP scales by 2 | `mse_shaped` runs `MseGrad{2.0}` instead of `MseGrad{2 / N}` for the input | `Laws.tensor_mse_vjp_values` | `tensor_mse_vjp_values` |
 | CrossEntropy VJP drops the softmax | `entropy_first` runs `OneHotGrad` of `g` and `lp` instead of `SoftmaxGrad` | `Laws.tensor_cross_entropy_vjp_values` | `tensor_cross_entropy_vjp_values` |
+| CrossEntropy VJP ignores one class | `vjp_cross_entropy` passes `False{}` for `Loss.one_class(input)`, so one-column logits add `+0.0` to the row sum | `Laws.tensor_cross_entropy_vjp_values` | `tensor_cross_entropy_vjp_values` |
 
 The mutants change `src/autograd/tensor-backward.bend`, and the source check
 runs `src/autograd/PROOF.bend`. The structural laws in
