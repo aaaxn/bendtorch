@@ -44,12 +44,14 @@ inputs of `matmul-64x48x64-rounding`, which forks four levels, round in F32:
 adding its cells' terms in decreasing `k` changes 3245 of its 4096 words,
 where the other products, of multiples of `1/64`, add exactly in any order.
 The same probe runs the parallel `reduce_to` (see
-[reduce to shape](reduce-to.md#parallel-build)) on three rounding reductions
-that fork one or two levels, `[256, 128]` to `[1, 128]`, `[256, 64]` to
-`[256, 1]` and `[64, 16, 32]` to `[16, 1]`, next to `ReduceFold.cell`, the
-masked fold of `reduce_fold_fiber`, cell by cell. Walking each reduced axis's
-digits in decreasing order changes 121, 251 and 15 of their 128, 256 and 16
-words.
+[reduce to shape](reduce-to.md#parallel-build)) on four rounding reductions
+next to `ReduceFold.cell`, the masked fold of `reduce_fold_fiber`, cell by
+cell. `[256, 64]` to `[256, 1]` and `[64, 16, 32]` to `[64, 1, 1]` have
+contiguous fibers and fork one and two levels; `[256, 128]` to `[1, 128]` and
+`[64, 16, 32]` to `[16, 1]` have strided fibers, so `Reduce.splits` builds
+them on one thread and they check the fiber walk alone. Walking each reduced
+axis's digits in decreasing order changes 251, 62, 121 and 15 of their 256,
+64, 128 and 16 words.
 
 ## Public math completeness supplement
 

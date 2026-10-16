@@ -134,8 +134,9 @@ NaN-payload and `None`-gradient differences.
 - CPU only. The gates run native code on 8 threads. `matmul` forks by work
   (cells times inner terms) and the gates run products that fork at 1, 8 and
   24 threads; no gate case is large enough to split the parallel elementwise
-  build, and the full `sum`, `reduce_to` and `sum_to_size` still run on one
-  thread.
+  build. `reduce_to` and `sum_to_size` fork only when every fiber is
+  contiguous (row sums); column and batch sums, such as bias gradients, build
+  on one thread. The full `sum` still runs on one thread.
 
 The [differences from PyTorch](docs/torch-differences.md) page lists each
 request that PyTorch accepts and bendtorch rejects.

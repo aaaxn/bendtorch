@@ -32,10 +32,11 @@ target position at `+0.0`, so `[0, 3]` reduced to `[1, 3]` is three zeros, not
 an empty tensor. Two `-0.0` words sum to `+0.0`, because the accumulation
 starts from `+0.0`.
 
-Cost: one allocation of the target shape, one clone of the contribution per
-fork, and per contribution position one unchecked read of the clone and one
-add. No position is read twice: every position lands on exactly one target
-cell.
+Cost: one allocation of the target shape, one clone of the contribution that
+`Elementwise.take` makes even when nothing forks, one more whole-contribution
+clone per fork, and per contribution position one unchecked read of a clone
+and one add. No position is added twice: every position lands on exactly one
+target cell (the clones copy every word, but they do not add).
 
 ## Parallel build
 
@@ -44,9 +45,34 @@ The target cells are independent, so `reduce_to` builds them in parallel, as
 [sum and matmul](sum-and-matmul.md#parallel-product)). It takes a clone of the
 contribution's array with `Elementwise.take` (the kept half goes back to the
 caller) and builds the target as a balanced tree with `Reduce.build`. The top
-`Matrix.splits(depth, n / cells)` levels fork, each half with its own clone;
-below the forks a thread builds its cells in index order. A target with fewer
-than `2^13` contribution words does not fork.
+`Reduce.splits` levels fork, each half with its own clone; below the forks a
+thread builds its cells in index order.
+
+`Reduce.splits` forks only when every fiber is one contiguous run of the
+contribution: no axis the target keeps comes after an axis it reduces,
+counting only axes of extent above 1. Row sums (`[n, m]` to `[n, 1]`, or
+`[a, b, c]` to `[a, 1, 1]`) are contiguous and split by work like a product,
+`Matrix.splits(depth, n / cells)`, so a target with fewer than `2^13`
+contribution words does not fork. Column and batch sums (`[n, m]` to `[1, m]`,
+`[b, n, m]` to `[n, m]`), which include the bias gradient of a linear layer,
+have strided fibers and never fork: there each fork's whole-contribution clone
+cost more than the threads gave back. Milliseconds per `reduce_to`, input
+construction subtracted, median of 3 runs on a 64-core machine (main is the
+scatter loop this build replaced; "all forked" is the product rule applied to
+every target, "never forked" is `splits = 0`):
+
+| contribution to target | threads | main | all forked | never forked | `Reduce.splits` |
+| --- | --- | --- | --- | --- | --- |
+| `[1024, 1024]` to `[1, 1024]` | 1 / 8 / 24 | 1270 / 1314 / 1294 | 107 / 310 / 306 | 88 / 153 / 147 | 93 / 147 / 145 |
+| `[1024, 1024]` to `[1024, 1]` | 1 / 8 / 24 | 1195 / 1221 / 1154 | 45 / 19 / 6 | 50 / 84 / 53 | 33 / 20 / 2 |
+| `[16, 256, 256]` to `[256, 256]` | 1 / 8 / 24 | 1558 / 1528 / 1562 | 211 / 454 / 544 | 181 / 289 / 298 | 176 / 281 / 300 |
+| `[128, 784]` to `[1, 784]` | 1 / 8 / 24 | 106 / 114 / 110 | 9.7 / 29 / 29 | 9.1 / 16 / 15 | 8.6 / 16 / 15 |
+| `[256, 128]` to `[1, 128]` | 1 / 8 / 24 | 29 / 33 / 32 | 3.1 / 5.3 / 8.6 | 3.1 / 5.1 / 5.1 | 3.0 / 5.0 / 5.1 |
+| `[64, 128]` to `[1, 128]` | 1 / 8 / 24 | 7.7 / 7.4 / 7.2 | 0.8 / 1.4 / 1.3 | 0.8 / 1.3 / 1.3 | 0.8 / 1.4 / 1.3 |
+
+The unforked build also gets slower from 1 to 8 threads; that is runtime
+overhead outside the build (see issue #24). The row-sum timings at 8 and 24
+threads are within the noise of the subtracted construction time (about 15 ms).
 
 Cell `t` walks only its own fiber. Over the plan's index rows (one per
 contribution axis, with the output stride and the left and right strides of
