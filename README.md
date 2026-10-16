@@ -131,7 +131,8 @@ NaN-payload and `None`-gradient differences.
   gradients a whole `backward` leaves in the slots; those are checked by the
   runtime lanes and the PyTorch record. The prototype tape in `experiments/` is not checked by any
   gate and is not used.
-- CPU only. The gates run native code on 8 threads. `matmul` forks by work
+- CPU only. The gates run native code on 8 threads (fewer on a machine with
+  fewer CPUs). `matmul` forks by work
   (cells times inner terms) and the gates run products that fork at 1, 8 and
   24 threads; no gate case is large enough to split the parallel elementwise
   build. `reduce_to` and `sum_to_size` fork only when every fiber is

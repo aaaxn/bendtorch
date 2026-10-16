@@ -98,7 +98,7 @@ proofs reject each of them:
 ## Runtime lanes
 
 `tools/autograd_gradient.py` runs 203 requests on native Bend CPU
-(`--threads N --gpu off`, N from `tools.check --threads`, default 8) and on the generated-Bend JavaScript executable.
+(`--threads N --gpu off`, N from `tools.check --threads`, default 8, or the CPU count if lower) and on the generated-Bend JavaScript executable.
 Each request accumulates a list of contributions into a fresh slot. The harness
 prints the outcome of every contribution, with the returned tensor for each
 refusal, and then the slot's gradient. The requests are:

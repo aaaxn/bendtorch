@@ -9,7 +9,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from tools.common import GateError, check_sources
+from tools.common import FAMILY_WORKERS, GateError, check_sources, cpus
 
 contracts = importlib.import_module("verification.contracts.run")
 reads = importlib.import_module("verification.contracts.reads_controls")
@@ -158,7 +158,13 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--bend-root", type=Path, default=ROOT / ".tools/bend")
     parser.add_argument("--kernel", type=Path, default=ROOT / ".tools/kernel/bendtt")
-    parser.add_argument("--workers", type=int, default=14)
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=FAMILY_WORKERS,
+        help=f"Commands to run at once (default {FAMILY_WORKERS} for the {cpus()} "
+        "CPUs this process may use).",
+    )
     args = parser.parse_args()
     if args.workers < 1:
         parser.error("--workers needs at least one worker")

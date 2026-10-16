@@ -237,7 +237,7 @@ operand's dimensions.
 ## Runtime lanes
 
 `tools/autograd_tensor_backward.py` runs 96 scripts on native Bend CPU
-(`--threads N --gpu off`, N from `tools.check --threads`, default 8) and on the generated JavaScript. Each script records
+(`--threads N --gpu off`, N from `tools.check --threads`, default 8, or the CPU count if lower) and on the generated JavaScript. Each script records
 leaves and operations, runs `backward` on chosen outputs, sometimes calls
 `zero_grad`, and reads the value and gradient of every node, word by word. The
 harness (`src/autograd/tensor-backward-harness.bend`) calls the public

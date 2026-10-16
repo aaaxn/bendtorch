@@ -1,5 +1,7 @@
 import json
+import os
 import struct
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -13,9 +15,11 @@ from tools.common import (
     GateError,
     check_inventory,
     check_omissions,
+    cpus,
     omitted_inventory_by_rewrite,
     parallel,
     set_jobs,
+    share,
 )
 from tools.toolchain import F32_PROBE
 
@@ -176,6 +180,59 @@ class GateTests(unittest.TestCase):
         ):
             bits = struct.unpack("<I", struct.pack("<f", value))[0]
             self.assertEqual((native, javascript), (bits, bits), label)
+
+
+class DefaultTests(unittest.TestCase):
+    def defaults(self, allowed: list[int]) -> list[int]:
+        # The defaults are fixed on import, so a child narrows its affinity
+        # first, as taskset would, and then imports the module.
+        script = (
+            f"import os; os.sched_setaffinity(0, {allowed!r}); "
+            "from tools import common as c; "
+            "print(c.cpus(), c.FAMILY_WORKERS, c.CONTRACT_WORKERS, "
+            "c.CHECK_JOBS, c.TEST_JOBS, c.THREADS)"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return [int(word) for word in result.stdout.split()]
+
+    def test_cpus_are_the_affinity_mask(self):
+        self.assertEqual(cpus(), len(os.sched_getaffinity(0)))
+
+    def test_share_is_never_zero(self):
+        self.assertGreaterEqual(share(1 / 1000), 1)
+        self.assertEqual(share(1), cpus())
+
+    def test_defaults_follow_the_cpus_the_process_may_use(self):
+        allowed = sorted(os.sched_getaffinity(0))
+        # cpus, family workers, contract workers, check jobs, test jobs, threads
+        expected = {
+            1: [1, 1, 1, 1, 1, 1],
+            4: [4, 2, 1, 1, 1, 4],
+            16: [16, 9, 5, 2, 2, 8],
+            64: [64, 36, 20, 8, 8, 8],
+        }
+        for count, values in expected.items():
+            if count <= len(allowed):
+                with self.subTest(cpus=count):
+                    self.assertEqual(self.defaults(allowed[:count]), values)
+
+    def test_test_runner_rejects_zero_jobs(self):
+        result = subprocess.run(
+            [sys.executable, "-m", "tools.test", "--jobs", "0"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("--jobs needs at least one job", result.stderr)
 
 
 if __name__ == "__main__":

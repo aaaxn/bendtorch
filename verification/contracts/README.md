@@ -300,13 +300,19 @@ positive export.
 ## Run
 
 ```sh
-uv run --locked python -m verification.contracts.run --output <fresh directory> --workers 24
+uv run --locked python -m verification.contracts.run --output <fresh directory>
 uv run --locked python -m unittest verification/contracts/test_run.py -v
 ```
 
 The runner snapshots `src/`, `construction/`, `reads/`, `clone/`, `transforms/`, `from-values/` and `permute-values/`, builds the controls and
 mutant copies, runs source checks, `--verdict`, exports and checks the exported
-statements, then runs BendTT on the positive and mutated exports. It writes
+statements, then runs BendTT on the positive and mutated exports. The six
+sections (construction, reads, clone, transforms, from-values, permute-values)
+run at once; a section makes its false twins and mutant copies only once the
+section before it has made its own (it signals just before its first checks), so every copy holds
+the same files as in a one-section-at-a-time run. At most `--workers` commands run at once; the
+default is 5/16 of the CPUs the process may use (`os.sched_getaffinity`, which
+`taskset` narrows), 20 on 64 CPUs. It writes
 `summary.json` with the repository and Bend commits, every command, exit code
 and duration, and each rejection reason. It accepts a rejection only when the
 diagnostic names the intended proposition.

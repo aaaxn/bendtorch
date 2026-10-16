@@ -93,14 +93,22 @@ uv run --locked ty check
 uv run --locked python -m tools.check <suite> --output .evidence/<new directory>
 ```
 
-`tools.test` runs each test module in its own process, 8 at once; it runs the
-same tests as `python -m unittest discover -s tests`. `tools.check` runs up to
-8 gate commands at once (`--jobs`) and each native Bend program on 8 threads
-(`--threads`). Neither changes what a passing gate accepts, its observations
-or the order of the commands in `report.json`; timings, the thread count in
-the recorded commands and `identity.json`, and the artifacts a failing gate
-leaves behind do change. The families and the
-contracts run 14 commands at once (`--workers`). The checks above are independent, so run them
+`tools.test` runs each test module in its own process, several at once; it runs
+the same tests as `python -m unittest discover -s tests`. `tools.check` runs
+several gate commands at once (`--jobs`) and each native Bend program on up to
+8 threads (`--threads`). Neither changes what a passing gate accepts, its
+observations or the order of the commands in `report.json`; timings, the thread
+count in the recorded commands and `identity.json`, and the artifacts a failing
+gate leaves behind do change. The families and the contracts run several
+commands at once (`--workers`). Every default is a share of the CPUs the
+process may use (`os.sched_getaffinity`, which `taskset` narrows), sized so
+the checks above, the families and the contracts run together keep every CPU
+busy without running many more commands than CPUs:
+families 9/16, contracts 5/16, `tools.check` 1/8, `tools.test` 1/8 (36, 20, 8
+and 8 on 64 CPUs), never below 1. Each Bend checker or BendTT
+command keeps one CPU busy, and the native gate cases finish in milliseconds,
+so more native threads would not speed a gate up. Pass the flags to override.
+The checks above are independent, so run them
 at the same time, each with its own evidence directory. Gate runs refuse to
 overwrite an output directory. There is no CI: run the
 checks above locally, with the pinned Bend2, before you open a PR. Run the

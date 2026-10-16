@@ -1,8 +1,14 @@
 import importlib
 import shutil
+import subprocess
+import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
+
+from tools.common import GateError
 
 runner = importlib.import_module("verification.contracts.run")
 reads = importlib.import_module("verification.contracts.reads_controls")
@@ -477,6 +483,125 @@ class ExperimentRunnerTests(unittest.TestCase):
         )
         with self.assertRaises(runner.GateError):
             permutes.kernel_reason(witness, "grid_kept_witness")
+
+
+class SectionTests(unittest.TestCase):
+    def test_each_section_copies_after_the_one_before_has_made_its_copies(self):
+        events: list[tuple[str, int]] = []
+        lock = threading.Lock()
+
+        def note(kind: str, index: int) -> None:
+            with lock:
+                events.append((kind, index))
+
+        def parallel(jobs):
+            time.sleep(0.05)
+            return dict(jobs)
+
+        def section(index: int, delay: float, parallel, reasons) -> None:
+            note("copying", index)
+            time.sleep(0.02)
+            note("copied", index)
+            parallel([("check", index)])
+            note("checked", index)
+            time.sleep(delay)
+            reasons[f"r{index}"] = str(index)
+
+        reasons: dict[str, str] = {}
+        # The first section ends last, so its reasons arrive last.
+        delays = [0.3, 0, 0.1, 0]
+        sections = [
+            lambda parallel, into, index=index, delay=delay: section(
+                index, delay, parallel, into
+            )
+            for index, delay in enumerate(delays)
+        ]
+
+        runner.in_turn(sections, parallel, reasons)
+        self.assertEqual(list(reasons), ["r0", "r1", "r2", "r3"])
+        # The guarantee is about copies only: the section before may enter
+        # its checks after this one has started copying.
+        for index in range(1, len(delays)):
+            self.assertLess(
+                events.index(("copied", index - 1)),
+                events.index(("copying", index)),
+            )
+
+    def test_first_failure_in_section_order_is_raised_after_every_section(self):
+        finished = []
+
+        def fail(message: str, before_checks: bool):
+            def section(parallel, reasons):
+                if not before_checks:
+                    parallel([])
+                time.sleep(0.05)
+                raise GateError(message)
+
+            return section
+
+        def done(parallel, reasons):
+            parallel([])
+            finished.append(True)
+            reasons["done"] = "yes"
+
+        reasons: dict[str, str] = {}
+        with self.assertRaisesRegex(GateError, "^one$"):
+            runner.in_turn(
+                [fail("one", True), fail("two", False), done],
+                lambda jobs: {},
+                reasons,
+            )
+        self.assertEqual(finished, [True])
+        self.assertEqual(reasons, {"done": "yes"})
+
+    def test_earlier_section_failure_wins_when_a_later_one_fails_first(self):
+        order: list[str] = []
+        second_failed = threading.Event()
+
+        def first(parallel, reasons):
+            parallel([])
+            waited = second_failed.wait(5)
+            order.append(f"first after second: {waited}")
+            raise GateError("first")
+
+        def second(parallel, reasons):
+            order.append("second")
+            second_failed.set()
+            raise GateError("second")
+
+        def third(parallel, reasons):
+            parallel([])
+            order.append("third")
+
+        with self.assertRaisesRegex(GateError, "^first$"):
+            runner.in_turn([first, second, third], lambda jobs: {}, {})
+        self.assertEqual(sorted(order), ["first after second: True", "second", "third"])
+        self.assertLess(order.index("second"), order.index("first after second: True"))
+
+
+class RunnerTests(unittest.TestCase):
+    def test_workers_below_one_are_rejected_before_any_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "contracts"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "verification.contracts.run",
+                    "--output",
+                    str(output),
+                    "--workers",
+                    "0",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("--workers needs at least one worker", result.stderr)
+            self.assertFalse(output.exists())
 
 
 if __name__ == "__main__":

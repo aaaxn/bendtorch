@@ -10,7 +10,7 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 
-from tools.common import ROOT
+from tools.common import ROOT, TEST_JOBS, cpus
 
 
 def run_module(name: str) -> tuple[str, int, str]:
@@ -27,11 +27,17 @@ def run_module(name: str) -> tuple[str, int, str]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
-        "--jobs", type=int, default=8, help="Test modules to run at once (default 8)."
+        "--jobs",
+        type=int,
+        default=TEST_JOBS,
+        help=f"Test modules to run at once (default {TEST_JOBS} for the {cpus()} "
+        "CPUs this process may use).",
     )
     args = parser.parse_args()
+    if args.jobs < 1:
+        parser.error("--jobs needs at least one job")
     modules = sorted(path.name for path in (ROOT / "tests").glob("test_*.py"))
-    with ThreadPoolExecutor(max(1, args.jobs)) as pool:
+    with ThreadPoolExecutor(args.jobs) as pool:
         results = list(pool.map(run_module, modules))
     failed = []
     for name, code, output in results:
