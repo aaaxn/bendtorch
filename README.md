@@ -43,10 +43,12 @@ explicitly. No two tensors share mutable storage.
 **Proved.** The laws in `src/*/LAWS.bend` state what each public operation
 returns: the output shape, which input element each output element comes
 from, the order of each sum, the error code of many failures, and that a
-returned input is unchanged. Each law quantifies over every valid input, not a
-list of examples. The gates also change the code on purpose (for example, they
-add in the wrong order or write the wrong value) and check that the proofs
-then fail for the expected reason.
+returned input is unchanged. The general laws quantify over every input that
+meets their hypotheses, not over a list of examples; a few more laws, such as
+the `relu` and SGD learning-rate edge words, check fixed lists of edge cases.
+The gates also change the code on purpose (for example, they add in the wrong
+order or write the wrong value) and check that the proofs then fail for the
+expected reason.
 
 The laws treat F32 arithmetic as opaque: a law can say "this element is
 `F32.add` of these two words in this order", not that the result is correctly
@@ -76,23 +78,23 @@ signed zeros, subnormals, infinities and NaNs. The tensor gate runs 202 of
 these 213 cases natively and as generated JavaScript (the 161 successes, 34
 errors and the 7 shape-only cases); the Python decoder refuses 4 errors whose
 values fall outside the unsigned 32-bit range, and the 7 unsupported-dtype
-errors become programs that the Bend checker and BendTT must reject.
-Data-moving operations must match bit for bit, except for NaN payloads. Finite
-`add`, `sub` and `mul` results must be the correctly rounded word, which is
-also PyTorch's word. IEEE edge cases must give the exact word, or the same
-class (NaN or signed infinity) when the result is not finite. `sum` and
-`matmul` must be within a published rounding-error bound, and a zero result
-must have PyTorch's sign. The [numerical policy](oracle/tensor/README.md)
-defines these rules. Version 2 was frozen before any Bend result was compared
-with it; version 3 only adds checks, and a supplement adds 29 cases and 2
-errors. The cases were then used during development, so they are regression
-evidence, not held-out evidence. The autograd building blocks have their own
-native and JavaScript lanes, which compare each output word, bit for bit, with
-a Python reference that follows the same order. A frozen
-[PyTorch record](oracle/autograd/README.md) of those requests ties the
-references to PyTorch's `expand`, `sum_to_size` and `backward`: they agree
-word for word, apart from the listed rank, capacity, NaN-payload and
-`None`-gradient differences.
+errors become compile-negative programs that must fail Bend source checking
+under both `--check-only` and `--verdict`. Data-moving operations must match
+bit for bit, except for NaN payloads. Finite `add`, `sub` and `mul` results
+must be the correctly rounded word, which is also PyTorch's word. IEEE edge
+cases must give the exact word, or the same class (NaN or signed infinity) when
+the result is not finite. `sum` and `matmul` must be within a published
+rounding-error bound, and a zero result must have PyTorch's sign. The
+[numerical policy](oracle/tensor/README.md) defines these rules. Version 2 was
+frozen before any Bend result was compared with it; version 3 only adds checks,
+and a supplement adds 29 cases and 2 errors. The cases were then used during
+development, so they are regression evidence, not held-out evidence. The
+autograd building blocks have their own native and JavaScript lanes, which
+compare each output word, bit for bit, with a Python reference that follows the
+same order. A frozen [PyTorch record](oracle/autograd/README.md) of those
+requests ties the references to PyTorch's `expand`, `sum_to_size` and
+`backward`: they agree word for word, apart from the listed rank, capacity,
+NaN-payload and `None`-gradient differences.
 
 ## Limits
 
