@@ -19,9 +19,10 @@ import ./tensor-backward.bend as Backward
 # value of every contribution is the one its VJP value law states
 # (tensor-vjp-LAWS.bend). The order of the float sum is part of the statement.
 #
-# The reference shares Backward.vjp and Gradient.accumulate with the sweep,
-# each stated by its own laws, and nothing else: no slot list, no delivery,
-# no at_head bookkeeping.
+# The reference shares with the sweep only Backward.vjp and
+# Gradient.accumulate, each stated by its own laws, and the list helpers
+# Backward.prepend and Backward.unsets. It has no slot list that contributions
+# are pushed into, no delivery and no at_head bookkeeping.
 
 def Slots() -> Type:
   Result<&2, &1, Backward.Error, List<&1, Gradient.Slot>>

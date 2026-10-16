@@ -339,8 +339,9 @@ gradient of a node is its starting slot plus each contribution its consumers
 sent it, consumers newest first and each consumer's operands in order, and each
 contribution is the VJP at the consumer's own chained gradient, whose words the
 [VJP value laws](#vjp-values) state. The reference shares `Backward.vjp` and
-`Gradient.accumulate` with the engine and nothing else: it has no slot list,
-no `deliver`, no `bump` and no `at_head`.
+`Gradient.accumulate` with the engine, and the list helpers `prepend` and
+`unsets`, and nothing else: it has no slot list that contributions are pushed
+into, no `deliver`, no `bump` and no `at_head`.
 
 - `tensor_sweep_chain_rule`: for any entries, starting working gradients and
   count, when the sweep returns `Done{swept}`, `chained(entries, gradients,
