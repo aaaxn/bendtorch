@@ -162,9 +162,14 @@ RUNTIME_CONTROLS = {
     ),
     "softmax-gradient-swaps-operands": (
         "entropy_second(a, input, product_reduced(a, input, first), onehot, "
-        "Elementwise.binary(Elementwise.SoftmaxGrad{count}, g, lp))",
+        "Elementwise.binary(Elementwise.SoftmaxGrad{count, single}, g, lp))",
         "entropy_second(a, input, product_reduced(a, input, first), onehot, "
-        "Elementwise.binary(Elementwise.SoftmaxGrad{count}, lp, g))",
+        "Elementwise.binary(Elementwise.SoftmaxGrad{count, single}, lp, g))",
+    ),
+    "softmax-gradient-ignores-one-class": (
+        "entropy_first(a, input, Loss.count_f32(Loss.rows(input)), "
+        "Loss.one_class(input), lp,",
+        "entropy_first(a, input, Loss.count_f32(Loss.rows(input)), False{}, lp,",
     ),
     "reduction-folds-equal-shapes": (
         "delivered_as(target, shape, SumToSize.sum_to_size(g, shape))",
@@ -916,6 +921,15 @@ def losses() -> list[dict]:
             [leaf([0, 3], []), entropy(0, [])],
             1,
         ),
+        # No rows and more columns than a tensor holds cells: valid, since
+        # [0, columns] has no cell, so the loss is NaN and the gradient empty.
+        program_case(
+            "cross_entropy_empty_wide",
+            [leaf([0, 1048577], []), entropy(0, [])],
+            1,
+        ),
+        scaled_entropy("one_class", [2, 1], f(2.0, -7.5), [0, 0]),
+        scaled_entropy("two_class", [2, 2], f(0.0, 1.0, 3.0, -1.0), [1, 0]),
         # The logits also feed a sum, so their slot adds the sum's gradient
         # before the two cross_entropy contributions.
         program_case(
@@ -967,6 +981,24 @@ def losses() -> list[dict]:
             6,
         ),
     ]
+
+
+# The loss of logits times g = +0.0, -0.0, 1.0 and NaN, one backward each,
+# the slots emptied between them. With one class PyTorch's row sum of the
+# one-hot gradient is its one word, so at g = +0.0 the logits' gradient is
+# +0.0, where adding +0.0 to that row sum would give -0.0.
+def scaled_entropy(
+    name: str, shape: list[int], words: list[int], targets: list[int]
+) -> dict:
+    steps = [leaf(shape, words), entropy(0, targets)]
+    for scale in (0, NEGATIVE_ZERO, ONE, QUIET_NAN):
+        steps += [leaf([], [scale]), op("mul", 1, len(steps))]
+    count = len(steps)
+    for output in range(3, count, 2):
+        if output > 3:
+            steps.append(ZERO_GRAD)
+        steps += [run(output), *reads(count)]
+    return {"id": f"cross_entropy_{name}_scaled", "steps": steps}
 
 
 def loss_generated(count: int, seed: int) -> list[dict]:
