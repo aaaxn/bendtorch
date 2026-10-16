@@ -71,8 +71,16 @@ RUNTIME_CONTROLS = {
         "  product(Kept{}, Swapped{}, left, right)",
     ),
     "linear-drops-bias": (
-        "      add(tape, product, bias)",
-        "      (tape, Done{product})",
+        "unrecorded(add(tape, product, bias))",
+        "unrecorded((tape, Done{product}))",
+    ),
+    "linear-resolves-bias-after-recording": (
+        "linear_checked(x, w, bias, entries, Nat.is_lt(bias, count))",
+        "linear_checked(x, w, bias, entries, True{})",
+    ),
+    "linear-keeps-refused-product": (
+        "unrecorded(add(tape, product, bias))",
+        "add(tape, product, bias)",
     ),
     "linear-bias-gradient-sums-rows": (
         "src/autograd/reduce.bend",
@@ -244,10 +252,46 @@ def handwritten() -> list[dict]:
             [left, leaf([4, 2], f(*range(1, 9))), layer_bias, linear(0, 1, 2)],
             0,
         ),
+        # A refused linear leaves the tape as it was: the next node takes
+        # the id the product would have taken.
         program_case(
             "linear_bias_mismatch",
-            [left, layer, leaf([3], f(1.0, 2.0, 3.0)), linear(0, 1, 2)],
-            3,
+            [
+                left,
+                layer,
+                leaf([3], f(1.0, 2.0, 3.0)),
+                linear(0, 1, 2),
+                leaf([], f(2.0)),
+                op("mul", 3, 0),
+            ],
+            4,
+        ),
+        # The bias id is the incoming entry count, the id the product would
+        # take: it is unknown, not the product.
+        program_case(
+            "linear_bias_next",
+            [
+                left,
+                layer,
+                linear(0, 1, 2),
+                layer_bias,
+                linear(0, 1, 2),
+                op("sum", 4),
+            ],
+            5,
+        ),
+        program_case(
+            "linear_bias_unknown",
+            [
+                left,
+                layer,
+                layer_bias,
+                linear(0, 1, 9),
+                leaf([], f(2.0)),
+                op("mul", 3, 0),
+                op("sum", 4),
+            ],
+            5,
         ),
         program_case(
             "matmul_nt_rank",
@@ -921,9 +965,16 @@ def reference(case: dict) -> list[str]:
             record(name, step)
         elif name == "linear":
             # The product, then the bias added to it; only the sum's id is
-            # printed, and the product stays recorded if the sum is refused.
-            if record("matmul_nt", step, shown=False):
-                record("add", {"a": len(nodes) - 1, "b": step["bias"]})
+            # printed. Every id is checked against the incoming tape, and a
+            # refused sum drops the product, so a refusal leaves the tape as
+            # it was.
+            if any(step[key] >= len(nodes) for key in ("a", "b", "bias")):
+                lines.append(f"autograd:error:{UNKNOWN_NODE}")
+            elif record("matmul_nt", step, shown=False) and not record(
+                "add", {"a": len(nodes) - 1, "b": step["bias"]}
+            ):
+                nodes.pop()
+                slots.pop()
         elif name == "forge":
             node = dict(step["node"])
             node |= {"shape": step["shape"], "value": (step["shape"], step["words"])}

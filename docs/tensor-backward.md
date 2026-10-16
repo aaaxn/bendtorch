@@ -32,11 +32,14 @@ operation (`Elementwise.add`, `sub` or `mul` with broadcasting,
 the result. `linear(tape, x, w, b)` is a layer in PyTorch's layout, `W` of
 `[out, in]`: it records `matmul_nt(x, w)` and then `add` of that product and
 the bias `b` of `[out]`, and returns the sum's id; the product is the entry
-before it. If the bias does not broadcast, the product stays recorded and the
-call returns the `add` error. An id the tape does not hold
+before it. All three ids are checked against the tape the call receives, so a
+bias id equal to the number of entries is unknown, not the product that would
+take that id. If the bias does not broadcast, the product is dropped again.
+An id the tape does not hold
 gives `Fail{UnknownNode}` (103); an operation the tensor layer refuses gives
 its error: `IncompatibleBroadcast` (6), a matmul rank mismatch (105) or inner
-dimension mismatch (106). A refused recording hands the tape back unchanged.
+dimension mismatch (106). A refused recording, `linear` included, hands the
+tape back unchanged.
 
 Every call hands the tape back, because tensors have one owner.
 
@@ -163,7 +166,7 @@ These laws state the engine's structure and the `Sum` VJP's values. The
 `MatmulNT` and `Relu` VJPs' values.
 
 The family controls in [`verification/families/tensor_vjp/`](../verification/families/README.md#tensor-vjp)
-check the VJP value laws: literal consumers, seven false twins and fourteen
+check the VJP value laws: five literal consumers, seven false twins and fourteen
 mutants of `tensor-backward.bend`, each rejected by the source checker and by
 BendTT. The autograd gate applies ten proof controls and two error controls to a copy
 of the sources, and the proofs reject each one: `NegateLeft` keeping the sign
@@ -300,7 +303,7 @@ operand's dimensions.
 
 ## Runtime lanes
 
-`tools/autograd_tensor_backward.py` runs 127 scripts on native Bend CPU
+`tools/autograd_tensor_backward.py` runs 129 scripts on native Bend CPU
 (`--threads N --gpu off`, N from `tools.check --threads`, default 8, or the CPU count if lower) and on the generated JavaScript. Each script records
 leaves and operations, runs `backward` on chosen outputs, sometimes calls
 `zero_grad`, and reads the value and gradient of every node, word by word. The
@@ -308,7 +311,7 @@ harness (`src/autograd/tensor-backward-harness.bend`) calls the public
 functions; `ForgeAdd` and `ForgeSum` push an entry without checks so the gate
 can build tapes with dangling operands.
 
-- 55 handwritten scripts: broadcasting along rows, columns, a `[1, 3]` operand,
+- 57 handwritten scripts: broadcasting along rows, columns, a `[1, 3]` operand,
   a rank-0 operand and rank 4; `x*x`, `x+x` and `x-x`; matmul, a square
   `A @ A` and a linear layer `x @ W + b`; a non-scalar output seeded with
   ones; the unused-node graph with each output selected; repeated backward on
@@ -317,10 +320,12 @@ can build tapes with dangling operands.
   an empty `[0, 3]` operand; NaN, infinity, overflow and subnormals; unknown
   operands and outputs, incompatible shapes, matmul rank and inner errors, an
   invalid leaf; and three forged tapes with an operand that is the node
-  itself, a newer node or a missing node. Eight of them run `linear` in
+  itself, a newer node or a missing node. Ten of them run `linear` in
   PyTorch's layout: one layer with a scalar and a seeded output, words that
-  round, two layers in a row, `x @ x^T`, and an inner mismatch, a bias that
-  does not broadcast and a rank-0 input. Seven run `relu`: at the twenty F32
+  round, two layers in a row, `x @ x^T`, an inner mismatch, a rank-0 input,
+  and three refusals after which the next node takes the id the product would
+  have taken: a bias that does not broadcast, a bias id equal to the number
+  of entries, and a larger unknown bias id. Seven run `relu`: at the twenty F32
   edge words (both zeros, denormals, infinities, signaling, quiet and
   all-ones NaNs of both signs) times weights that reach its gradient; a seeded
   output; `relu(relu(x)) * x`; a rank-0 `-0.0`; an empty `[0, 3]` input;
@@ -338,7 +343,7 @@ slots the engine builds on do not specify NaN payloads. The JavaScript lane
 prints every NaN as `0x7FC00000`, without its sign or payload, so only the
 native lane and the laws check the words `relu` gives at a negative NaN.
 
-The subgate also builds fifteen runtime controls from a mutated copy of the
+The subgate also builds seventeen runtime controls from a mutated copy of the
 sources and requires the JavaScript lane to reject each one: a seed at the
 newest node, a `Mul` VJP with swapped operands, a `Sub` VJP without the sign,
 a `Matmul` VJP without the transpose, a merge that overwrites the slot, a
@@ -346,9 +351,11 @@ reduction that folds when the shapes agree (which turns `-0.0` into `+0.0`),
 `matmul_nt` reading `W` untransposed, a `MatmulNT` VJP whose `matmul_tn`
 swaps its operands, `matmul_tn` reading `g` untransposed, a `linear` that
 drops the bias, a `reduce_to` that walks the wrong stride, so the bias
-gradient sums rows instead of columns, a `relu` that passes negatives, a
-`relu` that zeroes `-0.0`, a `relu` gradient that passes `g` at zero, and a
-`Relu` VJP that reads `g` as the input.
+gradient sums rows instead of columns, a `linear` that checks the bias id
+after it records the product, a `linear` that keeps the product when the
+sum is refused, a `relu` that passes negatives, a `relu` that zeroes
+`-0.0`, a `relu` gradient that passes `g` at zero, and a `Relu` VJP that
+reads `g` as the input.
 
 ## PyTorch record
 
@@ -359,16 +366,16 @@ retain_graph=True)`, `retain_grad()` on every non-leaf) and writes
 `tests/test_autograd_tensor_backward.py` compares it with the Python
 reference. Bend never calls PyTorch.
 
-110 of the 127 scripts agree with PyTorch line for line: every id, shape, value,
+110 of the 129 scripts agree with PyTorch line for line: every id, shape, value,
 gradient word and `None`, including the arrival-order and fold-order scripts,
 `-0.0`, infinities and subnormals, and every `relu` script but the two below,
-with PyTorch's `-0.0`, NaN and zero-gradient words. The other 17 differ as
+with PyTorch's `-0.0`, NaN and zero-gradient words. The other 19 differ as
 listed, and every
 gradient PyTorch can represent in them agrees:
 
 | Scripts | bendtorch | PyTorch |
 | --- | --- | --- |
-| `unknown_operands`, `unknown_output`, `unknown_output_empty`, `relu_unknown_operand` | `UnknownNode` (103) for each unknown id | `IndexError` from the Python list that the replay uses as a tape |
+| `unknown_operands`, `unknown_output`, `unknown_output_empty`, `linear_bias_next`, `linear_bias_unknown`, `relu_unknown_operand` | `UnknownNode` (103) for each unknown id | `IndexError` from the Python list that the replay uses as a tape |
 | `incompatible_shapes`, `invalid_leaf`, `linear_inner_mismatch`, `linear_bias_mismatch`, `matmul_nt_rank` | the tensor layer's error code (6, 105, 106, 10) | `RuntimeError` |
 | `dangling_self`, `dangling_newer`, `dangling_missing` | `DanglingOperand` (104) | not representable |
 | `specials`, `relu_edges` | the value of `NaN * NaN` is NaN | NaN with another payload |

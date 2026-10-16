@@ -26,7 +26,7 @@ from tools.autograd_tensor_backward import (
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "d3a5c199b796133243a53b2f277b43d65988ac62d27d497a2f3c3809c3c9452e"
+FIXTURE_SHA256 = "9d8c14e30230b5ea6712e5dba57c3a8cf3cedf4d69fcdfdfb9c26e177df051c1"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
@@ -39,6 +39,8 @@ REJECTIONS = {
     "invalid_leaf",
     "linear_inner_mismatch",
     "linear_bias_mismatch",
+    "linear_bias_next",
+    "linear_bias_unknown",
     "matmul_nt_rank",
     "relu_unknown_operand",
 }
@@ -186,6 +188,30 @@ class TensorBackwardReferenceTests(unittest.TestCase):
         # row 1 is [6 + 0.25 + 1 + 0.5, 12 + 0.125 + 3 - 1].
         self.assertEqual(tensors(lines, "value")[4], values(0.0, 0.5, 7.75, 14.125))
 
+    def test_a_refused_linear_leaves_the_tape_as_it_was(self):
+        x = leaf([1, 1], values(2.0))
+        weight = leaf([1, 1], values(3.0))
+        bias = {"op": "linear", "a": 0, "b": 1, "bias": 2}
+        # bias 2 is the id the product would take: it is unknown.
+        lines = reference(case([x, weight, bias, leaf([], values(5.0))]))
+        self.assertEqual(
+            lines,
+            [
+                "autograd:id:0",
+                "autograd:id:1",
+                f"autograd:error:{UNKNOWN_NODE}",
+                "autograd:id:2",
+            ],
+        )
+        # A bias that does not broadcast to the [2, 3] product drops it.
+        column = leaf([2, 1], values(2.0, 4.0))
+        rows = leaf([3, 1], values(3.0, 5.0, 7.0))
+        short = leaf([2], values(1.0, 2.0))
+        steps = [column, rows, short, bias, leaf([], values(5.0))]
+        self.assertEqual(
+            reference(case(steps))[3:], ["autograd:error:6", "autograd:id:3"]
+        )
+
     def test_matmul_errors_are_typed(self):
         lines = reference(case([GRID, ROW, op("matmul", 0, 1), op("matmul", 0, 0)]))
         self.assertEqual(
@@ -327,7 +353,7 @@ class GateRegistrationTests(unittest.TestCase):
             self.assertEqual((ROOT / path).read_text().count(original), 1)
 
     def test_runtime_controls_apply_once(self):
-        self.assertEqual(len(RUNTIME_CONTROLS), 15)
+        self.assertEqual(len(RUNTIME_CONTROLS), 17)
         for control in RUNTIME_CONTROLS.values():
             path, original, mutated = (
                 control

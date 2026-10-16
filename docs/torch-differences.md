@@ -95,7 +95,7 @@ The tensor `backward` in `src/autograd/tensor-backward.bend` agrees with
 PyTorch's gradients word for word on every script of
 `oracle/autograd/fixtures/tensor-backward-torch.json` that PyTorch can
 represent, including arrival order, broadcast reductions, `-0.0`, infinities
-and subnormals. 110 of the 127 scripts agree line for line, the five `linear`
+and subnormals. 110 of the 129 scripts agree line for line, the five `linear`
 scripts that PyTorch accepts among them, and every `relu` script but
 `relu_edges` (a NaN payload of `NaN * NaN`) and `relu_13` (a one-term matmul):
 `relu` gives PyTorch's words at `-0.0` (kept), NaN (kept, with its payload),
@@ -105,7 +105,7 @@ at a NaN `x`. The differences:
 | Behavior | bendtorch | PyTorch |
 | --- | --- | --- |
 | Seed | Ones of the output's shape, for any output | `backward()` needs a scalar output; the replay passes `torch.ones_like(output)` |
-| Node id the tape does not hold | `UnknownNode` (103) | `IndexError` from the replay's Python list (4 scripts) |
+| Node id the tape does not hold | `UnknownNode` (103) | `IndexError` from the replay's Python list (6 scripts) |
 | Shapes the operation refuses | The tensor layer's error code | `RuntimeError` (5 scripts) |
 | Operand that is the node itself, a newer node or a missing node | `DanglingOperand` (104) for a forged tape | Cannot be built (3 scripts) |
 | `NaN * NaN` | NaN | NaN with another payload (2 scripts) |
