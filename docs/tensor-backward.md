@@ -443,7 +443,7 @@ gradient PyTorch can represent in them agrees:
 | `dangling_self`, `dangling_newer`, `dangling_missing` | `DanglingOperand` (104) | not representable |
 | `specials`, `relu_edges`, `relu_nan_gradient` | the value of `NaN * NaN` is NaN | NaN with another payload |
 | `mse_empty`, `cross_entropy_infinities`, `cross_entropy_nan`, `cross_entropy_empty`, `cross_entropy_empty_wide`, `cross_entropy_one_class_scaled`, `cross_entropy_two_class_scaled` | NaN losses and gradients | NaN with another payload |
-| `cross_entropy`, `cross_entropy_scaled` and 12 generated `loss_` scripts | 9 loss words up to 3 ulp, 20 gradient words up to 2 ulp and 4 gradients of a scale (a loss word) up to 2 ulp from PyTorch's | PyTorch's cascade sums and vectorized `exp` ([losses](losses.md#against-pytorch)) |
+| `cross_entropy`, `cross_entropy_scaled` and 12 generated `loss_` scripts | 9 loss words up to 3 ulp, 21 gradient words up to 2 ulp and 3 gradients of a scale (a loss word) up to 2 ulp from PyTorch's | PyTorch's cascade sums and vectorized `exp` ([losses](losses.md#against-pytorch)) |
 | `rounding_09` | the forward `sum` of six words adds them in ascending order | PyTorch's vectorized sum gives another word |
 | `rounding_14`, `relu_13` | a matmul with inner dimension 1 whose product is `-0.0` gives `+0.0`, because the ordered dot starts from `+0.0` | `-0.0` |
 
