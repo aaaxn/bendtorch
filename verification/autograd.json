@@ -92,6 +92,16 @@
     "tensor_2d_vjp_2d_LAWS.tensor_matmul_nt_vjp_values",
     "tensor_2d_vjp_2d_LAWS.nt_reads_transpose",
     "tensor_2d_vjp_2d_LAWS.tn_reads_transpose",
-    "tensor_2d_vjp_2d_LAWS.tensor_relu_vjp_values"
+    "tensor_2d_vjp_2d_LAWS.tensor_relu_vjp_values",
+    "sgd_2d_LAWS.sgd_descend_scalar",
+    "sgd_2d_LAWS.sgd_empty_slot_kept",
+    "sgd_2d_LAWS.sgd_step_values",
+    "sgd_2d_LAWS.sgd_update_reaches_target",
+    "sgd_2d_LAWS.sgd_no_params",
+    "sgd_2d_LAWS.sgd_params_in_order",
+    "sgd_2d_LAWS.sgd_refusal_reads_target",
+    "sgd_2d_LAWS.sgd_refusal_unknown",
+    "sgd_2d_LAWS.sgd_step_refused",
+    "sgd_2d_LAWS.sgd_step_accepted"
   ]
 }

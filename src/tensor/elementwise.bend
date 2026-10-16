@@ -16,6 +16,7 @@ type Operation is Data:
   NegateLeft{}
   ReluLeft{}
   ReluBackward{}
+  Descend{lr: F32}
 
 # The IEEE 754 bits of an F32, as a U32.
 def bits(x: F32) -> U32:
@@ -69,6 +70,8 @@ def scalar(operation: Operation, left: F32, right: F32) -> F32:
       relu(left)
     case ReluBackward{}:
       relu_backward(left, right)
+    case Descend{lr}:
+      F32.sub(left, F32.mul(lr, right))
 
 def flat_input_indices(+plan: Shape.BroadcastPlan,
   result: Result<&2, &2, Shape.Error, Shape.FlatIndex<Shape.output_shape(plan)>>) -> Result<&2, &1, Core.Error, U32 & U32>:

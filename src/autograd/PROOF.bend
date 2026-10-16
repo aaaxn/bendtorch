@@ -10,3 +10,4 @@ import ./gradient-PROOF.bend as Gradient
 import ./backward-PROOF.bend as Backward
 import ./tensor-backward-PROOF.bend as TensorBackward
 import ./tensor-vjp-PROOF.bend as TensorVjp
+import ./sgd-PROOF.bend as Sgd
