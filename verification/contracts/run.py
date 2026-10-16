@@ -5,8 +5,11 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 import time
+from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from pathlib import Path
 
 from tools.common import CONTRACT_WORKERS, GateError, check_sources, cpus
@@ -910,6 +913,202 @@ def permute_values(snapshot, output, bend, kernel, run, parallel, reasons) -> No
         )
 
 
+def construction(snapshot, output, bend, kernel, run, parallel, reasons) -> None:
+    experiment = snapshot / EXPERIMENT
+    controls = (experiment / "controls.bend").read_text()
+    for witness in CASE_NAMES:
+        (experiment / f"false-{witness}.bend").write_text(false_twin(controls, witness))
+    wrong_fill = output / "wrong-fill"
+    mutation_copy(snapshot, wrong_fill)
+    failing = output / "unjustified-failure"
+    failure_copy(snapshot, failing)
+    contract = "src/tensor/construction-contract-PROOF.bend"
+    texts = parallel(
+        [
+            (
+                "source-controls",
+                [*bend, experiment / "controls.bend", "--check-only"],
+                0,
+            ),
+            (
+                "source-metadata",
+                [*bend, experiment / "metadata-control.bend", "--check-only"],
+                0,
+            ),
+            (
+                "source-wrong-fill-metadata",
+                [
+                    *bend,
+                    wrong_fill / EXPERIMENT / "metadata-control.bend",
+                    "--check-only",
+                ],
+                0,
+            ),
+            (
+                "source-wrong-fill",
+                [*bend, wrong_fill / contract, "--check-only"],
+                1,
+            ),
+            (
+                "source-unjustified-failure",
+                [*bend, failing / contract, "--check-only"],
+                1,
+            ),
+            *(
+                (
+                    f"source-false-{witness}",
+                    [*bend, experiment / f"false-{witness}.bend", "--check-only"],
+                    1,
+                )
+                for witness in CASE_NAMES
+            ),
+        ]
+    )
+    for witness in CASE_NAMES:
+        reasons[f"source-false-{witness}"] = source_value_reason(
+            texts[f"source-false-{witness}"], witness
+        )
+    for label in ("wrong-fill", "unjustified-failure"):
+        reasons[f"source-{label}"] = source_value_reason(
+            texts[f"source-{label}"], label
+        )
+
+    positive = output / "controls.bendtt"
+    metadata = output / "wrong-fill-metadata.bendtt"
+    metadata_entry = wrong_fill / EXPERIMENT / "metadata-control.bend"
+    parallel(
+        [
+            (
+                "verdict-controls",
+                [*bend, experiment / "controls.bend", "--verdict"],
+                0,
+            ),
+            (
+                "verdict-wrong-fill-metadata",
+                [*bend, metadata_entry, "--verdict"],
+                0,
+            ),
+            (
+                "export-controls",
+                [*bend, experiment / "controls.bend", "-o", positive],
+                0,
+            ),
+            (
+                "export-wrong-fill-metadata",
+                [*bend, metadata_entry, "-o", metadata],
+                0,
+            ),
+        ]
+    )
+    text = positive.read_text()
+    (output / "export-statements.txt").write_text(
+        "\n\n".join(check_export(text).values()) + "\n"
+    )
+    declarations = catalog(text)
+    artifacts = {}
+    for witness in CASE_NAMES:
+        header, body = declarations[witness]
+        artifacts[witness] = replace_declaration(
+            text,
+            witness,
+            header.replace("== expected_value", "== wrong_value"),
+            body,
+        )
+    zero = declarations[declarations["wrong_fill_value"][1].strip()][1].strip()
+    wrong = text
+    for suffix in ("_2f_core.new", "_2f_allocation_2d_PROOF.core_new"):
+        names = [name for name in declarations if name.endswith(suffix)]
+        if len(names) != 1:
+            raise GateError(f"Wrong-fill export target is ambiguous: {suffix}")
+        header, body = declarations[names[0]]
+        wrong = replace_declaration(wrong, names[0], header, fill_body(body, zero))
+    artifacts["wrong-fill"] = wrong
+    names = [name for name in declarations if name.endswith("_2f_core.new_result")]
+    if len(names) != 1:
+        raise GateError("Failure export target is ambiguous: core.new_result")
+    header, body = declarations[names[0]]
+    attach = re.search(r"\(\S+_2f_core\.attach \+x0 x1\)", body)
+    mismatch = re.search(r"\(\.\S+_2f_core\.StorageError, \(x1, \(\)\)\)", body)
+    if attach is None or mismatch is None or body.count(attach.group(0)) != 1:
+        raise GateError("Inspect exported new_result before the failure mutation")
+    failure = (
+        "(.Fail, ((."
+        + mismatch.group(0)[2:]
+        .split(",", 1)[0]
+        .replace("StorageError", "StorageLengthMismatch")
+        + ", ()), ()))"
+    )
+    artifacts["unjustified-failure"] = replace_declaration(
+        text, names[0], header, body.replace(attach.group(0), failure)
+    )
+    for label, artifact in artifacts.items():
+        (output / f"false-{label}.bendtt").write_text(artifact)
+    texts = parallel(
+        [
+            ("kernel-controls", [kernel, positive], 0),
+            ("kernel-wrong-fill-metadata", [kernel, metadata], 0),
+            *(
+                (
+                    f"kernel-false-{label}",
+                    [kernel, output / f"false-{label}.bendtt"],
+                    1,
+                )
+                for label in artifacts
+            ),
+        ]
+    )
+    for label in artifacts:
+        reasons[f"kernel-false-{label}"] = kernel_value_reason(
+            texts[f"kernel-false-{label}"], label
+        )
+
+
+def in_turn(sections: Sequence[Callable], parallel: Callable, reasons: dict) -> None:
+    """Run every section at once, each as `section(parallel, its_reasons)`.
+
+    A section starts once the section before it has started its first checks.
+    Every section makes its false twins and mutant copies before its first
+    `parallel` call, so every copy of the snapshot holds the same files as
+    when the sections ran one after another. Each section fills its own
+    reasons; they merge into `reasons` in section order, so summary.json
+    lists them in the order a one-section-at-a-time run did. Every section
+    runs to the end, and the first failure in section order is raised.
+    """
+    copied = [threading.Event() for _ in sections]
+    found: list[dict] = [{} for _ in sections]
+
+    def start(index: int) -> None:
+        def started(jobs):
+            copied[index].set()
+            return parallel(jobs)
+
+        if index:
+            copied[index - 1].wait()
+        try:
+            sections[index](started, found[index])
+        finally:
+            copied[index].set()
+
+    try:
+        with ThreadPoolExecutor(len(sections)) as pool:
+            futures = [pool.submit(start, index) for index in range(len(sections))]
+        for future in futures:
+            future.result()
+    finally:
+        for part in found:
+            reasons.update(part)
+
+
+SECTIONS = (
+    construction,
+    read_write,
+    clone_metadata,
+    transform,
+    from_values,
+    permute_values,
+)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
@@ -964,17 +1163,21 @@ def main() -> None:
         records.sort(key=lambda row: row["name"])
         (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
 
+    slots = threading.BoundedSemaphore(args.workers)
+
     def run(name: str, command: list, expected_code: int) -> str:
-        start = time.monotonic()
-        result = subprocess.run(
-            command,
-            cwd=ROOT,
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=1500,
-            check=False,
-        )
+        with slots:
+            start = time.monotonic()
+            result = subprocess.run(
+                command,
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=1500,
+                check=False,
+            )
+            seconds = time.monotonic() - start
         text = result.stdout + result.stderr
         (output / f"{name}.out").write_text(text)
         records.append(
@@ -983,7 +1186,7 @@ def main() -> None:
                 "command": [str(part) for part in command],
                 "exit_code": result.returncode,
                 "expected_code": expected_code,
-                "seconds": round(time.monotonic() - start, 1),
+                "seconds": round(seconds, 1),
             }
         )
         if result.returncode != expected_code:
@@ -1007,19 +1210,13 @@ def main() -> None:
     shutil.copytree(ROOT / transforms.EXPERIMENT, snapshot / transforms.EXPERIMENT)
     shutil.copytree(ROOT / values.EXPERIMENT, snapshot / values.EXPERIMENT)
     shutil.copytree(ROOT / permutes.EXPERIMENT, snapshot / permutes.EXPERIMENT)
-    experiment = snapshot / EXPERIMENT
-    controls = (experiment / "controls.bend").read_text()
-    for witness in CASE_NAMES:
-        (experiment / f"false-{witness}.bend").write_text(false_twin(controls, witness))
-    wrong_fill = output / "wrong-fill"
-    mutation_copy(snapshot, wrong_fill)
-    failing = output / "unjustified-failure"
-    failure_copy(snapshot, failing)
     reasons: dict[str, str] = {}
     summary["rejection_reasons"] = reasons
 
+    # Every command holds one of `workers` slots, so the run never has more
+    # than `workers` commands going, however many sections run at once.
     def parallel(jobs: list[tuple[str, list, int]]) -> dict[str, str]:
-        with ThreadPoolExecutor(args.workers) as pool:
+        with ThreadPoolExecutor(len(jobs)) as pool:
             return dict(
                 zip(
                     (name for name, _, _ in jobs),
@@ -1029,150 +1226,14 @@ def main() -> None:
             )
 
     try:
-        contract = "src/tensor/construction-contract-PROOF.bend"
-        texts = parallel(
+        in_turn(
             [
-                (
-                    "source-controls",
-                    [*bend, experiment / "controls.bend", "--check-only"],
-                    0,
-                ),
-                (
-                    "source-metadata",
-                    [*bend, experiment / "metadata-control.bend", "--check-only"],
-                    0,
-                ),
-                (
-                    "source-wrong-fill-metadata",
-                    [
-                        *bend,
-                        wrong_fill / EXPERIMENT / "metadata-control.bend",
-                        "--check-only",
-                    ],
-                    0,
-                ),
-                (
-                    "source-wrong-fill",
-                    [*bend, wrong_fill / contract, "--check-only"],
-                    1,
-                ),
-                (
-                    "source-unjustified-failure",
-                    [*bend, failing / contract, "--check-only"],
-                    1,
-                ),
-                *(
-                    (
-                        f"source-false-{witness}",
-                        [*bend, experiment / f"false-{witness}.bend", "--check-only"],
-                        1,
-                    )
-                    for witness in CASE_NAMES
-                ),
-            ]
+                partial(section, snapshot, output, bend, kernel, run)
+                for section in SECTIONS
+            ],
+            parallel,
+            reasons,
         )
-        for witness in CASE_NAMES:
-            reasons[f"source-false-{witness}"] = source_value_reason(
-                texts[f"source-false-{witness}"], witness
-            )
-        for label in ("wrong-fill", "unjustified-failure"):
-            reasons[f"source-{label}"] = source_value_reason(
-                texts[f"source-{label}"], label
-            )
-
-        positive = output / "controls.bendtt"
-        metadata = output / "wrong-fill-metadata.bendtt"
-        metadata_entry = wrong_fill / EXPERIMENT / "metadata-control.bend"
-        parallel(
-            [
-                (
-                    "verdict-controls",
-                    [*bend, experiment / "controls.bend", "--verdict"],
-                    0,
-                ),
-                (
-                    "verdict-wrong-fill-metadata",
-                    [*bend, metadata_entry, "--verdict"],
-                    0,
-                ),
-                (
-                    "export-controls",
-                    [*bend, experiment / "controls.bend", "-o", positive],
-                    0,
-                ),
-                (
-                    "export-wrong-fill-metadata",
-                    [*bend, metadata_entry, "-o", metadata],
-                    0,
-                ),
-            ]
-        )
-        text = positive.read_text()
-        (output / "export-statements.txt").write_text(
-            "\n\n".join(check_export(text).values()) + "\n"
-        )
-        declarations = catalog(text)
-        artifacts = {}
-        for witness in CASE_NAMES:
-            header, body = declarations[witness]
-            artifacts[witness] = replace_declaration(
-                text,
-                witness,
-                header.replace("== expected_value", "== wrong_value"),
-                body,
-            )
-        zero = declarations[declarations["wrong_fill_value"][1].strip()][1].strip()
-        wrong = text
-        for suffix in ("_2f_core.new", "_2f_allocation_2d_PROOF.core_new"):
-            names = [name for name in declarations if name.endswith(suffix)]
-            if len(names) != 1:
-                raise GateError(f"Wrong-fill export target is ambiguous: {suffix}")
-            header, body = declarations[names[0]]
-            wrong = replace_declaration(wrong, names[0], header, fill_body(body, zero))
-        artifacts["wrong-fill"] = wrong
-        names = [name for name in declarations if name.endswith("_2f_core.new_result")]
-        if len(names) != 1:
-            raise GateError("Failure export target is ambiguous: core.new_result")
-        header, body = declarations[names[0]]
-        attach = re.search(r"\(\S+_2f_core\.attach \+x0 x1\)", body)
-        mismatch = re.search(r"\(\.\S+_2f_core\.StorageError, \(x1, \(\)\)\)", body)
-        if attach is None or mismatch is None or body.count(attach.group(0)) != 1:
-            raise GateError("Inspect exported new_result before the failure mutation")
-        failure = (
-            "(.Fail, ((."
-            + mismatch.group(0)[2:]
-            .split(",", 1)[0]
-            .replace("StorageError", "StorageLengthMismatch")
-            + ", ()), ()))"
-        )
-        artifacts["unjustified-failure"] = replace_declaration(
-            text, names[0], header, body.replace(attach.group(0), failure)
-        )
-        for label, artifact in artifacts.items():
-            (output / f"false-{label}.bendtt").write_text(artifact)
-        texts = parallel(
-            [
-                ("kernel-controls", [kernel, positive], 0),
-                ("kernel-wrong-fill-metadata", [kernel, metadata], 0),
-                *(
-                    (
-                        f"kernel-false-{label}",
-                        [kernel, output / f"false-{label}.bendtt"],
-                        1,
-                    )
-                    for label in artifacts
-                ),
-            ]
-        )
-        for label in artifacts:
-            reasons[f"kernel-false-{label}"] = kernel_value_reason(
-                texts[f"kernel-false-{label}"], label
-            )
-        read_write(snapshot, output, bend, kernel, run, parallel, reasons)
-        clone_metadata(snapshot, output, bend, kernel, run, parallel, reasons)
-        transform(snapshot, output, bend, kernel, run, parallel, reasons)
-        from_values(snapshot, output, bend, kernel, run, parallel, reasons)
-        permute_values(snapshot, output, bend, kernel, run, parallel, reasons)
         summary["passed"] = True
     except (GateError, subprocess.TimeoutExpired) as error:
         summary["passed"] = False

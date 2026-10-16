@@ -3,8 +3,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
+
+from tools.common import GateError
 
 runner = importlib.import_module("verification.contracts.run")
 reads = importlib.import_module("verification.contracts.reads_controls")
@@ -479,6 +483,76 @@ class ExperimentRunnerTests(unittest.TestCase):
         )
         with self.assertRaises(runner.GateError):
             permutes.kernel_reason(witness, "grid_kept_witness")
+
+
+class SectionTests(unittest.TestCase):
+    def test_each_section_copies_after_the_one_before_starts_its_checks(self):
+        events: list[tuple[str, int]] = []
+        lock = threading.Lock()
+
+        def note(kind: str, index: int) -> None:
+            with lock:
+                events.append((kind, index))
+
+        def parallel(jobs):
+            time.sleep(0.05)
+            return dict(jobs)
+
+        def section(index: int, delay: float, parallel, reasons) -> None:
+            note("copy", index)
+            parallel([("check", index)])
+            note("checked", index)
+            time.sleep(delay)
+            reasons[f"r{index}"] = str(index)
+
+        reasons: dict[str, str] = {}
+        # The first section ends last, so its reasons arrive last.
+        delays = [0.3, 0, 0.1, 0]
+        sections = [
+            lambda parallel, into, index=index, delay=delay: section(
+                index, delay, parallel, into
+            )
+            for index, delay in enumerate(delays)
+        ]
+
+        def recording(jobs):
+            for _, index in jobs:
+                note("start", index)
+            return parallel(jobs)
+
+        runner.in_turn(sections, recording, reasons)
+        self.assertEqual(list(reasons), ["r0", "r1", "r2", "r3"])
+        for index in range(1, len(delays)):
+            self.assertLess(
+                events.index(("start", index - 1)), events.index(("copy", index))
+            )
+
+    def test_first_failure_in_section_order_is_raised_after_every_section(self):
+        finished = []
+
+        def fail(message: str, before_checks: bool):
+            def section(parallel, reasons):
+                if not before_checks:
+                    parallel([])
+                time.sleep(0.05)
+                raise GateError(message)
+
+            return section
+
+        def done(parallel, reasons):
+            parallel([])
+            finished.append(True)
+            reasons["done"] = "yes"
+
+        reasons: dict[str, str] = {}
+        with self.assertRaisesRegex(GateError, "^one$"):
+            runner.in_turn(
+                [fail("one", True), fail("two", False), done],
+                lambda jobs: {},
+                reasons,
+            )
+        self.assertEqual(finished, [True])
+        self.assertEqual(reasons, {"done": "yes"})
 
 
 class RunnerTests(unittest.TestCase):
