@@ -35,6 +35,7 @@ from tools.autograd_tensor_backward import (
     same_row,
     verify,
 )
+from tools.autograd_tensor_bound import bounded_reference, compare
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
@@ -90,18 +91,32 @@ NAN_PAYLOAD = {
     "sgd_edges",
     "sgd_rate_nan",
 }
-# The forward value differs, not the backward: rounding_09 sums six words in
-# ascending order where PyTorch's vectorized sum takes another order, and
-# rounding_14 has a matmul with inner dimension 1 whose only product is -0.0:
-# the ordered dot adds it to +0.0 and gives +0.0, PyTorch's gemm keeps -0.0.
-# relu_13 has the same inner-dimension-1 matmul, whose products 0.5 * -1e-45
-# and 0.5 * -0.0 are -0.0.
-FORWARD_ORDER = {"rounding_09", "rounding_14", "relu_13"}
-# Loss words in the last bits: PyTorch sums the nll terms and the squares of
-# mse_loss in a cascade where the tape adds left to right, and its
-# log_softmax backward uses a vectorized exp. For each script, the line index
-# of every word that differs and the pair (PyTorch's word, the reference's
-# word); every other line must be exact. docs/losses.md has the distances.
+# Scripts whose words differ from PyTorch's only within the rounding-error
+# bound (AGENTS.md, numeric policy, level 2; tools/autograd_tensor_bound.py):
+# rounding_09 sums six words in ascending order where PyTorch's vectorized sum
+# takes another order; rounding_14 and relu_13 have a matmul with inner
+# dimension 1 whose only product is -0.0 or rounds to it (0.5 * -1e-45), which
+# the ordered dot adds to +0.0 and PyTorch's gemm keeps; the mse_loss scripts
+# add the squares, and the broadcast target's gradient, left to right where
+# PyTorch adds them in a cascade.
+WITHIN_BOUND = {
+    "rounding_09",
+    "rounding_14",
+    "relu_13",
+    "loss_03",
+    "loss_05",
+    "loss_07",
+    "loss_09",
+    "loss_11",
+    "loss_15",
+}
+# Words built on exp or log, which no bound covers: PyTorch's log_softmax
+# forward and backward use a vectorized exp whose error is its own, and its
+# nll terms are summed in a cascade. For each cross_entropy script, the line
+# index of every word that differs and the pair (PyTorch's word, the
+# reference's word); every other line must be exact or within the bound, and
+# the checker refuses a pin on a word that has a bound. docs/losses.md has
+# the distances.
 LOSS_ROUNDING = {
     "cross_entropy": {
         21: (0x3D6CC5F4, 0x3D6CC5F5),
@@ -114,41 +129,19 @@ LOSS_ROUNDING = {
         75: (0x3A70CB7C, 0x3A70CB7B),
         100: (0x40E2749D, 0x40E2749E),
     },
-    "loss_03": {
-        143: (0xC23FCE94, 0xC23FCE93),
-        145: (0xC2205F9E, 0xC2205F9F),
-        147: (0xC1D6DFCF, 0xC1D6DFCE),
-        151: (0x42E662FA, 0x42E662FB),
-        163: (0x42E662FA, 0x42E662FB),
-        167: (0x44A1786C, 0x44A1786D),
-    },
-    "loss_05": {
-        37: (0x42F4DF00, 0x42F4DF01),
-    },
     "loss_06": {
         53: (0x3C52C0AC, 0x3C52C0AD),
         56: (0x362641F6, 0x362641F5),
         65: (0x35B633EC, 0x35B633ED),
         72: (0x38DFB880, 0x38DFB881),
     },
-    "loss_07": {
-        71: (0x43103CF9, 0x43103CFB),
-        83: (0x43103CF9, 0x43103CFB),
-        87: (0x43FDE039, 0x43FDE03C),
-    },
     "loss_08": {
         22: (0x3B4B88EE, 0x3B4B88ED),
-    },
-    "loss_09": {
-        127: (0x429B5C42, 0x429B5C41),
     },
     "loss_10": {
         56: (0x3818EE64, 0x3818EE65),
         64: (0x2E5C1E56, 0x2E5C1E54),
         92: (0x32FD4F5E, 0x32FD4F5C),
-    },
-    "loss_11": {
-        81: (0x42274C91, 0x42274C92),
     },
     "loss_12": {
         65: (0x395829BA, 0x395829B9),
@@ -157,12 +150,6 @@ LOSS_ROUNDING = {
     "loss_14": {
         67: (0x2E12DDE3, 0x2E12DDE4),
         77: (0x3E2DA733, 0x3E2DA732),
-    },
-    "loss_15": {
-        77: (0x40E3FDA0, 0x40E3FD9E),
-        81: (0x42A58400, 0x42A58401),
-        93: (0x42A58400, 0x42A58401),
-        97: (0xC39B3B0F, 0xC39B3B10),
     },
 }
 
@@ -424,8 +411,10 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
             [row["id"] for row in cases()],
         )
 
-    def test_reference_matches_pytorch_word_for_word(self):
+    def test_reference_matches_pytorch_within_the_policy(self):
         exact = 0
+        within_bound: set[str] = set()
+        on_pins: set[str] = set()
         for row, observed in zip(cases(), self.fixture["backward"], strict=True):
             identifier = row["id"]
             with self.subTest(case=identifier):
@@ -486,41 +475,32 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                         self.assertTrue(a.startswith("tensor:word:"))
                         self.assertTrue(b.startswith("tensor:word:"))
                     continue
-                if identifier in FORWARD_ORDER:
-                    self.assertTrue(differ)
-                    for a, b in differ:
-                        self.assertTrue(a.startswith("tensor:word:"))
-                        self.assertTrue(b.startswith("tensor:word:"))
-                    self.assertEqual(grads(seen), grads(expected))
-                    continue
-                if identifier in LOSS_ROUNDING:
-                    self.assertEqual(
-                        {
-                            index: (
-                                int(a.removeprefix("tensor:word:")),
-                                int(b.removeprefix("tensor:word:")),
-                            )
-                            for index, (a, b) in enumerate(
-                                zip(seen, expected, strict=True)
-                            )
-                            if a != b
-                        },
-                        LOSS_ROUNDING[identifier],
-                    )
-                    continue
-                self.assertEqual(seen, expected)
-                exact += 1
+                bounded, pinned = compare(
+                    identifier,
+                    seen,
+                    bounded_reference(row),
+                    LOSS_ROUNDING.get(identifier),
+                )
+                if bounded:
+                    within_bound.add(identifier)
+                if pinned:
+                    on_pins.add(identifier)
+                if not bounded and not pinned:
+                    exact += 1
+        self.assertEqual(within_bound, WITHIN_BOUND)
+        self.assertEqual(on_pins, set(LOSS_ROUNDING))
         excluded = (
             REJECTIONS
             | set(LOSS_REJECTIONS)
             | FORGED
             | NAN_PAYLOAD
-            | FORWARD_ORDER
+            | WITHIN_BOUND
             | set(LOSS_ROUNDING)
             | FUSED_UPDATE
             | NON_LEAF
         )
         self.assertEqual(exact, len(cases()) - len(excluded))
+        self.assertEqual(exact, 131)
 
     def test_arrival_order_and_broadcast_folds_match_pytorch(self):
         rows = {row["id"]: row for row in self.fixture["backward"]}
