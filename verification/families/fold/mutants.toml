@@ -100,17 +100,14 @@ after = '''
       ((right, left), Fail{error})
     case Done{y}:'''
 
-[matmul-reversed-order]
+[matmul-swapped-strides]
 file = "src/tensor/matmul.bend"
 before = '''
     case 1n+rest:
-      term_left(value => l => r => cell_dot(rest, inner, columns, row, column, 1n+cursor, value, l, r),
-        accumulator, ra, right_index(columns, column, cursor), Array.get(F32, la, left_index(inner, row, cursor)))'''
+      product_run(rest, 1n, columns, Nat.add(Nat.mul(row, inner), cursor), Nat.add(Nat.mul(cursor, columns), column), accumulator,'''
 after = '''
     case 1n+rest:
-      +back = rest
-      term_left(value => l => r => cell_dot(back, inner, columns, row, column, 1n+cursor, value, l, r),
-        accumulator, ra, right_index(columns, column, back), Array.get(F32, la, left_index(inner, row, back)))'''
+      product_run(rest, columns, 1n, Nat.add(Nat.mul(row, inner), cursor), Nat.add(Nat.mul(cursor, columns), column), accumulator,'''
 
 [matmul-negative-zero-start]
 file = "src/tensor/matmul.bend"

@@ -93,7 +93,11 @@ takes 5.9 ms and 2.6 ms now, with the same words (a program that times 5 to
 20 products, three runs each). One cell's terms form one chain of dependent
 F32 additions, about 3 cycles each, so the loop alone needs about 3.7 ms on
 one thread; the rest is the parallel build's copies of both operands.
-`matmul` keeps its own `cell_dot`.
+`matmul`'s `cell_dot` runs the same loop with strides 1 and `columns`;
+`stepped_left` and `stepped_right` in `matrix-index-proof.bend` prove its
+steps. A `[256, 256] @ [256, 256]` product took 636 ms on one thread with a
+closure per term and takes 15 ms now, with the same words (`tools.bench_compare`,
+five alternating rounds).
 
 ## Public math completeness supplement
 

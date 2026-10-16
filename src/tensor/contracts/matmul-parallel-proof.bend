@@ -484,45 +484,86 @@ def DotIs(+fuel: Nat, +span: Nat, +columns: Nat, +left: Shape.Shape, +left_fill:
   -result: F32 & (Array<F32> & Array<F32>)) -> Type:
   {result == (fold_from(fuel, span, columns, row, column, left, left_fill, left_ops, right, right_fill, right_ops, cursor, accumulator), (Api.arr(ha, dl, fa), Api.arr(hb, dr, fb))) : F32 & (Array<F32> & Array<F32>)}
 
-def dot_right_eq(+rest: Nat, +span: Nat, +columns: Nat, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>, +ha: List<&2, Api.Effect>, +dl: Nat, +fa: F32, +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +hb: List<&2, Api.Effect>, +dr: Nat, +fb: F32, +lsrc: Source<left, left_fill, left_ops, ha, dl, fa>, +rsrc: Source<right, right_fill, right_ops, hb, dr, fb>, +rows: Nat, +row: Nat, +column: Nat, +cursor: Nat, +accumulator: F32,
+# The last term of a run: both reads hold the replayed words, and both
+# copies come back.
+def run_last(+span: Nat, +columns: Nat, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>, +ha: List<&2, Api.Effect>, +dl: Nat, +fa: F32, +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +hb: List<&2, Api.Effect>, +dr: Nat, +fb: F32, +lsrc: Source<left, left_fill, left_ops, ha, dl, fa>, +rsrc: Source<right, right_fill, right_ops, hb, dr, fb>, +rows: Nat, +row: Nat, +column: Nat, +cursor: Nat, +accumulator: F32,
   +row_below: {Nat.is_lt(row, rows) == True{} : Bool}, +left_extents: {Shape.extents(left) == [rows, span] : List<&2, Nat>},
-  +column_below: {Nat.is_lt(column, columns) == True{} : Bool}, +right_extents: {Shape.extents(right) == [span, columns] : List<&2, Nat>}, +below: {Nat.is_lt(cursor, span) == True{} : Bool},
-  -x: F32, -kept: Array<F32>, pair: Array<F32> & F32,
-  +exact: {pair == Array.get(F32, Api.arr(hb, dr, fb), Matrix.right_index(columns, column, cursor)) : Array<F32> & F32},
-  ex: {x == Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)) : F32}, ek: {kept == Api.arr(ha, dl, fa) : Array<F32>},
-  next: DotIs(rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, 1n+cursor, F32.add(accumulator, F32.mul(Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), Replayed.value(right, right_fill, right_ops, Matrix.right_index(columns, column, cursor)))), Matrix.cell_dot(rest, span, columns, row, column, 1n+cursor, F32.add(accumulator, F32.mul(Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), Replayed.value(right, right_fill, right_ops, Matrix.right_index(columns, column, cursor)))), Api.arr(ha, dl, fa), Api.arr(hb, dr, fb)))) ->
-  DotIs(1n+rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, cursor, accumulator,
-    Matrix.term_right(value => l => r => Matrix.cell_dot(rest, span, columns, row, column, 1n+cursor, value, l, r), accumulator, x, kept, pair)):
-  (other, y) = pair
+  +column_below: {Nat.is_lt(column, columns) == True{} : Bool}, +right_extents: {Shape.extents(right) == [span, columns] : List<&2, Nat>},
+  +below: {Nat.is_lt(cursor, span) == True{} : Bool},
+  pl: Array<F32> & F32, +exact_l: {pl == Array.get(F32, Api.arr(ha, dl, fa), Matrix.left_index(span, row, cursor)) : Array<F32> & F32},
+  pr: Array<F32> & F32, +exact_r: {pr == Array.get(F32, Api.arr(hb, dr, fb), Matrix.right_index(columns, column, cursor)) : Array<F32> & F32}) ->
+  DotIs(1n, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, cursor, accumulator, Matrix.product_run(0n, 1n, columns, Nat.add(Nat.mul(row, span), cursor), Nat.add(Nat.mul(cursor, columns), column), accumulator, pl, pr)):
+  (la, x) = pl
+  (ra, y) = pr
+  +ex = source_read(left, left_fill, left_ops, ha, dl, fa, lsrc, Matrix.left_index(span, row, cursor),
+    index_inside(left, Nat.add(Nat.mul(row, span), cursor), MatrixIndex.left_below(rows, span, row, row_below, left, left_extents, cursor, below)),
+    (la, x), exact_l)
   +ey = source_read(right, right_fill, right_ops, hb, dr, fb, rsrc, Matrix.right_index(columns, column, cursor),
     index_inside(right, Nat.add(Nat.mul(cursor, columns), column), MatrixIndex.right_below(span, columns, column, column_below, right, right_extents, cursor, below)),
-    (other, y), exact)
+    (ra, y), exact_r)
+  +el = Build.got_kept(dl, ha, fa, Matrix.left_index(span, row, cursor), (la, x), exact_l)
+  +er = Build.got_kept(dr, hb, fb, Matrix.right_index(columns, column, cursor), (ra, y), exact_r)
   %Equal.sym(F32, x, Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), ex) :
-    DotIs(1n+rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, cursor, accumulator, Matrix.cell_dot(rest, span, columns, row, column, 1n+cursor, F32.add(accumulator, F32.mul(_, y)), kept, other))
+    DotIs(1n, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, cursor, accumulator, (F32.add(accumulator, F32.mul(_, y)), (la, ra)))
   %Equal.sym(F32, y, Replayed.value(right, right_fill, right_ops, Matrix.right_index(columns, column, cursor)), ey) :
-    DotIs(1n+rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, cursor, accumulator, Matrix.cell_dot(rest, span, columns, row, column, 1n+cursor, F32.add(accumulator, F32.mul(Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), _)), kept, other))
-  %Equal.sym(Array<F32>, kept, Api.arr(ha, dl, fa), ek) :
-    DotIs(1n+rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, cursor, accumulator, Matrix.cell_dot(rest, span, columns, row, column, 1n+cursor, F32.add(accumulator, F32.mul(Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), Replayed.value(right, right_fill, right_ops, Matrix.right_index(columns, column, cursor)))), _, other))
-  %Equal.sym(Array<F32>, other, Api.arr(hb, dr, fb), Build.got_kept(dr, hb, fb, Matrix.right_index(columns, column, cursor), (other, y), exact)) :
-    DotIs(1n+rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, cursor, accumulator, Matrix.cell_dot(rest, span, columns, row, column, 1n+cursor, F32.add(accumulator, F32.mul(Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), Replayed.value(right, right_fill, right_ops, Matrix.right_index(columns, column, cursor)))), Api.arr(ha, dl, fa), _))
+    DotIs(1n, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, cursor, accumulator, (F32.add(accumulator, F32.mul(Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), _)), (la, ra)))
+  %Equal.sym(Array<F32>, la, Api.arr(ha, dl, fa), el) :
+    DotIs(1n, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, cursor, accumulator, (F32.add(accumulator, F32.mul(Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), Replayed.value(right, right_fill, right_ops, Matrix.right_index(columns, column, cursor)))), (_, ra)))
+  %Equal.sym(Array<F32>, ra, Api.arr(hb, dr, fb), er) :
+    DotIs(1n, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, cursor, accumulator, (F32.add(accumulator, F32.mul(Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), Replayed.value(right, right_fill, right_ops, Matrix.right_index(columns, column, cursor)))), (Api.arr(ha, dl, fa), _)))
+  {==}
+
+# A term with more after it: the reads hold the replayed words, the offsets
+# step to the next term's, and the run goes on from its reads of the same
+# copies.
+def run_next(+rest: Nat, +span: Nat, +columns: Nat, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>, +ha: List<&2, Api.Effect>, +dl: Nat, +fa: F32, +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +hb: List<&2, Api.Effect>, +dr: Nat, +fb: F32, +lsrc: Source<left, left_fill, left_ops, ha, dl, fa>, +rsrc: Source<right, right_fill, right_ops, hb, dr, fb>, +rows: Nat, +row: Nat, +column: Nat, +cursor: Nat, +accumulator: F32,
+  +row_below: {Nat.is_lt(row, rows) == True{} : Bool}, +left_extents: {Shape.extents(left) == [rows, span] : List<&2, Nat>},
+  +column_below: {Nat.is_lt(column, columns) == True{} : Bool}, +right_extents: {Shape.extents(right) == [span, columns] : List<&2, Nat>},
+  +below: {Nat.is_lt(cursor, span) == True{} : Bool},
+  pl: Array<F32> & F32, +exact_l: {pl == Array.get(F32, Api.arr(ha, dl, fa), Matrix.left_index(span, row, cursor)) : Array<F32> & F32},
+  pr: Array<F32> & F32, +exact_r: {pr == Array.get(F32, Api.arr(hb, dr, fb), Matrix.right_index(columns, column, cursor)) : Array<F32> & F32},
+  next: DotIs(1n+rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, 1n+cursor, F32.add(accumulator, F32.mul(Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), Replayed.value(right, right_fill, right_ops, Matrix.right_index(columns, column, cursor)))), Matrix.product_run(rest, 1n, columns, Nat.add(Nat.mul(row, span), 1n+cursor), Nat.add(Nat.mul(1n+cursor, columns), column), F32.add(accumulator, F32.mul(Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), Replayed.value(right, right_fill, right_ops, Matrix.right_index(columns, column, cursor)))), Array.get(F32, Api.arr(ha, dl, fa), Matrix.left_index(span, row, 1n+cursor)), Array.get(F32, Api.arr(hb, dr, fb), Matrix.right_index(columns, column, 1n+cursor))))) ->
+  DotIs(2n+rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, cursor, accumulator, Matrix.product_run(1n+rest, 1n, columns, Nat.add(Nat.mul(row, span), cursor), Nat.add(Nat.mul(cursor, columns), column), accumulator, pl, pr)):
+  (la, x) = pl
+  (ra, y) = pr
+  +ex = source_read(left, left_fill, left_ops, ha, dl, fa, lsrc, Matrix.left_index(span, row, cursor),
+    index_inside(left, Nat.add(Nat.mul(row, span), cursor), MatrixIndex.left_below(rows, span, row, row_below, left, left_extents, cursor, below)),
+    (la, x), exact_l)
+  +ey = source_read(right, right_fill, right_ops, hb, dr, fb, rsrc, Matrix.right_index(columns, column, cursor),
+    index_inside(right, Nat.add(Nat.mul(cursor, columns), column), MatrixIndex.right_below(span, columns, column, column_below, right, right_extents, cursor, below)),
+    (ra, y), exact_r)
+  +el = Build.got_kept(dl, ha, fa, Matrix.left_index(span, row, cursor), (la, x), exact_l)
+  +er = Build.got_kept(dr, hb, fb, Matrix.right_index(columns, column, cursor), (ra, y), exact_r)
+  %Equal.sym(F32, x, Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), ex) :
+    DotIs(2n+rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, cursor, accumulator, Matrix.product_run(rest, 1n, columns, Nat.add(1n, Nat.add(Nat.mul(row, span), cursor)), Nat.add(columns, Nat.add(Nat.mul(cursor, columns), column)), F32.add(accumulator, F32.mul(_, y)), Array.get(F32, la, U32.from_nat(Nat.add(1n, Nat.add(Nat.mul(row, span), cursor)))), Array.get(F32, ra, U32.from_nat(Nat.add(columns, Nat.add(Nat.mul(cursor, columns), column))))))
+  %Equal.sym(F32, y, Replayed.value(right, right_fill, right_ops, Matrix.right_index(columns, column, cursor)), ey) :
+    DotIs(2n+rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, cursor, accumulator, Matrix.product_run(rest, 1n, columns, Nat.add(1n, Nat.add(Nat.mul(row, span), cursor)), Nat.add(columns, Nat.add(Nat.mul(cursor, columns), column)), F32.add(accumulator, F32.mul(Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), _)), Array.get(F32, la, U32.from_nat(Nat.add(1n, Nat.add(Nat.mul(row, span), cursor)))), Array.get(F32, ra, U32.from_nat(Nat.add(columns, Nat.add(Nat.mul(cursor, columns), column))))))
+  %Equal.sym(Array<F32>, la, Api.arr(ha, dl, fa), el) :
+    DotIs(2n+rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, cursor, accumulator, Matrix.product_run(rest, 1n, columns, Nat.add(1n, Nat.add(Nat.mul(row, span), cursor)), Nat.add(columns, Nat.add(Nat.mul(cursor, columns), column)), F32.add(accumulator, F32.mul(Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), Replayed.value(right, right_fill, right_ops, Matrix.right_index(columns, column, cursor)))), Array.get(F32, _, U32.from_nat(Nat.add(1n, Nat.add(Nat.mul(row, span), cursor)))), Array.get(F32, ra, U32.from_nat(Nat.add(columns, Nat.add(Nat.mul(cursor, columns), column))))))
+  %Equal.sym(Array<F32>, ra, Api.arr(hb, dr, fb), er) :
+    DotIs(2n+rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, cursor, accumulator, Matrix.product_run(rest, 1n, columns, Nat.add(1n, Nat.add(Nat.mul(row, span), cursor)), Nat.add(columns, Nat.add(Nat.mul(cursor, columns), column)), F32.add(accumulator, F32.mul(Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), Replayed.value(right, right_fill, right_ops, Matrix.right_index(columns, column, cursor)))), Array.get(F32, Api.arr(ha, dl, fa), U32.from_nat(Nat.add(1n, Nat.add(Nat.mul(row, span), cursor)))), Array.get(F32, _, U32.from_nat(Nat.add(columns, Nat.add(Nat.mul(cursor, columns), column))))))
+  %Equal.sym(Nat, Nat.add(1n, Nat.add(Nat.mul(row, span), cursor)), Nat.add(Nat.mul(row, span), 1n+cursor), MatrixIndex.stepped_left(span, row, cursor)) :
+    DotIs(2n+rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, cursor, accumulator, Matrix.product_run(rest, 1n, columns, _, Nat.add(columns, Nat.add(Nat.mul(cursor, columns), column)), F32.add(accumulator, F32.mul(Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), Replayed.value(right, right_fill, right_ops, Matrix.right_index(columns, column, cursor)))), Array.get(F32, Api.arr(ha, dl, fa), U32.from_nat(_)), Array.get(F32, Api.arr(hb, dr, fb), U32.from_nat(Nat.add(columns, Nat.add(Nat.mul(cursor, columns), column))))))
+  %Equal.sym(Nat, Nat.add(columns, Nat.add(Nat.mul(cursor, columns), column)), Nat.add(Nat.mul(1n+cursor, columns), column), MatrixIndex.stepped_right(columns, column, cursor)) :
+    DotIs(2n+rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, cursor, accumulator, Matrix.product_run(rest, 1n, columns, Nat.add(Nat.mul(row, span), 1n+cursor), _, F32.add(accumulator, F32.mul(Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), Replayed.value(right, right_fill, right_ops, Matrix.right_index(columns, column, cursor)))), Array.get(F32, Api.arr(ha, dl, fa), U32.from_nat(Nat.add(Nat.mul(row, span), 1n+cursor))), Array.get(F32, Api.arr(hb, dr, fb), U32.from_nat(_))))
   next
 
-def dot_left_eq(+rest: Nat, +span: Nat, +columns: Nat, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>, +ha: List<&2, Api.Effect>, +dl: Nat, +fa: F32, +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +hb: List<&2, Api.Effect>, +dr: Nat, +fb: F32, +lsrc: Source<left, left_fill, left_ops, ha, dl, fa>, +rsrc: Source<right, right_fill, right_ops, hb, dr, fb>, +rows: Nat, +row: Nat, +column: Nat, +cursor: Nat, +accumulator: F32,
+# A run of fuel + 1 terms from cursor folds the replayed words in increasing
+# k and hands both copies back.
+def run_eq(+fuel: Nat, +span: Nat, +columns: Nat, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>, +ha: List<&2, Api.Effect>, +dl: Nat, +fa: F32, +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +hb: List<&2, Api.Effect>, +dr: Nat, +fb: F32, +lsrc: Source<left, left_fill, left_ops, ha, dl, fa>, +rsrc: Source<right, right_fill, right_ops, hb, dr, fb>, +rows: Nat, +row: Nat, +column: Nat, +cursor: Nat, +accumulator: F32,
   +row_below: {Nat.is_lt(row, rows) == True{} : Bool}, +left_extents: {Shape.extents(left) == [rows, span] : List<&2, Nat>},
-  +column_below: {Nat.is_lt(column, columns) == True{} : Bool}, +right_extents: {Shape.extents(right) == [span, columns] : List<&2, Nat>}, +below: {Nat.is_lt(cursor, span) == True{} : Bool},
-  pair: Array<F32> & F32,
-  +exact: {pair == Array.get(F32, Api.arr(ha, dl, fa), Matrix.left_index(span, row, cursor)) : Array<F32> & F32},
-  next: DotIs(rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, 1n+cursor, F32.add(accumulator, F32.mul(Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), Replayed.value(right, right_fill, right_ops, Matrix.right_index(columns, column, cursor)))), Matrix.cell_dot(rest, span, columns, row, column, 1n+cursor, F32.add(accumulator, F32.mul(Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), Replayed.value(right, right_fill, right_ops, Matrix.right_index(columns, column, cursor)))), Api.arr(ha, dl, fa), Api.arr(hb, dr, fb)))) ->
-  DotIs(1n+rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, cursor, accumulator,
-    Matrix.term_left(value => l => r => Matrix.cell_dot(rest, span, columns, row, column, 1n+cursor, value, l, r), accumulator, Api.arr(hb, dr, fb), Matrix.right_index(columns, column, cursor), pair)):
-  (kept, x) = pair
-  dot_right_eq(rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, lsrc, rsrc, rows, row, column, cursor, accumulator, row_below, left_extents, column_below, right_extents, below, x, kept,
-    Array.get(F32, Api.arr(hb, dr, fb), Matrix.right_index(columns, column, cursor)), {==},
-    source_read(left, left_fill, left_ops, ha, dl, fa, lsrc, Matrix.left_index(span, row, cursor),
-      index_inside(left, Nat.add(Nat.mul(row, span), cursor), MatrixIndex.left_below(rows, span, row, row_below, left, left_extents, cursor, below)),
-      (kept, x), exact),
-    Build.got_kept(dl, ha, fa, Matrix.left_index(span, row, cursor), (kept, x), exact),
-    next)
+  +column_below: {Nat.is_lt(column, columns) == True{} : Bool}, +right_extents: {Shape.extents(right) == [span, columns] : List<&2, Nat>},
+  +steps: {Nat.add(cursor, 1n+fuel) == span : Nat},
+  pl: Array<F32> & F32, +exact_l: {pl == Array.get(F32, Api.arr(ha, dl, fa), Matrix.left_index(span, row, cursor)) : Array<F32> & F32},
+  pr: Array<F32> & F32, +exact_r: {pr == Array.get(F32, Api.arr(hb, dr, fb), Matrix.right_index(columns, column, cursor)) : Array<F32> & F32}) ->
+  DotIs(1n+fuel, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, row, column, cursor, accumulator, Matrix.product_run(fuel, 1n, columns, Nat.add(Nat.mul(row, span), cursor), Nat.add(Nat.mul(cursor, columns), column), accumulator, pl, pr)):
+  match fuel:
+    case 0n:
+      run_last(span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, lsrc, rsrc, rows, row, column, cursor, accumulator, row_below, left_extents, column_below, right_extents, MatrixIndex.cursor_below(cursor, 0n, span, steps), pl, exact_l, pr, exact_r)
+    case 1n+rest:
+      run_next(rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, lsrc, rsrc, rows, row, column, cursor, accumulator, row_below, left_extents, column_below, right_extents, MatrixIndex.cursor_below(cursor, 1n+rest, span, steps), pl, exact_l, pr, exact_r,
+        run_eq(rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, lsrc, rsrc, rows, row, column, 1n+cursor, F32.add(accumulator, F32.mul(Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), Replayed.value(right, right_fill, right_ops, Matrix.right_index(columns, column, cursor)))), row_below, left_extents, column_below, right_extents, MatrixIndex.steps_next(cursor, 1n+rest, span, steps),
+          Array.get(F32, Api.arr(ha, dl, fa), Matrix.left_index(span, row, 1n+cursor)), {==}, Array.get(F32, Api.arr(hb, dr, fb), Matrix.right_index(columns, column, 1n+cursor)), {==}))
 
 # Cell (row, column) of the build over the two copies folds the replayed
 # words in increasing k and hands both copies back.
@@ -534,9 +575,7 @@ def dot_eq(+fuel: Nat, +span: Nat, +columns: Nat, +left: Shape.Shape, +left_fill
     case 0n:
       {==}
     case 1n+rest:
-      dot_left_eq(rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, lsrc, rsrc, rows, row, column, cursor, accumulator, row_below, left_extents, column_below, right_extents, MatrixIndex.cursor_below(cursor, rest, span, steps),
-        Array.get(F32, Api.arr(ha, dl, fa), Matrix.left_index(span, row, cursor)), {==},
-        dot_eq(rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, lsrc, rsrc, rows, row, column, 1n+cursor, F32.add(accumulator, F32.mul(Replayed.value(left, left_fill, left_ops, Matrix.left_index(span, row, cursor)), Replayed.value(right, right_fill, right_ops, Matrix.right_index(columns, column, cursor)))), row_below, left_extents, column_below, right_extents, MatrixIndex.steps_next(cursor, rest, span, steps)))
+      run_eq(rest, span, columns, left, left_fill, left_ops, ha, dl, fa, right, right_fill, right_ops, hb, dr, fb, lsrc, rsrc, rows, row, column, cursor, accumulator, row_below, left_extents, column_below, right_extents, steps, Array.get(F32, Api.arr(ha, dl, fa), Matrix.left_index(span, row, cursor)), {==}, Array.get(F32, Api.arr(hb, dr, fb), Matrix.right_index(columns, column, cursor)), {==})
 
 def TreeEq(+span: Nat, +columns: Nat, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>, +ha: List<&2, Api.Effect>, +dl: Nat, +fa: F32, +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +hb: List<&2, Api.Effect>, +dr: Nat, +fb: F32, +count: Nat, +depth: Nat, +base: Nat, -result: Array<F32> & (Array<F32> & Array<F32>)) -> Type:
   {Pair.fst(Array<F32>, Array<F32> & Array<F32>, result) == out_spec(span, columns, left, left_fill, left_ops, right, right_fill, right_ops, count, depth, base) : Array<F32>} &

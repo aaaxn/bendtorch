@@ -247,26 +247,32 @@ def left_index(+inner: Nat, +row: Nat, +k: Nat) -> U32:
 def right_index(+columns: Nat, +column: Nat, +k: Nat) -> U32:
   U32.from_nat(Nat.add(Nat.mul(k, columns), column))
 
-def term_right(rec: F32 -> Array<F32> -> Array<F32> -> F32 & (Array<F32> & Array<F32>), accumulator: F32, x: F32,
-  la: Array<F32>, pair: Array<F32> & F32) -> F32 & (Array<F32> & Array<F32>):
-  (ra, y) = pair
-  rec(F32.add(accumulator, F32.mul(x, y)), la, ra)
-
-def term_left(rec: F32 -> Array<F32> -> Array<F32> -> F32 & (Array<F32> & Array<F32>), accumulator: F32, ra: Array<F32>,
-  +right_at: U32, pair: Array<F32> & F32) -> F32 & (Array<F32> & Array<F32>):
-  (la, x) = pair
-  term_right(rec, accumulator, x, la, Array.get(F32, ra, right_at))
+# The fuel + 1 terms of a cell from the one whose words sit at offsets `lp`
+# and `rp`, added to `accumulator`; `left` and `right` are their reads,
+# already made, and each later term sits `ls` and `rs` further on. Each step
+# reads the next term's words, so the loop is one tail call with no closure
+# and one addition per offset: it compiles to a flat loop.
+def product_run(fuel: Nat, +ls: Nat, +rs: Nat, +lp: Nat, +rp: Nat, accumulator: F32,
+  left: Array<F32> & F32, right: Array<F32> & F32) -> F32 & (Array<F32> & Array<F32>):
+  match fuel left right:
+    case 0n Tuple{la, x} Tuple{ra, y}:
+      (F32.add(accumulator, F32.mul(x, y)), (la, ra))
+    case 1n+rest Tuple{la, x} Tuple{ra, y}:
+      product_run(rest, ls, rs, Nat.add(ls, lp), Nat.add(rs, rp), F32.add(accumulator, F32.mul(x, y)),
+        Array.get(F32, la, U32.from_nat(Nat.add(ls, lp))), Array.get(F32, ra, U32.from_nat(Nat.add(rs, rp))))
 
 # The terms k = cursor .. cursor + fuel - 1 of cell (row, column), added to
-# `accumulator`. Both arrays come back with the total.
+# `accumulator`. Both arrays come back with the total: the run from term
+# cursor, where term k + 1 sits one word on in the left row and `columns`
+# words on in the right column.
 def cell_dot(fuel: Nat, +inner: Nat, +columns: Nat, +row: Nat, +column: Nat, +cursor: Nat, accumulator: F32,
   la: Array<F32>, ra: Array<F32>) -> F32 & (Array<F32> & Array<F32>):
   match fuel:
     case 0n:
       (accumulator, (la, ra))
     case 1n+rest:
-      term_left(value => l => r => cell_dot(rest, inner, columns, row, column, 1n+cursor, value, l, r),
-        accumulator, ra, right_index(columns, column, cursor), Array.get(F32, la, left_index(inner, row, cursor)))
+      product_run(rest, 1n, columns, Nat.add(Nat.mul(row, inner), cursor), Nat.add(Nat.mul(cursor, columns), column), accumulator,
+        Array.get(F32, la, left_index(inner, row, cursor)), Array.get(F32, ra, right_index(columns, column, cursor)))
 
 # Cell `position`: all `inner` terms, from +0.0.
 def dot_of(+inner: Nat, +columns: Nat, +position: Nat, la: Array<F32>, ra: Array<F32>) -> F32 & (Array<F32> & Array<F32>):
@@ -425,20 +431,6 @@ def stride(+order: Order, +outers: Nat) -> Nat:
       1n
     case Swapped{}:
       outers
-
-# The fuel + 1 terms of a cell from the one whose words sit at offsets `lp`
-# and `rp`, added to `accumulator`; `left` and `right` are their reads,
-# already made, and each later term sits `ls` and `rs` further on. Each step
-# reads the next term's words, so the loop is one tail call with no closure
-# and one addition per offset: it compiles to a flat loop.
-def product_run(fuel: Nat, +ls: Nat, +rs: Nat, +lp: Nat, +rp: Nat, accumulator: F32,
-  left: Array<F32> & F32, right: Array<F32> & F32) -> F32 & (Array<F32> & Array<F32>):
-  match fuel left right:
-    case 0n Tuple{la, x} Tuple{ra, y}:
-      (F32.add(accumulator, F32.mul(x, y)), (la, ra))
-    case 1n+rest Tuple{la, x} Tuple{ra, y}:
-      product_run(rest, ls, rs, Nat.add(ls, lp), Nat.add(rs, rp), F32.add(accumulator, F32.mul(x, y)),
-        Array.get(F32, la, U32.from_nat(Nat.add(ls, lp))), Array.get(F32, ra, U32.from_nat(Nat.add(rs, rp))))
 
 # The terms k = cursor .. cursor + fuel - 1 of cell (row, column) of a
 # rows x columns product, added to `accumulator`: the run from term cursor,

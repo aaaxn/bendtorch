@@ -130,9 +130,9 @@ instance copy, only the instance copy for the swapped maps, or only
 | Pair right failed swapped | `pair_right` returns the inputs as `(right, left)` when the right read fails | `pair_fails_right` | `consumers.pair_fails_right` |
 | Sum swapped add | `Sum.add` returns `F32.add(word, accumulator)` | `total_words` | `total_words` |
 | Dot untransposed right | `Dot.right_index` reads `column * inner + k` | `total_factors` | `total_factors` |
-| `matmul` reversed order | `cell_dot` reads `k` from `inner - 1` down to 0 | `dot_eq` | `dot_eq` |
+| `matmul` swapped strides | `cell_dot` steps the left offset by `columns` and the right one by one word | `dot_eq` | `dot_eq` |
 | `matmul` negative zero start | `dot_of` starts the cell at `F32.neg(0.0)` | `cell_inside_eq` | `cell_inside_eq` |
-| `matmul` transposed right | `right_index` reads the right matrix at `column * columns + k` | `dot_right_eq` | `dot_right_eq` |
+| `matmul` transposed right | `right_index` reads the right matrix at `column * columns + k` | `run_last` | `run_last` |
 | `matmul_nt` reads the weight untransposed | `matmul_nt` is `product(Kept, Swapped)`, which reads `W` as `[inner, columns]` | `Laws.matmul_nt_ordered` | `matmul_nt_ordered` |
 | `matmul_tn` swaps operands | `matmul_tn(g, x)` multiplies `x^T @ g` | `Laws.matmul_tn_ordered` | `matmul_tn_ordered` |
 | Product reads a `Kept` operand swapped | `read_offset` reads a `Kept` operand at `k * inner + outer` | `read_below` | `read_below` |
@@ -146,7 +146,7 @@ proof that relates the instance's `Fold.total` to its specification rejects
 them. The last three change the parallel `matmul` build in
 `src/tensor/matmul.bend`. `src/tensor/contracts/matmul-parallel-proof.bend`,
 the live walk of the build that proves `matmul_ordered`, rejects them in a
-step of the walk: `dot_eq`, `cell_inside_eq` and `dot_right_eq`. The contracts
+step of the walk: `dot_eq`, `cell_inside_eq` and `run_last`. The contracts
 take `dot_fold` from `src/tensor/dot-fold.bend`, which holds no law, so the
 kernel artifact holds no erased matmul proof and BendTT rejects them at the
 same declarations. The products that read an operand in place add three:
