@@ -78,3 +78,24 @@ before = '''
       nt_first(a, b, left, right, x, y, Core.clone_dynamic(g))'''
 after = '''
       nt_first(a, a, left, right, x, y, Core.clone_dynamic(g))'''
+
+[relu-vjp-reads-gradient-as-input]
+file = "src/autograd/tensor-backward.bend"
+before = '''
+      relu_passed(a, input, zero, Elementwise.binary(Elementwise.ReluBackward{}, x, g))'''
+after = '''
+      relu_passed(a, input, zero, Elementwise.binary(Elementwise.ReluBackward{}, g, x))'''
+
+[relu-vjp-sends-relu]
+file = "src/autograd/tensor-backward.bend"
+before = '''
+      relu_passed(a, input, zero, Elementwise.binary(Elementwise.ReluBackward{}, x, g))'''
+after = '''
+      relu_passed(a, input, zero, Elementwise.binary(Elementwise.ReluLeft{}, x, g))'''
+
+[relu-vjp-sends-to-first-node]
+file = "src/autograd/tensor-backward.bend"
+before = '''
+  Pass{Operands{x, zero}, g, alone(product_reduced(a, input, result))}'''
+after = '''
+  Pass{Operands{x, zero}, g, alone(product_reduced(0n, input, result))}'''
