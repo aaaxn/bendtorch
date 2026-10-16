@@ -7,6 +7,7 @@ import ./broadcast-proof.bend as BroadcastProof
 import ./sum-proof.bend as SumProof
 import ./dot-proof.bend as DotProof
 import ./matmul-proof.bend as MatmulOrdered
+import ./product-proof.bend as ProductOrdered
 
 def Laws.new_replayed(shape, fill, P, h):
   Replayed.new_lift(shape, fill, P, h)
@@ -34,3 +35,9 @@ def Laws.matmul_ordered(left, right, plan, planned, left_fill, left_ops, left_fi
 
 def Laws.matmul_replayed(left, right, plan, planned, left_fill, left_ops, left_fits, right_fill, right_ops, right_fits, P, h):
   MatmulOrdered.matmul_replayed(left, right, plan, planned, left_fill, left_ops, left_fits, right_fill, right_ops, right_fits, P, h)
+
+def Laws.product_ordered(lo, ro, left, right, plan, planned, left_fill, left_ops, left_fits, right_fill, right_ops, right_fits):
+  ProductOrdered.product_ordered(lo, ro, left, right, plan, planned, left_fill, left_ops, left_fits, right_fill, right_ops, right_fits)
+
+def Laws.product_replayed(lo, ro, left, right, plan, planned, left_fill, left_ops, left_fits, right_fill, right_ops, right_fits, P, h):
+  ProductOrdered.product_replayed(lo, ro, left, right, plan, planned, left_fill, left_ops, left_fits, right_fill, right_ops, right_fits, P, h)

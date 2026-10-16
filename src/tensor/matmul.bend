@@ -391,3 +391,226 @@ def matmul(left: Core.Dynamic, right: Core.Dynamic) -> Result<&2, &1, Error, Cor
   Core.Packed{+left_shape, a} = left
   Core.Packed{+right_shape, b} = right
   parallel_planned(left_shape, right_shape, a, b, plan(left_shape, right_shape))
+
+# Products that read an operand in place. `x @ W^T` and `g^T @ x` read a
+# transposed operand; instead of building the transpose they read the
+# operand at the transposed index. An operand of a product is laid out in
+# one of two orders: `Kept`, as `[outer, inner]`, where term k of output row
+# (or column) `outer` sits at outer * inner + k; or `Swapped`, as
+# `[inner, outer]`, where it sits at k * outers + outer. `matmul` is the
+# product of a `Kept` left and a `Swapped` right operand, `matmul_nt` of two
+# `Kept` operands and `matmul_tn` of two `Swapped` ones. Cell (row, column)
+# adds the inner terms in increasing k from +0.0, as `natural_dot` does, and
+# the cells are built over the output with `Parallel.build`, as `matmul`
+# builds them.
+type Order is Data:
+  Kept{}
+  Swapped{}
+
+def read_offset(+order: Order, +inner: Nat, +outers: Nat, +outer: Nat, +k: Nat) -> Nat:
+  match order:
+    case Kept{}:
+      Nat.add(Nat.mul(outer, inner), k)
+    case Swapped{}:
+      Nat.add(Nat.mul(k, outers), outer)
+
+def read_index(+order: Order, +inner: Nat, +outers: Nat, +outer: Nat, +k: Nat) -> U32:
+  U32.from_nat(read_offset(order, inner, outers, outer, k))
+
+# The terms k = cursor .. cursor + fuel - 1 of cell (row, column) of a
+# rows x columns product, added to `accumulator`.
+def product_dot(fuel: Nat, +lo: Order, +ro: Order, +inner: Nat, +rows: Nat, +columns: Nat, +row: Nat, +column: Nat,
+  +cursor: Nat, accumulator: F32, la: Array<F32>, ra: Array<F32>) -> F32 & (Array<F32> & Array<F32>):
+  match fuel:
+    case 0n:
+      (accumulator, (la, ra))
+    case 1n+rest:
+      term_left(value => l => r => product_dot(rest, lo, ro, inner, rows, columns, row, column, 1n+cursor, value, l, r),
+        accumulator, ra, read_index(ro, inner, columns, column, cursor), Array.get(F32, la, read_index(lo, inner, rows, row, cursor)))
+
+def product_dot_of(+lo: Order, +ro: Order, +inner: Nat, +rows: Nat, +columns: Nat, +position: Nat,
+  la: Array<F32>, ra: Array<F32>) -> F32 & (Array<F32> & Array<F32>):
+  product_dot(inner, lo, ro, inner, rows, columns, row_of(columns, position), column_of(columns, position), 0n, 0.0, la, ra)
+
+def product_cell(+lo: Order, +ro: Order, +inner: Nat, +rows: Nat, +columns: Nat, +position: Nat,
+  la: Array<F32>, ra: Array<F32>, inside: Bool) -> F32 & (Array<F32> & Array<F32>):
+  match inside:
+    case False{}:
+      (0.0, (la, ra))
+    case True{}:
+      product_dot_of(lo, ro, inner, rows, columns, position, la, ra)
+
+# What every cell of a product build reads.
+type Layout is Data:
+  Layout{left: Order, right: Order, inner: Nat, rows: Nat, columns: Nat}
+
+def layout(+given: Layout) -> Layout:
+  Layout{+lo, +ro, +inner, +rows, +columns} = given
+  Layout{lo, ro, inner, rows, columns}
+
+def product_cell_at(+layout: Layout, +position: Nat, inputs: Array<F32> & Array<F32>, inside: Bool) ->
+  F32 & (Array<F32> & Array<F32>):
+  Layout{+lo, +ro, +inner, +rows, +columns} = layout
+  (la, ra) = inputs
+  product_cell(lo, ro, inner, rows, columns, position, la, ra, inside)
+
+def product_build(+depth: Nat, +splits: Nat, +lo: Order, +ro: Order, +inner: Nat, +rows: Nat, +columns: Nat,
+  +count: Nat, +base: Nat, la: Array<F32>, ra: Array<F32>) -> Array<F32>:
+  Parallel.build(~Layout, ~Layout, ~Array<F32>, ~Array<F32>, ~layout, ~Elementwise.split, ~product_cell_at,
+    Layout{lo, ro, inner, rows, columns}, depth, splits, count, base, (la, ra))
+
+def product_build_balanced(+depth: Nat, +splits: Nat, +lo: Order, +ro: Order, +inner: Nat, +rows: Nat, +columns: Nat,
+  +count: Nat, +base: Nat, la: Array<F32>, ra: Array<F32>) ->
+  Model.Balanced(F32, depth, product_build(depth, splits, lo, ro, inner, rows, columns, count, base, la, ra)):
+  Parallel.balanced(~Layout, ~Layout, ~Array<F32>, ~Array<F32>, ~layout, ~Elementwise.split, ~product_cell_at,
+    Layout{lo, ro, inner, rows, columns}, depth, splits, count, base, (la, ra))
+
+# The dimensions of an operand of `outer` rows (or columns) and `inner`
+# terms laid out in `order`.
+def arranged(+order: Order, +outer: U32, +inner: U32) -> List<&2, U32>:
+  match order:
+    case Kept{}:
+      [outer, inner]
+    case Swapped{}:
+      [inner, outer]
+
+type Product<-lo: Order, -ro: Order, -left: Shape.Shape, -right: Shape.Shape> is Data:
+  Product{output: Shape.Shape, rows: U32, inner: U32, right_inner: U32, columns: U32,
+    -left_dimensions: {Shape.dimensions(left) == arranged(lo, rows, inner) : List<&2, U32>},
+    -right_dimensions: {Shape.dimensions(right) == arranged(ro, columns, right_inner) : List<&2, U32>},
+    -output_dimensions: {Shape.dimensions(output) == [rows, columns] : List<&2, U32>},
+    -compatible: {U32.to_nat(inner) == U32.to_nat(right_inner) : Nat}}
+
+def product_shape(-lo: Order, -ro: Order, -left: Shape.Shape, -right: Shape.Shape, plan: Product<lo, ro, left, right>) -> Shape.Shape:
+  Product{shape, rows, inner, right_inner, columns, le, re, oe, compatible} = plan
+  shape
+
+# A rank-2 operand split into its outer and inner extents.
+type Split<-order: Order, -dims: List<&2, U32>> is Data:
+  Split{outer: U32, inner: U32, same: {dims == arranged(order, outer, inner) : List<&2, U32>}}
+
+def split_dims(+order: Order, dims: List<&2, U32>) -> Result<&2, &2, Error, Split<order, dims>>:
+  match order:
+    case Kept{}:
+      match dims:
+        case +a <> +b <> Nil{}:
+          Done{Split{a, b, {==}}}
+        case rest:
+          Fail{RankMismatch{}}
+    case Swapped{}:
+      match dims:
+        case +a <> +b <> Nil{}:
+          Done{Split{b, a, {==}}}
+        case rest:
+          Fail{RankMismatch{}}
+
+def product_output(-lo: Order, -ro: Order, -left: Shape.Shape, -right: Shape.Shape, +rows: U32, +inner: U32,
+  +right_inner: U32, +columns: U32,
+  -le: {Shape.dimensions(left) == arranged(lo, rows, inner) : List<&2, U32>},
+  -re: {Shape.dimensions(right) == arranged(ro, columns, right_inner) : List<&2, U32>},
+  -compatible: {U32.to_nat(inner) == U32.to_nat(right_inner) : Nat},
+  result: Shape.ConstructResult<[rows, columns]>) -> Result<&2, &2, Error, Product<lo, ro, left, right>>:
+  match result:
+    case Shape.SError{error}:
+      Fail{ShapeError{error}}
+    case Shape.SBuilt{shape, preserved}:
+      Done{Product{shape, rows, inner, right_inner, columns, le, re, preserved, compatible}}
+
+def product_compatible(-lo: Order, -ro: Order, -left: Shape.Shape, -right: Shape.Shape, +rows: U32, +inner: U32,
+  +right_inner: U32, +columns: U32,
+  -le: {Shape.dimensions(left) == arranged(lo, rows, inner) : List<&2, U32>},
+  -re: {Shape.dimensions(right) == arranged(ro, columns, right_inner) : List<&2, U32>},
+  decision: Shape.BoolCase<Nat.is_eq(U32.to_nat(inner), U32.to_nat(right_inner))>) ->
+  Result<&2, &2, Error, Product<lo, ro, left, right>>:
+  match decision:
+    case Shape.BFalse{equal}:
+      Fail{InnerDimensionMismatch{}}
+    case Shape.BTrue{equal}:
+      product_output(lo, ro, left, right, rows, inner, right_inner, columns, le, re,
+        Lifecycle.natural_equal(U32.to_nat(inner), U32.to_nat(right_inner), equal),
+        Shape.construct([rows, columns]))
+
+def product_right(-lo: Order, -ro: Order, -left: Shape.Shape, -right: Shape.Shape, +rows: U32, +inner: U32,
+  -le: {Shape.dimensions(left) == arranged(lo, rows, inner) : List<&2, U32>},
+  result: Result<&2, &2, Error, Split<ro, Shape.dimensions(right)>>) -> Result<&2, &2, Error, Product<lo, ro, left, right>>:
+  match result:
+    case Fail{error}:
+      Fail{error}
+    case Done{Split{+columns, +right_inner, same}}:
+      product_compatible(lo, ro, left, right, rows, inner, right_inner, columns, le, same,
+        Shape.bool_case(Nat.is_eq(U32.to_nat(inner), U32.to_nat(right_inner))))
+
+def product_left(-lo: Order, +ro: Order, -left: Shape.Shape, +right: Shape.Shape,
+  result: Result<&2, &2, Error, Split<lo, Shape.dimensions(left)>>) -> Result<&2, &2, Error, Product<lo, ro, left, right>>:
+  match result:
+    case Fail{error}:
+      Fail{error}
+    case Done{Split{+rows, +inner, same}}:
+      product_right(lo, ro, left, right, rows, inner, same, split_dims(ro, Shape.dimensions(right)))
+
+# The plan of a product: both operands rank 2, laid out in their orders,
+# with equal inner extents.
+def product_plan(+lo: Order, +ro: Order, +left: Shape.Shape, +right: Shape.Shape) -> Result<&2, &2, Error, Product<lo, ro, left, right>>:
+  product_left(lo, ro, left, right, split_dims(lo, Shape.dimensions(left)))
+
+def product_parallel_output(+lo: Order, +ro: Order, +output: Shape.Shape, +inner: Nat, +rows: Nat, +columns: Nat,
+  +depth: Nat, +length: Nat,
+  -valid: {Storage.bounds(depth, length) == True{} : Bool},
+  -exact: {length == Shape.logical_numel(Shape.dimensions(output)) : Nat},
+  left: Core.Dynamic & Array<F32>, right: Core.Dynamic & Array<F32>) ->
+  Result<&2, &1, Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>:
+  (kept_left, la) = left
+  (kept_right, ra) = right
+  Done{(kept_left, kept_right, Core.pack(output, Core.TTensor{Storage.Owned{depth, length,
+    product_build(depth, splits(depth, inner), lo, ro, inner, rows, columns, length, 0n, la, ra),
+    product_build_balanced(depth, splits(depth, inner), lo, ro, inner, rows, columns, length, 0n, la, ra),
+    valid}, exact}))}
+
+def product_allocated(+lo: Order, +ro: Order, +left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape,
+  +inner: Nat, +rows: Nat, +columns: Nat,
+  a: Core.Tensor<left>, b: Core.Tensor<right>, result: Result<&2, &1, Core.Error, Core.Tensor<output>>) ->
+  Result<&2, &1, Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>:
+  match result:
+    case Fail{error}:
+      Fail{TensorError{error}}
+    case Done{Core.TTensor{storage, exact}}:
+      match storage:
+        case Storage.Empty{}:
+          Done{(Core.pack(left, a), Core.pack(right, b), Core.pack(output, Core.TTensor{Storage.Empty{}, exact}))}
+        case Storage.Owned{+depth, +length, array, balanced, valid}:
+          product_parallel_output(lo, ro, output, inner, rows, columns, depth, length, valid, exact,
+            Elementwise.take(Core.pack(left, a)), Elementwise.take(Core.pack(right, b)))
+
+def product_multiply(+lo: Order, +ro: Order, +left: Shape.Shape, +right: Shape.Shape, +plan: Product<lo, ro, left, right>,
+  a: Core.Tensor<left>, b: Core.Tensor<right>) -> Result<&2, &1, Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>:
+  match plan:
+    case Product{+output, +rows, +inner, right_inner, +columns, le, re, oe, compatible}:
+      product_allocated(lo, ro, left, right, output, U32.to_nat(inner), U32.to_nat(rows), U32.to_nat(columns), a, b,
+        Core.new(output, 0.0))
+
+def product_planned(+lo: Order, +ro: Order, +left: Shape.Shape, +right: Shape.Shape, a: Core.Tensor<left>, b: Core.Tensor<right>,
+  result: Result<&2, &2, Error, Product<lo, ro, left, right>>) ->
+  Result<&2, &1, Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>:
+  match result:
+    case Fail{error}:
+      Fail{error}
+    case Done{+plan}:
+      product_multiply(lo, ro, left, right, plan, a, b)
+
+# The product of two rank-2 operands laid out in orders lo and ro. Both
+# inputs come back to the caller as the kept halves of their clones.
+def product(+lo: Order, +ro: Order, left: Core.Dynamic, right: Core.Dynamic) ->
+  Result<&2, &1, Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>:
+  Core.Packed{+left_shape, a} = left
+  Core.Packed{+right_shape, b} = right
+  product_planned(lo, ro, left_shape, right_shape, a, b, product_plan(lo, ro, left_shape, right_shape))
+
+# x @ W^T for x of [rows, inner] and W of [columns, inner]: cell (row,
+# column) adds x[row, k] * W[column, k], W read in place.
+def matmul_nt(left: Core.Dynamic, right: Core.Dynamic) -> Result<&2, &1, Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>:
+  product(Kept{}, Kept{}, left, right)
+
+# g^T @ x for g of [inner, rows] and x of [inner, columns]: cell (row,
+# column) adds g[k, row] * x[k, column], g read in place.
+def matmul_tn(left: Core.Dynamic, right: Core.Dynamic) -> Result<&2, &1, Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>:
+  product(Swapped{}, Swapped{}, left, right)
