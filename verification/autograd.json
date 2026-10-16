@@ -95,6 +95,8 @@
     "tensor_2d_vjp_2d_LAWS.tensor_relu_vjp_values",
     "tensor_2d_vjp_2d_LAWS.tensor_mse_vjp_values",
     "tensor_2d_vjp_2d_LAWS.tensor_cross_entropy_vjp_values",
+    "tensor_2d_chain_2d_LAWS.tensor_sweep_chain_rule",
+    "tensor_2d_chain_2d_LAWS.tensor_backward_chain_rule",
     "sgd_2d_LAWS.sgd_descend_scalar",
     "sgd_2d_LAWS.sgd_empty_slot_kept",
     "sgd_2d_LAWS.sgd_step_values",
