@@ -14,6 +14,44 @@ type Operation is Data:
   Mul{}
   KeepLeft{}
   NegateLeft{}
+  ReluLeft{}
+  ReluBackward{}
+
+# The IEEE 754 bits of an F32, as a U32.
+def bits(x: F32) -> U32:
+  F32{word} = x
+  U32{word}
+
+# IEEE 754 `x < 0`, on the bits: the words above -0.0 (0x80000000) up to
+# -inf (0xFF800000). -0.0, +0.0 and every NaN are not below zero.
+def below_zero(x: F32) -> Bool:
+  +word = bits(x)
+  Bool.and(U32.is_lt(2147483648, word), U32.is_le(word, 4286578688))
+
+# IEEE 754 `x <= 0`, on the bits: +0.0 (0x00000000) and the words from -0.0
+# (0x80000000) up to -inf (0xFF800000). No NaN is at most zero.
+def at_most_zero(x: F32) -> Bool:
+  +word = bits(x)
+  Bool.or(U32.is_eq(word, 0), Bool.and(U32.is_le(2147483648, word), U32.is_le(word, 4286578688)))
+
+# +0.0 when `zeroed`, else the word itself.
+def zero_if(zeroed: Bool, value: F32) -> F32:
+  match zeroed:
+    case True{}:
+      0.0
+    case False{}:
+      value
+
+# PyTorch's relu, clamp_min(x, 0): +0.0 where x < 0, else x's own word, so
+# -0.0 stays -0.0 and a NaN keeps its payload.
+def relu(+x: F32) -> F32:
+  zero_if(below_zero(x), x)
+
+# PyTorch's relu gradient, threshold_backward(g, relu(x), 0): +0.0 where
+# x <= 0, else g's own word. At x = +0.0 and -0.0 it is +0.0; at a NaN x it
+# is g.
+def relu_backward(+x: F32, g: F32) -> F32:
+  zero_if(at_most_zero(x), g)
 
 def scalar(operation: Operation, left: F32, right: F32) -> F32:
   match operation:
@@ -27,6 +65,10 @@ def scalar(operation: Operation, left: F32, right: F32) -> F32:
       left
     case NegateLeft{}:
       F32.neg(left)
+    case ReluLeft{}:
+      relu(left)
+    case ReluBackward{}:
+      relu_backward(left, right)
 
 def flat_input_indices(+plan: Shape.BroadcastPlan,
   result: Result<&2, &2, Shape.Error, Shape.FlatIndex<Shape.output_shape(plan)>>) -> Result<&2, &1, Core.Error, U32 & U32>:
