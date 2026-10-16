@@ -301,17 +301,76 @@ and `second_factors` turn the factor pairs read on the copies into the pairs
 stated on `g`, `x` and `y`. No sum is reduced: each product already has its
 operand's dimensions.
 
+## SGD
+
+`src/autograd/sgd.bend` is PyTorch's `torch.optim.SGD(params, lr)` with the
+learning rate only. Momentum, dampening, `nesterov`, `weight_decay` and
+`maximize` are out of scope. `Sgd.step(tape, lr, params)` takes the
+parameters as a list of tape ids, the ids the training loop already holds.
+It checks every id first, in list order: an id the tape does not hold is
+refused with `UnknownNode` (103), and the id of a node that is not a leaf with
+`NotLeaf` (107); a refusal leaves the tape unchanged. Then it visits the ids
+in list order. A parameter whose slot holds `g` gets the value `p - lr * g`,
+one `Elementwise.binary(Descend{lr}, p, g)` on the parallel build, which forks
+above 2^15 cells, and keeps `g` in its slot, as PyTorch keeps `p.grad`. A
+parameter whose slot is empty, PyTorch's `p.grad is None`, keeps its value. An
+id listed twice is updated twice, as in PyTorch. The values change on the
+tape, so a forward recorded after the step reads them, as a forward after
+`optimizer.step()` reads the updated parameters. `zero_grad` is
+`TensorBackward.zero_grad`, which empties every slot (laws
+`tensor_zero_grad_empties` and `tensor_zero_grad_keeps_nodes`).
+
+Each cell is `F32.sub(p, F32.mul(lr, g))`: the product is rounded, then the
+difference. That is `p + (-lr) * g` for every word but a NaN's sign, since
+F32 rounding is symmetric in sign. PyTorch's CPU kernel for
+`param.add_(grad, alpha=-lr)` rounds once, a fused multiply-add, when it
+dispatches to AVX2 or AVX512, the scalar tail included, and twice on its
+`DEFAULT` kernel. Bend2 has no fused F32 operation, and its native lane is
+compiled without contraction, so bendtorch matches the `DEFAULT` kernel bit
+for bit and differs from the fused one by the rounding of the product.
+
+`src/autograd/sgd-LAWS.bend` states 11 laws and `sgd-PROOF.bend` proves them:
+
+- `sgd_descend_scalar`: `scalar(Descend{lr}, p, g) == F32.sub(p, F32.mul(lr, g))`.
+- `sgd_step_values`: in transport form, for a replayed value and a replayed
+  gradient whose shapes broadcast, the updated parameter holds a value of the
+  plan's shape whose word `k` is `scalar(Descend{lr}, p[left_map(plan, k)],
+  g[right_map(plan, k)])`, keeps its node, shape and saved values and `g` with
+  its words, next to `Done`. It is an instance of `binary_replayed`.
+- `sgd_empty_slot_kept`: a parameter whose slot is empty is unchanged.
+- `sgd_update_reaches_target`: the update of id `k` reaches exactly the entry
+  with `k` older entries, and keeps every other entry.
+- `sgd_no_params` and `sgd_params_in_order`: no parameter leaves the entries;
+  the first is updated before the rest, which see its result.
+- `sgd_refusal_reads_target`, `sgd_refusal_unknown` and
+  `sgd_only_leaves_accepted`: id `k` is judged by the node with `k` older
+  nodes; an id at or above the number of nodes is `UnknownNode`; a node with
+  no operands is accepted and any other is `NotLeaf`.
+- `sgd_step_refused` and `sgd_step_accepted`: a refused list leaves the tape
+  unchanged; otherwise the step updates the parameters in list order.
+
+The autograd gate applies seven SGD mutants to a copy of the sources, and the
+check of `src/autograd/PROOF.bend` fails at the law each one makes false: a
+step that adds (`sgd_descend_scalar`), twice the learning rate
+(`sgd_step_values`), a step that skips every parameter after the first
+(`sgd_params_in_order`), an empty slot read as zeros and applied
+(`sgd_empty_slot_kept`), an update of a neighboring entry
+(`sgd_update_reaches_target`), updates before the ids are checked
+(`sgd_step_refused`) and a `Mul` node accepted as a parameter
+(`sgd_only_leaves_accepted`). The tensor backward subgate rejects each of the
+seven as a runtime control too.
+
 ## Runtime lanes
 
-`tools/autograd_tensor_backward.py` runs 130 scripts on native Bend CPU
+`tools/autograd_tensor_backward.py` runs 138 scripts on native Bend CPU
 (`--threads N --gpu off`, N from `tools.check --threads`, default 8, or the CPU count if lower) and on the generated JavaScript. Each script records
 leaves and operations, runs `backward` on chosen outputs, sometimes calls
-`zero_grad`, and reads the value and gradient of every node, word by word. The
+`zero_grad` or an SGD `step`, and reads the value and gradient of every node, word by word. The
 harness (`src/autograd/tensor-backward-harness.bend`) calls the public
 functions; `ForgeAdd` and `ForgeSum` push an entry without checks so the gate
 can build tapes with dangling operands.
 
-- 58 handwritten scripts: broadcasting along rows, columns, a `[1, 3]` operand,
+- 66 handwritten scripts: broadcasting along rows, columns, a `[1, 3]` operand,
   a rank-0 operand and rank 4; `x*x`, `x+x` and `x-x`; matmul, a square
   `A @ A` and a linear layer `x @ W + b`; a non-scalar output seeded with
   ones; the unused-node graph with each output selected; repeated backward on
@@ -332,7 +391,14 @@ can build tapes with dangling operands.
   that reach its gradient; NaN gradients of both signs, with payloads and a
   signaling NaN, that it must pass word for word; a seeded output;
   `relu(relu(x)) * x`; a rank-0 `-0.0`; an empty `[0, 3]` input; `linear`,
-  `relu`, `linear`; and an unknown operand.
+  `relu`, `linear`; and an unknown operand. Eight run an SGD `step`: two
+  training steps of `linear`, `relu`, `linear` (forward, backward, step,
+  `zero_grad`, a second forward, backward and step); the twenty edge words,
+  each parameter word paired with a gradient word of another class, at the
+  learning rate `1/3`; products that round, cancel, underflow to denormals and
+  overflow, at `0.01` and `1/3`; a parameter that backward never reaches and a
+  step after `zero_grad`; a step before any backward; an empty list and an id
+  listed twice; an unknown id; and a node that is not a leaf.
 - 32 generated scripts (fixed seed) over shapes `[]`, `[2]`, `[3]`, `[1, 3]`,
   `[2, 1]`, `[2, 3]`, `[3, 2]` and `[2, 2]`, with words whose sums and products
   stay exact, and 24 more with words that round, cancel and overflow. 16 more
@@ -353,7 +419,7 @@ as `0x7FC00000`, without its sign or payload, so it keeps the NaN allowance,
 and only the native lane and the laws check the NaN words `relu` keeps and
 passes.
 
-The subgate also builds seventeen runtime controls from a mutated copy of the
+The subgate also builds twenty-five runtime controls from a mutated copy of the
 sources and requires the JavaScript lane to reject each one: a seed at the
 newest node, a `Mul` VJP with swapped operands, a `Sub` VJP without the sign,
 a `Matmul` VJP without the transpose, a merge that overwrites the slot, a
@@ -365,7 +431,8 @@ gradient sums rows instead of columns, a `linear` that checks the bias id
 after it records the product, a `linear` that keeps the product when the
 sum is refused, a `relu` that passes negatives, a `relu` that zeroes
 `-0.0`, a `relu` gradient that passes `g` at zero, and a `Relu` VJP that
-reads `g` as the input. Two more controls run on the native lane only, since
+reads `g` as the input, the seven SGD mutants of the [SGD](#sgd) section, and a
+`zero_grad` that keeps the slot. Two more controls run on the native lane only, since
 the JavaScript lane cannot tell NaNs apart: a `relu` and a `relu` gradient
 that replace each NaN word, of `x` or of `g`, with `0x7FC00000`. The
 reference accepts both, and the exact `relu` words reject each.
@@ -379,26 +446,29 @@ retain_graph=True)`, `retain_grad()` on every non-leaf) and writes
 `tests/test_autograd_tensor_backward.py` compares it with the Python
 reference. Bend never calls PyTorch.
 
-110 of the 130 scripts agree with PyTorch line for line: every id, shape, value,
+113 of the 138 scripts agree with PyTorch line for line: every id, shape, value,
 gradient word and `None`, including the arrival-order and fold-order scripts,
 `-0.0`, infinities and subnormals, and every `relu` script but four, with
 PyTorch's `-0.0`, NaN and zero-gradient words. Those four are listed below:
 `relu_edges` and `relu_nan_gradient` (NaN payloads of `NaN * NaN` in the
 forward product after `relu`), `relu_13` (a one-term matmul, no `relu`
-involved) and `relu_unknown_operand` (an intentional refusal). The other 20
-differ as listed, and every
+involved) and `relu_unknown_operand` (an intentional refusal). Three SGD
+scripts agree line for line: the empty slot, no gradients, and the empty list
+with the duplicate id. The other 25 differ as listed, and every
 gradient PyTorch can represent in them agrees:
 
 | Scripts | bendtorch | PyTorch |
 | --- | --- | --- |
-| `unknown_operands`, `unknown_output`, `unknown_output_empty`, `linear_bias_next`, `linear_bias_unknown`, `relu_unknown_operand` | `UnknownNode` (103) for each unknown id | `IndexError` from the Python list that the replay uses as a tape |
+| `unknown_operands`, `unknown_output`, `unknown_output_empty`, `linear_bias_next`, `linear_bias_unknown`, `relu_unknown_operand`, `sgd_unknown_param` | `UnknownNode` (103) for each unknown id | `IndexError` from the Python list that the replay uses as a tape |
 | `incompatible_shapes`, `invalid_leaf`, `linear_inner_mismatch`, `linear_bias_mismatch`, `matmul_nt_rank` | the tensor layer's error code (6, 105, 106, 10) | `RuntimeError` |
 | `dangling_self`, `dangling_newer`, `dangling_missing` | `DanglingOperand` (104) | not representable |
-| `specials`, `relu_edges`, `relu_nan_gradient` | the value of `NaN * NaN` is NaN | NaN with another payload |
+| `specials`, `relu_edges`, `relu_nan_gradient`, `sgd_edges` | the value of `NaN * NaN`, and of a step with a NaN parameter and a NaN gradient, is NaN | NaN with another payload |
+| `sgd_two_layers`, `sgd_rounding` | an SGD step rounds `lr * g`, then `p - lr * g` | one rounding on AVX2 and AVX512: the lines equal a reference that rounds once, word for word; 6 of 337 words differ from bendtorch's, by 1 to 6 ulp |
+| `sgd_not_leaf` | `NotLeaf` (107) | `torch.optim.SGD` accepts a non-leaf that retains its gradient, as every non-leaf of the replay does, and updates it |
 | `rounding_09` | the forward `sum` of six words adds them in ascending order | PyTorch's vectorized sum gives another word |
 | `rounding_14`, `relu_13` | a matmul with inner dimension 1 whose product is `-0.0` gives `+0.0`, because the ordered dot starts from `+0.0` | `-0.0` |
 
-The last three are forward values of the tensor layer
+The `rounding_09`, `rounding_14` and `relu_13` rows are forward values of the tensor layer
 ([reduction order](torch-differences.md)); the gradients of these scripts agree.
 
 ## Reproduce

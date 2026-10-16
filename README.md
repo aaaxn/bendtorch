@@ -22,7 +22,7 @@ with F32 tensors only, and it cannot train a model yet.
 | Shapes and indexing | `src/shape/` | Validated shapes of rank 0 to 4 with at most 2^20 elements, row-major flatten and unflatten, checked coordinates, and right-aligned broadcast plans. |
 | Owned storage | `src/storage/` | F32 storage with one owner: `new`, `get`, `set`, `clone` and `length`, with bounds checks before every access. |
 | Tensor core | `src/tensor/core.bend` | `Core.new`, `from_values`, `construct`, flat and coordinate reads and writes, `clone`, and the metadata queries `length`, `shape` and `count`. |
-| Elementwise ops | `src/tensor/elementwise.bend` | `add`, `sub` and `mul` with PyTorch-style broadcasting. Each output element is one F32 operation. Both inputs come back to the caller. `ReluLeft` and `ReluBackward` are PyTorch's `relu` and its gradient, built on IEEE comparisons with zero that read the F32 bits. |
+| Elementwise ops | `src/tensor/elementwise.bend` | `add`, `sub` and `mul` with PyTorch-style broadcasting. Each output element is one F32 operation. Both inputs come back to the caller. `ReluLeft` and `ReluBackward` are PyTorch's `relu` and its gradient, built on IEEE comparisons with zero that read the F32 bits. `Descend{lr}` is one cell of an SGD step, `p - lr * g`. |
 | Sum | `src/tensor/reduction.bend` | Sum of a whole tensor to a scalar, in row-major order, starting from `+0.0`. |
 | Matmul | `src/tensor/matmul.bend` | `[m,k] @ [k,n]`. Each dot product adds in increasing `k`, starting from `+0.0`. Large products build their output cells in parallel. `matmul_nt` (`x @ W^T`) and `matmul_tn` (`g^T @ x`) read the transposed operand in place, with the same words as a transpose copy and `matmul`. |
 | Reshape, permute, transpose | `src/tensor/transforms.bend` | `reshape` keeps the linear order. `permute_copy` and `transpose_copy` write a new contiguous tensor. |
@@ -30,6 +30,7 @@ with F32 tensors only, and it cannot train a model yet.
 | Autograd building blocks | `src/autograd/` | `broadcast_to` (copies a tensor to a larger shape), `reduce_to` (sums a gradient back to the shape of its input), `sum_to_size` (the PyTorch-facing form of `reduce_to`, which keeps the input unchanged when no axis is reduced) and gradient slots (`Gradient.accumulate`, `Gradient.grad`, `Gradient.reset`, `Gradient.gradient`) that add the contributions to a gradient in the order they arrive, read as `None` until they receive one, and reset to `None`. |
 | Scalar backward | `src/autograd/backward.bend` | Reverse-mode `backward` for F32 scalars on a tape of `add`, `sub`, `mul` and `neg`. It seeds the output the caller selects, gives `None` to every node that output does not reach, adds the contributions to a node used several times in a fixed order, accumulates repeated calls like PyTorch's `retain_graph=True`, and reports unknown node ids as errors. |
 | Tensor backward | `src/autograd/tensor-backward.bend` | Reverse-mode `backward` for tensors on a tape of `add`, `sub`, `mul` (with broadcasting), whole-tensor `sum`, 2-D `matmul`, `linear` (`x @ W^T + b` with `W` of `[out, in]`, PyTorch's layout) and `relu`. It seeds ones at the output the caller selects, reduces each broadcast contribution to its operand's shape with `sum_to_size`, adds the contributions to a node in the order they arrive, and agrees with PyTorch's gradients word for word on its corpus. |
+| SGD | `src/autograd/sgd.bend` | `torch.optim.SGD(params, lr)` without momentum or weight decay: `step` updates each listed leaf whose gradient slot holds `g` to `p - lr * g`, in list order, and keeps a leaf whose slot is empty. It checks every id first, so a refusal leaves the tape unchanged. The product and the difference each round once; PyTorch's AVX2 and AVX512 kernels fuse them. |
 | Experimental tape | `experiments/autograd-prototypes/` | Three autograd prototypes: a reverse tape, pullback closures and forward dual numbers. The reverse tape was chosen as the base for the real engine. |
 
 Every operation either consumes its inputs or gives them back to the caller
@@ -147,8 +148,8 @@ request that PyTorch accepts and bendtorch rejects.
 
 The road from Bend to PyTorch has nine phases. bendtorch has finished the
 tensor layer, the pieces that autograd needs and a backward pass over
-tensors. It cannot train a model yet: it has no modules, losses or
-optimizers.
+tensors, `Linear`, `relu` and SGD. It cannot train a model yet: it has no
+losses or training loop.
 
 | # | Phase | Status | What it delivers |
 | --- | --- | --- | --- |
@@ -158,7 +159,7 @@ optimizers.
 | 4 | Autograd building blocks | Done | `broadcast_to`, `reduce_to`, `sum_to_size` and gradient slots that accumulate in arrival order and read as `None` until they receive a value. |
 | 5 | Reverse-mode engine | Done | `backward` on a tape, built on the gradient slots: for scalars (`add`, `sub`, `mul`, `neg`) and for tensors (`add`, `sub`, `mul` with broadcasting, `sum`, `matmul`). |
 | 6 | Neural-network modules | In progress | `Linear` is done: `x @ W^T + b` on the tape, `W` read in place, with value laws for its gradients. `relu` is done, with PyTorch's words at `-0.0`, NaN and the gradient at `0`. Losses, each with its forward and backward pass, remain. |
-| 7 | Optimizers and training | Planned | SGD-style optimizers and a training loop that trains a small model end to end. |
+| 7 | Optimizers and training | In progress | SGD is done: `step` over a list of tape parameters, `p - lr * g` with the learning rate only, on the parallel elementwise build, and `zero_grad`. A training loop that trains a small model end to end remains. |
 | 8 | An API closer to PyTorch | Planned | More dtypes, views and strides, `dim` and `keepdim` on reductions, negative axes and indices, slicing and batched `matmul`. |
 | 9 | Performance | In progress | Parallel CPU code and GPU kernels. `matmul` and the elementwise operations build large outputs in parallel; reductions and GPU kernels remain. |
 

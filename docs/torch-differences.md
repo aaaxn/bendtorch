@@ -95,22 +95,30 @@ The tensor `backward` in `src/autograd/tensor-backward.bend` agrees with
 PyTorch's gradients word for word on every script of
 `oracle/autograd/fixtures/tensor-backward-torch.json` that PyTorch can
 represent, including arrival order, broadcast reductions, `-0.0`, infinities
-and subnormals. 110 of the 130 scripts agree line for line, the five `linear`
+and subnormals. 113 of the 138 scripts agree line for line, the five `linear`
 scripts that PyTorch accepts among them, and every `relu` script but four:
 `relu_edges` and `relu_nan_gradient` (NaN payloads of `NaN * NaN` in the
 product after `relu`), `relu_13` (a one-term matmul) and
 `relu_unknown_operand` (an intentional refusal); their gradients agree.
 `relu` gives PyTorch's words at `-0.0` (kept), NaN (kept, with its payload),
 `-inf` (`+0.0`), and its gradient is `+0.0` at `x = +0.0` and `-0.0` and `g`
-at a NaN `x`. The differences:
+at a NaN `x`. An SGD step, `p - lr * g`, rounds the product and then the
+difference; PyTorch's CPU kernel for `param.add_(grad, alpha=-lr)` rounds
+once (a fused multiply-add) when it dispatches to AVX2 or AVX512, as on the
+machine that recorded the fixture, and twice, as bendtorch does, on its
+`DEFAULT` kernel (`ATEN_CPU_CAPABILITY=default`). Bend2 has no fused F32
+multiply-add, and its native lane is compiled without contraction. The
+differences:
 
 | Behavior | bendtorch | PyTorch |
 | --- | --- | --- |
 | Seed | Ones of the output's shape, for any output | `backward()` needs a scalar output; the replay passes `torch.ones_like(output)` |
-| Node id the tape does not hold | `UnknownNode` (103) | `IndexError` from the replay's Python list (6 scripts) |
+| Node id the tape does not hold | `UnknownNode` (103) | `IndexError` from the replay's Python list (7 scripts) |
 | Shapes the operation refuses | The tensor layer's error code | `RuntimeError` (5 scripts) |
 | Operand that is the node itself, a newer node or a missing node | `DanglingOperand` (104) for a forged tape | Cannot be built (3 scripts) |
-| `NaN * NaN` | NaN | NaN with another payload (3 scripts) |
+| `NaN * NaN`, and an SGD step with a NaN parameter and a NaN gradient | NaN | NaN with another payload (4 scripts) |
 | Forward `sum` and `matmul` | Ordered folds from `+0.0` (see above) | Another order, and `-0.0` from a one-term matmul (3 scripts; the gradients agree) |
+| SGD step `p - lr * g` | The product rounded, then the difference | One rounding on AVX2 and AVX512, two on the `DEFAULT` kernel; `sgd_two_layers` and `sgd_rounding` match a one-rounding reference word for word (2 scripts; 6 of 337 words differ, by 1 to 6 ulp) |
+| SGD step over a node that is not a leaf | `NotLeaf` (107) | `torch.optim.SGD` accepts a non-leaf that retains its gradient, as every non-leaf of the replay does (1 script) |
 
 [docs/tensor-backward.md](tensor-backward.md) has the contract.
