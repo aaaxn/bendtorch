@@ -176,8 +176,9 @@ wrapped into unsigned words.
 The remaining seven dtype requests cannot be expressed as a dynamic dtype
 argument: `Core.construct` statically accepts only `List<&2, F32>`. Each gets a
 separate generated compile-negative source using a distinct nominal dtype value
-type and attempting to pass that list to `Core.construct`. Both source checking
-and BendTT must exit 1 and emit the expected-type diagnostic. This establishes
+type and attempting to pass that list to `Core.construct`. Under both
+`--check-only` and `--verdict` it must exit 1 with the expected-type diagnostic;
+the type error stops it in source checking, before BendTT runs. This establishes
 the F32-only interface restriction; it does not implement these dtypes or invent
 a runtime `UnsupportedDtype` result. Entries use `compile_negative` and
 `boundary: "static_f32_type"`, not `error`.
