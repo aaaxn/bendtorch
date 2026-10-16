@@ -417,6 +417,20 @@ def read_offset(+order: Order, +inner: Nat, +outers: Nat, +outer: Nat, +k: Nat) 
 def read_index(+order: Order, +inner: Nat, +outers: Nat, +outer: Nat, +k: Nat) -> U32:
   U32.from_nat(read_offset(order, inner, outers, outer, k))
 
+# The terms k = cursor .. cursor + fuel of cell (row, column) of a rows x
+# columns product, fuel + 1 of them, added to `accumulator`; `left` and
+# `right` are the reads of term `cursor`, already made. Each step reads the
+# next term's words, so the loop is one tail call with no closure: it
+# compiles to a flat loop.
+def product_run(fuel: Nat, +lo: Order, +ro: Order, +inner: Nat, +rows: Nat, +columns: Nat, +row: Nat, +column: Nat,
+  +cursor: Nat, accumulator: F32, left: Array<F32> & F32, right: Array<F32> & F32) -> F32 & (Array<F32> & Array<F32>):
+  match fuel left right:
+    case 0n Tuple{la, x} Tuple{ra, y}:
+      (F32.add(accumulator, F32.mul(x, y)), (la, ra))
+    case 1n+rest Tuple{la, x} Tuple{ra, y}:
+      product_run(rest, lo, ro, inner, rows, columns, row, column, 1n+cursor, F32.add(accumulator, F32.mul(x, y)),
+        Array.get(F32, la, read_index(lo, inner, rows, row, 1n+cursor)), Array.get(F32, ra, read_index(ro, inner, columns, column, 1n+cursor)))
+
 # The terms k = cursor .. cursor + fuel - 1 of cell (row, column) of a
 # rows x columns product, added to `accumulator`.
 def product_dot(fuel: Nat, +lo: Order, +ro: Order, +inner: Nat, +rows: Nat, +columns: Nat, +row: Nat, +column: Nat,
@@ -425,8 +439,8 @@ def product_dot(fuel: Nat, +lo: Order, +ro: Order, +inner: Nat, +rows: Nat, +col
     case 0n:
       (accumulator, (la, ra))
     case 1n+rest:
-      term_left(value => l => r => product_dot(rest, lo, ro, inner, rows, columns, row, column, 1n+cursor, value, l, r),
-        accumulator, ra, read_index(ro, inner, columns, column, cursor), Array.get(F32, la, read_index(lo, inner, rows, row, cursor)))
+      product_run(rest, lo, ro, inner, rows, columns, row, column, cursor, accumulator,
+        Array.get(F32, la, read_index(lo, inner, rows, row, cursor)), Array.get(F32, ra, read_index(ro, inner, columns, column, cursor)))
 
 def product_dot_of(+lo: Order, +ro: Order, +inner: Nat, +rows: Nat, +columns: Nat, +position: Nat,
   la: Array<F32>, ra: Array<F32>) -> F32 & (Array<F32> & Array<F32>):
