@@ -264,13 +264,15 @@ dimensions. Every field is LIVE.
 The proof is generic over the index map. `src/tensor/index-map.bend` states
 the copy `out[i] = input[map(plan, i)]` as the pointwise family of
 `src/tensor/contracts/` with a scalar function that keeps its first operand,
-so the read history, the write history and the final-value theorem
+so the write history and the final-value theorem
 (`PointwiseProof.writes_value`) are the family's. Permute supplies the map
-`permute_source` and discharges its bound from the `Layout.Mapping` the loop
-computes; transpose reuses the permute proof with the swapped axes. The
-proof walks `Transforms.copy_loop` itself with live code: each step reads the
-mapped word and writes it at the cursor, and `IndexMap.shift` turns the
-storages that step leaves into the next step's histories.
+`permute_source` and discharges its bound from the `Layout.Mapping` of each
+output index; transpose reuses the permute proof with the swapped axes. The
+copy itself is the parallel build of `src/tensor/permute-build.bend`, and
+`permute-values.bend` walks it with live code: the source comes back as the
+First half of its clone, and the build's output, cell by cell, is the
+family's write history replayed on the storage `Core.new` allocates
+(`made`, from `build_eq` in `permute-build-proof.bend`).
 
 `permute-values/` holds:
 
@@ -281,21 +283,21 @@ storages that step leaves into the next step's histories.
   the code, dimensions, one output value and one retained source value.
 - `controls.bend`: three witnesses (rotated value 5.0, transposed value 4.0,
   retained source value 3.0) and `wrong_value` (8.0).
-- `mutants.toml`: before/after text of each `transforms.bend` mutation.
+- `mutants.toml`: before/after text of each mutation, with the file it edits.
 
-| Control | Change in `transforms.bend` | Expected rejection |
+| Control | Change | Expected rejection |
 | --- | --- | --- |
 | False twins (3) | one witness statement says `wrong_value` | `Some(v) == Some(8.0)` at that witness, source and kernel |
-| Forward map (WI) | `copy_mapped` reads the source at the output index and writes at the mapped index | `read_step`, source and kernel; the released transform contract passes |
+| Forward map (WI) | `Build.at` in `permute-build.bend` reads the source at the output index instead of the mapped index | `source_word` in `permute-build-proof.bend`, source and kernel; the released transform contract passes |
 | Swap ignored (WI) | `transpose_decided` permutes by `transpose_axes(dims, a, a)` | `transpose_route`, source and kernel; the released transform contract passes |
 
 Both WI mutants keep every existing law: the erased value laws do not reach
 the kernel, and `transform-contract-PROOF.bend`, which states failures and
 reshape values only, still checks on each mutated copy. The rotation consumer
 uses a 3-cycle because a swap of two axes is its own inverse, so a forward map
-would read the same words for it. The kernel lane exports the mutated
-`transforms.bend` alone and transplants its changed declarations into the
-positive export.
+would read the same words for it. The kernel lane exports the mutated module
+alone (`permute-build.bend` or `transforms.bend`) and transplants its changed
+declarations into the positive export.
 
 ## Run
 

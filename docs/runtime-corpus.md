@@ -271,19 +271,21 @@ under `.evidence/` for inspection.
 changing the shape and storage code. It counts `blk_half` splits and
 `blk_node` joins. The audited executable must reproduce the same parsed
 observations and report exactly `STORAGE_COPY_AUDIT 0 <joins>`, where `<joins>`
-is what the parallel elementwise and matmul builds must make for the requests
-the corpus runs. Each build assembles its output as a balanced tree and joins
+is what the parallel elementwise, matmul and permute builds must make for the
+requests the corpus runs. Each build assembles its output as a balanced tree and joins
 every inner node once with `ANode`, so an output of `n > 0` cells, stored at
 depth `ceil(log2 n)`, costs `2^depth - 1` joins; a `matmul_add` request runs
 both builds. A build that never runs costs none: empty outputs, and calls
-that fail at construction, rank, inner extent or capacity before their build.
+that fail at construction, rank, inner extent, capacity or axes before their
+build.
 A failed broadcast skips only the elementwise build: a `matmul_add` whose bias
 does not broadcast has already built its product, so that product's matmul
 joins still count (`product_cells`). `tools.tensor_runtime` computes the
-count from the request shapes alone (771 for the frozen corpus: 723 from the
-elementwise builds and 48 from the matmul builds), so any
+count from the request shapes alone (842 for the frozen corpus: 723 from the
+elementwise builds, 48 from the matmul builds and 71 from the `permute_copy`
+and `transpose_copy` builds), so any
 split, and any join outside these builds, including in construction, clone,
-transforms, numerical compute, and serialization, still fails the gate.
+reshape, numerical compute, and serialization, still fails the gate.
 Sanctioned storage initialization/clone intrinsics do not increment these
 counters. The counters are incremented atomically, so the count is exact at
 any thread count.
