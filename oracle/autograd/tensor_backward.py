@@ -76,6 +76,8 @@ def replay(case: Json) -> Json:
             if name == "leaf":
                 value = tensor(step["words"], step["shape"]).requires_grad_()
                 lines.append(record(value, nodes))
+            elif name == "constant":
+                lines.append(record(tensor(step["words"], step["shape"]), nodes))
             elif name in BACKED:
                 ids = [step[key] for key in ("a", "b") if key in step]
                 operands = [nodes[identifier] for identifier in ids]

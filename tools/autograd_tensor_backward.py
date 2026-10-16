@@ -177,6 +177,22 @@ RUNTIME_CONTROLS = {
         "delivered_as(target, shape, SumToSize.sum_to_size(g, shape))",
         "delivered_as(target, shape, Reduce.reduce_to(g, shape))",
     ),
+    "constant-records-leaf": (
+        "pushed(Constant{}, value, Unsaved{}, counted(entries))",
+        "pushed(Leaf{}, value, Unsaved{}, counted(entries))",
+    ),
+    "constant-result-records-frozen": (
+        "    case True{}:\n      Constant{}\n",
+        "    case True{}:\n      freeze(ids, nodes, count, node)\n",
+    ),
+    "frozen-keeps-contribution": (
+        "kept_one(target, shape, gradient, Nat.is_eq(id, target), kept_others(id, rest))",
+        "kept_one(target, shape, gradient, False{}, kept_others(id, rest))",
+    ),
+    "frozen-skip-sends-input-gradient": (
+        "      vjp_matmul_nt_right(b, right, saved, g)\n",
+        "      vjp_matmul_nt(a, b, left, right, saved, g)\n",
+    ),
 }
 
 # SGD mutants: the tensor backward lanes reject each one, and the autograd
@@ -393,6 +409,11 @@ def leaf(shape: list[int], words: list[int]) -> dict:
     return {"op": "leaf", "shape": shape, "words": words}
 
 
+# A leaf that takes no gradient, PyTorch's requires_grad=False.
+def constant(shape: list[int], words: list[int]) -> dict:
+    return {"op": "constant", "shape": shape, "words": words}
+
+
 def op(name: str, a: int, b: int | None = None) -> dict:
     return {"op": name, "a": a} if b is None else {"op": name, "a": a, "b": b}
 
@@ -425,7 +446,7 @@ def sgd(lr: int, params: list[int]) -> dict:
 
 
 def program_case(identifier: str, steps: list[dict], output: int) -> dict:
-    count = sum(step["op"] in ("leaf", *UNARY, *BINARY) for step in steps)
+    count = sum(step["op"] in ("leaf", "constant", *UNARY, *BINARY) for step in steps)
     count += 2 * sum(step["op"] == "linear" for step in steps)
     return {"id": identifier, "steps": [*steps, run(output), *reads(count)]}
 
@@ -859,6 +880,98 @@ def handwritten() -> list[dict]:
             "steps": [row, op("relu", 3), op("relu", 0), run(1), *reads(2)],
         },
         *sgd_scripts(left, layer, layer_bias),
+        *constant_scripts(left, layer, layer_bias),
+    ]
+
+
+# Constants, leaves that take no gradient: no VJP sends one a contribution,
+# so its gradient reads None, and an operation whose operands are all
+# constants records a constant. Linear of a constant input skips g @ W.
+def constant_scripts(x: dict, layer: dict, layer_bias: dict) -> list[dict]:
+    batch = constant([2, 3], x["words"])
+    target = constant([4, 3], f(*[0.5 - 0.125 * k for k in range(12)]))
+    return [
+        # The first layer of the MNIST step: the input is a constant.
+        program_case(
+            "constant_linear_input",
+            [batch, layer, layer_bias, linear(0, 1, 2), op("sum", 4)],
+            5,
+        ),
+        program_case(
+            "constant_linear_relu_linear",
+            [
+                batch,
+                layer,
+                layer_bias,
+                leaf([2, 4], f(*[0.25 * k - 1.0 for k in range(8)])),
+                leaf([2], f(0.5, -0.25)),
+                linear(0, 1, 2),
+                op("relu", 6),
+                linear(7, 3, 4),
+                entropy(9, [1, 0]),
+            ],
+            10,
+        ),
+        # The weight is the constant: x @ W^T sends only g @ W, to x.
+        program_case(
+            "constant_weight",
+            [
+                leaf([2, 3], x["words"]),
+                constant([4, 3], layer["words"]),
+                op("matmul_nt", 0, 1),
+                op("sum", 2),
+            ],
+            3,
+        ),
+        # A target that takes no gradient, as in mse_loss(prediction, y).
+        program_case(
+            "constant_mse_target",
+            [layer, target, op("mse_loss", 0, 1)],
+            2,
+        ),
+        # Every operand a constant: the product is a constant too, and the
+        # sum that reads it with a leaf is frozen at it.
+        program_case(
+            "constant_of_constants",
+            [
+                batch,
+                constant([2, 3], f(0.5, -1.0, 2.0, 0.25, 4.0, -0.5)),
+                op("mul", 0, 1),
+                leaf([2, 3], f(1.0, -2.0, 0.5, 3.0, 0.25, -1.0)),
+                op("mul", 2, 3),
+                op("relu", 0),
+                op("add", 4, 5),
+                op("sum", 6),
+            ],
+            7,
+        ),
+        program_case(
+            "constant_matmul_left",
+            [
+                batch,
+                leaf([3, 2], f(1.0, 0.5, -1.0, 2.0, 0.25, -0.5)),
+                op("matmul", 0, 1),
+                op("relu", 1),
+                op("matmul", 0, 3),
+                op("sub", 2, 4),
+                op("sum", 5),
+            ],
+            6,
+        ),
+        # SGD keeps a constant, whose slot is empty.
+        {
+            "id": "constant_sgd_keeps",
+            "steps": [
+                batch,
+                layer,
+                layer_bias,
+                linear(0, 1, 2),
+                op("sum", 4),
+                run(5),
+                sgd(word(0.5), [0, 1, 2]),
+                *reads(6),
+            ],
+        },
     ]
 
 
@@ -1600,7 +1713,7 @@ def accepted(result: tuple | int) -> tuple:
 
 def vjp(node: dict, gradient: tuple) -> list[tuple[int, tuple]]:
     name = node["op"]
-    if name == "leaf":
+    if name in ("leaf", "constant"):
         return []
     if name == "mse_loss":
         e, d = node["saved"]
@@ -1691,8 +1804,9 @@ def gradients(nodes: list[dict], output: int) -> list[tuple | None]:
         gradient = found[position]
         if gradient is None:
             continue
+        frozen = nodes[position].get("frozen", ())
         for target, contribution in vjp(nodes[position], gradient):
-            if target < position:
+            if target < position and target not in frozen:
                 found[target] = accumulate(found[target], contribution)
     return found
 
@@ -1769,6 +1883,11 @@ def reference(case: dict, trace: dict | None = None, update=descend_word) -> lis
         if name in ("mse_loss", "cross_entropy"):
             result, *saved = result
         node = {"op": name, "a": step["a"], "shape": result[0], "value": result}
+        # Operands that are constants get nothing; with every operand a
+        # constant, the result is a constant too.
+        node["frozen"] = [i for i in ids if nodes[i]["op"] == "constant"]
+        if len(node["frozen"]) == len(ids):
+            node["op"] = "constant"
         node["left"] = values[0][0]
         if name not in UNARY:
             node |= {"b": step["b"], "right": values[1][0]}
@@ -1783,7 +1902,7 @@ def reference(case: dict, trace: dict | None = None, update=descend_word) -> lis
         name = step["op"]
         if name != "read":
             epoch += 1
-        if name == "leaf":
+        if name in ("leaf", "constant"):
             shape, words = step["shape"], step["words"]
             if len(shape) > MAX_RANK:
                 lines.append(f"autograd:error:{RANK_EXCEEDED}")
@@ -1792,7 +1911,7 @@ def reference(case: dict, trace: dict | None = None, update=descend_word) -> lis
             elif len(words) != math.prod(shape):
                 lines.append(f"autograd:error:{VALUE_COUNT_MISMATCH}")
             else:
-                push({"op": "leaf", "shape": shape, "value": (shape, list(words))})
+                push({"op": name, "shape": shape, "value": (shape, list(words))})
         elif name in BINARY or name in UNARY:
             record(name, step)
         elif name == "linear":
@@ -1838,7 +1957,8 @@ def reference(case: dict, trace: dict | None = None, update=descend_word) -> lis
                 (
                     UNKNOWN_NODE if target >= len(nodes) else NOT_LEAF
                     for target in step["params"]
-                    if target >= len(nodes) or nodes[target]["op"] != "leaf"
+                    if target >= len(nodes)
+                    or nodes[target]["op"] not in ("leaf", "constant")
                 ),
                 None,
             )
@@ -1944,9 +2064,9 @@ def list_source(numbers: list[int]) -> str:
 
 def step_source(step: dict) -> str:
     name = step["op"]
-    if name == "leaf":
+    if name in ("leaf", "constant"):
         tensor = f"{list_source(step['shape'])}, {list_source(step['words'])}"
-        return f"Harness.Leaf{{{tensor}}}"
+        return f"Harness.{name.capitalize()}{{{tensor}}}"
     if name == "backward":
         return f"Harness.Run{{{step['output']}n}}"
     if name == "zero_grad":
