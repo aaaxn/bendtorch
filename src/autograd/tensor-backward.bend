@@ -9,6 +9,7 @@ import ./broadcast.bend as Broadcast
 import ./reduce.bend as Reduce
 import ./sum-to-size.bend as SumToSize
 import ./gradient.bend as Gradient
+import ./loss.bend as Loss
 
 # Reverse mode over tensors, on the scalar engine's tape discipline
 # (backward.bend): entries newest first, the entry with k older entries has
@@ -33,7 +34,11 @@ import ./gradient.bend as Gradient
 #   Matmul: g @ right^T and left^T @ g; MatmulNT (left @ right^T, the
 #   product of Linear): g @ right and g^T @ left, read in place; Relu: g where
 #   the saved input is above zero or NaN and +0.0 where it is at most zero,
-#   PyTorch's threshold_backward.
+#   PyTorch's threshold_backward; MseLoss: (2 / N * d) * g and (2 / N * e) * g
+#   with the saved differences d = left - right and e = right - left;
+#   CrossEntropy: two contributions to the logits, one_hot * -(g / N) and
+#   -(exp(lp) * (-(g / N) + 0.0)) with the saved log_softmax lp, whose sum is
+#   PyTorch's one_hot gradient minus exp(lp) times its row sum.
 # Each is reduced to its operand's shape before it is delivered.
 #
 # Recording and reads hand back the tape. A failed call leaves every slot as
@@ -48,6 +53,7 @@ type Error is Data:
   BroadcastError{error: Broadcast.Error}
   ReduceError{error: Reduce.Error}
   GradientError{error: Gradient.Error}
+  LossError{error: Loss.Error}
 
 type Node is Data:
   Leaf{}
@@ -58,6 +64,8 @@ type Node is Data:
   Matmul{a: Nat, b: Nat, left: Shape.Shape, right: Shape.Shape}
   MatmulNT{a: Nat, b: Nat, left: Shape.Shape, right: Shape.Shape}
   Relu{a: Nat, input: Shape.Shape}
+  MseLoss{a: Nat, b: Nat, left: Shape.Shape, right: Shape.Shape}
+  CrossEntropy{a: Nat, input: Shape.Shape}
 
 # The operand values a product saves at record time.
 type Saved is Type:
@@ -84,6 +92,7 @@ type Binary is Data:
   Times{}
   Product{}
   ProductNT{}
+  SquaredError{}
 
 def empty() -> Tape:
   Tape{Nil{}}
@@ -363,6 +372,64 @@ def vjp_relu(+a: Nat, +input: Shape.Shape, saved: Saved, g: Core.Dynamic) -> Pas
     case Operands{x, zero}:
       relu_passed(a, input, zero, Elementwise.binary(Elementwise.ReluBackward{}, x, g))
 
+def mse_second(+b: Nat, +right: Shape.Shape, first: Result<&2, &1, Error, Contribution>, d: Core.Dynamic,
+  pair: (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>) -> Pass:
+  (operands, second) = pair
+  (g, e) = operands
+  Pass{Operands{e, d}, g, both(first, product_reduced(b, right, second))}
+
+def mse_first(+a: Nat, +b: Nat, +left: Shape.Shape, +right: Shape.Shape, +scale: F32, e: Core.Dynamic,
+  pair: (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>) -> Pass:
+  (operands, first) = pair
+  (g, d) = operands
+  mse_second(b, right, product_reduced(a, left, first), d, Elementwise.binary(Elementwise.MseGrad{scale}, g, e))
+
+def mse_shaped(+a: Nat, +b: Nat, +left: Shape.Shape, +right: Shape.Shape, e: Core.Dynamic, g: Core.Dynamic,
+  pair: Core.Dynamic & Shape.Shape) -> Pass:
+  (d, +shape) = pair
+  mse_first(a, b, left, right, Loss.mse_scale(shape), e, Elementwise.binary(Elementwise.MseGrad{Loss.mse_scale(shape)}, g, d))
+
+# d mse_loss(a, b)/da: (2 / N * d) * g, and d/db: (2 / N * e) * g, PyTorch's
+# mse_loss_backward, with the differences e = right - left and d = left -
+# right saved at record time over the broadcast shape of N cells; each is
+# reduced to its operand's shape. The steps are the Mul VJP's, with
+# MseGrad for Mul.
+def vjp_mse(+a: Nat, +b: Nat, +left: Shape.Shape, +right: Shape.Shape, saved: Saved, g: Core.Dynamic) -> Pass:
+  match saved:
+    case Unsaved{}:
+      Pass{Unsaved{}, g, Fail{TensorError{Core.StorageLengthMismatch{}}}}
+    case Operands{e, d}:
+      mse_shaped(a, b, left, right, e, g, Core.shape(d))
+
+def entropy_second(+a: Nat, +input: Shape.Shape, first: Result<&2, &1, Error, Contribution>, onehot: Core.Dynamic,
+  pair: (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>) -> Pass:
+  (operands, second) = pair
+  (g, lp) = operands
+  Pass{Operands{lp, onehot}, g, both(first, product_reduced(a, input, second))}
+
+def entropy_first(+a: Nat, +input: Shape.Shape, +count: F32, +single: Bool, lp: Core.Dynamic,
+  pair: (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>) -> Pass:
+  (operands, first) = pair
+  (g, onehot) = operands
+  entropy_second(a, input, product_reduced(a, input, first), onehot, Elementwise.binary(Elementwise.SoftmaxGrad{count, single}, g, lp))
+
+# d cross_entropy(a)/da, as two contributions to a that its slot adds in
+# order. The first is PyTorch's nll_loss backward, OneHotGrad of g and the
+# saved one-hot rows: -(g / N) at each row's target and +0.0 elsewhere, for
+# the N rows. The second is the rest of PyTorch's log_softmax backward,
+# SoftmaxGrad of g and the saved lp: -(exp(lp) * r) with r the row sum of the
+# first, -(g / N) + 0.0, or -(g / N) itself when the logits have one column
+# (PyTorch's sum of one word keeps -0.0). Added into an empty slot, first + second is
+# PyTorch's first - exp(lp) * r word for word. The steps are the Mul VJP's,
+# with OneHotGrad and SoftmaxGrad for Mul and both contributions to a.
+def vjp_cross_entropy(+a: Nat, +input: Shape.Shape, saved: Saved, g: Core.Dynamic) -> Pass:
+  match saved:
+    case Unsaved{}:
+      Pass{Unsaved{}, g, Fail{TensorError{Core.StorageLengthMismatch{}}}}
+    case Operands{lp, onehot}:
+      entropy_first(a, input, Loss.count_f32(Loss.rows(input)), Loss.one_class(input), lp,
+        Elementwise.binary(Elementwise.OneHotGrad{Loss.count_f32(Loss.rows(input))}, g, onehot))
+
 # The vector-Jacobian product of one node with gradient g: the contribution
 # each operand receives, in operand order, already reduced to its shape.
 def vjp(node: Node, saved: Saved, g: Core.Dynamic) -> Pass:
@@ -383,6 +450,10 @@ def vjp(node: Node, saved: Saved, g: Core.Dynamic) -> Pass:
       vjp_matmul_nt(a, b, left, right, saved, g)
     case Relu{+a, +input}:
       vjp_relu(a, input, saved, g)
+    case MseLoss{+a, +b, +left, +right}:
+      vjp_mse(a, b, left, right, saved, g)
+    case CrossEntropy{+a, +input}:
+      vjp_cross_entropy(a, input, saved, g)
 
 # Delivery.
 
@@ -508,6 +579,10 @@ def operands_below(node: Node, +bound: Nat) -> Bool:
     case MatmulNT{a, b, left, right}:
       Bool.and(Nat.is_lt(a, bound), Nat.is_lt(b, bound))
     case Relu{a, input}:
+      Nat.is_lt(a, bound)
+    case MseLoss{a, b, left, right}:
+      Bool.and(Nat.is_lt(a, bound), Nat.is_lt(b, bound))
+    case CrossEntropy{a, input}:
       Nat.is_lt(a, bound)
 
 def wired(nodes: List<&2, Node>, +count: Nat) -> Bool:
@@ -742,6 +817,24 @@ def kept(node: Node, entries: List<&1, Entry>, pair: (Core.Dynamic & Core.Dynami
   (left, right) = operands
   recorded(node, Operands{left, right}, entries, result)
 
+def loss_recorded(node: Node, entries: List<&1, Entry>, result: Result<&2, &1, Loss.Error, Loss.Recorded>) ->
+  Tape & Result<&2, &2, Error, Nat>:
+  match result:
+    case Fail{error}:
+      (Tape{entries}, Fail{LossError{error}})
+    case Done{Loss.Recorded{loss, left, right}}:
+      push(node, loss, Operands{left, right}, entries)
+
+def loss_dropped(node: Node, entries: List<&1, Entry>, pair: (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Loss.Error, Loss.Recorded>) ->
+  Tape & Result<&2, &2, Error, Nat>:
+  (operands, result) = pair
+  loss_recorded(node, entries, result)
+
+def loss_kept(node: Node, entries: List<&1, Entry>, pair: Core.Dynamic & Result<&2, &1, Loss.Error, Loss.Recorded>) ->
+  Tape & Result<&2, &2, Error, Nat>:
+  (input, result) = pair
+  loss_recorded(node, entries, result)
+
 def operated(kind: Binary, +a: Nat, +b: Nat, +left_shape: Shape.Shape, +right_shape: Shape.Shape, entries: List<&1, Entry>,
   left: Core.Dynamic, right: Core.Dynamic) -> Tape & Result<&2, &2, Error, Nat>:
   match kind:
@@ -755,6 +848,8 @@ def operated(kind: Binary, +a: Nat, +b: Nat, +left_shape: Shape.Shape, +right_sh
       multiplied_record(Matmul{a, b, left_shape, right_shape}, entries, Matrix.matmul(left, right))
     case ProductNT{}:
       multiplied_record(MatmulNT{a, b, left_shape, right_shape}, entries, Matrix.matmul_nt(left, right))
+    case SquaredError{}:
+      loss_dropped(MseLoss{a, b, left_shape, right_shape}, entries, Loss.mse_loss(left, right))
 
 def computed(kind: Binary, +a: Nat, +b: Nat, entries: List<&1, Entry>, left: Core.Dynamic & Shape.Shape,
   right: Core.Dynamic & Shape.Shape) -> Tape & Result<&2, &2, Error, Nat>:
@@ -906,6 +1001,38 @@ def relu(tape: Tape, +a: Nat) -> Tape & Result<&2, &2, Error, Nat>:
   Tape{entries} = tape
   relu_found(a, value_counted(a, counted(entries)))
 
+# Records mse_loss(a, b), PyTorch's mse_loss(input, target) with mean
+# reduction, a rank-0 tensor, from copies of the operands' values. The
+# differences a - b and b - a, over the shapes' broadcast, are saved for the
+# VJP. Shapes that do not broadcast are refused with IncompatibleBroadcast
+# (6); an unknown id with UnknownNode; the tape comes back unchanged.
+def mse_loss(tape: Tape, +a: Nat, +b: Nat) -> Tape & Result<&2, &2, Error, Nat>:
+  binary(tape, SquaredError{}, a, b)
+
+def entropy_shaped(+a: Nat, +targets: List<&2, U32>, entries: List<&1, Entry>, pair: Core.Dynamic & Shape.Shape) ->
+  Tape & Result<&2, &2, Error, Nat>:
+  (input, +shape) = pair
+  loss_kept(CrossEntropy{a, shape}, entries, Loss.cross_entropy(input, targets))
+
+def entropy_found(+a: Nat, +targets: List<&2, U32>, pair: Found()) -> Tape & Result<&2, &2, Error, Nat>:
+  (entries, input) = pair
+  match input:
+    case Fail{error}:
+      (Tape{entries}, Fail{UnknownNode{}})
+    case Done{input}:
+      entropy_shaped(a, targets, entries, Core.shape(input))
+
+# Records cross_entropy(a, targets), PyTorch's cross_entropy with class
+# indices and mean reduction, a rank-0 tensor, from a copy of a's value: a
+# must be [rows, columns] logits and `targets` one class below `columns`
+# per row. The log_softmax lp and the one-hot rows of the targets are saved
+# for the VJP. Logits of another rank are refused with NotLogits (107),
+# targets that do not fit with TargetOutOfRange (108), an unknown id with
+# UnknownNode; the tape comes back unchanged.
+def cross_entropy(tape: Tape, +a: Nat, +targets: List<&2, U32>) -> Tape & Result<&2, &2, Error, Nat>:
+  Tape{entries} = tape
+  entropy_found(a, targets, value_counted(a, counted(entries)))
+
 def error_code(error: Error) -> U32:
   match error:
     case UnknownNode{}:
@@ -930,3 +1057,5 @@ def error_code(error: Error) -> U32:
       Reduce.error_code(error)
     case GradientError{error}:
       Gradient.error_code(error)
+    case LossError{error}:
+      Loss.error_code(error)

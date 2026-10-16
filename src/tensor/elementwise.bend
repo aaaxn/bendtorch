@@ -16,6 +16,14 @@ type Operation is Data:
   NegateLeft{}
   ReluLeft{}
   ReluBackward{}
+  Divide{}
+  ExpLeft{}
+  LogLeft{}
+  Matches{}
+  PickNegated{}
+  MseGrad{scale: F32}
+  OneHotGrad{count: F32}
+  SoftmaxGrad{count: F32, single: Bool}
   Descend{lr: F32}
 
 # The IEEE 754 bits of an F32, as a U32.
@@ -54,6 +62,26 @@ def relu(+x: F32) -> F32:
 def relu_backward(+x: F32, g: F32) -> F32:
   zero_if(at_most_zero(x), g)
 
+# Whether the word is 1.0 (0x3F800000), the target mark of a one-hot row.
+def is_one(x: F32) -> Bool:
+  U32.is_eq(bits(x), 1065353216)
+
+# -(g / count), the gradient PyTorch's nll_loss with mean reduction gives the
+# target cell of each row.
+def target_gradient(g: F32, +count: F32) -> F32:
+  F32.neg(F32.div(g, count))
+
+# The row sum PyTorch's log_softmax backward takes of a one-hot gradient row
+# whose target word is t. A row of one column holds t alone, and PyTorch's
+# sum of one word is that word, -0.0 kept; a wider row adds its +0.0 words,
+# so the sum is t + 0.0.
+def row_sum(single: Bool, t: F32) -> F32:
+  match single:
+    case True{}:
+      t
+    case False{}:
+      F32.add(t, 0.0)
+
 def scalar(operation: Operation, left: F32, right: F32) -> F32:
   match operation:
     case Add{}:
@@ -70,6 +98,22 @@ def scalar(operation: Operation, left: F32, right: F32) -> F32:
       relu(left)
     case ReluBackward{}:
       relu_backward(left, right)
+    case Divide{}:
+      F32.div(left, right)
+    case ExpLeft{}:
+      F32.exp(left)
+    case LogLeft{}:
+      F32.log(left)
+    case Matches{}:
+      zero_if(Bool.not(U32.is_eq(bits(left), bits(right))), 1.0)
+    case PickNegated{}:
+      zero_if(Bool.not(is_one(right)), F32.neg(left))
+    case MseGrad{+scale}:
+      F32.mul(F32.mul(scale, right), left)
+    case OneHotGrad{+count}:
+      zero_if(Bool.not(is_one(right)), target_gradient(left, count))
+    case SoftmaxGrad{+count, +single}:
+      F32.neg(F32.mul(F32.exp(right), row_sum(single, target_gradient(left, count))))
     case Descend{lr}:
       F32.sub(left, F32.mul(lr, right))
 

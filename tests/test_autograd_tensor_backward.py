@@ -16,8 +16,10 @@ from tools.autograd_tensor_backward import (
     MATMUL_RANK,
     NATIVE_CONTROLS,
     NOT_LEAF,
+    NOT_LOGITS,
     RUNTIME_CONTROLS,
     SGD_CONTROLS,
+    TARGET_OUT_OF_RANGE,
     ZERO_GRAD,
     cases,
     descend_word,
@@ -35,7 +37,7 @@ from tools.autograd_tensor_backward import (
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "c279314305204c9494e0149c61a544fd931c934df7714b94641f54f8faf97b33"
+FIXTURE_SHA256 = "e4ae8a154aa8a047a301dd9c50f60e5a406bcb13701c6eae781be7bbc93b8834"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
@@ -53,16 +55,37 @@ REJECTIONS = {
     "linear_bias_unknown",
     "matmul_nt_rank",
     "relu_unknown_operand",
+    "mse_refused",
     "sgd_unknown_param",
     "sgd_rate_negative",
 }
 RUNTIME_ERROR_CODES = {6, MATMUL_RANK, MATMUL_INNER, 10}
+# The refusals of cross_entropy_refused, step by step, as PyTorch's kind and
+# the tape's code: a target equal to the columns (IndexError, 108), too few
+# and too many targets (ValueError, 108), logits of rank 3 (RuntimeError,
+# 107) and an unknown id (IndexError, 103).
+LOSS_REJECTIONS = {
+    "cross_entropy_refused": [
+        ("IndexError", TARGET_OUT_OF_RANGE),
+        ("ValueError", TARGET_OUT_OF_RANGE),
+        ("ValueError", TARGET_OUT_OF_RANGE),
+        ("RuntimeError", NOT_LOGITS),
+        ("IndexError", UNKNOWN_NODE),
+    ],
+}
 FORGED = {"dangling_self", "dangling_newer", "dangling_missing"}
 # NaN * NaN: the payload is not specified by the tensor layer.
 NAN_PAYLOAD = {
     "specials",
     "relu_edges",
     "relu_nan_gradient",
+    "mse_empty",
+    "cross_entropy_infinities",
+    "cross_entropy_nan",
+    "cross_entropy_empty",
+    "cross_entropy_empty_wide",
+    "cross_entropy_one_class_scaled",
+    "cross_entropy_two_class_scaled",
     "sgd_edges",
     "sgd_rate_nan",
 }
@@ -73,6 +96,75 @@ NAN_PAYLOAD = {
 # relu_13 has the same inner-dimension-1 matmul, whose products 0.5 * -1e-45
 # and 0.5 * -0.0 are -0.0.
 FORWARD_ORDER = {"rounding_09", "rounding_14", "relu_13"}
+# Loss words in the last bits: PyTorch sums the nll terms and the squares of
+# mse_loss in a cascade where the tape adds left to right, and its
+# log_softmax backward uses a vectorized exp. For each script, the line index
+# of every word that differs and the pair (PyTorch's word, the reference's
+# word); every other line must be exact. docs/losses.md has the distances.
+LOSS_ROUNDING = {
+    "cross_entropy": {
+        21: (0x3D6CC5F4, 0x3D6CC5F5),
+    },
+    "cross_entropy_scaled": {
+        28: (0x3BBC8FEE, 0x3BBC8FED),
+    },
+    "loss_02": {
+        57: (0x2FBC0A32, 0x2FBC0A31),
+        75: (0x3A70CB7C, 0x3A70CB7B),
+        100: (0x40E2749D, 0x40E2749E),
+    },
+    "loss_03": {
+        143: (0xC23FCE94, 0xC23FCE93),
+        145: (0xC2205F9E, 0xC2205F9F),
+        147: (0xC1D6DFCF, 0xC1D6DFCE),
+        151: (0x42E662FA, 0x42E662FB),
+        163: (0x42E662FA, 0x42E662FB),
+        167: (0x44A1786C, 0x44A1786D),
+    },
+    "loss_05": {
+        37: (0x42F4DF00, 0x42F4DF01),
+    },
+    "loss_06": {
+        53: (0x3C52C0AC, 0x3C52C0AD),
+        56: (0x362641F6, 0x362641F5),
+        65: (0x35B633EC, 0x35B633ED),
+        72: (0x38DFB880, 0x38DFB881),
+    },
+    "loss_07": {
+        71: (0x43103CF9, 0x43103CFB),
+        83: (0x43103CF9, 0x43103CFB),
+        87: (0x43FDE039, 0x43FDE03C),
+    },
+    "loss_08": {
+        22: (0x3B4B88EE, 0x3B4B88ED),
+    },
+    "loss_09": {
+        127: (0x429B5C42, 0x429B5C41),
+    },
+    "loss_10": {
+        56: (0x3818EE64, 0x3818EE65),
+        64: (0x2E5C1E56, 0x2E5C1E54),
+        92: (0x32FD4F5E, 0x32FD4F5C),
+    },
+    "loss_11": {
+        81: (0x42274C91, 0x42274C92),
+    },
+    "loss_12": {
+        65: (0x395829BA, 0x395829B9),
+        66: (0x34EC0E51, 0x34EC0E50),
+    },
+    "loss_14": {
+        67: (0x2E12DDE3, 0x2E12DDE4),
+        77: (0x3E2DA733, 0x3E2DA732),
+    },
+    "loss_15": {
+        77: (0x40E3FDA0, 0x40E3FD9E),
+        81: (0x42A58400, 0x42A58401),
+        93: (0x42A58400, 0x42A58401),
+        97: (0xC39B3B0F, 0xC39B3B10),
+    },
+}
+
 # PyTorch's CPU kernel for param.add_(grad, alpha=-lr) rounds p + (-lr) * g
 # once (a fused multiply-add) on AVX2 and AVX512; the tape rounds the product,
 # then the difference. These scripts match a reference that rounds once.
@@ -343,6 +435,20 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                 seen = observed["lines"]
                 self.assertEqual(len(seen), len(expected))
                 differ = [(a, b) for a, b in zip(seen, expected, strict=True) if a != b]
+                if identifier in LOSS_REJECTIONS:
+                    self.assertEqual(
+                        [
+                            (a.rsplit(":", 1)[1], int(b.rsplit(":", 1)[1]))
+                            for a, b in differ
+                        ],
+                        LOSS_REJECTIONS[identifier],
+                    )
+                    for a, b in differ:
+                        self.assertEqual(
+                            a.split(":")[1],
+                            b.split(":")[1].replace("error", "rejected"),
+                        )
+                    continue
                 if identifier in REJECTIONS:
                     for a, b in differ:
                         code = int(b.rsplit(":", 1)[1])
@@ -386,10 +492,32 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                         self.assertTrue(b.startswith("tensor:word:"))
                     self.assertEqual(grads(seen), grads(expected))
                     continue
+                if identifier in LOSS_ROUNDING:
+                    self.assertEqual(
+                        {
+                            index: (
+                                int(a.removeprefix("tensor:word:")),
+                                int(b.removeprefix("tensor:word:")),
+                            )
+                            for index, (a, b) in enumerate(
+                                zip(seen, expected, strict=True)
+                            )
+                            if a != b
+                        },
+                        LOSS_ROUNDING[identifier],
+                    )
+                    continue
                 self.assertEqual(seen, expected)
                 exact += 1
         excluded = (
-            REJECTIONS | FORGED | NAN_PAYLOAD | FORWARD_ORDER | FUSED_UPDATE | NON_LEAF
+            REJECTIONS
+            | set(LOSS_REJECTIONS)
+            | FORGED
+            | NAN_PAYLOAD
+            | FORWARD_ORDER
+            | set(LOSS_ROUNDING)
+            | FUSED_UPDATE
+            | NON_LEAF
         )
         self.assertEqual(exact, len(cases()) - len(excluded))
 
@@ -486,6 +614,8 @@ class GateRegistrationTests(unittest.TestCase):
                 "tensor_2d_vjp_2d_LAWS.nt_reads_transpose",
                 "tensor_2d_vjp_2d_LAWS.tn_reads_transpose",
                 "tensor_2d_vjp_2d_LAWS.tensor_relu_vjp_values",
+                "tensor_2d_vjp_2d_LAWS.tensor_mse_vjp_values",
+                "tensor_2d_vjp_2d_LAWS.tensor_cross_entropy_vjp_values",
             ],
         )
         controls = [
@@ -506,7 +636,7 @@ class GateRegistrationTests(unittest.TestCase):
             self.assertIn("quiet(2143289344)", mutated)
 
     def test_runtime_controls_apply_once(self):
-        self.assertEqual(len(RUNTIME_CONTROLS), 27)
+        self.assertEqual(len(RUNTIME_CONTROLS), 36)
         for control in RUNTIME_CONTROLS.values():
             path, original, mutated = (
                 control

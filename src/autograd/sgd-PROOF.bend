@@ -64,6 +64,10 @@ def Laws.sgd_only_leaves_accepted(node):
       {==}
     case Backward.Relu{a, input}:
       {==}
+    case Backward.MseLoss{a, b, left, right}:
+      {==}
+    case Backward.CrossEntropy{a, input}:
+      {==}
 
 def Laws.sgd_no_params(lr, count, entries):
   {==}

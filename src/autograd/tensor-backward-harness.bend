@@ -21,6 +21,8 @@ type Step is Data:
   Linear{x: Nat, w: Nat, bias: Nat}
   Sum{a: Nat}
   Relu{a: Nat}
+  MseLoss{a: Nat, b: Nat}
+  CrossEntropy{a: Nat, targets: List<&2, U32>}
   Run{output: Nat}
   ZeroGrad{}
   Step{lr: U32, params: List<&2, Nat>}
@@ -175,6 +177,10 @@ def step(instruction: Step, tape: Backward.Tape, rec: Backward.Tape -> IO(Unit))
       recorded(rec, Backward.sum(tape, a))
     case Relu{a}:
       recorded(rec, Backward.relu(tape, a))
+    case MseLoss{a, b}:
+      recorded(rec, Backward.mse_loss(tape, a, b))
+    case CrossEntropy{a, targets}:
+      recorded(rec, Backward.cross_entropy(tape, a, targets))
     case Run{output}:
       ran(rec, Backward.backward(tape, output))
     case ZeroGrad{}:

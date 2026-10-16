@@ -471,7 +471,7 @@ two of them on the actual `Core.from_values` and `Core.new` results, of
 `reduce_to_fiber`, of the tensor backward's `Add`, `Sub`, `Mul`, `Matmul`
 and `MatmulNT` VJP value laws, and of `binary_replayed`, one of them an
 `Elementwise.binary` product reduced by `reduce_to_fiber`. It also holds false
-twins of thirty-four value statements, and sixty mutants of the family
+twins of thirty-four value statements, and sixty-four mutants of the family
 loops, of their instances and of the `reduce_to`, `matmul`, `sum_to_size`,
 `broadcast_to`, tensor backward and parallel elementwise code. Its
 [README](../verification/families/README.md) lists each control and the

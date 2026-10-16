@@ -348,6 +348,10 @@ template constant.
 | Relu VJP reads the gradient as the input | `vjp_relu` runs `ReluBackward` of `g` and `x` instead of `x` and `g` | `Laws.tensor_relu_vjp_values` | `tensor_relu_vjp_values` |
 | Relu VJP sends relu | `vjp_relu` runs `ReluLeft` instead of `ReluBackward` | `Laws.tensor_relu_vjp_values` | `tensor_relu_vjp_values` |
 | Relu VJP sends to the first node | `relu_passed` sends the contribution to node `0` instead of `a` | `Laws.tensor_relu_vjp_values` | `tensor_relu_vjp_values` |
+| MseLoss VJP sends the second to the first node | `mse_second` sends the target's contribution to node `0` instead of `b` | `Laws.tensor_mse_vjp_values` | `tensor_mse_vjp_values` |
+| MseLoss VJP scales by 2 | `mse_shaped` runs `MseGrad{2.0}` instead of `MseGrad{2 / N}` for the input | `Laws.tensor_mse_vjp_values` | `tensor_mse_vjp_values` |
+| CrossEntropy VJP drops the softmax | `entropy_first` runs `OneHotGrad` of `g` and `lp` instead of `SoftmaxGrad` | `Laws.tensor_cross_entropy_vjp_values` | `tensor_cross_entropy_vjp_values` |
+| CrossEntropy VJP ignores one class | `vjp_cross_entropy` passes `False{}` for `Loss.one_class(input)`, so one-column logits add `+0.0` to the row sum | `Laws.tensor_cross_entropy_vjp_values` | `tensor_cross_entropy_vjp_values` |
 
 The mutants change `src/autograd/tensor-backward.bend`, and the source check
 runs `src/autograd/PROOF.bend`. The structural laws in
@@ -357,8 +361,10 @@ only the value laws reject these mutants. The `Matmul` mutants fail in
 `tensor-vjp-PROOF.bend`: the first hands `transpose_replayed` a call that
 law does not state, the other two produce a pass other than the stated one.
 The `MatmulNT` mutants fail in `nt_values`, the proof of
-`tensor_matmul_nt_vjp_values`, and the `Relu` mutants in the proof of
-`tensor_relu_vjp_values`, which no literal consumer states yet. The runtime controls of the autograd gate
+`tensor_matmul_nt_vjp_values`, the `Relu` mutants in the proof of
+`tensor_relu_vjp_values`, and the `MseLoss` and `CrossEntropy` mutants in the
+proofs of `tensor_mse_vjp_values` and `tensor_cross_entropy_vjp_values`; no
+literal consumer states these three laws yet. The runtime controls of the autograd gate
 reject the `Mul` and `Sub` ones, a `Matmul` VJP without the transpose, and
 the `MatmulNT` `matmul_tn` with swapped operands and the `Relu` VJP that
 reads `g` as the input, as well, in the JavaScript lane.

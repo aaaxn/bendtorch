@@ -52,6 +52,8 @@ FAMILY = controls.Family(
         f"{LAWS}.tensor_matmul_vjp_values": Law(NAT, "tensor_2d_backward.vjp"),
         f"{LAWS}.tensor_matmul_nt_vjp_values": Law(NAT, "tensor_2d_backward.vjp"),
         f"{LAWS}.tensor_relu_vjp_values": Law(NAT, "tensor_2d_backward.vjp"),
+        f"{LAWS}.tensor_mse_vjp_values": Law(NAT, "tensor_2d_backward.vjp"),
+        f"{LAWS}.tensor_cross_entropy_vjp_values": Law(NAT, "tensor_2d_backward.vjp"),
     },
     live_records=(
         f"{LAWS}.PairContract.arms",
@@ -207,6 +209,31 @@ FAMILY = controls.Family(
             "Backward.delivered_as(0n, input,",
             "tensor_2d_vjp_2d_LAWS.tensor_relu_vjp_values",
             ("tensor_2d_backward.relu_passed",),
+        ),
+        "mse-vjp-sends-second-to-first-node": Site(
+            "Laws.tensor_mse_vjp_values",
+            "Backward.delivered_as(0n, right,",
+            "tensor_2d_vjp_2d_LAWS.tensor_mse_vjp_values",
+            ("tensor_2d_backward.mse_second",),
+        ),
+        "mse-vjp-scale-two": Site(
+            "Laws.tensor_mse_vjp_values",
+            "parallel_planned(Elementwise.MseGrad{2.0},",
+            "tensor_2d_vjp_2d_LAWS.tensor_mse_vjp_values",
+            ("tensor_2d_backward.mse_shaped",),
+        ),
+        "cross-entropy-vjp-drops-softmax": Site(
+            "Laws.tensor_cross_entropy_vjp_values",
+            "parallel_planned(Elementwise.SoftmaxGrad{",
+            "tensor_2d_vjp_2d_LAWS.tensor_cross_entropy_vjp_values",
+            ("tensor_2d_backward.entropy_first",),
+        ),
+        "cross-entropy-vjp-ignores-one-class": Site(
+            "Laws.tensor_cross_entropy_vjp_values",
+            "Backward.entropy_first(a, input, U32.to_f32(U32.from_nat("
+            "Loss.first_dimension(Shape.dimensions(input)))), False{},",
+            "tensor_2d_vjp_2d_LAWS.tensor_cross_entropy_vjp_values",
+            ("tensor_2d_backward.vjp_cross_entropy",),
         ),
     },
     proof="src/autograd/PROOF.bend",

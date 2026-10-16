@@ -93,6 +93,8 @@
     "tensor_2d_vjp_2d_LAWS.nt_reads_transpose",
     "tensor_2d_vjp_2d_LAWS.tn_reads_transpose",
     "tensor_2d_vjp_2d_LAWS.tensor_relu_vjp_values",
+    "tensor_2d_vjp_2d_LAWS.tensor_mse_vjp_values",
+    "tensor_2d_vjp_2d_LAWS.tensor_cross_entropy_vjp_values",
     "sgd_2d_LAWS.sgd_descend_scalar",
     "sgd_2d_LAWS.sgd_empty_slot_kept",
     "sgd_2d_LAWS.sgd_step_values",

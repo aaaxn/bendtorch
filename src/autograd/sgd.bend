@@ -47,6 +47,10 @@ def leaf_refusal(node: Backward.Node) -> Maybe<&2, Error>:
       Some{NotLeaf{}}
     case Backward.Relu{a, input}:
       Some{NotLeaf{}}
+    case Backward.MseLoss{a, b, left, right}:
+      Some{NotLeaf{}}
+    case Backward.CrossEntropy{a, input}:
+      Some{NotLeaf{}}
 
 # Why id cannot be a parameter of a newest-first list of count nodes, or
 # None when it is a leaf the list holds.
