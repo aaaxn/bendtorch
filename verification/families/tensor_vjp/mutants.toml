@@ -99,3 +99,24 @@ before = '''
   Pass{Operands{x, zero}, g, alone(product_reduced(a, input, result))}'''
 after = '''
   Pass{Operands{x, zero}, g, alone(product_reduced(0n, input, result))}'''
+
+[mse-vjp-sends-second-to-first-node]
+file = "src/autograd/tensor-backward.bend"
+before = '''
+  Pass{Operands{e, d}, g, both(first, product_reduced(b, right, second))}'''
+after = '''
+  Pass{Operands{e, d}, g, both(first, product_reduced(0n, right, second))}'''
+
+[mse-vjp-scale-two]
+file = "src/autograd/tensor-backward.bend"
+before = '''
+  mse_first(a, b, left, right, Loss.mse_scale(shape), e, Elementwise.binary(Elementwise.MseGrad{Loss.mse_scale(shape)}, g, d))'''
+after = '''
+  mse_first(a, b, left, right, Loss.mse_scale(shape), e, Elementwise.binary(Elementwise.MseGrad{2.0}, g, d))'''
+
+[cross-entropy-vjp-drops-softmax]
+file = "src/autograd/tensor-backward.bend"
+before = '''
+  entropy_second(a, input, product_reduced(a, input, first), onehot, Elementwise.binary(Elementwise.SoftmaxGrad{count}, g, lp))'''
+after = '''
+  entropy_second(a, input, product_reduced(a, input, first), onehot, Elementwise.binary(Elementwise.OneHotGrad{count}, g, lp))'''
