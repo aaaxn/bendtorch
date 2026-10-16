@@ -75,3 +75,8 @@ The mutants `high-fork-reuses-base`, `leaf-writes-zero` and
 build balanced, so the certificate still checks, and the laws reject them,
 `parallel_build_cells` among them (`node_cell`, `leaf_facts`,
 `pair_join_facts`).
+
+BendTT exports each of the three generic laws once, checked at an opaque
+constant for each template parameter, as
+`parallel_2d_LAWS.parallel_build_*.qvvvvvvv`; `verification/tensor.json`
+requires those names.
