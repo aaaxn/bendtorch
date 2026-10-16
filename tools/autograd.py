@@ -51,18 +51,23 @@ PROOF_CONTROLS = {
     ),
     "reduce-overwrites-instead-of-adding": (
         "src/autograd/reduce.bend",
-        "F32.add(accumulated, value)",
-        "value",
+        "(F32.add(accumulator, word), kept)",
+        "(word, kept)",
     ),
     "reduce-reverses-addition-order": (
         "src/autograd/reduce.bend",
-        "F32.add(accumulated, value)",
-        "F32.add(value, accumulated)",
+        "(F32.add(accumulator, word), kept)",
+        "(F32.add(word, accumulator), kept)",
     ),
     "reduce-starts-from-one": (
         "src/autograd/reduce.bend",
-        "allocated(input, target, plan, Core.new(target, 0.0))",
-        "allocated(input, target, plan, Core.new(target, 1.0))",
+        "first_digit(rows, target), 0.0, array)",
+        "first_digit(rows, target), 1.0, array)",
+    ),
+    "reduce-walks-target-stride": (
+        "src/autograd/reduce.bend",
+        "Nat.add(base, Nat.mul(right, digit))",
+        "Nat.add(base, Nat.mul(left, digit))",
     ),
     "reduce-skips-target-check": (
         "src/autograd/reduce.bend",
