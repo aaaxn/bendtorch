@@ -57,9 +57,9 @@ after = '''
 [nt-vjp-tn-swaps-operands]
 file = "src/autograd/tensor-backward.bend"
 before = '''
-  (left, multiplied(target, shape, Matrix.matmul_tn(copy, flipped)))'''
+  Matrix.matmul_tn(copy, flipped)'''
 after = '''
-  (left, multiplied(target, shape, Matrix.matmul_tn(flipped, copy)))'''
+  Matrix.matmul_tn(flipped, copy)'''
 
 [nt-vjp-left-reads-transposed]
 file = "src/autograd/tensor-backward.bend"

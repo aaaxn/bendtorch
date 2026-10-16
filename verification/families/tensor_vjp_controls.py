@@ -177,7 +177,7 @@ FAMILY = controls.Family(
             "nt_values",
             "Matrix.product_planned(Matrix.Swapped{}, Matrix.Swapped{}, left, shape,",
             "tensor_2d_vjp_2d_PROOF.nt_values",
-            ("tensor_2d_backward.nt_right",),
+            ("tensor_2d_backward.weight_product",),
         ),
         "nt-vjp-left-reads-transposed": Site(
             "nt_values",

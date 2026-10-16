@@ -347,7 +347,7 @@ template constant.
 | Matmul left untransposed | `matmul_first` transposes `b` by `(0, 0)`, which keeps it as it is | `matmul_values` | `matmul_values` |
 | Matmul right operands swapped | `right_product` multiplies `g @ a^T` instead of `a^T @ g` | `matmul_values` | `matmul_values` |
 | Matmul sends the second to the first | `vjp_matmul` passes `a` for `b` | `matmul_values` | `matmul_values` |
-| MatmulNT `matmul_tn` swaps operands | `nt_right` multiplies `x^T @ g` instead of `g^T @ x` | `nt_values` | `nt_values` |
+| MatmulNT `matmul_tn` swaps operands | `weight_product` multiplies `x^T @ g` instead of `g^T @ x` | `nt_values` | `nt_values` |
 | MatmulNT left reads the weight transposed | `nt_left` runs `matmul_nt(g, W)` instead of `matmul(g, W)` | `nt_values` | `nt_values` |
 | MatmulNT sends the second to the first | `vjp_matmul_nt` passes `a` for `b` | `nt_values` | `nt_values` |
 | Relu VJP reads the gradient as the input | `vjp_relu` runs `ReluBackward` of `g` and `x` instead of `x` and `g` | `Laws.tensor_relu_vjp_values` | `tensor_relu_vjp_values` |

@@ -70,8 +70,8 @@ RUNTIME_CONTROLS = {
         "  product(Kept{}, Swapped{}, left, right)",
     ),
     "nt-vjp-tn-swaps-operands": (
-        "(left, multiplied(target, shape, Matrix.matmul_tn(copy, flipped)))",
-        "(left, multiplied(target, shape, Matrix.matmul_tn(flipped, copy)))",
+        "  Matrix.matmul_tn(copy, flipped)",
+        "  Matrix.matmul_tn(flipped, copy)",
     ),
     "nt-vjp-weight-gradient-untransposed": (
         "src/tensor/matmul.bend",
