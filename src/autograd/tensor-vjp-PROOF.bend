@@ -18,6 +18,7 @@ import ./reduce-to-fold-PROOF.bend as ReduceTo
 import ./sum-to-size-fold-LAWS.bend as SumToSizeFold
 import ./sum-to-size-fold-PROOF.bend as SumToSizeFoldProof
 import ./tensor-backward.bend as Backward
+import ./loss.bend as Loss
 import ./tensor-vjp-LAWS.bend as Laws
 import ../tensor/layout.bend as Layout
 import ../tensor/matmul.bend as Matrix
@@ -958,3 +959,112 @@ def Laws.tensor_relu_vjp_values(a, input, shape, plan, planned, input_plan, inpu
         reduced => reduced_words => reduced_fits => head => head_dimensions => head_fill => head_ops => head_values => head_fits =>
           one_contract(a, input, index => Laws.reduced(input, front, input_plan, front_values, index),
             Backward.Operands{x, zero}, g, head, head_dimensions, head_fill, head_ops, head_values, head_fits)))(input_fits, fits)
+
+# The MseLoss VJP runs the Mul VJP's steps with MseGrad{2 / N} for Mul, d
+# for the right operand and e for the left one, and both products with the
+# same plan.
+def Laws.tensor_mse_vjp_values(a, b, left, right, diff, shape, plan, planned, left_plan, left_planned, left_same,
+  right_plan, right_planned, right_same, fill, ops, fits, e_fill, e_ops, e_fits, d_fill, d_ops, d_fits):
+  +planned = planned
+  +scale = Loss.mse_scale(diff)
+  +operation = {Elementwise.MseGrad{scale} : Elementwise.Operation}
+  +front = Shape.output_shape(plan)
+  +front_count = Shape.logical_numel(Shape.dimensions(front))
+  +front_values = Laws.cells(operation, plan, shape, fill, ops, diff, d_fill, d_ops, front_count)
+  +back_values = Laws.cells(operation, plan, shape, fill, ops, diff, e_fill, e_ops, front_count)
+  -x = {Core.Packed{diff, Core.TTensor{Replayed.storage(diff, e_fill, e_ops), e_fits}} : Core.Dynamic}
+  product_replayed(operation, shape, diff, plan, planned, fill, ops, d_fill, d_ops,
+    pair => Laws.PairContract<a, left, index => Laws.reduced(left, front, left_plan, front_values, index),
+      b, right, index => Laws.reduced(right, front, right_plan, back_values, index),
+      Backward.mse_first(a, b, left, right, scale, x, pair)>,
+    kept => kept_words => kept_fits => y => y_words => y_fits => front_ops => front_words => front_fits =>
+      -g = {Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, kept), kept_fits}} : Core.Dynamic}
+      -y_kept = {Core.Packed{diff, Core.TTensor{Replayed.storage(diff, d_fill, y), y_fits}} : Core.Dynamic}
+      SumToSizeFold.sum_to_size_replayed(left, front, left_plan, left_planned, left_same, 0.0, front_ops, front_fits, front_values,
+        front_words,
+        pair => Laws.PairContract<a, left, index => Laws.reduced(left, front, left_plan, front_values, index),
+          b, right, index => Laws.reduced(right, front, right_plan, back_values, index),
+          Backward.mse_second(b, right, Backward.contribution_of(Backward.delivered_as(a, left, pair)), y_kept,
+            Elementwise.binary(operation, g, x))>,
+        reduced => reduced_words => reduced_fits => head => head_dimensions => head_fill => head_ops => head_values => head_fits =>
+          -delivered = {Done{Backward.Contribution{a, left, Core.Packed{head, Core.TTensor{Replayed.storage(head, head_fill, head_ops), head_fits}}}} :
+            Result<&2, &1, Backward.Error, Backward.Contribution>}
+          product_replayed(operation, shape, diff, plan, planned, fill, kept, e_fill, e_ops,
+            pair => Laws.PairContract<a, left, index => Laws.reduced(left, front, left_plan, front_values, index),
+              b, right, index => Laws.reduced(right, front, right_plan, back_values, index),
+              Backward.mse_second(b, right, delivered, y_kept, pair)>,
+            last => last_words => last_fits => x_kept => x_words => x_fits => back_ops => back_words => back_fits =>
+              SumToSizeFold.sum_to_size_replayed(right, front, right_plan, right_planned, right_same, 0.0, back_ops, back_fits, back_values,
+                Equal.trans(List<&2, F32>, Contracts.words(front, 0.0, back_ops, front_count),
+                  Laws.cells(operation, plan, shape, fill, kept, diff, e_fill, e_ops, front_count), back_values,
+                  back_words,
+                  cells_left(operation, plan, shape, fill, kept, ops, diff, e_fill, e_ops,
+                    ReduceTo.plan_left(shape, diff, plan, planned), kept_words, front_count, Conversion.le_reflexive(front_count))),
+                pair => Laws.PairContract<a, left, index => Laws.reduced(left, front, left_plan, front_values, index),
+                  b, right, index => Laws.reduced(right, front, right_plan, back_values, index),
+                  Backward.Pass{Backward.Operands{Core.Packed{diff, Core.TTensor{Replayed.storage(diff, e_fill, x_kept), x_fits}}, y_kept},
+                    Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, last), last_fits}},
+                    Backward.both(delivered, Backward.contribution_of(Backward.delivered_as(b, right, pair)))}>,
+                tail => tail_words => tail_fits => second_out => second_dimensions => second_fill => second_ops => second_values => second_fits =>
+                  pair_contract(a, left, index => Laws.reduced(left, front, left_plan, front_values, index),
+                    b, right, index => Laws.reduced(right, front, right_plan, back_values, index),
+                    Backward.Operands{Core.Packed{diff, Core.TTensor{Replayed.storage(diff, e_fill, x_kept), x_fits}}, y_kept},
+                    Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, last), last_fits}},
+                    head, head_dimensions, head_fill, head_ops, head_values, head_fits,
+                    second_out, second_dimensions, second_fill, second_ops, second_values, second_fits)))(kept_fits, e_fits)))(fits, d_fits)
+
+# The CrossEntropy VJP runs the Mul VJP's steps with OneHotGrad for the
+# first product (of g and the one-hot rows) and SoftmaxGrad for the second
+# (of g and lp), both delivered to a with the input's shape.
+def Laws.tensor_cross_entropy_vjp_values(a, input, shape, plan, planned, input_plan, input_planned, input_same, fill, ops, fits,
+  lp_fill, lp_ops, lp_fits, hot_fill, hot_ops, hot_fits):
+  +planned = planned
+  +input_planned = input_planned
+  +input_same = input_same
+  +count = Loss.count_f32(Loss.rows(input))
+  +first_operation = {Elementwise.OneHotGrad{count} : Elementwise.Operation}
+  +second_operation = {Elementwise.SoftmaxGrad{count} : Elementwise.Operation}
+  +front = Shape.output_shape(plan)
+  +front_count = Shape.logical_numel(Shape.dimensions(front))
+  +front_values = Laws.cells(first_operation, plan, shape, fill, ops, input, hot_fill, hot_ops, front_count)
+  +back_values = Laws.cells(second_operation, plan, shape, fill, ops, input, lp_fill, lp_ops, front_count)
+  -x = {Core.Packed{input, Core.TTensor{Replayed.storage(input, lp_fill, lp_ops), lp_fits}} : Core.Dynamic}
+  product_replayed(first_operation, shape, input, plan, planned, fill, ops, hot_fill, hot_ops,
+    pair => Laws.PairContract<a, input, index => Laws.reduced(input, front, input_plan, front_values, index),
+      a, input, index => Laws.reduced(input, front, input_plan, back_values, index),
+      Backward.entropy_first(a, input, count, x, pair)>,
+    kept => kept_words => kept_fits => y => y_words => y_fits => front_ops => front_words => front_fits =>
+      -g = {Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, kept), kept_fits}} : Core.Dynamic}
+      -y_kept = {Core.Packed{input, Core.TTensor{Replayed.storage(input, hot_fill, y), y_fits}} : Core.Dynamic}
+      SumToSizeFold.sum_to_size_replayed(input, front, input_plan, input_planned, input_same, 0.0, front_ops, front_fits, front_values,
+        front_words,
+        pair => Laws.PairContract<a, input, index => Laws.reduced(input, front, input_plan, front_values, index),
+          a, input, index => Laws.reduced(input, front, input_plan, back_values, index),
+          Backward.entropy_second(a, input, Backward.contribution_of(Backward.delivered_as(a, input, pair)), y_kept,
+            Elementwise.binary(second_operation, g, x))>,
+        reduced => reduced_words => reduced_fits => head => head_dimensions => head_fill => head_ops => head_values => head_fits =>
+          -delivered = {Done{Backward.Contribution{a, input, Core.Packed{head, Core.TTensor{Replayed.storage(head, head_fill, head_ops), head_fits}}}} :
+            Result<&2, &1, Backward.Error, Backward.Contribution>}
+          product_replayed(second_operation, shape, input, plan, planned, fill, kept, lp_fill, lp_ops,
+            pair => Laws.PairContract<a, input, index => Laws.reduced(input, front, input_plan, front_values, index),
+              a, input, index => Laws.reduced(input, front, input_plan, back_values, index),
+              Backward.entropy_second(a, input, delivered, y_kept, pair)>,
+            last => last_words => last_fits => x_kept => x_words => x_fits => back_ops => back_words => back_fits =>
+              SumToSizeFold.sum_to_size_replayed(input, front, input_plan, input_planned, input_same, 0.0, back_ops, back_fits, back_values,
+                Equal.trans(List<&2, F32>, Contracts.words(front, 0.0, back_ops, front_count),
+                  Laws.cells(second_operation, plan, shape, fill, kept, input, lp_fill, lp_ops, front_count), back_values,
+                  back_words,
+                  cells_left(second_operation, plan, shape, fill, kept, ops, input, lp_fill, lp_ops,
+                    ReduceTo.plan_left(shape, input, plan, planned), kept_words, front_count, Conversion.le_reflexive(front_count))),
+                pair => Laws.PairContract<a, input, index => Laws.reduced(input, front, input_plan, front_values, index),
+                  a, input, index => Laws.reduced(input, front, input_plan, back_values, index),
+                  Backward.Pass{Backward.Operands{Core.Packed{input, Core.TTensor{Replayed.storage(input, lp_fill, x_kept), x_fits}}, y_kept},
+                    Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, last), last_fits}},
+                    Backward.both(delivered, Backward.contribution_of(Backward.delivered_as(a, input, pair)))}>,
+                tail => tail_words => tail_fits => second_out => second_dimensions => second_fill => second_ops => second_values => second_fits =>
+                  pair_contract(a, input, index => Laws.reduced(input, front, input_plan, front_values, index),
+                    a, input, index => Laws.reduced(input, front, input_plan, back_values, index),
+                    Backward.Operands{Core.Packed{input, Core.TTensor{Replayed.storage(input, lp_fill, x_kept), x_fits}}, y_kept},
+                    Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, last), last_fits}},
+                    head, head_dimensions, head_fill, head_ops, head_values, head_fits,
+                    second_out, second_dimensions, second_fill, second_ops, second_values, second_fits)))(kept_fits, lp_fits)))(fits, hot_fits)

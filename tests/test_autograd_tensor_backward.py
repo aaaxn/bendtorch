@@ -342,6 +342,8 @@ class GateRegistrationTests(unittest.TestCase):
                 "tensor_2d_vjp_2d_LAWS.nt_reads_transpose",
                 "tensor_2d_vjp_2d_LAWS.tn_reads_transpose",
                 "tensor_2d_vjp_2d_LAWS.tensor_relu_vjp_values",
+                "tensor_2d_vjp_2d_LAWS.tensor_mse_vjp_values",
+                "tensor_2d_vjp_2d_LAWS.tensor_cross_entropy_vjp_values",
             ],
         )
         controls = [

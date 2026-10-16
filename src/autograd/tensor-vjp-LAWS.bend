@@ -15,6 +15,7 @@ import ../tensor/contracts/LAWS.bend as Contracts
 import ../tensor/contracts/binary-LAWS.bend as Binary
 import ./sum-to-size-fold-LAWS.bend as SumToSizeFold
 import ./tensor-backward.bend as Backward
+import ./loss.bend as Loss
 import ./tensor-backward-LAWS.bend as TensorBackward
 
 # The values of the tensor VJPs, stated through the pointwise, ordered-fold
@@ -478,4 +479,93 @@ law tensor_relu_vjp_values:
       index),
     Backward.vjp(Backward.Relu{a, input},
       Backward.Operands{Core.Packed{input, Core.TTensor{Replayed.storage(input, input_fill, input_ops), input_fits}}, zero},
+      Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}})>
+
+# d mse_loss(a, b)/da and d/db: with the saved differences e = right - left
+# and d = left - right (both of the broadcast shape `diff`) and the gradient
+# g (shape), all replayed, the MseLoss VJP sends the pointwise MseGrad of g
+# and d, reduced to the left operand's shape, to a, then the pointwise
+# MseGrad of g and e, reduced to the right operand's shape, to b. Word k of
+# the first product is scalar(MseGrad{2 / N}, g[left_map(plan, k)],
+# d[right_map(plan, k)]) = (2 / N * d) * g, PyTorch's mse_loss_backward,
+# with N the cells of `diff` (Loss.mse_scale).
+law tensor_mse_vjp_values:
+  for +a: Nat
+  for +b: Nat
+  for +left: Shape.Shape
+  for +right: Shape.Shape
+  for +diff: Shape.Shape
+  for +shape: Shape.Shape
+  for +plan: Shape.BroadcastPlan
+  for planned: {Shape.broadcast_checked(shape, diff) == Done{plan} : Result<&2, &2, Shape.Error, Shape.BroadcastPlan>}
+  for +left_plan: Shape.BroadcastPlan
+  for left_planned: {Shape.broadcast_checked(left, Shape.output_shape(plan)) == Done{left_plan} :
+    Result<&2, &2, Shape.Error, Shape.BroadcastPlan>}
+  for left_same: {Shape.dimensions(Shape.output_shape(left_plan)) == Shape.dimensions(Shape.output_shape(plan)) : List<&2, U32>}
+  for +right_plan: Shape.BroadcastPlan
+  for right_planned: {Shape.broadcast_checked(right, Shape.output_shape(plan)) == Done{right_plan} :
+    Result<&2, &2, Shape.Error, Shape.BroadcastPlan>}
+  for right_same: {Shape.dimensions(Shape.output_shape(right_plan)) == Shape.dimensions(Shape.output_shape(plan)) : List<&2, U32>}
+  for +fill: F32
+  for +ops: List<&2, StorageLaws.Op>
+  for -fits: {Lifecycle.logical_length(Replayed.storage(shape, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}
+  for +e_fill: F32
+  for +e_ops: List<&2, StorageLaws.Op>
+  for -e_fits: {Lifecycle.logical_length(Replayed.storage(diff, e_fill, e_ops)) == Shape.logical_numel(Shape.dimensions(diff)) : Nat}
+  for +d_fill: F32
+  for +d_ops: List<&2, StorageLaws.Op>
+  for -d_fits: {Lifecycle.logical_length(Replayed.storage(diff, d_fill, d_ops)) == Shape.logical_numel(Shape.dimensions(diff)) : Nat}
+  PairContract<a, left, index => reduced(left, Shape.output_shape(plan), left_plan,
+      cells(Elementwise.MseGrad{Loss.mse_scale(diff)}, plan, shape, fill, ops, diff, d_fill, d_ops,
+        Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan)))),
+      index),
+    b, right, index => reduced(right, Shape.output_shape(plan), right_plan,
+      cells(Elementwise.MseGrad{Loss.mse_scale(diff)}, plan, shape, fill, ops, diff, e_fill, e_ops,
+        Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan)))),
+      index),
+    Backward.vjp(Backward.MseLoss{a, b, left, right},
+      Backward.Operands{Core.Packed{diff, Core.TTensor{Replayed.storage(diff, e_fill, e_ops), e_fits}},
+        Core.Packed{diff, Core.TTensor{Replayed.storage(diff, d_fill, d_ops), d_fits}}},
+      Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}})>
+
+# d cross_entropy(a)/da: with the saved log_softmax lp and one-hot rows
+# (both of the input's shape) and the gradient g (shape), all replayed, the
+# CrossEntropy VJP sends two contributions, both to a with the input's
+# dimensions: the pointwise OneHotGrad of g and the one-hot rows, then the
+# pointwise SoftmaxGrad of g and lp, each reduced to the input's shape. Word
+# k of the first is -(g / N) where the one-hot word is 1.0 and +0.0
+# elsewhere; word k of the second is -(exp(lp) * (-(g / N) + 0.0)); N is the
+# input's first dimension as an F32 (Loss.count_f32(Loss.rows(input))).
+# The slot adds the second into the first, PyTorch's one_hot gradient minus
+# exp(lp) times its row sum.
+law tensor_cross_entropy_vjp_values:
+  for +a: Nat
+  for +input: Shape.Shape
+  for +shape: Shape.Shape
+  for +plan: Shape.BroadcastPlan
+  for planned: {Shape.broadcast_checked(shape, input) == Done{plan} : Result<&2, &2, Shape.Error, Shape.BroadcastPlan>}
+  for +input_plan: Shape.BroadcastPlan
+  for input_planned: {Shape.broadcast_checked(input, Shape.output_shape(plan)) == Done{input_plan} :
+    Result<&2, &2, Shape.Error, Shape.BroadcastPlan>}
+  for input_same: {Shape.dimensions(Shape.output_shape(input_plan)) == Shape.dimensions(Shape.output_shape(plan)) : List<&2, U32>}
+  for +fill: F32
+  for +ops: List<&2, StorageLaws.Op>
+  for -fits: {Lifecycle.logical_length(Replayed.storage(shape, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}
+  for +lp_fill: F32
+  for +lp_ops: List<&2, StorageLaws.Op>
+  for -lp_fits: {Lifecycle.logical_length(Replayed.storage(input, lp_fill, lp_ops)) == Shape.logical_numel(Shape.dimensions(input)) : Nat}
+  for +hot_fill: F32
+  for +hot_ops: List<&2, StorageLaws.Op>
+  for -hot_fits: {Lifecycle.logical_length(Replayed.storage(input, hot_fill, hot_ops)) == Shape.logical_numel(Shape.dimensions(input)) : Nat}
+  PairContract<a, input, index => reduced(input, Shape.output_shape(plan), input_plan,
+      cells(Elementwise.OneHotGrad{Loss.count_f32(Loss.rows(input))}, plan, shape, fill, ops, input, hot_fill, hot_ops,
+        Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan)))),
+      index),
+    a, input, index => reduced(input, Shape.output_shape(plan), input_plan,
+      cells(Elementwise.SoftmaxGrad{Loss.count_f32(Loss.rows(input))}, plan, shape, fill, ops, input, lp_fill, lp_ops,
+        Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan)))),
+      index),
+    Backward.vjp(Backward.CrossEntropy{a, input},
+      Backward.Operands{Core.Packed{input, Core.TTensor{Replayed.storage(input, lp_fill, lp_ops), lp_fits}},
+        Core.Packed{input, Core.TTensor{Replayed.storage(input, hot_fill, hot_ops), hot_fits}}},
       Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}})>
