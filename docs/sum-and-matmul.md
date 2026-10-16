@@ -52,6 +52,33 @@ contiguous fibers and fork one and two levels; `[256, 128]` to `[1, 128]` and
 them on one thread and they check the fiber walk alone. Walking each reduced
 axis's digits in decreasing order changes 251, 62, 121 and 15 of their 256,
 64, 128 and 16 words.
+## Products that read an operand in place
+
+`Matrix.product(lo, ro, left, right)` is a rank-2 product whose operands are
+each laid out in an order: `Kept`, as `[outer, inner]`, where term `k` of
+output row (or column) `outer` sits at `outer * inner + k`, or `Swapped`, as
+`[inner, outer]`, where it sits at `k * outers + outer`
+(`Matrix.read_offset`). `matmul` is the product of a `Kept` left and a
+`Swapped` right operand. Two instances are public:
+
+- `matmul_nt(x, W)`, two `Kept` operands: `x @ W^T` for `x` of `[rows, inner]`
+  and `W` of `[columns, inner]`, cell `(row, column)` adding
+  `x[row, k] * W[column, k]`;
+- `matmul_tn(g, x)`, two `Swapped` operands: `g^T @ x` for `g` of
+  `[inner, rows]` and `x` of `[inner, columns]`, cell `(row, column)` adding
+  `g[k, row] * x[k, column]`.
+
+Neither builds a transpose. Each cell adds its terms in increasing `k` from
+`+0.0`, and the cells are built with `Parallel.build` exactly as `matmul`
+builds its own (`Matrix.product_build`, split by `Matrix.splits`), so
+`matmul_nt(x, W)` holds the words of `matmul(x, transpose_copy(W))` and
+`matmul_tn(g, x)` those of `matmul(transpose_copy(g), x)`. `Matrix.product_plan`
+checks both ranks (`RankMismatch`, the left operand first) and the inner
+extents (`InnerDimensionMismatch`). The replayed laws `product_ordered` and
+`product_replayed` state the cells for any two orders (see
+[contract families](contract-families.md#products-that-read-an-operand-in-place)).
+`Linear` uses `matmul_nt` for its forward product and `matmul_tn` for its
+weight gradient ([tensor backward](tensor-backward.md)).
 
 ## Public math completeness supplement
 

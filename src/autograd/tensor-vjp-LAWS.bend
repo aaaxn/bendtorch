@@ -331,3 +331,110 @@ law tensor_matmul_vjp_values:
       Backward.Operands{Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
         Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}}},
       Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}})>
+
+# d(x @ W^T)/dx and d(x @ W^T)/dW, the backward of Linear's product: with the
+# saved operand values x (left, [batch, in]) and W (right, [out, in], PyTorch's
+# layout) and the gradient g ([batch, out]), the MatmulNT VJP sends g @ W to
+# a, then g^T @ x to b. Neither product builds a transpose: first is the plan
+# of `matmul(g, W)`, and second the plan of `matmul_tn(g, x)`, which reads g
+# in place. Cell (i, l) of the first holds the ordered dot product over j of
+# g[i, j] * W[j, l], the words of g at i * out + j and of W at j * in + l;
+# cell (j, l) of the second holds the ordered dot product over i of
+# g[i, j] * x[i, l], the words of g at i * out + j and of x at i * in + l.
+# Each sum adds its terms in increasing order from +0.0, and each
+# contribution has its operand's dimensions. The bias of Linear is an Add
+# entry, whose VJP `tensor_add_vjp_values` states: its gradient is g summed
+# over the batch, column by column.
+law tensor_matmul_nt_vjp_values:
+  for +a: Nat
+  for +b: Nat
+  for +left: Shape.Shape
+  for +right: Shape.Shape
+  for +shape: Shape.Shape
+  for +first: Matrix.Plan<shape, right>
+  for first_planned: {Matrix.plan(shape, right) == Done{first} : Result<&2, &2, Matrix.Error, Matrix.Plan<shape, right>>}
+  for first_same: {Shape.dimensions(Matrix.output_shape(shape, right, first)) == Shape.dimensions(left) : List<&2, U32>}
+  for +second: Matrix.Product<Matrix.Swapped{}, Matrix.Swapped{}, shape, left>
+  for second_planned: {Matrix.product_plan(Matrix.Swapped{}, Matrix.Swapped{}, shape, left) == Done{second} :
+    Result<&2, &2, Matrix.Error, Matrix.Product<Matrix.Swapped{}, Matrix.Swapped{}, shape, left>>}
+  for second_same: {Shape.dimensions(Matrix.product_shape(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second)) ==
+    Shape.dimensions(right) : List<&2, U32>}
+  for +fill: F32
+  for +ops: List<&2, StorageLaws.Op>
+  for -fits: {Lifecycle.logical_length(Replayed.storage(shape, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}
+  for +left_fill: F32
+  for +left_ops: List<&2, StorageLaws.Op>
+  for -left_fits: {Lifecycle.logical_length(Replayed.storage(left, left_fill, left_ops)) == Shape.logical_numel(Shape.dimensions(left)) : Nat}
+  for +right_fill: F32
+  for +right_ops: List<&2, StorageLaws.Op>
+  for -right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_ops)) == Shape.logical_numel(Shape.dimensions(right)) : Nat}
+  MatmulPairContract<a, left, Contracts.matrix_rows(shape, right, first), Contracts.matrix_columns(shape, right, first),
+    row => column => DotFold.dot_fold(Contracts.factors(row, column,
+      Contracts.matrix_inner(shape, right, first), Contracts.matrix_columns(shape, right, first),
+      shape, fill, ops, right, right_fill, right_ops, Contracts.matrix_inner(shape, right, first)), 0.0),
+    b, right,
+    Contracts.product_rows(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second),
+    Contracts.product_columns(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second),
+    row => column => DotFold.dot_fold(Contracts.product_factors(row, column, Matrix.Swapped{}, Matrix.Swapped{},
+      Contracts.product_inner(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second),
+      Contracts.product_rows(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second),
+      Contracts.product_columns(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second),
+      shape, fill, ops, left, left_fill, left_ops, Contracts.product_inner(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second)), 0.0),
+    Backward.vjp(Backward.MatmulNT{a, b, left, right},
+      Backward.Operands{Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
+        Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}}},
+      Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}})>
+
+# matmul_nt reads what matmul reads from the transposed copy: for a right
+# operand of dimensions [columns, inner], the factor pairs of cell
+# (row, column) of a product of two `Kept` operands (`matmul_nt`), left[row,
+# k] and right[column, k], are the pairs `right_transposed_factors` reads
+# through `permute_source` on right^T, the pairs `tensor_matmul_vjp_values`
+# states for g @ y^T. Both fold the same words in the same order, so
+# `matmul_nt(g, y)` and `matmul(g, transpose_copy(y))` agree word for word.
+law nt_reads_transpose:
+  for +row: Nat
+  for +column: Nat
+  for +rows: Nat
+  for +left: Shape.Shape
+  for +left_fill: F32
+  for +left_ops: List<&2, StorageLaws.Op>
+  for +right: Shape.Shape
+  for +right_fill: F32
+  for +right_ops: List<&2, StorageLaws.Op>
+  for +columns: U32
+  for +inner: U32
+  for matrix: {Shape.dimensions(right) == [columns, inner] : List<&2, U32>}
+  for column_below: {Nat.is_lt(column, U32.to_nat(columns)) == True{} : Bool}
+  for +count: Nat
+  for room: {Nat.is_le(count, U32.to_nat(inner)) == True{} : Bool}
+  {Contracts.product_factors(row, column, Matrix.Kept{}, Matrix.Kept{}, U32.to_nat(inner), rows, U32.to_nat(columns),
+    left, left_fill, left_ops, right, right_fill, right_ops, count) ==
+    right_transposed_factors(row, column, U32.to_nat(inner), U32.to_nat(columns), left, left_fill, left_ops,
+      right, right_fill, right_ops, swapped(right), count) : List<&2, DotFold.Factors>}
+
+# matmul_tn likewise: for a left operand of dimensions [inner, rows], the
+# pairs of a product of two `Swapped` operands (`matmul_tn`), left[k, row] and
+# right[k, column], are the pairs `left_transposed_factors` reads through
+# `permute_source` on left^T, the pairs `tensor_matmul_vjp_values` states for
+# x^T @ g.
+law tn_reads_transpose:
+  for +row: Nat
+  for +column: Nat
+  for +columns: Nat
+  for +left: Shape.Shape
+  for +left_fill: F32
+  for +left_ops: List<&2, StorageLaws.Op>
+  for +right: Shape.Shape
+  for +right_fill: F32
+  for +right_ops: List<&2, StorageLaws.Op>
+  for +inner: U32
+  for +rows: U32
+  for matrix: {Shape.dimensions(left) == [inner, rows] : List<&2, U32>}
+  for row_below: {Nat.is_lt(row, U32.to_nat(rows)) == True{} : Bool}
+  for +count: Nat
+  for room: {Nat.is_le(count, U32.to_nat(inner)) == True{} : Bool}
+  {Contracts.product_factors(row, column, Matrix.Swapped{}, Matrix.Swapped{}, U32.to_nat(inner), U32.to_nat(rows), columns,
+    left, left_fill, left_ops, right, right_fill, right_ops, count) ==
+    left_transposed_factors(row, column, U32.to_nat(inner), columns, left, left_fill, left_ops, swapped(left),
+      right, right_fill, right_ops, count) : List<&2, DotFold.Factors>}

@@ -83,6 +83,7 @@ proof budget, or storage/Core definition is changed.
 | `transpose_axes_requested` | The actual `Layout.transpose_axes(..., a, b, 0)` equals the independent generic exchange of the requested positions. |
 | `transpose_axes_valid` | Every bounded request produces actual Layout-bijective axes. |
 | `transpose_axes_self_inverse` | The independent computed inverse of those actual axes equals those actual axes. |
+| `permute_source_transposed` | For an input of dimensions `[rows, columns]`, `permute_source` with axes `[1, 0]` sends output index `j * rows + l` (cell `[j, l]` of the transpose) to input index `l * columns + j` (cell `[l, j]`), for every `j < columns` and `l < rows`. Added later, with `matmul_nt`. |
 
 ## Certification and controls
 

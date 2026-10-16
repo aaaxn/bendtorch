@@ -13,20 +13,30 @@ operand's shape with [`sum_to_size`](sum-to-size.md) before it is added.
 
 A `Tape` is a list of `Entry{node, shape, value, saved, grad}`, newest first.
 `node` is `Leaf`, `Add{a, b, left, right}`, `Sub{...}`, `Mul{...}`,
-`Matmul{...}` or `Sum{a, input}`: the operand ids and the operand shapes.
-`value` is the forward value, `saved` holds the operand values a product needs
-for its VJP (`Operands{left, right}` for `Mul` and `Matmul`, `Unsaved` for the
+`Matmul{...}`, `MatmulNT{...}` or `Sum{a, input}`: the operand ids and the
+operand shapes. `MatmulNT` is `left @ right^T` with `right` read in place,
+PyTorch's `linear(left, right)` without a bias. `value` is the forward value,
+`saved` holds the operand values a product needs for its VJP
+(`Operands{left, right}` for `Mul`, `Matmul` and `MatmulNT`, `Unsaved` for the
 rest), and `grad` is the entry's gradient slot.
 
 `TensorBackward.leaf(tape, value)` returns the new tape and the id.
-`add`, `sub`, `mul` and `matmul` take two ids and `sum` one; each returns the
-new tape and `Done{id}`. A recording reads copies of its operands' values
-through the same lookup as `TensorBackward.value`, runs the tensor operation
-(`Elementwise.add`, `sub` or `mul` with broadcasting, `Matrix.matmul`, or
-`Reduction.sum_dynamic`) and pushes the result. An id the tape does not hold
+`add`, `sub`, `mul`, `matmul` and `matmul_nt` take two ids and `sum` one; each
+returns the new tape and `Done{id}`. A recording reads copies of its operands'
+values through the same lookup as `TensorBackward.value`, runs the tensor
+operation (`Elementwise.add`, `sub` or `mul` with broadcasting,
+`Matrix.matmul`, `Matrix.matmul_nt`, or `Reduction.sum_dynamic`) and pushes
+the result. `linear(tape, x, w, b)` is a layer in PyTorch's layout, `W` of
+`[out, in]`: it records `matmul_nt(x, w)` and then `add` of that product and
+the bias `b` of `[out]`, and returns the sum's id; the product is the entry
+before it. All three ids are checked against the tape the call receives, so a
+bias id equal to the number of entries is unknown, not the product that would
+take that id. If the bias does not broadcast, the product is dropped again.
+An id the tape does not hold
 gives `Fail{UnknownNode}` (103); an operation the tensor layer refuses gives
 its error: `IncompatibleBroadcast` (6), a matmul rank mismatch (105) or inner
-dimension mismatch (106). A refused recording hands the tape back unchanged.
+dimension mismatch (106). A refused recording, `linear` included, hands the
+tape back unchanged.
 
 Every call hands the tape back, because tensors have one owner.
 
@@ -60,6 +70,7 @@ The sweep:
   | `Mul` | `sum_to_size(g * right, left)` | `sum_to_size(g * left, right)` |
   | `Sum` | `broadcast_to(g, input)` | |
   | `Matmul` | `g @ right^T` | `left^T @ g` |
+  | `MatmulNT` | `g @ right` | `g^T @ left`, `Matrix.matmul_tn`, `g` read in place |
 
   `left` and `right` are the saved operand values (and shapes). `-g` uses the
   new `Elementwise.NegateLeft` operation, `scalar(NegateLeft, l, r) =
@@ -93,7 +104,8 @@ every slot, like `zero_grad(set_to_none=True)`.
 `Matmul` operands are kept as saved values). The sweep copies `g` once per
 contribution that `sum_to_size` does not reduce, allocates `-g` for `Sub`, and
 copies `g` twice and each saved matmul operand once (its transpose) for
-`Matmul`. The sweep is sequential: the order in which contributions reach a
+`Matmul`, and `g` twice and each saved operand once (a plain clone) for
+`MatmulNT`. The sweep is sequential: the order in which contributions reach a
 slot is part of the contract. Within one VJP, the `Mul` and `Sub` products
 fork into parallel halves above 2^15 cells, as every `Elementwise.binary`
 does.
@@ -133,11 +145,11 @@ of slots, shape and tensor.
 - `tensor_zero_grad_empties` and `tensor_zero_grad_keeps_nodes`.
 
 These laws state the engine's structure and the `Sum` VJP's values. The
-[VJP values](#vjp-values) below state the `Add`, `Sub`, `Mul` and `Matmul`
-VJPs' values.
+[VJP values](#vjp-values) below state the `Add`, `Sub`, `Mul`, `Matmul` and
+`MatmulNT` VJPs' values.
 
 The family controls in [`verification/families/tensor_vjp/`](../verification/families/README.md#tensor-vjp)
-check the VJP value laws: literal consumers, seven false twins and eight
+check the VJP value laws: five literal consumers, seven false twins and eleven
 mutants of `tensor-backward.bend`, each rejected by the source checker and by
 BendTT. The autograd gate applies ten proof controls and two error controls to a copy
 of the sources, and the proofs reject each one: `NegateLeft` keeping the sign
@@ -153,7 +165,7 @@ a `zero_grad` that keeps the slot; and each refusal reported as the other.
 ## VJP values
 
 `src/autograd/tensor-vjp-LAWS.bend` states the values of the `Add`, `Sub`,
-`Mul` and `Matmul` VJPs, and `tensor-vjp-PROOF.bend` proves them. The `Add`,
+`Mul`, `Matmul` and `MatmulNT` VJPs, and `tensor-vjp-PROOF.bend` proves them. The `Add`,
 `Sub` and `Mul` proofs go through laws alone: the parallel product, whose
 words are the pointwise family's, then `sum_to_size`, each handing the next a
 replayed tensor. The `Matmul` proof composes the clone, transpose and
@@ -222,11 +234,40 @@ operand's dimensions, the second to `b` with the right operand's, and
 `inner` and `columns` are the plan's. For a `[k, n]` operand
 `permute_source` of a transposed index is the row-major index of the
 swapped coordinate, so the pairs are `g[row, l] * y[column, l]` and
-`x[l, row] * g[l, column]`, as PyTorch's `g @ y.T` and `x.T @ g`. No law
-states that index identity for every shape; the consumer in
-`verification/families/tensor_vjp/` checks it on literal words.
+`x[l, row] * g[l, column]`, as PyTorch's `g @ y.T` and `x.T @ g`. For rank 2
+the law `permute_source_transposed` states that index identity, and
+`nt_reads_transpose` and `tn_reads_transpose` below restate these pairs as the
+in-place reads of `matmul_nt` and `matmul_tn`.
 
-The proof follows `vjp_matmul`. The clone halves of `g` are `ops ++ [First]`
+`tensor_matmul_nt_vjp_values` states the `MatmulNT` VJP, the backward of
+`linear`'s product, with `W[j, l]` read in place. With the saved operands `x`
+(left, `[batch, in]`) and `W` (right, `[out, in]`) and the gradient `g`
+(`[batch, out]`), all replayed, its hypotheses name the plan `first` of
+`matmul(g, W)` and the plan `second` of `matmul_tn(g, x)`, whose outputs have
+the left and the right operand's dimensions. Cell `(i, l)` of the first
+contribution holds `DotFold.dot_fold` from `+0.0` of `Contracts.factors`:
+`g[i * out + j]` and `W[j * in + l]` for `j` from 0 to `out - 1`. Cell
+`(j, l)` of the second holds `DotFold.dot_fold` from `+0.0` of
+`product_factors` for two `Swapped` operands: `g[i * out + j]` and
+`x[i * in + l]` for `i` from 0 to `batch - 1`. No transpose is built and no
+index map is involved. The bias gradient is the `Add` entry's:
+`tensor_add_vjp_values` gives `sum_to_size(g, [out])`, each column of `g`
+added over the batch in index order from `+0.0`. The proof clones `g`, `W`,
+`g`'s first half and `x` (`clone_lift`), and composes `matmul_replayed` and
+`product_replayed`.
+
+Two laws tie the in-place reads to the transpose copy, through
+`permute_source_transposed` (for an input of dimensions `[rows, columns]`,
+`permute_source` with axes `[1, 0]` sends `j * rows + l` to
+`l * columns + j`). `nt_reads_transpose`: for a right operand of dimensions
+`[columns, inner]`, the factor pairs of a `matmul_nt` cell are the pairs
+`right_transposed_factors` reads through `permute_source` on `right^T`.
+`tn_reads_transpose`: for a left operand of dimensions `[inner, rows]`, the
+pairs of a `matmul_tn` cell are the pairs `left_transposed_factors` reads.
+So `matmul_nt(g, y)` and `g @ y^T` of `tensor_matmul_vjp_values` fold the
+same words in the same order, and so do `matmul_tn(x, g)` and `x^T @ g`.
+
+The proof of `tensor_matmul_vjp_values` follows `vjp_matmul`. The clone halves of `g` are `ops ++ [First]`
 and `ops ++ [Second]`; `transpose_replayed` gives the transposed copy as a
 replayed tensor whose words are `permuted_words`; `matmul_replayed` gives the
 product's cells as the ordered totals over the copies; and `first_factors`
@@ -236,7 +277,7 @@ operand's dimensions.
 
 ## Runtime lanes
 
-`tools/autograd_tensor_backward.py` runs 96 scripts on native Bend CPU
+`tools/autograd_tensor_backward.py` runs 106 scripts on native Bend CPU
 (`--threads N --gpu off`, N from `tools.check --threads`, default 8, or the CPU count if lower) and on the generated JavaScript. Each script records
 leaves and operations, runs `backward` on chosen outputs, sometimes calls
 `zero_grad`, and reads the value and gradient of every node, word by word. The
@@ -244,7 +285,7 @@ harness (`src/autograd/tensor-backward-harness.bend`) calls the public
 functions; `ForgeAdd` and `ForgeSum` push an entry without checks so the gate
 can build tapes with dangling operands.
 
-- 40 handwritten scripts: broadcasting along rows, columns, a `[1, 3]` operand,
+- 50 handwritten scripts: broadcasting along rows, columns, a `[1, 3]` operand,
   a rank-0 operand and rank 4; `x*x`, `x+x` and `x-x`; matmul, a square
   `A @ A` and a linear layer `x @ W + b`; a non-scalar output seeded with
   ones; the unused-node graph with each output selected; repeated backward on
@@ -253,7 +294,12 @@ can build tapes with dangling operands.
   an empty `[0, 3]` operand; NaN, infinity, overflow and subnormals; unknown
   operands and outputs, incompatible shapes, matmul rank and inner errors, an
   invalid leaf; and three forged tapes with an operand that is the node
-  itself, a newer node or a missing node.
+  itself, a newer node or a missing node. Ten of them run `linear` in
+  PyTorch's layout: one layer with a scalar and a seeded output, words that
+  round, two layers in a row, `x @ x^T`, an inner mismatch, a rank-0 input,
+  and three refusals after which the next node takes the id the product would
+  have taken: a bias that does not broadcast, a bias id equal to the number
+  of entries, and a larger unknown bias id.
 - 32 generated scripts (fixed seed) over shapes `[]`, `[2]`, `[3]`, `[1, 3]`,
   `[2, 1]`, `[2, 3]`, `[3, 2]` and `[2, 2]`, with words whose sums and products
   stay exact, and 24 more with words that round, cancel and overflow.
@@ -263,12 +309,17 @@ same rules in the same order and rounds to F32 after each operation. A NaN
 word only needs to be NaN on both sides: the tensor operations and gradient
 slots the engine builds on do not specify NaN payloads.
 
-The subgate also builds six runtime controls from a mutated copy of
-`tensor-backward.bend` and requires the JavaScript lane to reject each one: a
-seed at the newest node, a `Mul` VJP with swapped operands, a `Sub` VJP
-without the sign, a `Matmul` VJP without the transpose, a merge that
-overwrites the slot, and a reduction that folds when the shapes agree (which
-turns `-0.0` into `+0.0`).
+The subgate also builds thirteen runtime controls from a mutated copy of the
+sources and requires the JavaScript lane to reject each one: a seed at the
+newest node, a `Mul` VJP with swapped operands, a `Sub` VJP without the sign,
+a `Matmul` VJP without the transpose, a merge that overwrites the slot, a
+reduction that folds when the shapes agree (which turns `-0.0` into `+0.0`),
+`matmul_nt` reading `W` untransposed, a `MatmulNT` VJP whose `matmul_tn`
+swaps its operands, `matmul_tn` reading `g` untransposed, a `linear` that
+drops the bias, a `reduce_to` that walks the wrong stride, so the bias
+gradient sums rows instead of columns, a `linear` that checks the bias id
+after it records the product, and a `linear` that keeps the product when the
+sum is refused.
 
 ## PyTorch record
 
@@ -279,15 +330,15 @@ retain_graph=True)`, `retain_grad()` on every non-leaf) and writes
 `tests/test_autograd_tensor_backward.py` compares it with the Python
 reference. Bend never calls PyTorch.
 
-85 of the 96 scripts agree with PyTorch line for line: every id, shape, value,
+90 of the 106 scripts agree with PyTorch line for line: every id, shape, value,
 gradient word and `None`, including the arrival-order and fold-order scripts,
-`-0.0`, infinities and subnormals. The other 11 differ as listed, and every
+`-0.0`, infinities and subnormals. The other 16 differ as listed, and every
 gradient PyTorch can represent in them agrees:
 
 | Scripts | bendtorch | PyTorch |
 | --- | --- | --- |
-| `unknown_operands`, `unknown_output`, `unknown_output_empty` | `UnknownNode` (103) for each unknown id | `IndexError` from the Python list that the replay uses as a tape |
-| `incompatible_shapes`, `invalid_leaf` | the tensor layer's error code (6, 105, 106, 10) | `RuntimeError` |
+| `unknown_operands`, `unknown_output`, `unknown_output_empty`, `linear_bias_next`, `linear_bias_unknown` | `UnknownNode` (103) for each unknown id | `IndexError` from the Python list that the replay uses as a tape |
+| `incompatible_shapes`, `invalid_leaf`, `linear_inner_mismatch`, `linear_bias_mismatch`, `matmul_nt_rank` | the tensor layer's error code (6, 105, 106, 10) | `RuntimeError` |
 | `dangling_self`, `dangling_newer`, `dangling_missing` | `DanglingOperand` (104) | not representable |
 | `specials` | the value of `NaN * NaN` is NaN | NaN with another payload |
 | `rounding_09` | the forward `sum` of six words adds them in ascending order | PyTorch's vectorized sum gives another word |

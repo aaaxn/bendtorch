@@ -26,7 +26,7 @@ from tools.autograd_tensor_backward import (
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "8eb78291733d631c257e5dd76213b4a6782444e6a98685f9ec3fbaea018e8923"
+FIXTURE_SHA256 = "523838f2a3864f4312fb665dad99c65ef167d71afd1ca73f37a3eee57e0e96b2"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
@@ -37,6 +37,11 @@ REJECTIONS = {
     "unknown_output",
     "incompatible_shapes",
     "invalid_leaf",
+    "linear_inner_mismatch",
+    "linear_bias_mismatch",
+    "linear_bias_next",
+    "linear_bias_unknown",
+    "matmul_nt_rank",
 }
 RUNTIME_ERROR_CODES = {6, MATMUL_RANK, MATMUL_INNER, 10}
 FORGED = {"dangling_self", "dangling_newer", "dangling_missing"}
@@ -162,6 +167,47 @@ class TensorBackwardReferenceTests(unittest.TestCase):
         forged = forge({"op": "sum", "a": 0}, [], values(1.0))
         lines = reference(case([forged, run(0)]))
         self.assertEqual(lines[-1], f"autograd:error:{DANGLING_OPERAND}")
+
+    def test_linear_vjps_read_the_weight_in_place(self):
+        x = leaf([2, 3], values(1.0, -2.0, 0.5, 3.0, 0.25, -1.0))
+        weight = leaf([2, 3], values(2.0, 1.0, -1.0, 4.0, 0.5, -3.0))
+        bias = leaf([2], values(0.5, -1.0))
+        steps = [x, weight, bias, {"op": "linear", "a": 0, "b": 1, "bias": 2}]
+        lines = reference(case([*steps, run(4), *reads(5)]))
+        found = grads(lines)
+        # g @ W with g all ones: each row of x's gradient sums W's rows.
+        self.assertEqual(found[0], values(6.0, 1.5, -4.0, 6.0, 1.5, -4.0))
+        # g^T @ x: each row of W's gradient sums x's rows.
+        self.assertEqual(found[1], values(4.0, -1.75, -0.5, 4.0, -1.75, -0.5))
+        # The bias gradient sums g over the batch, column by column.
+        self.assertEqual(found[2], values(2.0, 2.0))
+        # x @ W^T + b: row 0 is [2 - 2 - 0.5 + 0.5, 4 - 1 - 1.5 - 1], and
+        # row 1 is [6 + 0.25 + 1 + 0.5, 12 + 0.125 + 3 - 1].
+        self.assertEqual(tensors(lines, "value")[4], values(0.0, 0.5, 7.75, 14.125))
+
+    def test_a_refused_linear_leaves_the_tape_as_it_was(self):
+        x = leaf([1, 1], values(2.0))
+        weight = leaf([1, 1], values(3.0))
+        bias = {"op": "linear", "a": 0, "b": 1, "bias": 2}
+        # bias 2 is the id the product would take: it is unknown.
+        lines = reference(case([x, weight, bias, leaf([], values(5.0))]))
+        self.assertEqual(
+            lines,
+            [
+                "autograd:id:0",
+                "autograd:id:1",
+                f"autograd:error:{UNKNOWN_NODE}",
+                "autograd:id:2",
+            ],
+        )
+        # A bias that does not broadcast to the [2, 3] product drops it.
+        column = leaf([2, 1], values(2.0, 4.0))
+        rows = leaf([3, 1], values(3.0, 5.0, 7.0))
+        short = leaf([2], values(1.0, 2.0))
+        steps = [column, rows, short, bias, leaf([], values(5.0))]
+        self.assertEqual(
+            reference(case(steps))[3:], ["autograd:error:6", "autograd:id:3"]
+        )
 
     def test_matmul_errors_are_typed(self):
         lines = reference(case([GRID, ROW, op("matmul", 0, 1), op("matmul", 0, 0)]))
@@ -289,6 +335,9 @@ class GateRegistrationTests(unittest.TestCase):
                 "tensor_2d_vjp_2d_LAWS.tensor_sub_vjp_values",
                 "tensor_2d_vjp_2d_LAWS.tensor_mul_vjp_values",
                 "tensor_2d_vjp_2d_LAWS.tensor_matmul_vjp_values",
+                "tensor_2d_vjp_2d_LAWS.tensor_matmul_nt_vjp_values",
+                "tensor_2d_vjp_2d_LAWS.nt_reads_transpose",
+                "tensor_2d_vjp_2d_LAWS.tn_reads_transpose",
             ],
         )
         controls = [
@@ -300,10 +349,14 @@ class GateRegistrationTests(unittest.TestCase):
             self.assertEqual((ROOT / path).read_text().count(original), 1)
 
     def test_runtime_controls_apply_once(self):
-        source = (ROOT / "src/autograd/tensor-backward.bend").read_text()
-        self.assertEqual(len(RUNTIME_CONTROLS), 6)
-        for original, mutated in RUNTIME_CONTROLS.values():
-            self.assertEqual(source.count(original), 1)
+        self.assertEqual(len(RUNTIME_CONTROLS), 13)
+        for control in RUNTIME_CONTROLS.values():
+            path, original, mutated = (
+                control
+                if len(control) == 3
+                else ("src/autograd/tensor-backward.bend", *control)
+            )
+            self.assertEqual((ROOT / path).read_text().count(original), 1)
             self.assertNotEqual(original, mutated)
 
 

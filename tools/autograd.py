@@ -277,8 +277,9 @@ ERROR_CONTROLS = {
     ),
     "matmul-inner-as-rank": (
         "src/tensor/matmul.bend",
-        "      Fail{InnerDimensionMismatch{}}",
-        "      Fail{RankMismatch{}}",
+        "      Fail{InnerDimensionMismatch{}}\n"
+        "    case Shape.BTrue{equal}:\n      plan_output(",
+        "      Fail{RankMismatch{}}\n    case Shape.BTrue{equal}:\n      plan_output(",
         "src/tensor/PROOF.bend",
         "compatible_inner",
     ),

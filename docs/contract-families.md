@@ -356,6 +356,23 @@ state for them; the gate's parallel probe checks, at 1, 8 and 24 threads, that
 the public product returns the same words as `Matrix.multiply` on products
 that fork.
 
+### Products that read an operand in place
+
+`product_ordered` and `product_replayed` state `Matrix.product(lo, ro, ...)`,
+the product whose operands are each laid out `Kept` or `Swapped`
+([sum and matmul](sum-and-matmul.md#products-that-read-an-operand-in-place)),
+for every pair of orders: `matmul_nt` is `Kept`, `Kept` and `matmul_tn` is
+`Swapped`, `Swapped`. They are `matmul_ordered` and `matmul_replayed` with
+`factors` replaced by `product_factors`, which reads the left word at
+`Matrix.read_offset(lo, inner, rows, row, k)` and the right word at
+`Matrix.read_offset(ro, inner, columns, column, k)`. The proofs in
+`product-parallel-proof.bend` and `product-proof.bend` are the matmul walk
+with each read at `read_offset`; `Fits(order, inner, outers, shape)` names the
+extents each order needs, and `read_below` bounds each read for either order.
+`matmul_nt_ordered` and `matmul_tn_ordered` state `product_ordered` for the
+public `matmul_nt` and `matmul_tn`, so the orders each passes are part of a
+law.
+
 ### `permute_copy` and `transpose_copy` through the index-map copy
 
 `Transforms.copy_loop` in `src/tensor/transforms.bend` writes output index
@@ -451,10 +468,10 @@ two of them on the actual `Core.from_values` and `Core.new` results, of
 `reduce_fold_fiber` and `reduce_to_fiber`, of `sum_to_size_clone` and
 `sum_to_size_fiber`, of `broadcast_to_pointwise` and
 `broadcast_to_replayed`, one of them a `broadcast_to` output reduced by
-`reduce_to_fiber`, of the tensor backward's `Add`, `Sub`, `Mul` and
-`Matmul` VJP value laws, and of `binary_replayed`, one of them an
+`reduce_to_fiber`, of the tensor backward's `Add`, `Sub`, `Mul`, `Matmul`
+and `MatmulNT` VJP value laws, and of `binary_replayed`, one of them an
 `Elementwise.binary` product reduced by `reduce_to_fiber`. It also holds false
-twins of thirty-four value statements, and forty-eight mutants of the family
+twins of thirty-four value statements, and fifty-seven mutants of the family
 loops, of their instances and of the `reduce_to`, `matmul`, `sum_to_size`,
 `broadcast_to`, tensor backward and parallel elementwise code. Its
 [README](../verification/families/README.md) lists each control and the

@@ -57,14 +57,16 @@ bendtorch's native lane keeps the first.
 
 `tensor_backward.py` replays every script of the autograd tensor backward
 subgate on PyTorch tensors and writes `fixtures/tensor-backward-torch.json`.
-Each script records leaves and `+`, `-`, `*`, `@` and `.sum()` in order; every
-`backward` seeds `torch.ones_like(output)` and keeps the graph
+Each script records leaves and `+`, `-`, `*`, `@`, `linear(x, W)`
+(`matmul_nt`), `linear(x, W) + b` (`linear`, two entries, as the tape records
+it; both are computed before either is recorded, so a refused `linear`
+records nothing) and `.sum()` in order; every `backward` seeds `torch.ones_like(output)` and keeps the graph
 (`retain_graph=True`), every non-leaf keeps its gradient (`retain_grad()`), and
 `zero_grad` sets every `.grad` to `None`. Lines carry decimal F32 words in the
 gate's own format. `tests/test_autograd_tensor_backward.py` in the root suite
-compares the gate's Python reference with this file: 85 of 96 scripts agree
+compares the gate's Python reference with this file: 90 of 106 scripts agree
 line for line, and [docs/tensor-backward.md](../../docs/tensor-backward.md)
-lists the other 11.
+lists the other 16.
 
 ## Reproduce
 

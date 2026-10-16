@@ -125,3 +125,26 @@ before = '''
   U32.from_nat(Nat.add(Nat.mul(k, columns), column))'''
 after = '''
   U32.from_nat(Nat.add(Nat.mul(column, columns), k))'''
+
+[nt-reads-weight-untransposed]
+file = "src/tensor/matmul.bend"
+before = '''
+  product(Kept{}, Kept{}, left, right)'''
+after = '''
+  product(Kept{}, Swapped{}, left, right)'''
+
+[tn-swaps-operands]
+file = "src/tensor/matmul.bend"
+before = '''
+  product(Swapped{}, Swapped{}, left, right)'''
+after = '''
+  product(Swapped{}, Swapped{}, right, left)'''
+
+[product-kept-reads-swapped]
+file = "src/tensor/matmul.bend"
+before = '''
+    case Kept{}:
+      Nat.add(Nat.mul(outer, inner), k)'''
+after = '''
+    case Kept{}:
+      Nat.add(Nat.mul(k, inner), outer)'''
