@@ -17,13 +17,16 @@ import ./tensor-backward.bend as Backward
 # optimizer.step() reads the updated parameters. Backward.zero_grad empties
 # the slots.
 #
-# step checks every id before it updates any: an id the tape does not hold is
-# refused with UnknownNode, an id of a node that is not a leaf with NotLeaf,
-# and the tape comes back unchanged.
+# step checks every id, then the learning rate, before it updates anything:
+# an id the tape does not hold is refused with UnknownNode, an id of a node
+# that is not a leaf with NotLeaf, and a learning rate below zero (IEEE
+# `lr < 0`, PyTorch's own check: -0.0, NaN and +inf are accepted) with
+# InvalidLearningRate. A refusal leaves the tape unchanged.
 
 type Error is Data:
   UnknownNode{}
   NotLeaf{}
+  InvalidLearningRate{}
   TensorError{error: Core.Error}
 
 def leaf_refusal(node: Backward.Node) -> Maybe<&2, Error>:
@@ -138,13 +141,33 @@ def walked_tape(pair: Walked()) -> Backward.Tape & Result<&2, &2, Error, Unit>:
   (entries, result) = pair
   (Backward.Tape{entries}, result)
 
-def checked(+lr: F32, entries: List<&1, Backward.Entry>, +count: Nat, +params: List<&2, Nat>, refused: Maybe<&2, Error>) ->
+def refused_if(below: Bool) -> Maybe<&2, Error>:
+  match below:
+    case True{}:
+      Some{InvalidLearningRate{}}
+    case False{}:
+      None{}
+
+# InvalidLearningRate when lr is below zero, as PyTorch's `lr < 0.0`; None
+# for every other word, -0.0, NaN and +inf included.
+def rate_refusal(+lr: F32) -> Maybe<&2, Error>:
+  refused_if(Elementwise.below_zero(lr))
+
+def rated(+lr: F32, entries: List<&1, Backward.Entry>, +count: Nat, +params: List<&2, Nat>, refused: Maybe<&2, Error>) ->
   Backward.Tape & Result<&2, &2, Error, Unit>:
   match refused:
     case Some{error}:
       (Backward.Tape{entries}, Fail{error})
     case None{}:
       walked_tape(descend_all(lr, count, params, entries))
+
+def checked(+lr: F32, entries: List<&1, Backward.Entry>, +count: Nat, +params: List<&2, Nat>, refused: Maybe<&2, Error>) ->
+  Backward.Tape & Result<&2, &2, Error, Unit>:
+  match refused:
+    case Some{error}:
+      (Backward.Tape{entries}, Fail{error})
+    case None{}:
+      rated(lr, entries, count, params, rate_refusal(lr))
 
 def planned(+lr: F32, +params: List<&2, Nat>, pair: List<&1, Backward.Entry> & List<&2, Backward.Node>) ->
   Backward.Tape & Result<&2, &2, Error, Unit>:
@@ -162,6 +185,8 @@ def error_code(error: Error) -> U32:
     case UnknownNode{}:
       Backward.error_code(Backward.UnknownNode{})
     case NotLeaf{}:
-      107
+      109
+    case InvalidLearningRate{}:
+      110
     case TensorError{error}:
       Core.error_code(error)

@@ -102,7 +102,11 @@
     "sgd_2d_LAWS.sgd_refusal_reads_target",
     "sgd_2d_LAWS.sgd_only_leaves_accepted",
     "sgd_2d_LAWS.sgd_refusal_unknown",
+    "sgd_2d_LAWS.sgd_negative_rate_refused",
+    "sgd_2d_LAWS.sgd_rate_accepted",
+    "sgd_2d_LAWS.sgd_rate_edges",
     "sgd_2d_LAWS.sgd_step_refused",
+    "sgd_2d_LAWS.sgd_step_rate_refused",
     "sgd_2d_LAWS.sgd_step_accepted"
   ]
 }

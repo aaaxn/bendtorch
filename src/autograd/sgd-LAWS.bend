@@ -157,8 +157,44 @@ law sgd_refusal_unknown:
       Backward.at_head(List.length(&2, Backward.Node, nodes), Nat.add(List.length(&2, Backward.Node, nodes), extra))) ==
     Some{Sgd.UnknownNode{}} : Maybe<&2, Sgd.Error>}
 
-# A step with a refused parameter leaves the tape unchanged; otherwise it
-# updates the parameters in list order.
+# The learning rate is refused exactly when it is below zero, IEEE `lr < 0`
+# on the bits (`below_zero`, stated by below_zero_words): PyTorch's
+# `lr < 0.0`.
+law sgd_negative_rate_refused:
+  for +lr: F32
+  for below: {Elementwise.below_zero(lr) == True{} : Bool}
+  {Sgd.rate_refusal(lr) == Some{Sgd.InvalidLearningRate{}} : Maybe<&2, Sgd.Error>}
+
+law sgd_rate_accepted:
+  for +lr: F32
+  for above: {Elementwise.below_zero(lr) == False{} : Bool}
+  {Sgd.rate_refusal(lr) == None{} : Maybe<&2, Sgd.Error>}
+
+def from_bits(word: U32) -> F32:
+  U32{bits} = word
+  F32{bits}
+
+def rate_refusals(words: List<&2, U32>) -> List<&2, Maybe<&2, Sgd.Error>>:
+  match words:
+    case Nil{}:
+      Nil{}
+    case Con{word, rest}:
+      Sgd.rate_refusal(from_bits(word)) <> rate_refusals(rest)
+
+# At the edge rates, as PyTorch 2.14.1 answers them: +0.0, -0.0, 0.01, the
+# quiet NaN, a NaN with the sign bit and +inf are accepted; the smallest
+# negative denormal, -0.25, the most negative finite word and -inf are
+# refused.
+law sgd_rate_edges:
+  {rate_refusals([0, 2147483648, 1008981770, 2143289344, 4290772992, 2139095040,
+      2147483649, 3196059648, 4286578687, 4286578688]) ==
+    [None{}, None{}, None{}, None{}, None{}, None{},
+      Some{Sgd.InvalidLearningRate{}}, Some{Sgd.InvalidLearningRate{}}, Some{Sgd.InvalidLearningRate{}},
+      Some{Sgd.InvalidLearningRate{}}] : List<&2, Maybe<&2, Sgd.Error>>}
+
+# A step with a refused parameter leaves the tape unchanged; with every id
+# accepted, a refused learning rate leaves it unchanged too; otherwise the
+# step updates the parameters in list order.
 law sgd_step_refused:
   for entries: List<&1, Backward.Entry>
   for +lr: F32
@@ -169,12 +205,24 @@ law sgd_step_refused:
   {Sgd.step(Backward.Tape{entries}, lr, params) == (Backward.Tape{entries}, Fail{error}) :
     Backward.Tape & Result<&2, &2, Sgd.Error, Unit>}
 
+law sgd_step_rate_refused:
+  for entries: List<&1, Backward.Entry>
+  for +lr: F32
+  for +params: List<&2, Nat>
+  for +error: Sgd.Error
+  for accepted: {Sgd.refusal(TensorBackward.nodes_of(entries), List.length(&2, Backward.Node, TensorBackward.nodes_of(entries)), params) ==
+    None{} : Maybe<&2, Sgd.Error>}
+  for refused: {Sgd.rate_refusal(lr) == Some{error} : Maybe<&2, Sgd.Error>}
+  {Sgd.step(Backward.Tape{entries}, lr, params) == (Backward.Tape{entries}, Fail{error}) :
+    Backward.Tape & Result<&2, &2, Sgd.Error, Unit>}
+
 law sgd_step_accepted:
   for entries: List<&1, Backward.Entry>
   for +lr: F32
   for +params: List<&2, Nat>
   for accepted: {Sgd.refusal(TensorBackward.nodes_of(entries), List.length(&2, Backward.Node, TensorBackward.nodes_of(entries)), params) ==
     None{} : Maybe<&2, Sgd.Error>}
+  for rated: {Sgd.rate_refusal(lr) == None{} : Maybe<&2, Sgd.Error>}
   {Sgd.step(Backward.Tape{entries}, lr, params) ==
     Sgd.walked_tape(Sgd.descend_all(lr, List.length(&2, Backward.Node, TensorBackward.nodes_of(entries)), params, entries)) :
     Backward.Tape & Result<&2, &2, Sgd.Error, Unit>}

@@ -33,7 +33,8 @@ from tools.common import ROOT, Evidence, GateError, bend, native
 VALUE_COUNT_MISMATCH = 10
 MATMUL_RANK = 105
 MATMUL_INNER = 106
-NOT_LEAF = 107
+NOT_LEAF = 109
+INVALID_LEARNING_RATE = 110
 INFINITY = 0x7F800000
 BINARY = ("add", "sub", "mul", "matmul", "matmul_nt")
 UNARY = ("sum", "relu")
@@ -195,6 +196,18 @@ SGD_CONTROLS = {
         "    case Backward.Mul{a, b, left, right}:\n      Some{NotLeaf{}}",
         "    case Backward.Mul{a, b, left, right}:\n      None{}",
         "Laws.sgd_only_leaves_accepted",
+    ),
+    "sgd-step-skips-rate-check": (
+        "src/autograd/sgd.bend",
+        "rated(lr, entries, count, params, rate_refusal(lr))",
+        "rated(lr, entries, count, params, None{})",
+        "Laws.sgd_step_rate_refused",
+    ),
+    "sgd-rate-refuses-zero": (
+        "src/autograd/sgd.bend",
+        "  refused_if(Elementwise.below_zero(lr))",
+        "  refused_if(Elementwise.at_most_zero(lr))",
+        "Laws.sgd_negative_rate_refused",
     ),
 }
 RUNTIME_CONTROLS |= {
@@ -818,6 +831,53 @@ def sgd_scripts(x: dict, layer: dict, layer_bias: dict) -> list[dict]:
             "id": "sgd_not_leaf",
             "steps": [*pair, *trained, sgd(tenth, [0, 2]), *reads(4)],
         },
+        # The learning rate is checked after the ids and before any update,
+        # as PyTorch's `lr < 0.0`: -0.25, -inf and the smallest negative
+        # denormal are refused and the tape keeps its values; -0.0, +0.0,
+        # NaNs of either sign and +inf are accepted.
+        {
+            "id": "sgd_rate_negative",
+            "steps": [
+                *pair,
+                *trained,
+                sgd(word(-0.25), [0, 1]),
+                sgd(0xFF800000, [0, 1]),
+                sgd(0x80000001, [0, 1]),
+                *reads(4),
+            ],
+        },
+        {
+            "id": "sgd_rate_signed_zero",
+            "steps": [
+                leaf([4], f(0.0, NEGATIVE_ZERO, 1.5, NEGATIVE_ZERO)),
+                leaf([4], f(2.0, -3.0, 0.5, 2.0)),
+                *trained,
+                sgd(NEGATIVE_ZERO, [0, 1]),
+                *reads(4),
+                sgd(0, [0, 1]),
+                *reads(4),
+            ],
+        },
+        {
+            "id": "sgd_rate_nan",
+            "steps": [
+                *pair,
+                *trained,
+                sgd(0x7FC00000, [0]),
+                sgd(0xFFC00000, [1]),
+                *reads(4),
+            ],
+        },
+        {
+            "id": "sgd_rate_infinity",
+            "steps": [
+                leaf([3], f(0.5, -1.0, 2.0)),
+                leaf([3], f(3.0, 0.0, -2.0)),
+                *trained,
+                sgd(INFINITY, [0, 1]),
+                *reads(4),
+            ],
+        },
     ]
 
 
@@ -1281,6 +1341,11 @@ def reference(case: dict, trace: dict | None = None, update=descend_word) -> lis
                 ),
                 None,
             )
+            # Then the learning rate, as PyTorch's `lr < 0.0`, a NaN compares
+            # false.
+            (rate,) = struct.unpack("<f", struct.pack("<I", step["lr"]))
+            if refused is None and rate < 0.0:
+                refused = INVALID_LEARNING_RATE
             if refused is not None:
                 lines.append(f"autograd:error:{refused}")
                 continue

@@ -116,13 +116,41 @@ def Laws.sgd_step_refused(entries, lr, params, error, refused):
       (Backward.Tape{entries}, Fail{error}) : Backward.Tape & Result<&2, &2, Sgd.Error, Unit>}
   {==}
 
-def Laws.sgd_step_accepted(entries, lr, params, accepted):
+def Laws.sgd_negative_rate_refused(lr, below):
+  %Equal.sym(Bool, Elementwise.below_zero(lr), True{}, below) :
+    {Sgd.refused_if(_) == Some{Sgd.InvalidLearningRate{}} : Maybe<&2, Sgd.Error>}
+  {==}
+
+def Laws.sgd_rate_accepted(lr, above):
+  %Equal.sym(Bool, Elementwise.below_zero(lr), False{}, above) :
+    {Sgd.refused_if(_) == None{} : Maybe<&2, Sgd.Error>}
+  {==}
+
+def Laws.sgd_rate_edges():
+  {==}
+
+def Laws.sgd_step_rate_refused(entries, lr, params, error, accepted, refused):
+  %TensorBackwardProof.listed_back(entries) :
+    {Sgd.planned(lr, params, _) == (Backward.Tape{entries}, Fail{error}) : Backward.Tape & Result<&2, &2, Sgd.Error, Unit>}
+  %Equal.sym(Maybe<&2, Sgd.Error>, Sgd.refusal(TensorBackward.nodes_of(entries), List.length(&2, Backward.Node, TensorBackward.nodes_of(entries)), params), None{}, accepted) :
+    {Sgd.checked(lr, entries, List.length(&2, Backward.Node, TensorBackward.nodes_of(entries)), params, _) ==
+      (Backward.Tape{entries}, Fail{error}) : Backward.Tape & Result<&2, &2, Sgd.Error, Unit>}
+  %Equal.sym(Maybe<&2, Sgd.Error>, Sgd.rate_refusal(lr), Some{error}, refused) :
+    {Sgd.rated(lr, entries, List.length(&2, Backward.Node, TensorBackward.nodes_of(entries)), params, _) ==
+      (Backward.Tape{entries}, Fail{error}) : Backward.Tape & Result<&2, &2, Sgd.Error, Unit>}
+  {==}
+
+def Laws.sgd_step_accepted(entries, lr, params, accepted, rated):
   %TensorBackwardProof.listed_back(entries) :
     {Sgd.planned(lr, params, _) ==
       Sgd.walked_tape(Sgd.descend_all(lr, List.length(&2, Backward.Node, TensorBackward.nodes_of(entries)), params, entries)) :
       Backward.Tape & Result<&2, &2, Sgd.Error, Unit>}
   %Equal.sym(Maybe<&2, Sgd.Error>, Sgd.refusal(TensorBackward.nodes_of(entries), List.length(&2, Backward.Node, TensorBackward.nodes_of(entries)), params), None{}, accepted) :
     {Sgd.checked(lr, entries, List.length(&2, Backward.Node, TensorBackward.nodes_of(entries)), params, _) ==
+      Sgd.walked_tape(Sgd.descend_all(lr, List.length(&2, Backward.Node, TensorBackward.nodes_of(entries)), params, entries)) :
+      Backward.Tape & Result<&2, &2, Sgd.Error, Unit>}
+  %Equal.sym(Maybe<&2, Sgd.Error>, Sgd.rate_refusal(lr), None{}, rated) :
+    {Sgd.rated(lr, entries, List.length(&2, Backward.Node, TensorBackward.nodes_of(entries)), params, _) ==
       Sgd.walked_tape(Sgd.descend_all(lr, List.length(&2, Backward.Node, TensorBackward.nodes_of(entries)), params, entries)) :
       Backward.Tape & Result<&2, &2, Sgd.Error, Unit>}
   {==}

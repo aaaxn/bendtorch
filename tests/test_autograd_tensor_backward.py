@@ -11,6 +11,7 @@ from tools.autograd import PROOF_CONTROLS, SUBGATES
 from tools.autograd_backward import DANGLING_OPERAND, NEGATIVE_ZERO, UNKNOWN_NODE
 from tools.autograd_broadcast import is_nan, word
 from tools.autograd_tensor_backward import (
+    INVALID_LEARNING_RATE,
     MATMUL_INNER,
     MATMUL_RANK,
     NATIVE_CONTROLS,
@@ -34,11 +35,12 @@ from tools.autograd_tensor_backward import (
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "0e8df4a870e876edf04f7993db59a9b288e14056e4eabdfb4cce60ba2caa1cf1"
+FIXTURE_SHA256 = "c279314305204c9494e0149c61a544fd931c934df7714b94641f54f8faf97b33"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
-# dimension (106) mismatch, and a leaf with the wrong number of values (10).
+# dimension (106) mismatch, and a leaf with the wrong number of values (10);
+# InvalidLearningRate (110) where torch.optim.SGD raises ValueError.
 REJECTIONS = {
     "unknown_operands",
     "unknown_output_empty",
@@ -52,11 +54,18 @@ REJECTIONS = {
     "matmul_nt_rank",
     "relu_unknown_operand",
     "sgd_unknown_param",
+    "sgd_rate_negative",
 }
 RUNTIME_ERROR_CODES = {6, MATMUL_RANK, MATMUL_INNER, 10}
 FORGED = {"dangling_self", "dangling_newer", "dangling_missing"}
 # NaN * NaN: the payload is not specified by the tensor layer.
-NAN_PAYLOAD = {"specials", "relu_edges", "relu_nan_gradient", "sgd_edges"}
+NAN_PAYLOAD = {
+    "specials",
+    "relu_edges",
+    "relu_nan_gradient",
+    "sgd_edges",
+    "sgd_rate_nan",
+}
 # The forward value differs, not the backward: rounding_09 sums six words in
 # ascending order where PyTorch's vectorized sum takes another order, and
 # rounding_14 has a matmul with inner dimension 1 whose only product is -0.0:
@@ -339,6 +348,8 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                         code = int(b.rsplit(":", 1)[1])
                         if a.endswith("IndexError"):
                             self.assertEqual(code, UNKNOWN_NODE)
+                        elif a.endswith("ValueError"):
+                            self.assertEqual(code, INVALID_LEARNING_RATE)
                         else:
                             self.assertEqual(a, "autograd:rejected:RuntimeError")
                             self.assertIn(code, RUNTIME_ERROR_CODES)
@@ -445,7 +456,7 @@ class GateRegistrationTests(unittest.TestCase):
         required = json.loads((ROOT / "verification/autograd.json").read_text())[
             "required_exports"
         ]
-        self.assertEqual(len(SGD_CONTROLS), 7)
+        self.assertEqual(len(SGD_CONTROLS), 9)
         for name, (path, original, mutated, law) in SGD_CONTROLS.items():
             with self.subTest(control=name):
                 self.assertEqual((ROOT / path).read_text().count(original), 1)
@@ -495,7 +506,7 @@ class GateRegistrationTests(unittest.TestCase):
             self.assertIn("quiet(2143289344)", mutated)
 
     def test_runtime_controls_apply_once(self):
-        self.assertEqual(len(RUNTIME_CONTROLS), 25)
+        self.assertEqual(len(RUNTIME_CONTROLS), 27)
         for control in RUNTIME_CONTROLS.values():
             path, original, mutated = (
                 control
