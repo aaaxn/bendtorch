@@ -83,7 +83,7 @@ check.
 ## Runtime lanes
 
 `tools/autograd_reduce.py` runs 540 requests on native Bend CPU
-(`--threads N --gpu off`, N from `tools.check --threads`, default 8) and on the generated-Bend JavaScript executable.
+(`--threads N --gpu off`, N from `tools.check --threads`, default 8, or the CPU count if lower) and on the generated-Bend JavaScript executable.
 There are 20 handwritten cases, plus every pair of a contribution with rank 0
 to 3 and a target with rank 0 to 2, using extents 0, 1 and 2. It compares the
 retained contribution and every output word, bit for bit, with a Python

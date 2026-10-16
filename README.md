@@ -131,7 +131,8 @@ NaN-payload and `None`-gradient differences.
   gradients a whole `backward` leaves in the slots; those are checked by the
   runtime lanes and the PyTorch record. The prototype tape in `experiments/` is not checked by any
   gate and is not used.
-- CPU only. The gates run native code on 8 threads, but no gate case is large
+- CPU only. The gates run native code on 8 threads (fewer on a machine with
+  fewer CPUs), but no gate case is large
   enough to split the parallel elementwise build, and no performance work has
   been done yet.
 

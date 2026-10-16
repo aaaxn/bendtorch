@@ -41,7 +41,7 @@ uv run --frozen --no-sync ty check tools/tensor_runtime.py tests/test_tensor_run
 Use a new evidence directory for every run; existing evidence is never
 overwritten. No Git/index/branch/commit operation is part of this adapter.
 Native invocations include `--gpu off` and `--threads N`, where N comes from
-`tools.check --threads` (default 8) and is recorded in `identity.json`; the
+`tools.check --threads` (default 8, or the CPU count if lower) and is recorded in `identity.json`; the
 `--benchmark` screens run on one thread. The tool environment
 uses `.tools/kernel/bendtt` and `.tools/llvm/usr/bin/clang-19`, and the pinned Bend
 source is checked against `verification/references.json` before building.

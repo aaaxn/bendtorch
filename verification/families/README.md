@@ -390,7 +390,7 @@ number.
 ## Run
 
 ```sh
-uv run --locked python -m verification.families.run --output <fresh directory> --workers 24
+uv run --locked python -m verification.families.run --output <fresh directory>
 uv run --locked python -m unittest verification/families/test_run.py -v
 ```
 
@@ -398,6 +398,9 @@ The runner snapshots `src/`, `pointwise/`, `fold/`, `reduce/`,
 `broadcast_to/`, `tensor_vjp/` and `binary/`. For each family it
 builds the false twins and the mutant copies, and runs the source checks,
 `--verdict` on the consumers and the controls, the exports, and BendTT on the
-positive and mutated exports. Each family writes its outputs to its own
+positive and mutated exports. The families run at once and at most
+`--workers` commands run at once; the default is 9/16 of the CPUs the process
+may use (`os.sched_getaffinity`, which `taskset` narrows), 36 on 64 CPUs.
+Each family writes its outputs to its own
 subdirectory. `summary.json` records the repository and Bend commits, every
 command, its exit code and time, and the rejection reason of every control.
