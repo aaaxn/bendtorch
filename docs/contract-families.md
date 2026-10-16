@@ -253,10 +253,10 @@ the fold reads is the `k`-th entry of `words`.
 
 `reduce_fold_fiber` states one cell of `ReduceFold.cell`, a separate function.
 `Reduce.reduce_to` in `src/autograd/reduce.bend`, the function that autograd
-calls, runs its own loop. It visits contribution positions in increasing
-order, reads the target cell that each position lands on, and writes back that
-cell plus the word. The law `reduce_to_fiber` in
-`src/autograd/reduce-fold-LAWS.bend` states what that loop computes. It takes:
+calls, builds its cells in parallel: each target cell walks only the
+contribution positions that land on it, in increasing order (see
+[reduce to shape](reduce-to.md#parallel-build)). The law `reduce_to_fiber` in
+`src/autograd/reduce-fold-LAWS.bend` states what that build computes. It takes:
 
 - a target and a contribution shape;
 - the plan with `Shape.broadcast_checked(target, shape) == Done{plan}`, and
@@ -273,18 +273,21 @@ Its conclusion is a `ReduceToContract`, with live fields:
   `reduce_fold_fiber` states for `ReduceFold.cell`.
 - `kept`: the returned contribution still holds every word.
 
-The proof in `src/autograd/reduce-to-fold-PROOF.bend` walks the `reduce_to`
-loop with live code, without changing it. After `k` steps the contribution is
-the replayed tensor with history `ops ++ reads(k)`, and the output is the
-replayed tensor over `+0.0` with history `history(k)`: step `k` reads the cell
-that position `k` lands on and writes back that cell plus word `k`.
-`history_value` shows that cell `index` of that output is the family total
-`Fold.total` with the read map `ReduceFold.source` and the mask
-`ReduceFold.lands` for `index`, after `k` steps. `fiber_total` then turns that
-total into `ReduceLaws.fiber`. A wrong landing map or another addition order
-in `reduce.bend` fails `step_lift`, the step of the walk. A wrong landing map or
-an inverted mask in `reduce-fold.bend` fails `fiber_total`, which both laws
-use.
+The proof in `src/autograd/reduce-to-fold-PROOF.bend` (`run_lift`) follows
+the parallel build with live code, as `contracts/matmul-parallel-proof.bend`
+does for matmul. The contribution comes back replayed with the history
+`ops ++ [First]` of its kept clone, and the build reads the copy
+`Api.arr(history(ops))`. `reduce-replayed-proof.bend` shows that the build over
+that copy is the tree whose cell `t` holds `cell_word(t)`, the replayed words
+at the offsets the walk of `t` reads added from `+0.0` (`fiber_eq`,
+`build_eq`), and that writing those words cell by cell over the `+0.0`
+target gives the same owned storage (`output_eq`). So the output is the
+replayed tensor with history `writes(count)`. `word_fiber` turns `cell_word(t)`
+into `ReduceLaws.fiber`, through `Fiber.fiber_walk`. A walk over the wrong
+offsets, a skipped digit, another addition order or a `-0.0` start in
+`reduce.bend` fails the proofs of the build (`fiber_run`, `fiber_cons`,
+`leaf_run`, `cell_facts`). A wrong landing map or an inverted mask in
+`reduce-fold.bend` fails `fiber_total`, which `reduce_fold_fiber` uses.
 
 `words` and `factors` are in `src/tensor/contracts/LAWS.bend`. `words` lists
 the first `count` words of a replayed input in index order. `factors` lists

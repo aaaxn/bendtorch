@@ -204,24 +204,23 @@ declarations.
 | Inverted mask | `lands` keeps the words that do not land on the cell | `fiber_total` | `fiber_total` |
 | Reads target offset | `source` reads the word at the target offset | `fiber_total` | `fiber_total` |
 | Target count | `cell` folds over the target's element count | `reduce_fold_fiber` | `reduce_fold_fiber` |
-| `reduce_to` lands on source | `step_indices` adds each word into the cell at its contribution offset | `step_lift` | `step_lift` |
-| `reduce_to` reversed order | `step` visits positions from the last to the first | `step_lift` | `step_lift` |
-| `reduce_to` swapped add | `step_output` writes `F32.add(value, accumulated)` | `step_lift` | `step_lift` |
+| `reduce_to` walks target stride | `fiber` moves the offset by the left stride, not the right one | `fiber_run` | `fiber_run` |
+| `reduce_to` skips last digit | `span` walks `extent - 1` digits of a reduced axis | `fiber_cons` | `fiber_cons` |
+| `reduce_to` starts at -0.0 | `fiber_of` starts each cell at `F32.neg(0.0)` | `cell_facts` | `cell_facts` |
+| `reduce_to` swapped add | `leaf_add` adds `F32.add(word, accumulator)` | `leaf_run` | `leaf_run` |
 | `sum_to_size` identity folds | `decided` runs `reduce_to` when the dimensions are equal | `sum_to_size_clone` | `sum_to_size_clone` |
 | `sum_to_size` reduced clones | `decided` clones when the dimensions differ | `sum_to_size_fiber` | `sum_to_size_fiber` |
 
 The first four mutants change `src/autograd/reduce-fold.bend`, and the proofs
-in `src/autograd/reduce-fold-PROOF.bend` reject them. The three `reduce_to`
-mutants change the `reduce_to` loop in `src/autograd/reduce.bend`. The erased proofs in
-`src/autograd/reduce-PROOF.bend` reject them too, and each checker reports
-the first failure it meets. So the source check runs
-`src/autograd/reduce-to-fold-PROOF.bend`, the live proof of `reduce_to_fiber`,
-instead of `src/autograd/PROOF.bend`. The kernel artifact still holds
-`reduce-PROOF.bend`, because `reduce-fold-LAWS.bend` imports the laws of
-`reduce-LAWS.bend` and the export needs their proofs, but none of the other
-autograd proofs. `controls.bend` imports the two family proofs before
-`consumers.bend`, which imports `reduce-PROOF.bend`, so BendTT meets
-`step_lift` first. Both checkers then reject these mutants in `step_lift`.
+in `src/autograd/reduce-fold-PROOF.bend` reject them. The four `reduce_to`
+mutants change the parallel build in `src/autograd/reduce.bend`. The source
+check runs `src/autograd/reduce-to-fold-PROOF.bend`, the live proof of
+`reduce_to_fiber`, instead of `src/autograd/PROOF.bend`. It imports the build
+proofs, so both checkers reject each mutant in the first build proof it
+breaks: `fiber_run`, `cell_facts` and `leaf_run` in
+`src/autograd/reduce-parallel-proof.bend`, which the live proof imports
+before its own, and `fiber_cons`, the fiber-walk step of
+`src/autograd/reduce-fiber-proof.bend`, for a skipped digit.
 The two `sum_to_size` mutants change `src/autograd/sum-to-size.bend`. The
 erased `sum-to-size-PROOF.bend` would reject them too, so the source check runs
 `src/autograd/sum-to-size-fold-PROOF.bend`, and the kernel artifact holds no

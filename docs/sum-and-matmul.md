@@ -43,6 +43,13 @@ observations of the inputs that `take` copies. The replayed laws
 inputs of `matmul-64x48x64-rounding`, which forks four levels, round in F32:
 adding its cells' terms in decreasing `k` changes 3245 of its 4096 words,
 where the other products, of multiples of `1/64`, add exactly in any order.
+The same probe runs the parallel `reduce_to` (see
+[reduce to shape](reduce-to.md#parallel-build)) on three rounding reductions
+that fork one or two levels, `[256, 128]` to `[1, 128]`, `[256, 64]` to
+`[256, 1]` and `[64, 16, 32]` to `[16, 1]`, next to `ReduceFold.cell`, the
+masked fold of `reduce_fold_fiber`, cell by cell. Walking each reduced axis's
+digits in decreasing order changes 121, 251 and 15 of their 128, 256 and 16
+words.
 
 ## Public math completeness supplement
 
