@@ -342,6 +342,15 @@ def at_most(+a: Nat, +b: Nat) -> Nat:
 def splits(+depth: Nat, +inner: Nat) -> Nat:
   at_most(at_most(Nat.sub(Nat.add(depth, halvings(inner, inner)), 13n), 6n), depth)
 
+# A product forks as `splits` says, but at most four levels, sixteen
+# subtrees: each fork copies both operands into each half, and with a row
+# of eight cells running as one loop a subtree's work no longer hides its
+# copies. On medusa2 four levels ran fastest at 8 threads for the products
+# of an MNIST step and for 256 x 256 x 256 (the MNIST step 15.2 ms against
+# 17.5 at six levels) and at one thread (20.1 ms against 21.6).
+def product_splits(+depth: Nat, +inner: Nat) -> Nat:
+  at_most(splits(depth, inner), 4n)
+
 # The parallel build returns a balanced tree of its depth, whatever the split.
 def build_balanced(+depth: Nat, +splits: Nat, +inner: Nat, +columns: Nat, +count: Nat, +base: Nat,
   la: Array<F32>, ra: Array<F32>) -> Model.Balanced(F32, depth, build(depth, splits, inner, columns, count, base, la, ra)):
@@ -357,8 +366,8 @@ def parallel_output(+output: Shape.Shape, +inner: Nat, +columns: Nat, +depth: Na
   (kept_left, la) = left
   (kept_right, ra) = right
   Done{(kept_left, kept_right, Core.pack(output, Core.TTensor{Storage.Owned{depth, length,
-    build(depth, splits(depth, inner), inner, columns, length, 0n, la, ra),
-    build_balanced(depth, splits(depth, inner), inner, columns, length, 0n, la, ra),
+    build(depth, product_splits(depth, inner), inner, columns, length, 0n, la, ra),
+    build_balanced(depth, product_splits(depth, inner), inner, columns, length, 0n, la, ra),
     valid}, exact}))}
 
 def parallel_allocated(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape, +inner: Nat, +columns: Nat,
@@ -803,8 +812,8 @@ def product_parallel_output(+lo: Order, +ro: Order, +output: Shape.Shape, +inner
   (kept_left, la) = left
   (kept_right, ra) = right
   Done{(kept_left, kept_right, Core.pack(output, Core.TTensor{Storage.Owned{depth, length,
-    product_build(depth, splits(depth, inner), lo, ro, inner, rows, columns, length, 0n, la, ra),
-    product_build_balanced(depth, splits(depth, inner), lo, ro, inner, rows, columns, length, 0n, la, ra),
+    product_build(depth, product_splits(depth, inner), lo, ro, inner, rows, columns, length, 0n, la, ra),
+    product_build_balanced(depth, product_splits(depth, inner), lo, ro, inner, rows, columns, length, 0n, la, ra),
     valid}, exact}))}
 
 def product_allocated(+lo: Order, +ro: Order, +left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape,

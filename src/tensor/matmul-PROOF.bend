@@ -1464,8 +1464,8 @@ def product_cell(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape, 
   +position: Nat, -earlier: {Nat.is_lt(position, Shape.logical_numel(Shape.dimensions(output))) == True{} : Bool}) ->
   Parallel.Fact<Laws.ProductCell<inner, left, right, a, b, output,
     Core.TTensor{Storage.Owned{depth, length,
-      Matrix.build(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, cl, cr),
-      Matrix.build_balanced(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, cl, cr),
+      Matrix.build(depth, Matrix.product_splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, cl, cr),
+      Matrix.build_balanced(depth, Matrix.product_splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, cl, cr),
       valid}, exact}, position>>:
   -inner_n = U32.to_nat(inner)
   -columns_n = U32.to_nat(columns)
@@ -1481,12 +1481,12 @@ def product_cell(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape, 
   -below = MatrixIndex.lt_bound(position, Shape.logical_numel(Shape.dimensions(output)), length,
     Equal.sym(Nat, length, Shape.logical_numel(Shape.dimensions(output)), exact), earlier)
   -inside = MatrixIndex.lt_same(U32.to_nat(index), position, length, word_exact, below)
-  -tree = Matrix.build(depth, Matrix.splits(depth, inner_n), inner_n, columns_n, length, 0n, cl, cr)
+  -tree = Matrix.build(depth, Matrix.product_splits(depth, inner_n), inner_n, columns_n, length, 0n, cl, cr)
   -path = Refinement.route(depth, index)
   -cells = {\{Parallel.Fact: p => p} :
     Parallel.Fact<MatmulParallel.Cells(depth, dl, dr, cl, cr, inner_n, columns_n, length, 0n, tree)> ->
     MatmulParallel.Cells(depth, dl, dr, cl, cr, inner_n, columns_n, length, 0n, tree)}(
-      MatmulParallel.build_cells(depth, Matrix.splits(depth, inner_n), dl, dr, cl, cr, inner_n, columns_n, length, 0n, cl, cr, {==}, {==}, bl, br))
+      MatmulParallel.build_cells(depth, Matrix.product_splits(depth, inner_n), dl, dr, cl, cr, inner_n, columns_n, length, 0n, cl, cr, {==}, {==}, bl, br))
   -position_eq = Equal.trans(Nat, Nat.add(Model.offset(depth, path), 0n), U32.to_nat(index), position,
     Parallel.output_position(depth, length, index, valid, inside), word_exact)
   -at = {\{Parallel.Fact: p => p} :
@@ -1517,11 +1517,11 @@ def product_cell(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape, 
           Parallel.observe_allowed_equal(depth, length, tree, index, Nat.is_lt(U32.to_nat(index), length), inside, matched), observed)}} :
       Decoded<output, index, U32.from_nat(row), U32.from_nat(column)> ->
       Laws.ProductCell<inner, left, right, a, b, output,
-        Core.TTensor{Storage.Owned{depth, length, tree, Matrix.build_balanced(depth, Matrix.splits(depth, inner_n), inner_n, columns_n, length, 0n, cl, cr), valid}, exact},
+        Core.TTensor{Storage.Owned{depth, length, tree, Matrix.build_balanced(depth, Matrix.product_splits(depth, inner_n), inner_n, columns_n, length, 0n, cl, cr), valid}, exact},
         position>}(decoded)} :
     MatmulParallel.CellAt<dl, dr, cl, cr, inner_n, columns_n, position, Model.observe(F32, depth, tree, path)> ->
     Laws.ProductCell<inner, left, right, a, b, output,
-      Core.TTensor{Storage.Owned{depth, length, tree, Matrix.build_balanced(depth, Matrix.splits(depth, inner_n), inner_n, columns_n, length, 0n, cl, cr), valid}, exact},
+      Core.TTensor{Storage.Owned{depth, length, tree, Matrix.build_balanced(depth, Matrix.product_splits(depth, inner_n), inner_n, columns_n, length, 0n, cl, cr), valid}, exact},
       position>}(cell)}
 
 def output_source(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape, +rows: U32, +inner: U32, +right_inner: U32, +columns: U32,
@@ -1537,8 +1537,8 @@ def output_source(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape,
   Laws.SourceMatmul{unit => Laws.MatmulSuccess{left, right, Matrix.Plan{output, rows, inner, right_inner, columns, le, re, oe, compatible},
     a, b, kept_left, kept_right,
     Core.TTensor{Storage.Owned{depth, length,
-      Matrix.build(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
-      Matrix.build_balanced(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
+      Matrix.build(depth, Matrix.product_splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
+      Matrix.build_balanced(depth, Matrix.product_splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
       valid}, exact},
     {==}, {==}, {==}, {==}, {==},
     Laws.ProductPrefix{
@@ -1554,27 +1554,27 @@ def output_source(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape,
             {\{Parallel.Fact: p => p} :
               Parallel.Fact<Laws.ProductCell<inner, left, right, a, b, output,
                 Core.TTensor{Storage.Owned{depth, length,
-                  Matrix.build(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
-                  Matrix.build_balanced(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
+                  Matrix.build(depth, Matrix.product_splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
+                  Matrix.build_balanced(depth, Matrix.product_splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
                   valid}, exact}, position>> ->
               Laws.ProductCell<inner, left, right, a, b, output,
                 Core.TTensor{Storage.Owned{depth, length,
-                  Matrix.build(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
-                  Matrix.build_balanced(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
+                  Matrix.build(depth, Matrix.product_splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
+                  Matrix.build_balanced(depth, Matrix.product_splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
                   valid}, exact}, position>}(
               product_cell(left, right, output, rows, inner, right_inner, columns, le, re, oe, compatible, depth, length, valid, exact,
                 a, b, dl, dr, copy_left, copy_right, bl, br, left_reads, right_reads, position, earlier))} :
             Parallel.Taken<Core.Packed{right, b}, (Core.Packed{right, kept_right}, copy_right)> ->
             Laws.ProductCell<inner, left, right, a, b, output,
               Core.TTensor{Storage.Owned{depth, length,
-                Matrix.build(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
-                Matrix.build_balanced(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
+                Matrix.build(depth, Matrix.product_splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
+                Matrix.build_balanced(depth, Matrix.product_splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
                 valid}, exact}, position>}(taken_right)} :
           Parallel.Taken<Core.Packed{left, a}, (Core.Packed{left, kept_left}, copy_left)> ->
           Laws.ProductCell<inner, left, right, a, b, output,
             Core.TTensor{Storage.Owned{depth, length,
-              Matrix.build(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
-              Matrix.build_balanced(depth, Matrix.splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
+              Matrix.build(depth, Matrix.product_splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
+              Matrix.build_balanced(depth, Matrix.product_splits(depth, U32.to_nat(inner)), U32.to_nat(inner), U32.to_nat(columns), length, 0n, copy_left, copy_right),
               valid}, exact}, position>}(taken_left)}}}
 
 def allocated_source(+left: Shape.Shape, +right: Shape.Shape, +output: Shape.Shape, +rows: U32, +inner: U32, +right_inner: U32, +columns: U32,
