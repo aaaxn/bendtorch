@@ -158,28 +158,6 @@ def Laws.copy_source_mapping(input, axes, plan, output_index, mapping, source, c
 def Laws.primitive_source_mapping(input, axes, plan, output_index, mapping, depth, array, balanced):
   Refinement.law_get_refines(F32, depth, array, Layout.source_index(input, axes, plan, output_index, mapping), balanced)
 
-def copy_index_mapping(-input: Shape.Shape, -axes: List<&2, U32>, +plan: Layout.Plan<input, axes>,
-  +depth: Nat, +length: Nat, array: Array<F32>, +index: U32, source: Core.Tensor<input>, +value: F32,
-  balanced: Model.Balanced(F32, depth, array), -valid: {Storage.bounds(depth, length) == True{} : Bool},
-  -exact: {length == Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))) : Nat}, matched: Bool,
-  -decision: {matched == Storage.index_matches(depth, length, index) : Bool},
-  -same: {Storage.write_index(depth, length, array, index, value, matched, decision, balanced, valid) ==
-    Storage.set(Storage.Owned{depth, length, array, balanced, valid}, index, value) : Storage.Storage & Result<&2, &2, Storage.Error, Unit>},
-  accepted: {matched == True{} : Bool}) ->
-  {Transforms.copy_observe(input, axes, plan,
-    Transforms.copy_written(input, axes, plan, source => target => (source, Done{target}), source,
-      Core.write_result(Layout.output(input, axes, plan), Storage.Owned{depth, length, array, balanced, valid}, exact, index, value,
-        Storage.write_index(depth, length, array, index, value, matched, decision, balanced, valid), same)), index) == Some{value} : Maybe<&2, F32>}:
-  match matched:
-    case False{}:
-      Empty.absurd({Transforms.copy_observe(input, axes, plan,
-        Transforms.copy_written(input, axes, plan, source => target => (source, Done{target}), source,
-          Core.write_result(Layout.output(input, axes, plan), Storage.Owned{depth, length, array, balanced, valid}, exact, index, value,
-            Storage.write_index(depth, length, array, index, value, False{}, decision, balanced, valid), same)), index) == Some{value} : Maybe<&2, F32>},
-        Lifecycle.false_true(Equal.sym(Bool, False{}, True{}, accepted)))
-    case True{}:
-      StorageLaws.primitive_write_read(F32, depth, array, index, value, balanced)
-
 def copy_checked_mapping(-input: Shape.Shape, -axes: List<&2, U32>, +plan: Layout.Plan<input, axes>,
   +depth: Nat, +length: Nat, array: Array<F32>, +index: U32, source: Core.Tensor<input>, +value: F32,
   balanced: Model.Balanced(F32, depth, array), -valid: {Storage.bounds(depth, length) == True{} : Bool},
@@ -187,7 +165,7 @@ def copy_checked_mapping(-input: Shape.Shape, -axes: List<&2, U32>, +plan: Layou
   -decision: {allowed == Nat.is_lt(U32.to_nat(index), length) : Bool},
   -same: {Storage.set_checked(depth, length, array, index, value, allowed, decision, balanced, valid) ==
     Storage.set(Storage.Owned{depth, length, array, balanced, valid}, index, value) : Storage.Storage & Result<&2, &2, Storage.Error, Unit>},
-  accepted: {allowed == True{} : Bool}, matched: {Storage.index_matches(depth, length, index) == True{} : Bool}) ->
+  accepted: {allowed == True{} : Bool}) ->
   {Transforms.copy_observe(input, axes, plan,
     Transforms.copy_written(input, axes, plan, source => target => (source, Done{target}), source,
       Core.write_result(Layout.output(input, axes, plan), Storage.Owned{depth, length, array, balanced, valid}, exact, index, value,
@@ -200,20 +178,18 @@ def copy_checked_mapping(-input: Shape.Shape, -axes: List<&2, U32>, +plan: Layou
             Storage.set_checked(depth, length, array, index, value, False{}, decision, balanced, valid), same)), index) == Some{value} : Maybe<&2, F32>},
         Lifecycle.false_true(Equal.sym(Bool, False{}, True{}, accepted)))
     case True{}:
-      copy_index_mapping(input, axes, plan, depth, length, array, index, source, value, balanced, valid, exact,
-        Storage.index_matches(depth, length, index), {==}, same, matched)
+      StorageLaws.primitive_write_read(F32, depth, array, index, value, balanced)
 
 def Laws.copy_value_mapping(input, axes, plan, depth, length, array, index, source, value, balanced, valid, exact, allowed, matched):
   copy_checked_mapping(input, axes, plan, depth, length, array, index, source, value, balanced, valid, exact,
-    Nat.is_lt(U32.to_nat(index), length), {==}, {==}, allowed, matched)
+    Nat.is_lt(U32.to_nat(index), length), {==}, {==}, allowed)
 
 def copy_result_mapping(-input: Shape.Shape, -axes: List<&2, U32>, +plan: Layout.Plan<input, axes>,
   +depth: Nat, +length: Nat, array: Array<F32>, +index: U32, source: Core.Tensor<input>,
   result: Result<&2, &2, Core.Error, F32>, balanced: Model.Balanced(F32, depth, array),
   -valid: {Storage.bounds(depth, length) == True{} : Bool},
   -exact: {length == Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))) : Nat},
-  allowed: {Nat.is_lt(U32.to_nat(index), length) == True{} : Bool},
-  matched: {Storage.index_matches(depth, length, index) == True{} : Bool}) ->
+  allowed: {Nat.is_lt(U32.to_nat(index), length) == True{} : Bool}) ->
   {Transforms.copy_observe(input, axes, plan,
     Transforms.copy_read(input, axes, plan, index, source => target => (source, Done{target}),
       Core.TTensor{Storage.Owned{depth, length, array, balanced, valid}, exact}, (source, result)), index) ==
@@ -223,7 +199,7 @@ def copy_result_mapping(-input: Shape.Shape, -axes: List<&2, U32>, +plan: Layout
       {==}
     case Done{value}:
       copy_checked_mapping(input, axes, plan, depth, length, array, index, source, value, balanced, valid, exact,
-        Nat.is_lt(U32.to_nat(index), length), {==}, {==}, allowed, matched)
+        Nat.is_lt(U32.to_nat(index), length), {==}, {==}, allowed)
 
 def Laws.checked_copy_step_mapping(input, axes, plan, index, mapping, map_exact, source, certificate,
   depth, length, array, balanced, valid, exact, allowed, matched):
@@ -238,7 +214,7 @@ def Laws.checked_copy_step_mapping(input, axes, plan, index, mapping, map_exact,
       Transforms.copy_read(input, axes, plan, index, source => target => (source, Done{target}),
         Core.TTensor{Storage.Owned{depth, length, array, balanced, valid}, exact}, _), index) ==
       Core.result_value(result) : Maybe<&2, F32>}
-  copy_result_mapping(input, axes, plan, depth, length, array, index, retained, result, balanced, valid, exact, allowed, matched)
+  copy_result_mapping(input, axes, plan, depth, length, array, index, retained, result, balanced, valid, exact, allowed)
 
 def copy_meaning_from_read(-input: Shape.Shape, -axes: List<&2, U32>, -plan: Layout.Plan<input, axes>, -index: U32,
   -mapping: Layout.Mapping<input, axes, plan, index>, -source: Core.Tensor<input>,
@@ -1504,17 +1480,6 @@ def storage_write_succeeded(pair: Storage.Storage & Result<&2, &2, Storage.Error
 type StorageWriteSuccess<-pair: Storage.Storage & Result<&2, &2, Storage.Error, Unit>> is Data:
   StorageWriteSuccess{-successful: {storage_write_succeeded(pair) == True{} : Bool}}
 
-def storage_write_index_success(+depth: Nat, +length: Nat, +index: U32, +value: F32, matched: Bool, array: Array<F32>,
-  -decision: {matched == Storage.index_matches(depth, length, index) : Bool},
-  -balanced: Model.Balanced(F32, depth, array), -valid: {Storage.bounds(depth, length) == True{} : Bool},
-  -accepted: {matched == True{} : Bool}) ->
-  StorageWriteSuccess<Storage.write_index(depth, length, array, index, value, matched, decision, balanced, valid)>:
-  match matched:
-    case False{}:
-      StorageWriteSuccess{Empty.absurd({False{} == True{} : Bool}, Arith.clash(accepted))}
-    case True{}:
-      StorageWriteSuccess{{==}}
-
 def storage_set_checked_success(+depth: Nat, +length: Nat, +index: U32, +value: F32, allowed: Bool, array: Array<F32>,
   -decision: {allowed == Nat.is_lt(U32.to_nat(index), length) : Bool},
   -balanced: Model.Balanced(F32, depth, array), -valid: {Storage.bounds(depth, length) == True{} : Bool},
@@ -1525,9 +1490,7 @@ def storage_set_checked_success(+depth: Nat, +length: Nat, +index: U32, +value: 
       StorageWriteSuccess{Empty.absurd({False{} == True{} : Bool},
         Arith.clash(Equal.trans(Bool, False{}, Nat.is_lt(U32.to_nat(index), length), True{}, decision, inside)))}
     case True{}:
-      storage_write_index_success(depth, length, index, value, Storage.index_matches(depth, length, index), array,
-        {==}, balanced, valid,
-        Equal.sym(Bool, True{}, Storage.index_matches(depth, length, index), Route.index_complete(depth, length, index, valid, inside)))
+      StorageWriteSuccess{{==}}
 
 def write_result_status(-shape: Shape.Shape, -original: Storage.Storage,
   -valid: {Lifecycle.logical_length(original) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}, +index: U32, +value: F32,

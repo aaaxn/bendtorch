@@ -19,19 +19,6 @@ def finish_value(+d: Nat, n: Nat, -original: Array<F32>, -i: U32, result: Array<
   (array, value) = result
   {==}
 
-def read_index_hit(+d: Nat, +n: Nat, array: Array<F32>, +i: U32, matched: Bool,
-  -decision: {matched == Storage.index_matches(d, n, i) : Bool},
-  -balanced: Model.Balanced(F32, d, array), -valid: {Storage.bounds(d, n) == True{} : Bool},
-  yes: {True{} == matched : Bool}) ->
-  {Laws.outcome(Result<&2, &2, Storage.Error, F32>, Storage.read_index(d, n, array, i, matched, decision, balanced, valid)) ==
-    Done{Refinement.second(F32, Array.get(F32, array, i))} : Result<&2, &2, Storage.Error, F32>}:
-  match matched:
-    case True{}:
-      finish_value(d, n, array, i, Array.get(F32, array, i), {==}, balanced, valid)
-    case False{}:
-      Empty.absurd({Laws.outcome(Result<&2, &2, Storage.Error, F32>, Storage.read_index(d, n, array, i, False{}, decision, balanced, valid)) ==
-        Done{Refinement.second(F32, Array.get(F32, array, i))} : Result<&2, &2, Storage.Error, F32>}, Arith.clash_true(yes))
-
 def get_checked_hit(+d: Nat, +n: Nat, array: Array<F32>, +i: U32, allowed: Bool,
   -decision: {allowed == Nat.is_lt(U32.to_nat(i), n) : Bool},
   -balanced: Model.Balanced(F32, d, array), -valid: {Storage.bounds(d, n) == True{} : Bool},
@@ -41,7 +28,7 @@ def get_checked_hit(+d: Nat, +n: Nat, array: Array<F32>, +i: U32, allowed: Bool,
     Done{Refinement.second(F32, Array.get(F32, array, i))} : Result<&2, &2, Storage.Error, F32>}:
   match allowed:
     case True{}:
-      read_index_hit(d, n, array, i, Storage.index_matches(d, n, i), {==}, balanced, valid, Route.index_complete(d, n, i, fits, inside))
+      finish_value(d, n, array, i, Array.get(F32, array, i), {==}, balanced, valid)
     case False{}:
       Empty.absurd({Laws.outcome(Result<&2, &2, Storage.Error, F32>, Storage.get_checked(d, n, array, i, False{}, decision, balanced, valid)) ==
         Done{Refinement.second(F32, Array.get(F32, array, i))} : Result<&2, &2, Storage.Error, F32>}, Arith.clash_true(yes))
@@ -80,23 +67,6 @@ def set_checked_miss(+d: Nat, +n: Nat, -array: Array<F32>, +i: U32, -value: F32,
       Empty.absurd({Storage.set_checked(d, n, array, i, value, True{}, decision, balanced, valid) ==
         (Storage.Owned{d, n, array, balanced, valid}, Fail{Storage.OutOfBounds{}}) : Storage.Storage & Result<&2, &2, Storage.Error, Unit>}, Arith.clash(no))
 
-def write_index_hit(+d: Nat, +n: Nat, -array: Array<F32>, +i: U32, +value: F32, matched: Bool,
-  -decision: {matched == Storage.index_matches(d, n, i) : Bool},
-  -balanced: Model.Balanced(F32, d, array), -valid: {Storage.bounds(d, n) == True{} : Bool},
-  yes: {True{} == matched : Bool}) ->
-  {Storage.write_index(d, n, array, i, value, matched, decision, balanced, valid) ==
-    (Storage.Owned{d, n, Array.set(F32, array, i, value),
-      Certificates.set_result(F32, d, array, i, value, Array.set(F32, array, i, value), {==}, balanced), valid}, Done{Unit{}})
-    : Storage.Storage & Result<&2, &2, Storage.Error, Unit>}:
-  match matched:
-    case True{}:
-      {==}
-    case False{}:
-      Empty.absurd({Storage.write_index(d, n, array, i, value, False{}, decision, balanced, valid) ==
-        (Storage.Owned{d, n, Array.set(F32, array, i, value),
-          Certificates.set_result(F32, d, array, i, value, Array.set(F32, array, i, value), {==}, balanced), valid}, Done{Unit{}})
-        : Storage.Storage & Result<&2, &2, Storage.Error, Unit>}, Arith.clash_true(yes))
-
 def set_checked_hit(+d: Nat, +n: Nat, -array: Array<F32>, +i: U32, +value: F32, allowed: Bool,
   -decision: {allowed == Nat.is_lt(U32.to_nat(i), n) : Bool},
   -balanced: Model.Balanced(F32, d, array), -valid: {Storage.bounds(d, n) == True{} : Bool},
@@ -108,7 +78,7 @@ def set_checked_hit(+d: Nat, +n: Nat, -array: Array<F32>, +i: U32, +value: F32, 
     : Storage.Storage & Result<&2, &2, Storage.Error, Unit>}:
   match allowed:
     case True{}:
-      write_index_hit(d, n, array, i, value, Storage.index_matches(d, n, i), {==}, balanced, valid, Route.index_complete(d, n, i, fits, inside))
+      {==}
     case False{}:
       Empty.absurd({Storage.set_checked(d, n, array, i, value, False{}, decision, balanced, valid) ==
         (Storage.Owned{d, n, Array.set(F32, array, i, value),
@@ -124,23 +94,6 @@ def finish_owner(+d: Nat, +n: Nat, -original: Array<F32>, +i: U32, result: Array
   (array, value) = result
   {==}
 
-def read_index_keep(+d: Nat, +n: Nat, array: Array<F32>, +i: U32, matched: Bool,
-  -decision: {matched == Storage.index_matches(d, n, i) : Bool},
-  -balanced: Model.Balanced(F32, d, array), -valid: {Storage.bounds(d, n) == True{} : Bool},
-  yes: {True{} == matched : Bool}) ->
-  {Storage.read_index(d, n, array, i, matched, decision, balanced, valid) ==
-    (Storage.Owned{d, n, Refinement.first(F32, Array.get(F32, array, i)),
-      Certificates.get_result(F32, d, array, i, Array.get(F32, array, i), {==}, balanced), valid},
-      Done{Refinement.second(F32, Array.get(F32, array, i))}) : Storage.Storage & Result<&2, &2, Storage.Error, F32>}:
-  match matched:
-    case True{}:
-      finish_owner(d, n, array, i, Array.get(F32, array, i), {==}, balanced, valid)
-    case False{}:
-      Empty.absurd({Storage.read_index(d, n, array, i, False{}, decision, balanced, valid) ==
-        (Storage.Owned{d, n, Refinement.first(F32, Array.get(F32, array, i)),
-          Certificates.get_result(F32, d, array, i, Array.get(F32, array, i), {==}, balanced), valid},
-          Done{Refinement.second(F32, Array.get(F32, array, i))}) : Storage.Storage & Result<&2, &2, Storage.Error, F32>}, Arith.clash_true(yes))
-
 def get_checked_keep(+d: Nat, +n: Nat, array: Array<F32>, +i: U32, allowed: Bool,
   -decision: {allowed == Nat.is_lt(U32.to_nat(i), n) : Bool},
   -balanced: Model.Balanced(F32, d, array), -valid: {Storage.bounds(d, n) == True{} : Bool},
@@ -152,7 +105,7 @@ def get_checked_keep(+d: Nat, +n: Nat, array: Array<F32>, +i: U32, allowed: Bool
       Done{Refinement.second(F32, Array.get(F32, array, i))}) : Storage.Storage & Result<&2, &2, Storage.Error, F32>}:
   match allowed:
     case True{}:
-      read_index_keep(d, n, array, i, Storage.index_matches(d, n, i), {==}, balanced, valid, Route.index_complete(d, n, i, fits, inside))
+      finish_owner(d, n, array, i, Array.get(F32, array, i), {==}, balanced, valid)
     case False{}:
       Empty.absurd({Storage.get_checked(d, n, array, i, False{}, decision, balanced, valid) ==
         (Storage.Owned{d, n, Refinement.first(F32, Array.get(F32, array, i)),

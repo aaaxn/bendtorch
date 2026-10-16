@@ -20,8 +20,9 @@ import ../../src/autograd/sgd.bend as Sgd
 #
 # Prints `loss <step> <word>` for every step, the loss's F32 bits as a
 # decimal U32, then `correct <n> <of>` for the test set, then, with
-# `words`, every word of the trained parameters, one per line. The wall time
-# of the training goes to stderr.
+# `words`, every word of the trained parameters, one per line. The wall
+# times of the training and of the test pass go to stderr, as `train_ms` and
+# `test_ms`.
 
 type Params is Type:
   Params{w1: Core.Dynamic, b1: Core.Dynamic, w2: Core.Dynamic, b2: Core.Dynamic}
@@ -123,16 +124,52 @@ def file_size(+path: String) -> IO(U32):
     m : File & Result<&1, &1, U32 & String, U32> <- File.size(f)
     sized(m)
 
-# The records of `size` bytes at base + index * size for each index, in order.
-def rows_at(+path: String, +base: U32, +size: U32, indices: List<&2, U32>) -> IO(List<&2, U32>):
+# The file and the records read so far, the last one first.
+def kept_row(rows: List<&2, List<&2, U32>>, pair: File & List<&2, U32>) -> File & List<&2, List<&2, U32>>:
+  (f, row) = pair
+  (f, Con{row, rows})
+
+def exact_row(+path: String, +size: U32, pair: File & List<&2, U32>) -> IO(File & List<&2, U32>):
+  (f, +bytes) = pair
+  do IO<File & List<&2, U32>>:
+    row : List<&2, U32> <- exact(path, size, bytes)
+    return (f, row)
+
+# Reads the record of `size` bytes at base + index * size for each index on
+# one open file, each checked to be whole.
+def rows_on(indices: List<&2, U32>, +path: String, +base: U32, +size: U32, pair: File & List<&2, List<&2, U32>>) ->
+  IO(File & List<&2, List<&2, U32>>):
   match indices:
     case Nil{}:
-      IO.pure(List<&2, U32>, Nil{})
+      IO.pure(File & List<&2, List<&2, U32>>, pair)
     case Con{+index, rest}:
-      do IO<List<&2, U32>>:
-        head : List<&2, U32> <- bytes_at(path, (base + (index * size) : U32), size)
-        tail : List<&2, U32> <- rows_at(path, base, size, rest)
-        return List.append(&2, U32, head, tail)
+      (f, rows) = pair
+      do IO<File & List<&2, List<&2, U32>>>:
+        read : File & List<&2, U32> <- read_at(f, (base + (index * size) : U32), size)
+        whole : File & List<&2, U32> <- exact_row(path, size, read)
+        rows_on(rest, path, base, size, kept_row(rows, whole))
+
+# The rows, last first, joined in order.
+def joined(rows: List<&2, List<&2, U32>>, tail: List<&2, U32>) -> List<&2, U32>:
+  match rows:
+    case Nil{}:
+      tail
+    case Con{row, earlier}:
+      joined(earlier, List.append(&2, U32, row, tail))
+
+def rows_closed(pair: File & List<&2, List<&2, U32>>) -> IO(List<&2, U32>):
+  (f, rows) = pair
+  do IO<List<&2, U32>>:
+    File.close(f)
+    return joined(rows, Nil{})
+
+# The records of `size` bytes at base + index * size for each index, in order,
+# read on one open file.
+def rows_at(+path: String, +base: U32, +size: U32, indices: List<&2, U32>) -> IO(List<&2, U32>):
+  do IO<List<&2, U32>>:
+    f : File <- IO.try(File, File.open(path, "r"))
+    pair : File & List<&2, List<&2, U32>> <- rows_on(indices, path, base, size, (f, Nil{}))
+    rows_closed(pair)
 
 # Tensors.
 
@@ -543,8 +580,11 @@ def trained_on(+dir: String, +init: String, +order: String, +batch: U32, +steps:
     trained : Params <- train(steps, dir, order, batch, lr, 0, params)
     t1 : Nat <- IO.now()
     IO.print_err("train_ms " ++ Nat.show(Nat.sub(t1, t0)))
+    t2 : Nat <- IO.now()
     result : Params & Nat <- evaluate(Nat.div(Nat.add(U32.to_nat(test_rows), 999n), 1000n), dir, 0, test_rows, 0n,
       (trained, Score{0, 0n}))
+    t3 : Nat <- IO.now()
+    IO.print_err("test_ms " ++ Nat.show(Nat.sub(t3, t2)))
     finish(test_rows, words, result)
 
 # Checks both IDX pairs first, then trains and tests.

@@ -564,6 +564,70 @@ def mnist_job(+reps: Nat, +rows: U32) -> IO(Unit):
     pair : List<&1, Mnist.Trained> & Nat <- stamped(List<&1, Mnist.Trained>, train_all(ts, timed))
     report_mnist(t0, pair)
 
+# Construction and MNIST evaluation: pure loops timed whole, each rep
+# building its own [n, 784] batch from a list, as the MNIST program does.
+
+def constructed(+h: U32, result: Result<&2, &1, Core.Error, Core.Dynamic>) -> U32:
+  match result:
+    case Fail{error}:
+      mix(h, 4294967295)
+    case Done{t}:
+      digest(h, t)
+
+def construct_loop(left: Nat, +rows: U32, +h: U32) -> U32:
+  match left:
+    case 0n:
+      h
+    case 1n+rest:
+      construct_loop(rest, rows, constructed(h, Core.construct([rows, 784], values(numel([rows, 784]), 5, 0))))
+
+def scored_digest(+h: U32, pair: Mnist.Params & Mnist.Score) -> Mnist.Params & U32:
+  (params, score) = pair
+  Mnist.Score{+code, +correct} = score
+  (params, mix(mix(h, code), U32.from_nat(correct)))
+
+def evaluated(+rows: U32, +h: U32, params: Mnist.Params, result: Result<&2, &1, Core.Error, Core.Dynamic>) ->
+  Mnist.Params & U32:
+  match result:
+    case Fail{error}:
+      (params, mix(h, 4294967295))
+    case Done{x}:
+      scored_digest(h, Mnist.scored(params, x, targets(U32.to_nat(rows), 10, 0)))
+
+def eval_next(left: Nat, +rows: U32, pair: Mnist.Params & U32) -> Mnist.Params & U32:
+  match left:
+    case 0n:
+      pair
+    case 1n+rest:
+      (params, +h) = pair
+      eval_next(rest, rows, evaluated(rows, h, params, Core.construct([rows, 784], values(numel([rows, 784]), 5, 0))))
+
+def report_pure(+t0: Nat, pair: U32 & Nat) -> IO(Unit):
+  (+h, +t1) = pair
+  report(t0, (Done{h}, t1))
+
+def eval_digest(pair: Mnist.Params & U32) -> U32:
+  (params, +h) = pair
+  h
+
+def construct_job(+reps: Nat, +rows: U32) -> IO(Unit):
+  +warm = construct_loop(1n, rows, 2166136261)
+  do IO<Unit>:
+    t0 : Nat <- IO.now()
+    pair : U32 & Nat <- stamped(U32, construct_loop(reps, rows, warm))
+    report_pure(t0, pair)
+
+def eval_timed(+reps: Nat, +rows: U32, warm: Mnist.Params & U32) -> IO(Unit):
+  do IO<Unit>:
+    t0 : Nat <- IO.now()
+    pair : U32 & Nat <- stamped(U32, eval_digest(eval_next(reps, rows, warm)))
+    report_pure(t0, pair)
+
+def eval_job(+reps: Nat, +rows: U32) -> IO(Unit):
+  do IO<Unit>:
+    params : Mnist.Params <- mnist_params()
+    eval_timed(reps, rows, eval_next(1n, rows, (params, 2166136261)))
+
 # Workloads.
 
 def unary(+reps: Nat, +o: Elementwise.Operation, +n: U32) -> IO(Unit):
@@ -623,6 +687,8 @@ type Workload is Data:
   WMulBackward{}
   WSumBackward{}
   WMatmulBackward{}
+  WConstruct{}
+  WMnistEval{}
 
 type Named is Data:
   Named{name: String, workload: Workload}
@@ -636,7 +702,8 @@ def names() -> List<&2, Named>:
     Named{"linear_bwd", WLinearBackward{}}, Named{"relu_bwd", WReluBackward{}}, Named{"mse_fwd", WMseForward{}},
     Named{"mse_bwd", WMseBackward{}}, Named{"ce_fwd", WEntropyForward{}}, Named{"ce_bwd", WEntropyBackward{}}, Named{"sgd", WSgd{}},
     Named{"mlp_bwd", WMlpBackward{}}, Named{"mnist_step", WMnistStep{}},
-    Named{"mul_bwd", WMulBackward{}}, Named{"sum_bwd", WSumBackward{}}, Named{"matmul_bwd", WMatmulBackward{}}]
+    Named{"mul_bwd", WMulBackward{}}, Named{"sum_bwd", WSumBackward{}}, Named{"matmul_bwd", WMatmulBackward{}},
+    Named{"construct", WConstruct{}}, Named{"mnist_eval", WMnistEval{}}]
 
 def lookup(+name: String, table: List<&2, Named>) -> Maybe<&2, Workload>:
   match table:
@@ -712,6 +779,10 @@ def run_with(w: Workload, +n: U32, +reps: Nat, +sq: List<&2, U32>, +ce: List<&2,
       tape_job(reps, [[n]], ThenSum{}, Sweep{1n}, [], [0n])
     case WMatmulBackward{}:
       tape_job(reps, [sq, sq], ThenMatmul{}, Sweep{2n}, [], [0n, 1n])
+    case WConstruct{}:
+      construct_job(reps, n)
+    case WMnistEval{}:
+      eval_job(reps, n)
 
 def run(+w: Workload, +n: U32, +reps: Nat) -> IO(Unit):
   run_with(w, n, reps, [n, n], targets(U32.to_nat(n), 10, 0), [[64, n], [128, n], [128]])

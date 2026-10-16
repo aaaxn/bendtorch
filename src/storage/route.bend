@@ -355,3 +355,7 @@ def index_complete(+d: Nat, +n: Nat, +i: U32, +fits: {Storage.bounds(d, n) == Tr
   %route_offset(d, i, depth, slot) : {True{} == Bool.and(Nat.is_eq(_, U32.to_nat(i)), Nat.is_lt(_, n)) : Bool}
   %Equal.sym(Bool, Nat.is_eq(U32.to_nat(i), U32.to_nat(i)), True{}, Arith.eq_refl(U32.to_nat(i))) : {True{} == Bool.and(_, Nat.is_lt(U32.to_nat(i), n)) : Bool}
   Equal.sym(Bool, Nat.is_lt(U32.to_nat(i), n), True{}, inside)
+
+def index_matched(+d: Nat, +n: Nat, +i: U32, +fits: {Storage.bounds(d, n) == True{} : Bool},
+  +inside: {Nat.is_lt(U32.to_nat(i), n) == True{} : Bool}) -> {Storage.index_matches(d, n, i) == True{} : Bool}:
+  Equal.sym(Bool, True{}, Storage.index_matches(d, n, i), index_complete(d, n, i, fits, inside))
