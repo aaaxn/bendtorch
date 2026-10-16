@@ -37,6 +37,7 @@ explicitly. No two tensors share mutable storage.
 
 The [tensor core](docs/tensor-core.md), [construction and clone](docs/construction.md),
 [elementwise ops](docs/elementwise.md), [sum and matmul](docs/sum-and-matmul.md),
+[the shared parallel build](docs/parallel-build.md),
 [transforms](docs/transforms.md), [broadcast](docs/broadcast-to.md),
 [reduce to shape](docs/reduce-to.md), [sum to size](docs/sum-to-size.md),
 [gradient slots](docs/gradient-slots.md), [scalar backward](docs/backward.md),
