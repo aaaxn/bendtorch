@@ -486,7 +486,7 @@ class ExperimentRunnerTests(unittest.TestCase):
 
 
 class SectionTests(unittest.TestCase):
-    def test_each_section_copies_after_the_one_before_starts_its_checks(self):
+    def test_each_section_copies_after_the_one_before_has_made_its_copies(self):
         events: list[tuple[str, int]] = []
         lock = threading.Lock()
 
@@ -499,7 +499,9 @@ class SectionTests(unittest.TestCase):
             return dict(jobs)
 
         def section(index: int, delay: float, parallel, reasons) -> None:
-            note("copy", index)
+            note("copying", index)
+            time.sleep(0.02)
+            note("copied", index)
             parallel([("check", index)])
             note("checked", index)
             time.sleep(delay)
@@ -515,16 +517,14 @@ class SectionTests(unittest.TestCase):
             for index, delay in enumerate(delays)
         ]
 
-        def recording(jobs):
-            for _, index in jobs:
-                note("start", index)
-            return parallel(jobs)
-
-        runner.in_turn(sections, recording, reasons)
+        runner.in_turn(sections, parallel, reasons)
         self.assertEqual(list(reasons), ["r0", "r1", "r2", "r3"])
+        # The guarantee is about copies only: the section before may enter
+        # its checks after this one has started copying.
         for index in range(1, len(delays)):
             self.assertLess(
-                events.index(("start", index - 1)), events.index(("copy", index))
+                events.index(("copied", index - 1)),
+                events.index(("copying", index)),
             )
 
     def test_first_failure_in_section_order_is_raised_after_every_section(self):
@@ -553,6 +553,30 @@ class SectionTests(unittest.TestCase):
             )
         self.assertEqual(finished, [True])
         self.assertEqual(reasons, {"done": "yes"})
+
+    def test_earlier_section_failure_wins_when_a_later_one_fails_first(self):
+        order: list[str] = []
+        second_failed = threading.Event()
+
+        def first(parallel, reasons):
+            parallel([])
+            waited = second_failed.wait(5)
+            order.append(f"first after second: {waited}")
+            raise GateError("first")
+
+        def second(parallel, reasons):
+            order.append("second")
+            second_failed.set()
+            raise GateError("second")
+
+        def third(parallel, reasons):
+            parallel([])
+            order.append("third")
+
+        with self.assertRaisesRegex(GateError, "^first$"):
+            runner.in_turn([first, second, third], lambda jobs: {}, {})
+        self.assertEqual(sorted(order), ["first after second: True", "second", "third"])
+        self.assertLess(order.index("second"), order.index("first after second: True"))
 
 
 class RunnerTests(unittest.TestCase):

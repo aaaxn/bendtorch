@@ -1066,10 +1066,12 @@ def construction(snapshot, output, bend, kernel, run, parallel, reasons) -> None
 def in_turn(sections: Sequence[Callable], parallel: Callable, reasons: dict) -> None:
     """Run every section at once, each as `section(parallel, its_reasons)`.
 
-    A section starts once the section before it has started its first checks.
     Every section makes its false twins and mutant copies before its first
-    `parallel` call, so every copy of the snapshot holds the same files as
-    when the sections ran one after another. Each section fills its own
+    `parallel` call and signals just before that call; a section starts once
+    the section before it has signalled (or ended), so every copy of the
+    snapshot holds the same files as when the sections ran one after
+    another. The section before may enter its checks after the next one has
+    started copying; only the copies are ordered. Each section fills its own
     reasons; they merge into `reasons` in section order, so summary.json
     lists them in the order a one-section-at-a-time run did. Every section
     runs to the end, and the first failure in section order is raised.
