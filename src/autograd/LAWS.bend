@@ -8,4 +8,5 @@ import ./gradient-LAWS.bend as Gradient
 import ./backward-LAWS.bend as Backward
 import ./tensor-backward-LAWS.bend as TensorBackward
 import ./tensor-vjp-LAWS.bend as TensorVjp
+import ./tensor-chain-LAWS.bend as TensorChain
 import ./sgd-LAWS.bend as Sgd
