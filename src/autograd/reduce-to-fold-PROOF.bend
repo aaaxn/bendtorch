@@ -101,9 +101,8 @@ def target_index(+plan: Shape.BroadcastPlan, +position: Nat) -> U32:
 def source_index(+plan: Shape.BroadcastPlan, +position: Nat) -> U32:
   U32.from_nat(ReduceFold.contribution_offset(plan, position))
 
-# The target's history after `count` steps of the reduce_to loop: step k reads
-# the target cell that position k lands on, then writes that cell plus
-# contribution word k back to it.
+# Contribution position `position` lands on a target cell below the target's
+# count.
 def target_below(+plan: Shape.BroadcastPlan, +target: Shape.Shape, +left: {Shape.left_shape(plan) == target : Shape.Shape}, +position: Nat,
   below: {Nat.is_lt(position, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan)))) == True{} : Bool}) ->
   {Nat.is_lt(ReduceFold.target_offset(plan, position), Shape.logical_numel(Shape.dimensions(target))) == True{} : Bool}:
