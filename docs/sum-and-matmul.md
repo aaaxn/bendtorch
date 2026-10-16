@@ -95,6 +95,22 @@ F32 additions, about 3 cycles each, so the loop alone needs about 3.7 ms on
 one thread; the rest is the parallel build's copies of both operands.
 `matmul` keeps its own `cell_dot`.
 
+## The sum loop
+
+`Reduction.sum` adds the words straight from the tensor's storage array
+(`Reduction.array_sum`, `array_run`): each step reads the next word and hands
+it to the next step as an argument, so the loop has no checked read and no
+closure per word. It adds the same words in the same order as
+`natural_sum_loop`, the checked loop that `successful_loop_interpretation`,
+`ordered_loop_interpretation` and `ordered_loop_preservation` still state. The
+laws about `Reduction.sum` are proved for the array loop in
+`reduction-PROOF.bend`: `run_value` shows that the word read at slot `cursor`
+is the word a checked observation of the tensor finds there, `tensor_words`
+takes the list of those words from the law of `natural_sum_loop`, and
+`array_sum_keeps` shows the tensor comes back with its array. On the bench's
+`sum` of `[1048576]`, one thread, five alternating runs, the checked loop took
+540 ms and the array loop 0.5 ms (the bench's resolution), with the same word.
+
 ## Public math completeness supplement
 
 The original eight reduction laws and seven matrix laws, their definitions,
