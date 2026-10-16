@@ -235,16 +235,17 @@ RELU_CONTROLS = {
 
 # Mutants of the scalar operations of the mean and the losses, each applied
 # to a copy of src/tensor/elementwise.bend, and the law of
-# src/tensor/loss-ops-LAWS.bend whose proof rejects it.
+# src/tensor/loss-ops-LAWS.bend whose proof rejects it. Each law named here
+# is false for the mutant.
 LOSS_CONTROLS = {
     "divide-multiplies": (
         "      F32.div(left, right)",
         "      F32.mul(left, right)",
         "Laws.scalar_divide",
     ),
-    "matches-ignores-words": (
+    "matches-inverted": (
         "      zero_if(Bool.not(U32.is_eq(bits(left), bits(right))), 1.0)",
-        "      zero_if(False{}, 1.0)",
+        "      zero_if(U32.is_eq(bits(left), bits(right)), 1.0)",
         "Laws.scalar_matches_same",
     ),
     "pick-keeps-sign": (
@@ -262,9 +263,9 @@ LOSS_CONTROLS = {
         "      F32.mul(F32.mul(right, left), scale)",
         "Laws.scalar_mse_grad",
     ),
-    "one-hot-grad-everywhere": (
+    "one-hot-grad-inverted": (
         "      zero_if(Bool.not(is_one(right)), target_gradient(left, count))",
-        "      zero_if(False{}, target_gradient(left, count))",
+        "      zero_if(is_one(right), target_gradient(left, count))",
         "Laws.scalar_one_hot_grad_target",
     ),
     "softmax-grad-drops-zero-add": (
