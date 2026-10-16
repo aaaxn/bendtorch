@@ -142,3 +142,33 @@ law tensor_sweep_chain_rule:
   for -swept: List<&1, Gradient.Slot>
   for succeeded: {result(Backward.sweep(entries, Done{gradients}, count)) == Done{swept} : Slots()}
   {chained(entries, gradients, count, Nil{}) == Done{swept} : Slots()}
+
+# The starting working gradients of a backward from the entry with older
+# entries below it and newer entries above it: no gradient for the newer
+# entries, ones of the output's shape at the output, as PyTorch's
+# backward(torch.ones_like(output)), and no gradient below.
+def seeds(+newer: Nat, +shape: Shape.Shape, ones: Core.Tensor<shape>, +older: Nat) -> List<&1, Gradient.Slot>:
+  List.append(&1, Gradient.Slot, Backward.unsets(newer), Gradient.Held{Core.Packed{shape, ones}} <> Backward.unsets(older))
+
+# The chain rule for the whole backward: when the pass of a backward from the
+# output with older entries below it succeeds, the working gradients it hands
+# to the merge (tensor_backward_success, tensor_merge_accumulates) are the
+# chained ones from the seeds, for any tape, newer entries included.
+law tensor_backward_chain_rule:
+  for newer: List<&1, Backward.Entry>
+  for +node: Backward.Node
+  for +shape: Shape.Shape
+  for value: Core.Dynamic
+  for saved: Backward.Saved
+  for slot: Gradient.Slot
+  for rest: List<&1, Backward.Entry>
+  for +older: Nat
+  for ones: Core.Tensor<shape>
+  for made: {Core.new(shape, 1.0) == Done{ones} : Result<&2, &1, Core.Error, Core.Tensor<shape>>}
+  for -gradients: List<&1, Gradient.Slot>
+  for succeeded: {result(Backward.pass(List.append(&1, Backward.Entry, newer, Backward.Entry{node, shape, value, saved, slot} <> rest),
+      1n+Nat.add(older, List.length(&1, Backward.Entry, newer)), older,
+      Backward.at_head(1n+Nat.add(older, List.length(&1, Backward.Entry, newer)), older))) == Done{gradients} : Slots()}
+  {chained(List.append(&1, Backward.Entry, newer, Backward.Entry{node, shape, value, saved, slot} <> rest),
+      seeds(List.length(&1, Backward.Entry, newer), shape, ones, older),
+      1n+Nat.add(older, List.length(&1, Backward.Entry, newer)), Nil{}) == Done{gradients} : Slots()}

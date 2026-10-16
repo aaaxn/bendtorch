@@ -463,3 +463,169 @@ def started_pulls(entries: List<&1, Backward.Entry>, -gradients: List<&1, Gradie
 
 def Laws.tensor_sweep_chain_rule(entries, gradients, count, gs, succeeded):
   started_pulls(entries, gradients, count, gs, succeeded, started(gradients, count))
+
+# Id arithmetic for the entries newer than the output, as in
+# tensor-backward-PROOF.bend, kept here so this file checks on its own.
+def eq_refl(+number: Nat) -> {True{} == Nat.is_eq(number, number) : Bool}:
+  match number:
+    case 0n:
+      {==}
+    case 1n+rest:
+      eq_refl(rest)
+
+def add_zero(+number: Nat) -> {number == Nat.add(number, 0n) : Nat}:
+  match number:
+    case 0n:
+      {==}
+    case 1n+rest:
+      Equal.cong(Nat, Nat, value => 1n+value, rest, Nat.add(rest, 0n), add_zero(rest))
+
+def add_succ(+left: Nat, -right: Nat) -> {1n+Nat.add(left, right) == Nat.add(left, 1n+right) : Nat}:
+  match left:
+    case 0n:
+      {==}
+    case 1n+rest:
+      Equal.cong(Nat, Nat, value => 1n+value, 1n+Nat.add(rest, right), Nat.add(rest, 1n+right), add_succ(rest, right))
+
+# A node with older nodes below it and extra + 1 newer ones above it never has
+# the id of the target.
+def older_ne(+older: Nat, -extra: Nat) -> {False{} == Nat.is_eq(Nat.add(older, 1n+extra), older) : Bool}:
+  match older:
+    case 0n:
+      {==}
+    case 1n+rest:
+      older_ne(rest, extra)
+
+# What a backward's pass does, with the chained answer when it succeeds.
+type Passed<-entries: List<&1, Backward.Entry>, -count: Nat, -output: Nat, -selected: Bool, -slots: List<&1, Gradient.Slot>> is Data:
+  PassKept{-done: List<&1, Backward.Entry>, -gradients: List<&1, Gradient.Slot>,
+    passed: {Backward.pass(entries, count, output, selected) == (done, Done{gradients}) : Backward.Swept()},
+    chained: {Laws.chained(entries, slots, count, Nil{}) == Done{gradients} : Laws.Slots()}}
+  PassStopped{-done: List<&1, Backward.Entry>, -error: Backward.Error,
+    passed: {Backward.pass(entries, count, output, selected) == (done, Fail{error}) : Backward.Swept()}}
+
+def seeded_out(+node: Backward.Node, +shape: Shape.Shape, -value: Core.Dynamic, -saved: Backward.Saved, -slot: Gradient.Slot,
+  -rest: List<&1, Backward.Entry>, +older: Nat, -ones: Core.Tensor<shape>, -copy: List<&1, Gradient.Slot>,
+  made: {Core.new(shape, 1.0) == Done{ones} : Result<&2, &1, Core.Error, Core.Tensor<shape>>},
+  same: {copy == Gradient.Held{Core.Packed{shape, ones}} <> Backward.unsets(older) : List<&1, Gradient.Slot>},
+  out: Run<Backward.Entry{node, shape, value, saved, slot} <> rest, copy, 1n+older,
+    Gradient.Held{Core.Packed{shape, ones}} <> Backward.unsets(older), Nil{}>) ->
+  Passed<Backward.Entry{node, shape, value, saved, slot} <> rest, 1n+older, older, True{},
+    Gradient.Held{Core.Packed{shape, ones}} <> Backward.unsets(older)>:
+  match out:
+    case Kept{done, gradients, swept, chained}:
+      PassKept{done, gradients,
+        Equal.trans(Backward.Swept(), Backward.seeded(node, shape, value, saved, slot, rest, older, Core.new(shape, 1.0)),
+          Backward.seeded(node, shape, value, saved, slot, rest, older, Done{ones}), (done, Done{gradients}),
+          Equal.cong(Result<&2, &1, Core.Error, Core.Tensor<shape>>, Backward.Swept(),
+            made_ones => Backward.seeded(node, shape, value, saved, slot, rest, older, made_ones), Core.new(shape, 1.0), Done{ones}, made),
+          Equal.trans(Backward.Swept(), Backward.seeded(node, shape, value, saved, slot, rest, older, Done{ones}),
+            Backward.sweep(Backward.Entry{node, shape, value, saved, slot} <> rest, Done{copy}, 1n+older), (done, Done{gradients}),
+            Equal.cong(List<&1, Gradient.Slot>, Backward.Swept(),
+              list => Backward.sweep(Backward.Entry{node, shape, value, saved, slot} <> rest, Done{list}, 1n+older),
+              Gradient.Held{Core.Packed{shape, ones}} <> Backward.unsets(older), copy,
+              Equal.sym(List<&1, Gradient.Slot>, copy, Gradient.Held{Core.Packed{shape, ones}} <> Backward.unsets(older), same)),
+            swept)),
+        chained}
+    case Stopped{done, error, swept}:
+      PassStopped{done, error,
+        Equal.trans(Backward.Swept(), Backward.seeded(node, shape, value, saved, slot, rest, older, Core.new(shape, 1.0)),
+          Backward.seeded(node, shape, value, saved, slot, rest, older, Done{ones}), (done, Fail{error}),
+          Equal.cong(Result<&2, &1, Core.Error, Core.Tensor<shape>>, Backward.Swept(),
+            made_ones => Backward.seeded(node, shape, value, saved, slot, rest, older, made_ones), Core.new(shape, 1.0), Done{ones}, made),
+          Equal.trans(Backward.Swept(), Backward.seeded(node, shape, value, saved, slot, rest, older, Done{ones}),
+            Backward.sweep(Backward.Entry{node, shape, value, saved, slot} <> rest, Done{copy}, 1n+older), (done, Fail{error}),
+            Equal.cong(List<&1, Gradient.Slot>, Backward.Swept(),
+              list => Backward.sweep(Backward.Entry{node, shape, value, saved, slot} <> rest, Done{list}, 1n+older),
+              Gradient.Held{Core.Packed{shape, ones}} <> Backward.unsets(older), copy,
+              Equal.sym(List<&1, Gradient.Slot>, copy, Gradient.Held{Core.Packed{shape, ones}} <> Backward.unsets(older), same)),
+            swept))}
+
+def seeded_run(+node: Backward.Node, +shape: Shape.Shape, value: Core.Dynamic, saved: Backward.Saved, slot: Gradient.Slot,
+  rest: List<&1, Backward.Entry>, +older: Nat, -ones: Core.Tensor<shape>,
+  made: {Core.new(shape, 1.0) == Done{ones} : Result<&2, &1, Core.Error, Core.Tensor<shape>>},
+  init: Started<Gradient.Held{Core.Packed{shape, ones}} <> Backward.unsets(older), 1n+older>) ->
+  Passed<Backward.Entry{node, shape, value, saved, slot} <> rest, 1n+older, older, True{},
+    Gradient.Held{Core.Packed{shape, ones}} <> Backward.unsets(older)>:
+  Started{copy, same, pulls} = init
+  seeded_out(node, shape, value, saved, slot, rest, older, ones, copy, made, same,
+    swept_pulls(Backward.Entry{node, shape, value, saved, slot} <> rest, Done{copy},
+      Gradient.Held{Core.Packed{shape, ones}} <> Backward.unsets(older), 1n+older, Nil{}, pulls))
+
+def newer_step(+node: Backward.Node, +shape: Shape.Shape, -value: Core.Dynamic, -saved: Backward.Saved, -slot: Gradient.Slot,
+  -rest: List<&1, Backward.Entry>, -below: Nat, +older: Nat, -slots: List<&1, Gradient.Slot>,
+  out: Passed<rest, below, older, Backward.at_head(below, older), slots>) ->
+  Passed<Backward.Entry{node, shape, value, saved, slot} <> rest, 1n+below, older, False{}, Gradient.Unset{} <> slots>:
+  match out:
+    case PassKept{done, gradients, passed, chained}:
+      PassKept{Backward.Entry{node, shape, value, saved, slot} <> done, Gradient.Unset{} <> gradients,
+        Equal.cong(Backward.Swept(), Backward.Swept(),
+          pair => Backward.finished(Backward.Entry{node, shape, value, saved, slot}, Gradient.Unset{}, pair),
+          Backward.pass(rest, below, older, Backward.at_head(below, older)), (done, Done{gradients}), passed),
+        Equal.cong(Laws.Slots(), Laws.Slots(), result => Backward.prepend(Gradient.Slot, Gradient.Unset{}, result),
+          Laws.chained(rest, slots, below, Nil{}), Done{gradients}, chained)}
+    case PassStopped{done, error, passed}:
+      PassStopped{Backward.Entry{node, shape, value, saved, slot} <> done, error,
+        Equal.cong(Backward.Swept(), Backward.Swept(),
+          pair => Backward.finished(Backward.Entry{node, shape, value, saved, slot}, Gradient.Unset{}, pair),
+          Backward.pass(rest, below, older, Backward.at_head(below, older)), (done, Fail{error}), passed)}
+
+def newer_chain(newer: List<&1, Backward.Entry>, +node: Backward.Node, +shape: Shape.Shape, value: Core.Dynamic, saved: Backward.Saved,
+  slot: Gradient.Slot, rest: List<&1, Backward.Entry>, +older: Nat, ones: Core.Tensor<shape>,
+  made: {Core.new(shape, 1.0) == Done{ones} : Result<&2, &1, Core.Error, Core.Tensor<shape>>}) ->
+  Passed<List.append(&1, Backward.Entry, newer, Backward.Entry{node, shape, value, saved, slot} <> rest),
+    1n+Nat.add(older, List.length(&1, Backward.Entry, newer)), older,
+    Backward.at_head(1n+Nat.add(older, List.length(&1, Backward.Entry, newer)), older),
+    Laws.seeds(List.length(&1, Backward.Entry, newer), shape, ones, older)>:
+  match newer:
+    case Nil{}:
+      %add_zero(older) :
+        Passed<Backward.Entry{node, shape, value, saved, slot} <> rest, 1n+_, older, Backward.at_head(1n+_, older),
+          Laws.seeds(0n, shape, ones, older)>
+      %eq_refl(older) :
+        Passed<Backward.Entry{node, shape, value, saved, slot} <> rest, 1n+older, older, _, Laws.seeds(0n, shape, ones, older)>
+      seeded_run(node, shape, value, saved, slot, rest, older, ones, made,
+        started(Gradient.Held{Core.Packed{shape, ones}} <> Backward.unsets(older), 1n+older))
+    case Con{Backward.Entry{+top, +top_shape, top_value, top_saved, top_slot}, tail}:
+      %older_ne(older, List.length(&1, Backward.Entry, tail)) :
+        Passed<Backward.Entry{top, top_shape, top_value, top_saved, top_slot} <>
+            List.append(&1, Backward.Entry, tail, Backward.Entry{node, shape, value, saved, slot} <> rest),
+          1n+Nat.add(older, 1n+List.length(&1, Backward.Entry, tail)), older, _,
+          Laws.seeds(1n+List.length(&1, Backward.Entry, tail), shape, ones, older)>
+      %add_succ(older, List.length(&1, Backward.Entry, tail)) :
+        Passed<Backward.Entry{top, top_shape, top_value, top_saved, top_slot} <>
+            List.append(&1, Backward.Entry, tail, Backward.Entry{node, shape, value, saved, slot} <> rest),
+          1n+_, older, False{}, Laws.seeds(1n+List.length(&1, Backward.Entry, tail), shape, ones, older)>
+      newer_step(top, top_shape, top_value, top_saved, top_slot,
+        List.append(&1, Backward.Entry, tail, Backward.Entry{node, shape, value, saved, slot} <> rest),
+        1n+Nat.add(older, List.length(&1, Backward.Entry, tail)), older,
+        Laws.seeds(List.length(&1, Backward.Entry, tail), shape, ones, older),
+        newer_chain(tail, node, shape, value, saved, slot, rest, older, ones, made))
+
+def passed_chain(-entries: List<&1, Backward.Entry>, -count: Nat, -output: Nat, -selected: Bool, -slots: List<&1, Gradient.Slot>,
+  -gradients: List<&1, Gradient.Slot>,
+  succeeded: {Laws.result(Backward.pass(entries, count, output, selected)) == Done{gradients} : Laws.Slots()},
+  out: Passed<entries, count, output, selected, slots>) -> {Laws.chained(entries, slots, count, Nil{}) == Done{gradients} : Laws.Slots()}:
+  match out:
+    case PassKept{done, found, passed, chained}:
+      Equal.trans(Laws.Slots(), Laws.chained(entries, slots, count, Nil{}), Done{found}, Done{gradients}, chained,
+        Equal.trans(Laws.Slots(), Done{found}, Laws.result(Backward.pass(entries, count, output, selected)), Done{gradients},
+          Equal.sym(Laws.Slots(), Laws.result(Backward.pass(entries, count, output, selected)), Done{found},
+            Equal.cong(Backward.Swept(), Laws.Slots(), pair => Laws.result(pair), Backward.pass(entries, count, output, selected),
+              (done, Done{found}), passed)),
+          succeeded))
+    case PassStopped{done, error, passed}:
+      Empty.absurd({Laws.chained(entries, slots, count, Nil{}) == Done{gradients} : Laws.Slots()},
+        done_fail(error, gradients,
+          Equal.trans(Laws.Slots(), Fail{error}, Laws.result(Backward.pass(entries, count, output, selected)), Done{gradients},
+            Equal.sym(Laws.Slots(), Laws.result(Backward.pass(entries, count, output, selected)), Fail{error},
+              Equal.cong(Backward.Swept(), Laws.Slots(), pair => Laws.result(pair), Backward.pass(entries, count, output, selected),
+                (done, Fail{error}), passed)),
+            succeeded)))
+
+def Laws.tensor_backward_chain_rule(newer, node, shape, value, saved, slot, rest, older, ones, made, gradients, succeeded):
+  passed_chain(List.append(&1, Backward.Entry, newer, Backward.Entry{node, shape, value, saved, slot} <> rest),
+    1n+Nat.add(older, List.length(&1, Backward.Entry, newer)), older,
+    Backward.at_head(1n+Nat.add(older, List.length(&1, Backward.Entry, newer)), older),
+    Laws.seeds(List.length(&1, Backward.Entry, newer), shape, ones, older), gradients, succeeded,
+    newer_chain(newer, node, shape, value, saved, slot, rest, older, ones, made))
