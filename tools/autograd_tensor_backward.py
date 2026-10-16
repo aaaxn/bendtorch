@@ -186,7 +186,8 @@ RUNTIME_CONTROLS = {
         "    case True{}:\n      freeze(ids, nodes, count, node)\n",
     ),
     "frozen-keeps-contribution": (
-        "kept_one(target, shape, gradient, Nat.is_eq(id, target), kept_others(id, rest))",
+        "kept_one(target, shape, gradient, Nat.is_eq(id, target), "
+        "kept_others(id, rest))",
         "kept_one(target, shape, gradient, False{}, kept_others(id, rest))",
     ),
     "frozen-skip-sends-input-gradient": (
