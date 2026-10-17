@@ -55,7 +55,7 @@ from tools.autograd_tensor_bound import (
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "73d2afb3659072093a221f42d8eb615bc5d360ec861a3508cc6c96e0b1e61f92"
+FIXTURE_SHA256 = "84d0484d3d832cec61a09f111547ec761fd9e4bc737ed566f71f3594f35ccd5f"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
@@ -85,7 +85,9 @@ RUNTIME_ERROR_CODES = {6, MATMUL_RANK, MATMUL_INNER, 10}
 # unknown id, an axis past the rank (IndexError, AxisOutOfBounds 13), an axis
 # listed twice (RuntimeError, DuplicateAxis 14), a list with both (13, as
 # PyTorch checks every axis's range first), the U32 word of -1 (13) and axis
-# 1 of a rank-0 input (13).
+# 1 of a rank-0 input (13). Those of sum_dims_negative_refused: -3 on rank 2
+# (13), -1 and 1 (14), 0 and -2 (14), 5 and -3 (13), -3 before a repeated 0
+# (13), -2 on rank 0 (13), and 0 and -1 on rank 0, both axis 0 (14).
 STEP_REJECTIONS = {
     "cross_entropy_refused": [
         ("IndexError", TARGET_OUT_OF_RANGE),
@@ -102,6 +104,15 @@ STEP_REJECTIONS = {
         ("RuntimeError", DUPLICATE_AXIS),
         ("IndexError", AXIS_OUT_OF_BOUNDS),
         ("IndexError", AXIS_OUT_OF_BOUNDS),
+    ],
+    "sum_dims_negative_refused": [
+        ("IndexError", AXIS_OUT_OF_BOUNDS),
+        ("RuntimeError", DUPLICATE_AXIS),
+        ("RuntimeError", DUPLICATE_AXIS),
+        ("IndexError", AXIS_OUT_OF_BOUNDS),
+        ("IndexError", AXIS_OUT_OF_BOUNDS),
+        ("IndexError", AXIS_OUT_OF_BOUNDS),
+        ("RuntimeError", DUPLICATE_AXIS),
     ],
 }
 FORGED = {"dangling_self", "dangling_newer", "dangling_missing"}
@@ -638,7 +649,7 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
             | NON_LEAF
         )
         self.assertEqual(exact, len(cases()) - len(excluded))
-        self.assertEqual(exact, 165)
+        self.assertEqual(exact, 169)
 
     # Planted wrong results on the reference's side, as a wrong Bend result
     # would be: a sum, a broadcast reduction, a sum over axes (reduce_to) and
@@ -662,10 +673,10 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                 identifier, seen[identifier], bounded_reference(rows[identifier]), pins
             )
         planted = {
-            "total": (dropping_total, 95, {"loss_07"}, (79, 13, 2)),
-            "sum_to_size": (dropping_sum_to_size, 69, set(), (67, 2, 0)),
+            "total": (dropping_total, 97, {"loss_07"}, (81, 13, 2)),
+            "sum_to_size": (dropping_sum_to_size, 70, set(), (68, 2, 0)),
             "matmul": (dropping_matmul, 32, set(), (30, 2, 0)),
-            "reduce_to": (dropping_reduce_to, 18, set(), (18, 0, 0)),
+            "reduce_to": (dropping_reduce_to, 21, set(), (21, 0, 0)),
         }
         for name, (function, changed, missed, reasons) in planted.items():
             with self.subTest(planted=name):
