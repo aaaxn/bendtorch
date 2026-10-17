@@ -222,6 +222,12 @@ FAMILY = controls.Family(
             "contracts_2f_dot_2d_proof.total_factors",
             ("contracts_2f_dot.right_index",),
         ),
+        "matmul-reversed-order": Site(
+            "dot_eq",
+            "Nat.add(Nat.mul(Nat.add(cursor, rest), columns), column)",
+            "contracts_2f_matmul_2d_parallel_2d_proof.dot_eq",
+            ("matmul.cell_dot",),
+        ),
         "matmul-swapped-strides": Site(
             "dot_eq",
             "Matrix.product_run(rest, columns, 1n,",
