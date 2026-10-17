@@ -242,7 +242,7 @@ def contiguous(+rows: List<&2, Shape.Row>, +extents: List<&2, Nat>) -> Bool:
 # contribution. A target whose fibers are contiguous splits by work, as
 # `Matrix.splits` does with the terms of a cell; a target with strided fibers
 # never forks, since there the forked build ran slower at 8 and 24 threads
-# than one thread (docs/reduce-to.md). The proofs hold for any split.
+# than one thread. The proofs hold for any split.
 def splits(+plan: Shape.BroadcastPlan, +depth: Nat, +length: Nat) -> Nat:
   +extents = Shape.extents(Shape.output_shape(plan))
   +rows = Shape.index_table(Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)), extents)

@@ -1,7 +1,7 @@
 # Autograd prototypes (experimental)
 
 Three automatic-differentiation designs over the same cases, compared in
-[docs/autograd-design.md](../../docs/autograd-design.md). Nothing here is
+[DESIGN.md](DESIGN.md). Nothing here is
 imported by `src/` or by any gate.
 
 | Design | Scalar core | Tensor version | Cases | Laws |

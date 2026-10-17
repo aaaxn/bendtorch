@@ -136,7 +136,7 @@ FORWARD_ORDER = {"rounding_09", "rounding_14", "relu_13", "sum_dims_rounding"}
 # For each script, the line index of every word that differs and the pair
 # (PyTorch's word, the reference's word); every other line must be exact, and
 # each pinned word, PyTorch's and the reference's, must also lie within its
-# rounding-error bound. docs/losses.md has the distances.
+# rounding-error bound.
 MSE_ROUNDING = {
     "loss_03": {
         143: (0xC23FCE94, 0xC23FCE93),

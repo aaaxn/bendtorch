@@ -2,7 +2,7 @@
 
 The active `s2-v2` corpus corrects scalar transpose `(0,0)` against the exact
 pinned source and observed CPU wheel. See
-[`docs/scalar-transpose.md`](../../docs/scalar-transpose.md) for old/new laws,
+[`SCALAR_TRANSPOSE.md`](SCALAR_TRANSPOSE.md) for old/new laws,
 hashes and the one-ID correction. The source-backed proposal remains separately
 labeled in `fixtures/scalar-transpose-correction.json`; the original `s2-v1`
 records, CPU profile, policy and ordered reference records remain byte-identical.
