@@ -131,6 +131,13 @@ PROOF_CONTROLS = {
         "    case Nil{}:\n      1\n",
         "    case Nil{}:\n      0\n",
     ),
+    "tensor-backward-sum-dims-vjp-skips-unsqueeze": (
+        "src/autograd/tensor-backward.bend",
+        "restored(shape, vjp_sum(a, input, "
+        "Transforms.reshape_equal(shape, kept, tensor, "
+        "Transforms.elements_equal(shape, kept, equal))))",
+        "restored(shape, vjp_sum(a, input, Core.Packed{shape, tensor}))",
+    ),
     "gradient-overwrites-instead-of-adding": (
         "src/autograd/gradient.bend",
         "F32.add(accumulated, value)",

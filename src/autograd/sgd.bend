@@ -41,6 +41,8 @@ def leaf_refusal(node: Backward.Node) -> Maybe<&2, Error>:
       Some{NotLeaf{}}
     case Backward.Sum{a, input}:
       Some{NotLeaf{}}
+    case Backward.SumDims{a, input, kept}:
+      Some{NotLeaf{}}
     case Backward.Matmul{a, b, left, right}:
       Some{NotLeaf{}}
     case Backward.MatmulNT{a, b, left, right}:

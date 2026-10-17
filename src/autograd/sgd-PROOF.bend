@@ -58,6 +58,8 @@ def Laws.sgd_only_leaves_accepted(node):
       {==}
     case Backward.Sum{a, input}:
       {==}
+    case Backward.SumDims{a, input, kept}:
+      {==}
     case Backward.Matmul{a, b, left, right}:
       {==}
     case Backward.MatmulNT{a, b, left, right}:

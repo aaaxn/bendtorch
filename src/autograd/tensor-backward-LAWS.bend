@@ -47,6 +47,8 @@ def targets(node: Backward.Node) -> List<&2, Nat>:
       [a, b]
     case Backward.Sum{a, input}:
       [a]
+    case Backward.SumDims{a, input, kept}:
+      [a]
     case Backward.Matmul{a, b, left, right}:
       [a, b]
     case Backward.MatmulNT{a, b, left, right}:
@@ -366,3 +368,26 @@ law tensor_sum_vjp_pointwise:
   for -fits: {Lifecycle.logical_length(Replayed.storage(shape, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}
   SoleContract<a, input, index => Replayed.value(shape, fill, ops, U32.from_nat(PointwiseBroadcast.left_map(plan, index))),
     Backward.vjp(Backward.Sum{a, input}, saved, Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}})>
+
+# d(sum of a over some axes)/da: a gradient g of `shape`, the kept or the
+# dropped shape, with as many elements as the kept shape, is read with the
+# kept shape and broadcast as the Sum VJP broadcasts: for a replayed g whose
+# words are a replay over the kept shape's count, and a kept shape that
+# broadcasts to exactly a's shape, the VJP sends one contribution, to a, with
+# a's dimensions, and every position i holds the word of g at
+# left_map(plan, i), the kept shape's right-aligned projection of i.
+law tensor_sum_dims_vjp_pointwise:
+  for +a: Nat
+  for +shape: Shape.Shape
+  for +input: Shape.Shape
+  for +kept: Shape.Shape
+  for +plan: Shape.BroadcastPlan
+  for planned: {Shape.broadcast_checked(kept, input) == Done{plan} : Result<&2, &2, Shape.Error, Shape.BroadcastPlan>}
+  for same: {Shape.dimensions(Shape.output_shape(plan)) == Shape.dimensions(input) : List<&2, U32>}
+  for counted: {Nat.is_eq(Shape.elements(shape), Shape.elements(kept)) == True{} : Bool}
+  for saved: Backward.Saved
+  for +fill: F32
+  for +ops: List<&2, StorageLaws.Op>
+  for -fits: {Lifecycle.logical_length(Replayed.storage(kept, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}
+  SoleContract<a, input, index => Replayed.value(kept, fill, ops, U32.from_nat(PointwiseBroadcast.left_map(plan, index))),
+    Backward.vjp(Backward.SumDims{a, input, kept}, saved, Core.Packed{shape, Core.TTensor{Replayed.storage(kept, fill, ops), fits}})>

@@ -274,14 +274,18 @@ def bounded_matmul(left: tuple, right: tuple) -> tuple | int:
     return ([rows, columns], words)
 
 
-def bounded_sum_to_size(tensor: tuple, target: list[int]) -> tuple:
+def bounded_reduce_to(tensor: tuple, target: list[int]) -> tuple:
     shape, words = tensor
-    if shape == target:
-        return (target, list(words))
     fibers: list[list[int]] = [[] for _ in range(math.prod(target))]
     for flat in range(math.prod(shape)):
         fibers[tape.source_index(target, shape, flat)].append(words[flat])
     return (target, [bounded_total(fiber) for fiber in fibers])
+
+
+def bounded_sum_to_size(tensor: tuple, target: list[int]) -> tuple:
+    if tensor[0] == target:
+        return (target, list(tensor[1]))
+    return bounded_reduce_to(tensor, target)
 
 
 def bounded_snapshot(tensor: tuple) -> list[str]:
@@ -306,6 +310,7 @@ REPLACED = {
     "relu_backward_word": bounded_relu_backward,
     "total": bounded_total,
     "matmul": bounded_matmul,
+    "reduce_to": bounded_reduce_to,
     "sum_to_size": bounded_sum_to_size,
     "snapshot": bounded_snapshot,
 }
