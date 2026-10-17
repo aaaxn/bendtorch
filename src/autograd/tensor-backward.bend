@@ -7,6 +7,7 @@ import ../tensor/matmul.bend as Matrix
 import ../tensor/batched-matmul.bend as Batched
 import ../tensor/reduction.bend as Reduction
 import ../tensor/transforms.bend as Transforms
+import ../tensor/slice.bend as Slice
 import ./broadcast.bend as Broadcast
 import ./reduce.bend as Reduce
 import ./sum-to-size.bend as SumToSize
@@ -44,7 +45,10 @@ import ./loss.bend as Loss
 #   PyTorch's one_hot gradient minus exp(lp) times its row sum;
 #   BatchedMatmul (torch.matmul of operands that are not both rank 2): g @
 #   right^T and left^T @ g over the output's batch, each operand read in
-#   place at its own batch, 1-D operands as a row or a column.
+#   place at its own batch, 1-D operands as a row or a column;
+#   Slice (a slice, narrow or select): g read with the kept shape, the
+#   selected axis put back as 1 for select, then scattered into +0.0 words of
+#   the operand's shape, PyTorch's slice_backward.
 # Each is reduced to its operand's shape before it is delivered.
 #
 # A constant is a leaf that takes no gradient, PyTorch's tensor with
@@ -70,6 +74,7 @@ type Error is Data:
   ReduceError{error: Reduce.Error}
   GradientError{error: Gradient.Error}
   LossError{error: Loss.Error}
+  SliceError{error: Slice.Error}
 
 type Node is Data:
   Leaf{}
@@ -84,6 +89,7 @@ type Node is Data:
   MseLoss{a: Nat, b: Nat, left: Shape.Shape, right: Shape.Shape}
   CrossEntropy{a: Nat, input: Shape.Shape}
   BatchedMatmul{a: Nat, b: Nat, left: Shape.Shape, right: Shape.Shape}
+  Slice{a: Nat, input: Shape.Shape, kept: Shape.Shape, plan: Slice.Plan}
   Constant{}
   Frozen{id: Nat, node: Node}
 
@@ -620,6 +626,31 @@ def vjp_batched(+a: Nat, +b: Nat, +left: Shape.Shape, +right: Shape.Shape, saved
     case Operands{x, y}:
       batched_planned(a, b, left, right, x, y, g, Batched.plan(left, right))
 
+def scatter_sent(+a: Nat, +input: Shape.Shape, pair: Core.Dynamic & Result<&2, &1, Slice.Error, Core.Dynamic>) -> Pass:
+  (g, result) = pair
+  match result:
+    case Fail{error}:
+      Pass{Unsaved{}, g, Fail{SliceError{error}}}
+    case Done{scattered}:
+      Pass{Unsaved{}, g, Done{[Contribution{a, input, scattered}]}}
+
+def slice_unsqueezed(+a: Nat, +input: Shape.Shape, +kept: Shape.Shape, +plan: Slice.Plan, +shape: Shape.Shape, tensor: Core.Tensor<shape>,
+  decision: Shape.BoolCase<Nat.is_eq(Shape.elements(shape), Shape.elements(kept))>) -> Pass:
+  match decision:
+    case Shape.BFalse{equal}:
+      Pass{Unsaved{}, Core.Packed{shape, tensor}, Fail{TransformError{Transforms.LayoutError{Layout.ElementCountMismatch{}}}}}
+    case Shape.BTrue{equal}:
+      restored(shape, scatter_sent(a, input,
+        Slice.scatter(Transforms.reshape_equal(shape, kept, tensor, Transforms.elements_equal(shape, kept, equal)), input, plan)))
+
+# d(a slice of a)/da: g read with the kept shape, the slice's output with the
+# axis kept (PyTorch's unsqueeze for select), then scattered into +0.0 words
+# of a's shape (PyTorch's slice_backward): each input cell the slice read
+# gets the gradient word of the output cell it went to.
+def vjp_slice(+a: Nat, +input: Shape.Shape, +kept: Shape.Shape, +plan: Slice.Plan, g: Core.Dynamic) -> Pass:
+  Core.Packed{+shape, tensor} = g
+  slice_unsqueezed(a, input, kept, plan, shape, tensor, Shape.bool_case(Nat.is_eq(Shape.elements(shape), Shape.elements(kept))))
+
 # The vector-Jacobian product of one node with gradient g: the contribution
 # each operand receives, in operand order, already reduced to its shape. A
 # constant sends nothing, and Frozen{id, node} sends node's contributions
@@ -650,6 +681,8 @@ def vjp(node: Node, saved: Saved, g: Core.Dynamic) -> Pass:
       vjp_cross_entropy(a, input, saved, g)
     case BatchedMatmul{+a, +b, +left, +right}:
       vjp_batched(a, b, left, right, saved, g)
+    case Slice{+a, +input, +kept, +plan}:
+      vjp_slice(a, input, kept, plan, g)
     case Constant{}:
       Pass{saved, g, Done{Nil{}}}
     case Frozen{+id, inner}:
@@ -792,6 +825,8 @@ def operands_below(node: Node, +bound: Nat) -> Bool:
       Nat.is_lt(a, bound)
     case BatchedMatmul{a, b, left, right}:
       Bool.and(Nat.is_lt(a, bound), Nat.is_lt(b, bound))
+    case Slice{a, input, kept, plan}:
+      Nat.is_lt(a, bound)
     case Constant{}:
       True{}
     case Frozen{id, inner}:
@@ -1038,6 +1073,8 @@ def operand_ids(node: Node) -> List<&2, Nat>:
       [a]
     case BatchedMatmul{a, b, left, right}:
       [a, b]
+    case Slice{a, input, kept, plan}:
+      [a]
     case Constant{}:
       []
     case Frozen{id, inner}:
@@ -1354,6 +1391,87 @@ def sum_dims(tape: Tape, +a: Nat, +axes: List<&2, U32>, keepdim: Bool) -> Tape &
   Tape{entries} = tape
   dims_found(a, axes, keepdim, value_counted(a, counted(entries)))
 
+def slice_kept(node: Node, entries: List<&1, Entry>, result: Result<&2, &1, Slice.Error, Core.Dynamic>) ->
+  Tape & Result<&2, &2, Error, Nat>:
+  match result:
+    case Fail{error}:
+      (Tape{entries}, Fail{SliceError{error}})
+    case Done{output}:
+      push(node, output, Unsaved{}, entries)
+
+def slice_planned(+a: Nat, +shape: Shape.Shape, entries: List<&1, Entry>, result: Result<&2, &1, Slice.Error, Core.Dynamic>,
+  planned: Result<&2, &2, Slice.Error, Slice.Planned>) -> Tape & Result<&2, &2, Error, Nat>:
+  match planned:
+    case Fail{error}:
+      (Tape{entries}, Fail{SliceError{error}})
+    case Done{Slice.Planned{+plan, +kept}}:
+      slice_kept(Slice{a, shape, kept, plan}, entries, result)
+
+def slice_taken(+a: Nat, +shape: Shape.Shape, entries: List<&1, Entry>, planned: Result<&2, &2, Slice.Error, Slice.Planned>,
+  pair: Core.Dynamic & Result<&2, &1, Slice.Error, Core.Dynamic>) -> Tape & Result<&2, &2, Error, Nat>:
+  (input, result) = pair
+  slice_planned(a, shape, entries, result, planned)
+
+# Which of the three a slice step is: PyTorch's a[..., start:stop:step, ...]
+# at axis `dim`, a.narrow(dim, start, length) and a.select(dim, index).
+type Slicing is Data:
+  Sliced{dim: U32, start: U32, stop: U32, step: U32}
+  Narrowed{dim: U32, start: U32, length: U32}
+  Selected{dim: U32, index: U32}
+
+# The slice each one records: its plan, and the value it computes.
+def slice_plan(+shape: Shape.Shape, +slicing: Slicing) -> Result<&2, &2, Slice.Error, Slice.Planned>:
+  match slicing:
+    case Sliced{+dim, +start, +stop, +step}:
+      Slice.plan(shape, dim, start, stop, step)
+    case Narrowed{+dim, +start, +length}:
+      Slice.plan(shape, dim, start, U32.add(start, length), 1)
+    case Selected{+dim, +index}:
+      Slice.plan(shape, dim, index, U32.add(index, 1), 1)
+
+def slice_value(input: Core.Dynamic, +slicing: Slicing) -> Core.Dynamic & Result<&2, &1, Slice.Error, Core.Dynamic>:
+  match slicing:
+    case Sliced{+dim, +start, +stop, +step}:
+      Slice.slice(input, dim, start, stop, step)
+    case Narrowed{+dim, +start, +length}:
+      Slice.narrow(input, dim, start, length)
+    case Selected{+dim, +index}:
+      Slice.select(input, dim, index)
+
+def slice_shaped(+a: Nat, +slicing: Slicing, entries: List<&1, Entry>, pair: Core.Dynamic & Shape.Shape) -> Tape & Result<&2, &2, Error, Nat>:
+  (input, +shape) = pair
+  slice_taken(a, shape, entries, slice_plan(shape, slicing), slice_value(input, slicing))
+
+def slice_found(+a: Nat, +slicing: Slicing, pair: Found()) -> Tape & Result<&2, &2, Error, Nat>:
+  (entries, input) = pair
+  match input:
+    case Fail{error}:
+      (Tape{entries}, Fail{UnknownNode{}})
+    case Done{input}:
+      slice_shaped(a, slicing, entries, Core.shape(input))
+
+# Records a slice of a copy of a's value (Slice.slice, narrow or select) as a
+# Slice node with a's shape, the slice's shape with the axis kept and its
+# plan. The value is checked first, so a refusal is the value's: an axis past
+# a's rank is AxisOutOfBounds (13), a step of 0 StepNotPositive (19), a
+# narrow past the extent or a select index at or past it OutOfRange (20), an
+# unknown id UnknownNode; the tape comes back unchanged.
+def sliced(tape: Tape, +a: Nat, +slicing: Slicing) -> Tape & Result<&2, &2, Error, Nat>:
+  Tape{entries} = tape
+  slice_found(a, slicing, value_counted(a, counted(entries)))
+
+# Records a[..., start:stop:step, ...] with the slice at axis `dim`.
+def slice(tape: Tape, +a: Nat, +dim: U32, +start: U32, +stop: U32, +step: U32) -> Tape & Result<&2, &2, Error, Nat>:
+  sliced(tape, a, Sliced{dim, start, stop, step})
+
+# Records a.narrow(dim, start, length).
+def narrow(tape: Tape, +a: Nat, +dim: U32, +start: U32, +length: U32) -> Tape & Result<&2, &2, Error, Nat>:
+  sliced(tape, a, Narrowed{dim, start, length})
+
+# Records a.select(dim, index), which drops the axis.
+def select(tape: Tape, +a: Nat, +dim: U32, +index: U32) -> Tape & Result<&2, &2, Error, Nat>:
+  sliced(tape, a, Selected{dim, index})
+
 def relu_zeroed(+a: Nat, entries: List<&1, Entry>, +shape: Shape.Shape, input: Core.Dynamic,
   zero: Result<&2, &1, Core.Error, Core.Tensor<Reduction.scalar_shape()>>) -> Tape & Result<&2, &2, Error, Nat>:
   match zero:
@@ -1440,3 +1558,5 @@ def error_code(error: Error) -> U32:
       Gradient.error_code(error)
     case LossError{error}:
       Loss.error_code(error)
+    case SliceError{error}:
+      Slice.error_code(error)

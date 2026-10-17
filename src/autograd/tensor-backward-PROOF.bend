@@ -99,6 +99,8 @@ def Laws.tensor_vjp_frozen_unsent(id, node, saved, g, computed):
       {==}
     case Backward.BatchedMatmul{a, b, left, right}:
       {==}
+    case Backward.Slice{a, input, kept, plan}:
+      {==}
     case Backward.Constant{}:
       {==}
     case Backward.Frozen{inner_id, inner}:
@@ -226,6 +228,8 @@ def Laws.tensor_vjp_frozen_spares(id, node, saved, g):
       unsent_spared(id, Backward.vjp(Backward.CrossEntropy{a, input}, saved, g))
     case Backward.BatchedMatmul{a, b, left, right}:
       unsent_spared(id, Backward.vjp(Backward.BatchedMatmul{a, b, left, right}, saved, g))
+    case Backward.Slice{a, input, kept, plan}:
+      unsent_spared(id, Backward.vjp(Backward.Slice{a, input, kept, plan}, saved, g))
     case Backward.Constant{}:
       unsent_spared(id, Backward.vjp(Backward.Constant{}, saved, g))
     case Backward.Frozen{inner_id, inner}:
@@ -312,6 +316,8 @@ def operands_bounded(+node: Backward.Node, +bound: Nat) ->
       Equal.sym(Bool, Bool.and(Nat.is_lt(a, bound), True{}), Nat.is_lt(a, bound), and_true(Nat.is_lt(a, bound)))
     case Backward.BatchedMatmul{a, b, left, right}:
       pair_bounded(a, b, bound)
+    case Backward.Slice{a, input, kept, plan}:
+      Equal.sym(Bool, Bool.and(Nat.is_lt(a, bound), True{}), Nat.is_lt(a, bound), and_true(Nat.is_lt(a, bound)))
     case Backward.Constant{}:
       {==}
     case Backward.Frozen{id, inner}:
