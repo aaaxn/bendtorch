@@ -11,6 +11,7 @@ import ./reduction-LAWS.bend as Reduction
 import ./matmul-LAWS.bend as Matrix
 import ./batched-matmul-LAWS.bend as BatchedMatrix
 import ./slice-LAWS.bend as Slice
+import ./gather-LAWS.bend as Gather
 import ./parallel-LAWS.bend as Parallel
 import ./relu-LAWS.bend as Relu
 import ./loss-ops-LAWS.bend as LossOps

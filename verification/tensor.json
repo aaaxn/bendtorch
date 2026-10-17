@@ -324,6 +324,19 @@
     "signed_2d_LAWS.signed_narrow_first",
     "signed_2d_LAWS.signed_narrow_last_inside",
     "signed_2d_LAWS.signed_narrow_before",
-    "signed_2d_LAWS.signed_narrow_before_axis"
+    "signed_2d_LAWS.signed_narrow_before_axis",
+    "gather_2d_LAWS.index_select_axis_refused",
+    "gather_2d_LAWS.index_select_out_of_range",
+    "gather_2d_LAWS.index_select_planned",
+    "gather_2d_LAWS.gather_count_refused",
+    "gather_2d_LAWS.gather_axis_refused",
+    "gather_2d_LAWS.gather_rank_refused",
+    "gather_2d_LAWS.gather_shape_refused",
+    "gather_2d_LAWS.gather_out_of_range",
+    "gather_2d_LAWS.gather_planned",
+    "gather_2d_LAWS.index_select_refused",
+    "gather_2d_LAWS.gather_refused",
+    "gather_2d_LAWS.gather_build_cells",
+    "gather_2d_LAWS.gather_scatter_cells"
   ]
 }
