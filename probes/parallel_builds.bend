@@ -2,12 +2,15 @@ import Base
 import ../src/shape/core.bend as Shape
 import ../src/tensor/core.bend as Core
 import ../src/tensor/matmul.bend as Matrix
+import ../src/tensor/elementwise.bend as Elementwise
+import ../src/tensor/reduction.bend as Reduction
 import ../src/tensor/transforms.bend as Transforms
 import ../src/autograd/reduce.bend as Reduce
 import ../src/autograd/reduce-fold.bend as ReduceFold
 
 # The parallel builds next to the sequential definitions, on inputs large
-# enough to fork. For each product and reduction the program prints how many levels the
+# enough to fork. For each product, elementwise operation, sum and reduction
+# the program prints how many levels the
 # public build forks, how many output words differ from the sequential
 # definition, and a rolling hash of the public words. tools/tensor_parallel.py
 # runs it at several thread counts and requires every count to print the same
@@ -262,6 +265,107 @@ def count(dims: List<&2, U32>) -> Nat:
 def reduction(+name: String, +rounding: Bool, +dims: List<&2, U32>, +target: List<&2, U32>, +cells: Nat, +depth: Nat) -> IO(Unit):
   reduce_input(name, cells, depth, target, Core.construct(dims, reversed(words(count(dims), rounding, 0n, 7n, Nil{}), Nil{})))
 
+# Elementwise builds next to the one-thread checked loop that
+# `Elementwise.allocated` runs: it reads each input at the indices
+# `Elementwise.input_indices` projects from the flat output index, with no
+# broadcast walk and no input slot. The inputs exceed 2^15 cells, so the
+# build forks, and their counts are not powers of two, so the output storage
+# has padding cells past the count.
+def elementwise_outcome(pair: (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>) -> Maybe<&1, Core.Dynamic>:
+  (inputs, result) = pair
+  match result:
+    case Fail{error}:
+      None{}
+    case Done{out}:
+      Some{out}
+
+def elementwise_sequential(+operation: Elementwise.Operation, left: Core.Dynamic, right: Core.Dynamic,
+  result: Result<&2, &2, Shape.Error, Shape.BroadcastPlan>) -> Maybe<&1, Core.Dynamic>:
+  match result:
+    case Fail{error}:
+      None{}
+    case Done{+plan}:
+      elementwise_outcome(Elementwise.allocated(operation, plan, left, right, Core.new(Shape.output_shape(plan), 0.0)))
+
+def elementwise_built(+name: String, +operation: Elementwise.Operation, +cells: Nat, +depth: Nat,
+  a: Core.Dynamic, b: Core.Dynamic, c: Core.Dynamic, d: Core.Dynamic) -> IO(Unit):
+  Core.Packed{+left, x} = c
+  Core.Packed{+right, y} = d
+  report(name, Elementwise.splits(depth), cells, elementwise_outcome(Elementwise.binary(operation, a, b)),
+    elementwise_sequential(operation, Core.Packed{left, x}, Core.Packed{right, y}, Shape.broadcast_checked(left, right)))
+
+def elementwise_inputs(+name: String, +operation: Elementwise.Operation, +cells: Nat, +depth: Nat,
+  a: Result<&2, &1, Core.Error, Core.Dynamic>, b: Result<&2, &1, Core.Error, Core.Dynamic>,
+  c: Result<&2, &1, Core.Error, Core.Dynamic>, d: Result<&2, &1, Core.Error, Core.Dynamic>) -> IO(Unit):
+  match a b c d:
+    case Done{a} Done{b} Done{c} Done{d}:
+      elementwise_built(name, operation, cells, depth, a, b, c, d)
+    case _ _ _ _:
+      IO.print(name ++ " inputs failed")
+
+def tensor(+dims: List<&2, U32>, +step: Nat) -> Result<&2, &1, Core.Error, Core.Dynamic>:
+  Core.construct(dims, reversed(words(count(dims), True{}, 0n, step, Nil{}), Nil{}))
+
+# `operation` of a `left` and a `right` tensor of rounding words, whose
+# output of `cells` cells sits in a storage of depth `depth`.
+def elementwise(+name: String, +operation: Elementwise.Operation, +left: List<&2, U32>, +right: List<&2, U32>,
+  +cells: Nat, +depth: Nat) -> IO(Unit):
+  elementwise_inputs(name, operation, cells, depth, tensor(left, 7n), tensor(right, 11n), tensor(left, 7n), tensor(right, 11n))
+
+# `Reduction.sum` next to `Reduction.natural_sum_loop`, the checked loop its
+# laws state, on rounding words: adding them in another order changes the
+# sum's bits. The sum never forks.
+def sum_tally(found: Result<&2, &2, Core.Error, F32>, +expected: F32) -> Tally:
+  match found:
+    case Done{x}:
+      +bits = F32.bits(x)
+      Tally{Bool.pick(U32, U32.is_eq(bits, F32.bits(expected)), 0, 1), (U32.mul(2166136261, 16777619) .^. bits : U32)}
+    case Fail{error}:
+      Tally{1, 2166136261}
+
+def sum_scalar(+expected: F32, pair: Core.Dynamic & Result<&2, &2, Core.Error, F32>) -> Tally:
+  (scalar, found) = pair
+  sum_tally(found, expected)
+
+def sum_public(+expected: F32, result: Result<&2, &1, Core.Error, Core.Dynamic & Core.Dynamic>) -> Maybe<&2, Tally>:
+  match result:
+    case Fail{error}:
+      None{}
+    case Done{pair}:
+      (input, scalar) = pair
+      Some{sum_scalar(expected, Core.read_dynamic(scalar, 0))}
+
+def sum_sequential(-shape: Shape.Shape, mine: Result<&2, &1, Core.Error, Core.Dynamic & Core.Dynamic>,
+  theirs: Result<&2, &1, Core.Error, Core.Tensor<shape> & F32>) -> Maybe<&2, Tally>:
+  match theirs:
+    case Fail{error}:
+      None{}
+    case Done{pair}:
+      (tensor, +expected) = pair
+      sum_public(expected, mine)
+
+def sum_shown(+name: String, tally: Maybe<&2, Tally>) -> IO(Unit):
+  match tally:
+    case Some{tally}:
+      show(name, 0n, tally)
+    case None{}:
+      IO.print(name ++ " failed")
+
+def sum_built(+name: String, a: Core.Dynamic, b: Core.Dynamic) -> IO(Unit):
+  Core.Packed{+shape, x} = b
+  sum_shown(name, sum_sequential(shape, Reduction.sum_dynamic(a),
+    Reduction.natural_sum_loop(Shape.elements(shape), shape, x, 0n, 0.0)))
+
+def sum_inputs(+name: String, a: Result<&2, &1, Core.Error, Core.Dynamic>, b: Result<&2, &1, Core.Error, Core.Dynamic>) -> IO(Unit):
+  match a b:
+    case Done{a} Done{b}:
+      sum_built(name, a, b)
+    case _ _:
+      IO.print(name ++ " inputs failed")
+
+def sum(+name: String, +dims: List<&2, U32>) -> IO(Unit):
+  sum_inputs(name, tensor(dims, 7n), tensor(dims, 7n))
+
 def main() -> IO(Unit):
   do IO<Unit>:
     product("matmul-128x64x64", False{}, 128, 64, 64, 13n)
@@ -275,3 +379,13 @@ def main() -> IO(Unit):
     reduction("reduce-64x16x32-to-16x1-rounding", True{}, [64, 16, 32], [16, 1], 16n, 4n)
     reduction("reduce-64x16x32-to-64x1x1-rounding", True{}, [64, 16, 32], [64, 1, 1], 64n, 6n)
     reduction("reduce-6x5x4-to-5x1", False{}, [6, 5, 4], [5, 1], 5n, 3n)
+    reduction("reduce-130x256-to-1x256-rounding", True{}, [130, 256], [1, 256], 256n, 8n)
+    reduction("reduce-256x130-to-256x1-rounding", True{}, [256, 130], [256, 1], 256n, 8n)
+    reduction("reduce-65536-to-scalar-rounding", True{}, [65536], [], 1n, 0n)
+    elementwise("mul-100000-own-rounding", Elementwise.Mul{}, [100000], [100000], 100000n, 17n)
+    elementwise("add-100000-scalar-rounding", Elementwise.Add{}, [100000], [], 100000n, 17n)
+    elementwise("sub-scalar-100000-rounding", Elementwise.Sub{}, [], [100000], 100000n, 17n)
+    elementwise("mul-320x320-row-rounding", Elementwise.Mul{}, [320, 320], [320], 102400n, 17n)
+    elementwise("sub-320-320x320-rounding", Elementwise.Sub{}, [320], [320, 320], 102400n, 17n)
+    elementwise("add-320x1-1x320-rounding", Elementwise.Add{}, [320, 1], [1, 320], 102400n, 17n)
+    sum("sum-100000-rounding", [100000])

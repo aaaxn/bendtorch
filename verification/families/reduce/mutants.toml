@@ -33,6 +33,13 @@ before = '''
 after = '''
         fiber(rest, others, first_span(rest, others), inner, Nat.add(base, Nat.mul(left, digit)), first_digit(rest, inner),'''
 
+[reduce-to-strided-walks-target-stride]
+file = "src/autograd/reduce.bend"
+before = '''
+      strided(fuel, right, base, digit, single_offset(rest, others, Nat.mod(target, left), 0n), accumulator, array)'''
+after = '''
+      strided(fuel, left, base, digit, single_offset(rest, others, Nat.mod(target, left), 0n), accumulator, array)'''
+
 [reduce-to-skips-last-digit]
 file = "src/autograd/reduce.bend"
 before = '''
@@ -45,9 +52,9 @@ after = '''
 [reduce-to-starts-negative-zero]
 file = "src/autograd/reduce.bend"
 before = '''
-  fiber(rows, extents, first_span(rows, extents), target, 0n, first_digit(rows, target), 0.0, array)'''
+  fiber_fast(rows, extents, first_span(rows, extents), single_below(rows, extents), target, 0n, first_digit(rows, target), 0.0, array)'''
 after = '''
-  fiber(rows, extents, first_span(rows, extents), target, 0n, first_digit(rows, target), F32.neg(0.0), array)'''
+  fiber_fast(rows, extents, first_span(rows, extents), single_below(rows, extents), target, 0n, first_digit(rows, target), F32.neg(0.0), array)'''
 
 [reduce-to-swapped-add]
 file = "src/autograd/reduce.bend"

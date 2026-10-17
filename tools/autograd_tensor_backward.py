@@ -90,12 +90,13 @@ RUNTIME_CONTROLS = {
         "unrecorded(add(tape, product, bias))",
         "add(tape, product, bias)",
     ),
+    # The bias gradient's column sum runs the strided loop of
+    # `Reduce.fiber_fast`; stepping it by the target's stride sums each row's
+    # first word instead.
     "linear-bias-gradient-sums-rows": (
         "src/autograd/reduce.bend",
-        "        fiber(rest, others, first_span(rest, others), inner, "
-        "Nat.add(base, Nat.mul(right, digit)), first_digit(rest, inner),",
-        "        fiber(rest, others, first_span(rest, others), inner, "
-        "Nat.add(base, Nat.mul(left, digit)), first_digit(rest, inner),",
+        "      strided(fuel, right, base, digit, single_offset(",
+        "      strided(fuel, left, base, digit, single_offset(",
     ),
     "merge-overwrites-slot": (
         "merged_entry(node, shape, value, saved, Gradient.accumulate(shape, slot, g), "
