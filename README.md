@@ -156,7 +156,7 @@ Each module builds on the one below it.
 | --- | --- | --- |
 | `src/shape/` | Validated shapes, row-major flatten and unflatten, checked coordinates, broadcast plans | `src/shape/LAWS.bend` |
 | `src/storage/` | F32 storage with one owner and a bounds check before every access | `src/storage/LAWS.bend` |
-| `src/tensor/` | The tensor core, elementwise operations, `sum`, `matmul`, `torch.matmul` (`Batched.matmul`), basic slicing (`Slice.slice`, `narrow`, `select`), `reshape`, `permute_copy`, `transpose_copy`, PyTorch's signed axes and indices, and the proved contracts | `src/tensor/LAWS.bend` |
+| `src/tensor/` | The tensor core, elementwise operations, `sum`, `matmul`, `torch.matmul` (`Batched.matmul`), basic slicing (`Slice.slice`, `narrow`, `select`), `index_select` and `gather` (`Gather`), `reshape`, `permute_copy`, `transpose_copy`, PyTorch's signed axes and indices, and the proved contracts | `src/tensor/LAWS.bend` |
 | `src/autograd/` | `broadcast_to`, `reduce_to`, `sum_to_size`, `sum_dims`, gradient slots, scalar and tensor `backward`, the losses, SGD | `src/autograd/LAWS.bend` |
 | `experiments/` | The MNIST training run, the autograd prototypes, the benchmarks, and other experiments outside `src/` | [MNIST](docs/mnist.md), [autograd design](experiments/autograd-prototypes/DESIGN.md) |
 | `oracle/` | The PyTorch references, in their own uv project | [oracle](oracle/README.md) |
@@ -254,7 +254,9 @@ the root environment.
   `src/tensor/signed.bend`: `Signed.Last{0}` is `-1`. `reshape` takes one
   `-1`, `Signed.Inferred{}`. Basic slicing (`Signed.slice`, `narrow` and
   `select`, one axis at a time) copies and takes negative starts, stops and
-  indices as PyTorch does; there is no advanced indexing.
+  indices as PyTorch does. `Gather.index_select` and `gather` copy too, with
+  an index of U32 entries rather than an integer tensor; there is no other
+  advanced indexing (integer-tensor `a[idx]`, boolean masks).
 - `sum` reduces the whole tensor. On the tape, `sum_dims` sums the listed
   axes, with or without `keepdim`. `matmul` takes two rank-2 tensors.
   `Batched.matmul`, PyTorch's `torch.matmul`, promotes 1-D inputs and
@@ -265,7 +267,8 @@ the root environment.
   two agree within the rounding bound, not word for word.
 - Tensor `backward` records only `add`, `sub`, `mul`, `matmul`, `matmul_nt`,
   `batched_matmul` (`torch.matmul`), `sum`, `sum_dims`, `slice`, `narrow`,
-  `select`, `relu`, `mse_loss` and `cross_entropy`.
+  `select`, `index_select`, `gather`, `relu`, `mse_loss` and
+  `cross_entropy`.
 - CPU only.
 
 The [differences from PyTorch](docs/torch-differences.md) page lists each

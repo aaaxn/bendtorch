@@ -65,6 +65,8 @@ def targets(node: Backward.Node) -> List<&2, Nat>:
       [a, b]
     case Backward.Slice{a, input, kept, plan}:
       [a]
+    case Backward.Gathered{a, input, plan, entries}:
+      [a]
     case Backward.Constant{}:
       []
     case Backward.Frozen{id, inner}:

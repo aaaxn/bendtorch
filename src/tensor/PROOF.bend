@@ -12,6 +12,7 @@ import ./reduction-PROOF.bend as Reduction
 import ./matmul-PROOF.bend as Matrix
 import ./batched-matmul-PROOF.bend as BatchedMatrix
 import ./slice-PROOF.bend as Slice
+import ./gather-PROOF.bend as Gather
 import ./parallel-PROOF.bend as Parallel
 import ./relu-PROOF.bend as Relu
 import ./loss-ops-PROOF.bend as LossOps

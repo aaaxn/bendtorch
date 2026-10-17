@@ -118,6 +118,23 @@ def replay(case: Json) -> Json:
                 # -rank..rank-1 or a rank-0 input raises IndexError.
                 chosen = nodes[step["a"]].select(step["dim"], step["index"])
                 lines.append(record(chosen, nodes))
+            elif name == "index_select":
+                # An axis outside -rank..rank-1 raises IndexError, an entry
+                # at or past the extent RuntimeError ("INDICES element is out
+                # of DATA bounds") or IndexError on a rank-0 input.
+                index = torch.tensor(step["index"], dtype=torch.int64)
+                chosen = nodes[step["a"]].index_select(step["dim"], index)
+                lines.append(record(chosen, nodes))
+            elif name == "gather":
+                # An entry count that is not the product of the index's
+                # dimensions fails its reshape (RuntimeError); an axis outside
+                # -rank..rank-1 raises IndexError; an index of another rank,
+                # one wider than the input at another axis and an entry at or
+                # past the extent RuntimeError.
+                index = torch.tensor(step["index"], dtype=torch.int64)
+                index = index.reshape(step["index_shape"])
+                taken = nodes[step["a"]].gather(step["dim"], index)
+                lines.append(record(taken, nodes))
             elif name == "sum_dims":
                 # An axis out of range raises IndexError, an axis listed
                 # twice RuntimeError; dim=[] sums every axis.
