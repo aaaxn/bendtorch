@@ -59,7 +59,7 @@ from tools.autograd_tensor_bound import (
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "236888b76858cf6cdad2a06cdea9990bf27f1a154def7e728fe2502471624e7c"
+FIXTURE_SHA256 = "9a8acf6d8a69380deae448952f943a88e76044e14a974904affee2fe97a0c5af"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
@@ -99,7 +99,12 @@ RUNTIME_ERROR_CODES = {6, MATMUL_RANK, MATMUL_INNER, 10}
 # one whose start is the largest U32 (IndexError, 20), one past the rank
 # (IndexError, 13) and one of a rank-0 input (RuntimeError, 13); a select at
 # the extent (IndexError, 20), one past the rank and one of a rank-0 input
-# (IndexError, 13).
+# (IndexError, 13). Those of slice_negative_refused: a slice at an axis
+# before -rank and of a rank-0 input (IndexError, 13); a narrow start before
+# -extent with and without a length (IndexError, 20), one at -extent whose
+# length passes the extent (RuntimeError, 20), and one at an axis before
+# -rank (IndexError, 13); a select index before -extent (IndexError, 20), at
+# an axis before -rank and of a rank-0 input (IndexError, 13).
 STEP_REJECTIONS = {
     "cross_entropy_refused": [
         ("IndexError", TARGET_OUT_OF_RANGE),
@@ -135,6 +140,17 @@ STEP_REJECTIONS = {
         ("IndexError", OUT_OF_RANGE),
         ("IndexError", AXIS_OUT_OF_BOUNDS),
         ("RuntimeError", AXIS_OUT_OF_BOUNDS),
+        ("IndexError", OUT_OF_RANGE),
+        ("IndexError", AXIS_OUT_OF_BOUNDS),
+        ("IndexError", AXIS_OUT_OF_BOUNDS),
+    ],
+    "slice_negative_refused": [
+        ("IndexError", AXIS_OUT_OF_BOUNDS),
+        ("IndexError", AXIS_OUT_OF_BOUNDS),
+        ("IndexError", OUT_OF_RANGE),
+        ("IndexError", OUT_OF_RANGE),
+        ("RuntimeError", OUT_OF_RANGE),
+        ("IndexError", AXIS_OUT_OF_BOUNDS),
         ("IndexError", OUT_OF_RANGE),
         ("IndexError", AXIS_OUT_OF_BOUNDS),
         ("IndexError", AXIS_OUT_OF_BOUNDS),
@@ -776,7 +792,7 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
             | set(CAPACITY_REFUSALS)
         )
         self.assertEqual(exact, len(cases()) - len(excluded))
-        self.assertEqual(exact, 232)
+        self.assertEqual(exact, 255)
 
     # Planted wrong results on the reference's side, as a wrong Bend result
     # would be: a sum, a broadcast reduction, a sum over axes (reduce_to) and
@@ -802,7 +818,7 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                 identifier, seen[identifier], bounded_reference(rows[identifier]), pins
             )
         planted = {
-            "total": (dropping_total, 130, {"loss_07", "slice_parallel"}, (113, 13, 2)),
+            "total": (dropping_total, 138, {"loss_07", "slice_parallel"}, (121, 13, 2)),
             "sum_to_size": (dropping_sum_to_size, 87, set(), (85, 2, 0)),
             "matmul": (dropping_matmul, 58, set(), (56, 2, 0)),
             "reduce_to": (dropping_reduce_to, 21, set(), (21, 0, 0)),
@@ -995,7 +1011,7 @@ class GateRegistrationTests(unittest.TestCase):
             self.assertIn("quiet(2143289344)", mutated)
 
     def test_runtime_controls_apply_once(self):
-        self.assertEqual(len(RUNTIME_CONTROLS), 53)
+        self.assertEqual(len(RUNTIME_CONTROLS), 54)
         for control in RUNTIME_CONTROLS.values():
             path, original, mutated = (
                 control
