@@ -63,6 +63,14 @@ def written(+shape: Shape.Shape, pair: Core.Tensor<shape> & Result<&2, &2, Core.
     case Done{unit}:
       Harness.snapshot(Core.pack(shape, tensor))
 
+def stored(pair: Core.Dynamic & Result<&2, &2, Core.Error, Unit>) -> IO(Unit):
+  (tensor, result) = pair
+  match result:
+    case Fail{error}:
+      refused(Core.error_code(error))
+    case Done{unit}:
+      Harness.snapshot(tensor)
+
 def apply(request: Request, input: Core.Dynamic) -> IO(Unit):
   match request:
     case Reshape{extents}:
@@ -80,8 +88,7 @@ def apply(request: Request, input: Core.Dynamic) -> IO(Unit):
     case GetFlat{index}:
       flat(Signed.read_dynamic(input, index))
     case SetFlat{index, value}:
-      Core.Packed{+shape, tensor} = input
-      written(shape, Signed.write_flat(shape, tensor, index, Harness.from_bits(value)))
+      stored(Signed.write_dynamic(input, index, Harness.from_bits(value)))
 
 def run(request: Request, input: Result<&2, &1, Core.Error, Core.Dynamic>) -> IO(Unit):
   match input:

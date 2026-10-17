@@ -123,7 +123,7 @@ class SignedRegistrationTests(unittest.TestCase):
         laws = re.findall(
             r"^law (\w+):", (ROOT / "src/tensor/signed-LAWS.bend").read_text(), re.M
         )
-        self.assertEqual(len(laws), 33)
+        self.assertEqual(len(laws), 34)
         self.assertEqual(
             [name for name in required if name.startswith("signed_2d_LAWS.")],
             [f"signed_2d_LAWS.{name}" for name in laws],

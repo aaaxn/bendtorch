@@ -266,6 +266,7 @@
     "signed_2d_LAWS.signed_read_flat_wraps",
     "signed_2d_LAWS.signed_write_flat_wraps",
     "signed_2d_LAWS.signed_read_dynamic_wraps",
+    "signed_2d_LAWS.signed_write_dynamic_wraps",
     "signed_2d_LAWS.signed_reshape_infers",
     "signed_2d_LAWS.signed_reshape_dynamic_infers",
     "signed_2d_LAWS.signed_reshape_unsigned",

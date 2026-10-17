@@ -217,6 +217,10 @@ def read_dynamic(dynamic: Core.Dynamic, index: Position) -> Core.Dynamic & Resul
   Core.Packed{+shape, tensor} = dynamic
   Core.read_dynamic_result(shape, read_flat(shape, tensor, index))
 
+def write_dynamic(dynamic: Core.Dynamic, index: Position, value: F32) -> Core.Dynamic & Result<&2, &2, Core.Error, Unit>:
+  Core.Packed{+shape, tensor} = dynamic
+  Core.write_dynamic_result(shape, write_flat(shape, tensor, index, value))
+
 def error_code(error: Error) -> U32:
   match error:
     case TransformError{error}:

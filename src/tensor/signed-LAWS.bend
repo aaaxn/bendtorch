@@ -158,6 +158,13 @@ law signed_read_dynamic_wraps:
   {Signed.read_dynamic(input, index) == Core.read_dynamic(input, Signed.wrap(Shape.count(Totality.dynamic_shape(input)), index)) :
     Core.Dynamic & Result<&2, &2, Core.Error, F32>}
 
+law signed_write_dynamic_wraps:
+  for input: Core.Dynamic
+  for +index: Signed.Position
+  for value: F32
+  {Signed.write_dynamic(input, index, value) == Core.write_dynamic(input, Signed.wrap(Shape.count(Totality.dynamic_shape(input)), index), value) :
+    Core.Dynamic & Result<&2, &2, Core.Error, Unit>}
+
 # A reshape infers its sizes from the input's element count, then is the
 # unsigned reshape.
 law signed_reshape_infers:

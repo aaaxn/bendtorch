@@ -210,6 +210,10 @@ def Laws.signed_read_dynamic_wraps(input, index):
   Core.Packed{+shape, tensor} = input
   {==}
 
+def Laws.signed_write_dynamic_wraps(input, index, value):
+  Core.Packed{+shape, tensor} = input
+  {==}
+
 def Laws.signed_reshape_infers(input, tensor, extents):
   {==}
 
