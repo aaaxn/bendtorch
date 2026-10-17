@@ -53,7 +53,7 @@ from tools.autograd_tensor_bound import (
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "0993ec6a86c68d64f1189154c83f8563a0e9716951bfb4ebd0b3affea68f3091"
+FIXTURE_SHA256 = "9f4ffd73142cf4f7b8b9de6d2bf04841be4610fa0ab4f09cdfc43618e2a6a030"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
@@ -112,29 +112,44 @@ NAN_PAYLOAD = {
 # rounding_14 has a matmul with inner dimension 1 whose only product is -0.0:
 # the ordered dot adds it to +0.0 and gives +0.0, PyTorch's gemm keeps -0.0.
 # relu_13 has the same inner-dimension-1 matmul, whose products 0.5 * -1e-45
-# and 0.5 * -0.0 are -0.0. batched_rounding_04 and batched_rounding_06 sum
-# the words of a torch.matmul in order, where PyTorch's sum takes another.
-# Every gradient must agree word for word, and every value word that differs
+# and 0.5 * -0.0 are -0.0. batched_rounding_01 sums the words of a
+# torch.matmul in order, where PyTorch's sum takes another. Every gradient must agree word for word, and every value word that differs
 # must lie within its rounding-error bound (AGENTS.md, numeric policy, level
 # 2; tools/autograd_tensor_bound.py).
 FORWARD_ORDER = {
     "rounding_09",
     "rounding_14",
     "relu_13",
-    "batched_rounding_04",
-    "batched_rounding_06",
+    "batched_rounding_01",
 }
-# Gradient words of a product with one term: g @ right^T of a [3, 4] @ [4, 1]
-# matmul in batched_rounding_02, whose only product is -0.0 (g times a -0.0
-# word): the ordered dot adds it to +0.0 and gives +0.0, PyTorch's gemm keeps
-# -0.0. For each script, the line index of every word that differs and the
-# pair (PyTorch's word, the reference's word); every other line must be
-# exact, and each pinned word must also lie within its rounding-error bound.
-PRODUCT_ZERO_SIGN = {
+# torch.matmul words in the last bits, each pinned as (PyTorch's word, the
+# reference's word) at its line, every other line exact, and each pinned
+# word within its rounding-error bound. A product with one term (inner
+# extent 1, as g @ right^T has for a 1-D right operand, or a [3, 4] @ [4, 1]
+# matmul) whose only product is -0.0: the ordered dot adds it to +0.0 and
+# gives +0.0, PyTorch keeps -0.0 (batched_rounding_00, batched_rounding_02).
+# In batched_rounding_04 the right operand [5, 3] is broadcast over the
+# batch [3, 1]: its gradient sums the batch's x^T @ g in batch order, where
+# PyTorch folds the batch into one product (1 ulp), and the forward sum
+# adds in order, where PyTorch's sum takes another (3 ulp).
+PRODUCT_ORDER = {
+    "batched_rounding_00": {
+        44: (0x80000000, 0x00000000),
+        47: (0x80000000, 0x00000000),
+        59: (0x80000000, 0x00000000),
+        62: (0x80000000, 0x00000000),
+        64: (0x80000000, 0x00000000),
+        66: (0x80000000, 0x00000000),
+    },
     "batched_rounding_02": {
-        24: (0x80000000, 0x00000000),
+        26: (0x80000000, 0x00000000),
         28: (0x80000000, 0x00000000),
-        32: (0x80000000, 0x00000000),
+        30: (0x80000000, 0x00000000),
+        34: (0x80000000, 0x00000000),
+    },
+    "batched_rounding_04": {
+        133: (0x4C3EBC1D, 0x4C3EBC1E),
+        322: (0xDA5529AF, 0xDA5529B2),
     },
 }
 # mse_loss words in the last bits: PyTorch sums the squares, and the
@@ -496,7 +511,7 @@ def record_rule(row: dict, seen: list[str], expected: list[str] | None = None) -
         return "forward_order"
     for family, pinned in (
         ("mse_rounding", MSE_ROUNDING),
-        ("product_zero_sign", PRODUCT_ZERO_SIGN),
+        ("product_order", PRODUCT_ORDER),
     ):
         if identifier in pinned:
             if word_pairs(seen, expected) != pinned[identifier]:
@@ -639,13 +654,13 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
             | NAN_PAYLOAD
             | FORWARD_ORDER
             | set(MSE_ROUNDING)
-            | set(PRODUCT_ZERO_SIGN)
+            | set(PRODUCT_ORDER)
             | set(LOSS_ROUNDING)
             | FUSED_UPDATE
             | NON_LEAF
         )
         self.assertEqual(exact, len(cases()) - len(excluded))
-        self.assertEqual(exact, 165)
+        self.assertEqual(exact, 164)
 
     # Planted wrong results on the reference's side, as a wrong Bend result
     # would be: a sum, a reduction and a matmul that leave out their last
@@ -668,7 +683,7 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                 identifier, seen[identifier], bounded_reference(rows[identifier]), pins
             )
         planted = {
-            "total": (dropping_total, 108, {"loss_07"}, (92, 13, 2)),
+            "total": (dropping_total, 107, {"loss_07"}, (91, 13, 2)),
             "sum_to_size": (dropping_sum_to_size, 80, set(), (78, 2, 0)),
             "matmul": (dropping_matmul, 58, set(), (56, 2, 0)),
         }
@@ -860,7 +875,7 @@ class GateRegistrationTests(unittest.TestCase):
             self.assertIn("quiet(2143289344)", mutated)
 
     def test_runtime_controls_apply_once(self):
-        self.assertEqual(len(RUNTIME_CONTROLS), 44)
+        self.assertEqual(len(RUNTIME_CONTROLS), 47)
         for control in RUNTIME_CONTROLS.values():
             path, original, mutated = (
                 control

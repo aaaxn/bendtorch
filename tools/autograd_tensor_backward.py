@@ -101,6 +101,27 @@ RUNTIME_CONTROLS = {
         "      strided(fuel, right, base, digit, single_offset(",
         "      strided(fuel, left, base, digit, single_offset(",
     ),
+    # torch.matmul: a stretched batch axis read at the cell's own index
+    # instead of 0, a gradient delivered over the output's batch without
+    # summing it to its operand's shape, and left^T @ g reading g by rows.
+    "batched-stretched-axis-reads-own-index": (
+        "src/tensor/batched-matmul.bend",
+        "    case True{}:\n      0n\n    case False{}:\n      index\n",
+        "    case True{}:\n      index\n    case False{}:\n      index\n",
+    ),
+    "batched-vjp-skips-batch-sum": (
+        "      (first, second, product) = triple\n"
+        "      contribution_of(reduced(target, shape, product))\n",
+        "      (first, second, product) = triple\n"
+        "      Done{Contribution{target, shape, product}}\n",
+    ),
+    "batched-right-gradient-reads-g-by-rows": (
+        "src/tensor/batched-matmul.bend",
+        "  Layout{Matrix.Swapped{}, Matrix.Swapped{}, rows, inner, columns, "
+        "l1, l2, o1, o2, o2}",
+        "  Layout{Matrix.Swapped{}, Matrix.Kept{}, rows, inner, columns, "
+        "l1, l2, o1, o2, o2}",
+    ),
     "merge-overwrites-slot": (
         "merged_entry(node, shape, value, saved, Gradient.accumulate(shape, slot, g), "
         "merge(rest, more))",
@@ -1505,6 +1526,18 @@ def counted_words(count: int, pool: tuple[int, ...], start: int) -> list[int]:
     return [pool[(start + 3 * index) % len(pool)] for index in range(count)]
 
 
+# x @ w, times a weight of the product's shape, summed: the product's
+# gradient is the weight, a different word in each cell, so a VJP that reads
+# g in the wrong order gives other words.
+def weighted(x: dict, w: dict, left: list[int], right: list[int], seed: int) -> list:
+    plan = batched_plan(left, right)
+    if isinstance(plan, int):
+        raise GateError(f"A batched script refuses its own product: {plan}")
+    shape = plan[3]
+    weights = leaf(shape, counted_words(math.prod(shape), EXACT, 7 * seed + 3))
+    return [x, w, op("batched_matmul", 0, 1), weights, op("mul", 2, 3), op("sum", 4)]
+
+
 def batched() -> list[dict]:
     result = []
     for index, (left, right) in enumerate(BATCHED_SHAPES):
@@ -1512,11 +1545,7 @@ def batched() -> list[dict]:
         w = leaf(right, counted_words(math.prod(right), EXACT, 5 * index + 1))
         name = "x".join(map(str, left)) + "_by_" + "x".join(map(str, right))
         result.append(
-            program_case(
-                f"batched_{name}",
-                [x, w, op("batched_matmul", 0, 1), op("sum", 2)],
-                3,
-            )
+            program_case(f"batched_{name}", weighted(x, w, left, right, index), 5)
         )
     stack = leaf([2, 2, 2], f(1.0, -2.0, 0.5, 3.0, 2.5, -1.0, 0.0, 1.5))
     vector = leaf([3], f(0.5, -1.0, 2.0))
@@ -1637,9 +1666,7 @@ def batched() -> list[dict]:
         w = leaf(right, counted_words(math.prod(right), ROUNDING, state >> 20))
         result.append(
             program_case(
-                f"batched_rounding_{index:02d}",
-                [x, w, op("batched_matmul", 0, 1), op("sum", 2)],
-                3,
+                f"batched_rounding_{index:02d}", weighted(x, w, left, right, index), 5
             )
         )
     return result
