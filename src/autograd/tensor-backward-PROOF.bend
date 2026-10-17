@@ -11,6 +11,9 @@ import ./tensor-backward.bend as Backward
 import ./tensor-backward-LAWS.bend as Laws
 import ../tensor/contracts/replayed.bend as Replayed
 import ../tensor/contracts/broadcast.bend as PointwiseBroadcast
+import ../tensor/transforms.bend as Transforms
+import ../tensor/lifecycle.bend as Lifecycle
+import ../storage/LAWS.bend as StorageLaws
 
 def eq_refl(+number: Nat) -> {True{} == Nat.is_eq(number, number) : Bool}:
   match number:
@@ -83,6 +86,8 @@ def Laws.tensor_vjp_frozen_unsent(id, node, saved, g, computed):
     case Backward.Mul{a, b, left, right}:
       {==}
     case Backward.Sum{a, input}:
+      {==}
+    case Backward.SumDims{a, input, kept}:
       {==}
     case Backward.Matmul{a, b, left, right}:
       {==}
@@ -207,6 +212,8 @@ def Laws.tensor_vjp_frozen_spares(id, node, saved, g):
       unsent_spared(id, Backward.vjp(Backward.Mul{a, b, left, right}, saved, g))
     case Backward.Sum{a, input}:
       unsent_spared(id, Backward.vjp(Backward.Sum{a, input}, saved, g))
+    case Backward.SumDims{a, input, kept}:
+      unsent_spared(id, Backward.vjp(Backward.SumDims{a, input, kept}, saved, g))
     case Backward.Matmul{a, b, left, right}:
       unsent_spared(id, Backward.vjp(Backward.Matmul{a, b, left, right}, saved, g))
     case Backward.Relu{a, input}:
@@ -286,6 +293,8 @@ def operands_bounded(+node: Backward.Node, +bound: Nat) ->
     case Backward.Mul{a, b, left, right}:
       pair_bounded(a, b, bound)
     case Backward.Sum{a, input}:
+      Equal.sym(Bool, Bool.and(Nat.is_lt(a, bound), True{}), Nat.is_lt(a, bound), and_true(Nat.is_lt(a, bound)))
+    case Backward.SumDims{a, input, kept}:
       Equal.sym(Bool, Bool.and(Nat.is_lt(a, bound), True{}), Nat.is_lt(a, bound), and_true(Nat.is_lt(a, bound)))
     case Backward.Matmul{a, b, left, right}:
       pair_bounded(a, b, bound)
@@ -442,3 +451,46 @@ def Laws.tensor_sum_vjp_pointwise(a, shape, input, plan, planned, same, saved, f
     other => Replayed.value(shape, fill, ops, other),
     Broadcast.broadcast_to(Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}}, input),
     BroadcastPointwise.broadcast_to_pointwise(shape, input, plan, planned, same, fill, ops, fits))
+
+# restored only puts g back in its own shape: the contributions are the pass's.
+def restored_contract(-a: Nat, -target: Shape.Shape, -cell: Nat -> F32, +shape: Shape.Shape, pass: Backward.Pass,
+  contract: Laws.SoleContract<a, target, cell, pass>) -> Laws.SoleContract<a, target, cell, Backward.restored(shape, pass)>:
+  match pass:
+    case Backward.Pass{saved, g, Fail{error}}:
+      Laws.SoleContract{target_id, dimensions, value} = contract
+      Laws.SoleContract{target_id, dimensions, value}
+    case Backward.Pass{saved, g, Done{Nil{}}}:
+      Laws.SoleContract{target_id, dimensions, value} = contract
+      Laws.SoleContract{target_id, dimensions, value}
+    case Backward.Pass{saved, g, Done{Con{contribution, Nil{}}}}:
+      Laws.SoleContract{target_id, dimensions, value} = contract
+      Laws.SoleContract{target_id, dimensions, value}
+    case Backward.Pass{saved, g, Done{Con{contribution, Con{other, rest}}}}:
+      Laws.SoleContract{target_id, dimensions, value} = contract
+      Laws.SoleContract{target_id, dimensions, value}
+
+def sum_dims_decided(+a: Nat, +shape: Shape.Shape, +input: Shape.Shape, +kept: Shape.Shape, +plan: Shape.BroadcastPlan,
+  planned: {Shape.broadcast_checked(kept, input) == Done{plan} : Result<&2, &2, Shape.Error, Shape.BroadcastPlan>},
+  same: {Shape.dimensions(Shape.output_shape(plan)) == Shape.dimensions(input) : List<&2, U32>},
+  counted: {Nat.is_eq(Shape.elements(shape), Shape.elements(kept)) == True{} : Bool},
+  saved: Backward.Saved, +fill: F32, +ops: List<&2, StorageLaws.Op>,
+  -fits: {Lifecycle.logical_length(Replayed.storage(kept, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat},
+  decision: Shape.BoolCase<Nat.is_eq(Shape.elements(shape), Shape.elements(kept))>) ->
+  Laws.SoleContract<a, input, index => Replayed.value(kept, fill, ops, U32.from_nat(PointwiseBroadcast.left_map(plan, index))),
+    Backward.unsqueezed(a, input, kept, shape, Core.TTensor{Replayed.storage(kept, fill, ops), fits}, decision)>:
+  match decision:
+    case Shape.BFalse{equal}:
+      Empty.absurd(Laws.SoleContract<a, input, index => Replayed.value(kept, fill, ops, U32.from_nat(PointwiseBroadcast.left_map(plan, index))),
+        Backward.unsqueezed(a, input, kept, shape, Core.TTensor{Replayed.storage(kept, fill, ops), fits}, Shape.BFalse{equal})>,
+        Arith.clash(Equal.trans(Bool, False{}, Nat.is_eq(Shape.elements(shape), Shape.elements(kept)), True{}, equal, counted)))
+    case Shape.BTrue{equal}:
+      restored_contract(a, input, index => Replayed.value(kept, fill, ops, U32.from_nat(PointwiseBroadcast.left_map(plan, index))), shape,
+        Backward.vjp_sum(a, input, Transforms.reshape_equal(shape, kept, Core.TTensor{Replayed.storage(kept, fill, ops), fits},
+          Transforms.elements_equal(shape, kept, equal))),
+        Laws.tensor_sum_vjp_pointwise(a, kept, input, plan, planned, same, saved, fill, ops,
+          Equal.trans(Nat, Lifecycle.logical_length(Replayed.storage(kept, fill, ops)), Shape.logical_numel(Shape.dimensions(shape)),
+            Shape.logical_numel(Shape.dimensions(kept)), fits, Transforms.elements_equal(shape, kept, equal))))
+
+def Laws.tensor_sum_dims_vjp_pointwise(a, shape, input, kept, plan, planned, same, counted, saved, fill, ops, fits):
+  sum_dims_decided(a, shape, input, kept, plan, planned, same, counted, saved, fill, ops, fits,
+    Shape.bool_case(Nat.is_eq(Shape.elements(shape), Shape.elements(kept))))

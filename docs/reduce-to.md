@@ -155,6 +155,74 @@ proofs must reject each: overwriting the total instead of adding, adding in the
 reversed order (`word + total`), starting from `1.0`, walking a digit with the
 target's stride instead of the contribution's, and skipping the target check.
 
+## Sum over axes
+
+`SumDims.sum_dims(input, axes, keepdim)` in `src/autograd/sum-dims.bend` is
+PyTorch's `input.sum(dim=axes, keepdim=keepdim)`. It plans, then reuses
+`reduce_to` and `reshape`:
+
+1. Check the axes as PyTorch does: any axis at or past the rank (past 0 for a
+   rank-0 input, whose only axis is 0) fails with `AxisOutOfBounds` (13), then
+   an axis listed twice with `DuplicateAxis` (14), the codes `permute` gives
+   (`Layout.bounded` and `Layout.unique`, `permute`'s own checks). So `[0, 0, 5]`
+   on a rank-2 input is out of bounds, not a repeat. Axes are U32, so a
+   negative axis cannot be given; the word of `-1` is out of bounds.
+2. The kept dimensions are the input's with each listed axis set to 1; an
+   empty list lists every axis, as PyTorch's `dim=[]`. The dropped dimensions
+   are the input's without the listed axes.
+3. `reduce_to(input, kept)`: each output cell is the ordered fold of its
+   fiber from `+0.0`, built in parallel as above. With keepdim that is the
+   result.
+4. Without keepdim, the result is reshaped to the dropped dimensions. A
+   reshape moves the storage to the new shape and copies no word.
+
+The input owner comes back next to the result, on success and on every
+refusal. The whole-tensor `sum` (`Reduction.sum`, no axes) is unchanged. A
+`-0.0` alone in its fiber, such as a reduced axis of extent 1, sums to `+0.0`,
+as PyTorch's sum over that axis does.
+
+| input | axes, keepdim | result |
+| --- | --- | --- |
+| `[2,3]` = 1..6 | `[1]`, False | `[2]`: 6, 15 |
+| `[2,3]` = 1..6 | `[0]`, True | `[1,3]`: 5, 7, 9 |
+| `[2,3]` = 1..6 | `[]` or `[1, 0]`, False | `[]`: 21 |
+| `[2,3]` = 1..6 | `[]`, True | `[1,1]`: 21 |
+| `[2,3,2]` = 1..12 | `[0, 2]`, False | `[3]`: 18, 26, 34 |
+| `[]` = -0.0 | `[0]`, False | `[]`: +0.0 |
+| `[0,3]` | `[0]`, False | `[3]`: 0, 0, 0 |
+| `[2,3]` | `[2]` or `[0, 0, 5]` | error 13 |
+| `[2,3]` | `[0, 0]` | error 14 |
+
+`src/autograd/sum-dims-LAWS.bend` states 17 laws, and `sum-dims-PROOF.bend`
+proves them. `sum_dims_keepdim` says the keepdim sum is exactly
+`reduce_to(input, kept)`, so every `reduce_to` law above gives its words and
+its parallel build; `sum_dims_drops` says the sum without keepdim is the
+keepdim sum reshaped to the dropped dimensions, whose words the reshape laws
+keep; `sum_dims_refused` says a refused plan hands the input back with its
+error. `sum_dims_plan_dimensions` says the plan's shape has the kept
+dimensions and its list the dropped ones, and `sum_dims_plan_refused` that a
+refusal fails the plan. The bookkeeping laws fix the rest:
+`sum_dims_every_axis` and `sum_dims_listed_axis` (which axes are reduced),
+`sum_dims_kept_start`, `sum_dims_kept_step`, `sum_dims_dropped_start`,
+`sum_dims_dropped_reduced` and `sum_dims_dropped_kept` (axes count from 0, a
+reduced axis becomes 1 or is left out), `sum_dims_rank_zero_limit` and
+`sum_dims_rank_limit` (a rank-0 input has axis 0), and
+`sum_dims_axis_out_of_bounds`, `sum_dims_duplicate_axis` and
+`sum_dims_axes_accepted` (the refusals and their order).
+
+The autograd gate applies seven proof controls and three error controls to a
+copy of the sources, and the proofs reject each: keepdim that drops the axes
+(`sum_dims_keepdim`), no keepdim that keeps them (`sum_dims_drops`), axes
+counted from 1 (`sum_dims_kept_start`), the axis after each listed one
+marked (`sum_dims_kept_step`), reduced and kept axes swapped in the dropped
+dimensions (`sum_dims_dropped_reduced`), an empty list that reduces nothing
+(`sum_dims_every_axis`), a rank-0 input with no axis
+(`sum_dims_rank_zero_limit`), each refusal reported as the other, and a
+refusal reported as `NotReducible`. On the tape, `TensorBackward.sum_dims`
+records it and its VJP reads `g` with the kept shape before broadcasting
+([tensor backward](tensor-backward.md)); the tensor backward gate compares
+29 scripts of sums over axes with PyTorch.
+
 ## Runtime lanes
 
 `tools/autograd_reduce.py` runs 540 requests on native Bend CPU

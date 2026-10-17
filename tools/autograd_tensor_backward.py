@@ -40,10 +40,13 @@ NOT_LEAF = 109
 INVALID_LEARNING_RATE = 110
 INFINITY = 0x7F800000
 BINARY = ("add", "sub", "mul", "matmul", "matmul_nt", "mse_loss")
-UNARY = ("sum", "relu", "cross_entropy")
+UNARY = ("sum", "sum_dims", "relu", "cross_entropy")
 NOT_LOGITS = 107
 TARGET_OUT_OF_RANGE = 108
 NEGATIVE_INFINITY = 0xFF800000
+# The codes permute gives a bad axis, which sum over axes reuses.
+AXIS_OUT_OF_BOUNDS = 13
+DUPLICATE_AXIS = 14
 
 RUNTIME_CONTROLS = {
     "seed-newest-node": (
@@ -97,6 +100,26 @@ RUNTIME_CONTROLS = {
         "src/autograd/reduce.bend",
         "      strided(fuel, right, base, digit, single_offset(",
         "      strided(fuel, left, base, digit, single_offset(",
+    ),
+    # A sum over axes: g of the dropped shape broadcast without the reduced
+    # axes put back, the axis after each listed one summed, and keepdim
+    # ignored.
+    "sum-dims-vjp-broadcasts-dropped-shape": (
+        "restored(shape, vjp_sum(a, input, "
+        "Transforms.reshape_equal(shape, kept, tensor, "
+        "Transforms.elements_equal(shape, kept, equal))))",
+        "restored(shape, vjp_sum(a, input, Core.Packed{shape, tensor}))",
+    ),
+    "sum-dims-sums-next-axis": (
+        "src/autograd/sum-dims.bend",
+        "Bool.pick(U32, reduces(axes, axis), 1, extent)",
+        "Bool.pick(U32, reduces(axes, U32.add(axis, 1)), 1, extent)",
+    ),
+    "sum-dims-ignores-keepdim": (
+        "src/autograd/sum-dims.bend",
+        "    case True{}:\n      Done{output}",
+        "    case True{}:\n"
+        "      transformed(Transforms.reshape_dynamic(output, dropped))",
     ),
     "merge-overwrites-slot": (
         "merged_entry(node, shape, value, saved, Gradient.accumulate(shape, slot, g), "
@@ -418,6 +441,11 @@ def constant(shape: list[int], words: list[int]) -> dict:
 
 def op(name: str, a: int, b: int | None = None) -> dict:
     return {"op": name, "a": a} if b is None else {"op": name, "a": a, "b": b}
+
+
+# PyTorch's a.sum(dim=axes, keepdim=keepdim).
+def dims(a: int, axes: list[int], keepdim: bool = False) -> dict:
+    return {"op": "sum_dims", "a": a, "dims": axes, "keepdim": keepdim}
 
 
 def entropy(a: int, targets: list[int]) -> dict:
@@ -1162,6 +1190,11 @@ ROUNDING = (
     NEGATIVE_ZERO,
 )
 
+# Words for the rounding sums over axes.
+SUM_POOL = tuple(
+    word(number) for number in (0.1, -0.3, 7.25, 1e-3, 1.0, -2.0, 0.5, 3.0, 1e8, -1e8)
+)
+
 # Words for programs with relu: both zeros, values on either side of zero
 # and a denormal on each side.
 RELU_POOL = (
@@ -1477,6 +1510,157 @@ def loss_generated(count: int, seed: int) -> list[dict]:
     return result
 
 
+# Sums over axes, PyTorch's sum(dim, keepdim): one axis, several in any
+# order, none (every axis), keepdim on and off, rank 0, an axis of extent 1
+# that holds -0.0, empty inputs, and the refusals. A product with a weight
+# after the sum makes each gradient word its own.
+def sum_dims_scripts() -> list[dict]:
+    grid = leaf([2, 3], f(1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
+    cube = leaf([2, 3, 4], f(*[0.5 * k - 3.0 for k in range(24)]))
+    scalar = leaf([], f(-2.5))
+    return [
+        program_case(
+            "sum_dims_rows",
+            [grid, dims(0, [1]), leaf([2], f(2.0, -0.5)), op("mul", 1, 2)],
+            3,
+        ),
+        program_case(
+            "sum_dims_columns_keepdim",
+            [grid, dims(0, [0], True), leaf([1, 3], f(0.5, -1.0, 4.0))]
+            + [op("mul", 1, 2), op("sum", 3)],
+            4,
+        ),
+        program_case(
+            "sum_dims_every_axis",
+            [grid, dims(0, []), dims(0, [], True), dims(0, [1, 0])]
+            + [op("add", 1, 2), op("mul", 4, 3)],
+            5,
+        ),
+        program_case(
+            "sum_dims_two_of_three",
+            [cube, dims(0, [2, 0]), leaf([3], f(1.0, -2.0, 0.25)), op("mul", 1, 2)]
+            + [op("sum", 3)],
+            4,
+        ),
+        program_case(
+            "sum_dims_middle_keepdim",
+            [cube, dims(0, [1], True), leaf([4], f(0.5, -1.0, 2.0, 3.0))]
+            + [op("mul", 1, 2), op("sum", 3)],
+            4,
+        ),
+        program_case(
+            "sum_dims_chain",
+            [cube, dims(0, [2]), dims(1, [0], True), op("mul", 2, 2), op("sum", 3)],
+            4,
+        ),
+        program_case(
+            "sum_dims_rank_zero",
+            [scalar, dims(0, [0]), dims(0, [0], True), dims(0, [])]
+            + [op("mul", 1, 2), op("mul", 4, 3)],
+            5,
+        ),
+        program_case(
+            "sum_dims_negative_zero",
+            [leaf([2, 1], f(NEGATIVE_ZERO, -3.0)), dims(0, [1])]
+            + [leaf([2], f(-1.0, 2.0)), op("mul", 1, 2)],
+            3,
+        ),
+        program_case(
+            "sum_dims_empty",
+            [leaf([0, 3], []), dims(0, [0]), dims(0, [1], True)]
+            + [op("sum", 1), op("sum", 2), op("add", 3, 4)],
+            5,
+        ),
+        program_case("sum_dims_seed_ones", [cube, dims(0, [0, 1])], 1),
+        program_case(
+            "sum_dims_constant",
+            [constant([2, 3], grid["words"]), dims(0, [0]), leaf([3], f(1.0, 2.0, 3.0))]
+            + [op("mul", 1, 2), dims(3, [0]), op("mul", 4, 4)],
+            5,
+        ),
+        # Rounding words: PyTorch adds a row of 20 in a vectorized order, so
+        # the row sums may differ from the ordered fold within their bound;
+        # it adds the columns row by row, as the fold does.
+        {
+            "id": "sum_dims_rounding",
+            "steps": [
+                leaf(
+                    [4, 20], [SUM_POOL[(i * 7 + 3 * (i // 5)) % 10] for i in range(80)]
+                ),
+                dims(0, [1]),
+                dims(0, [0], True),
+                run(1),
+                run(2),
+                *reads(3),
+            ],
+        },
+        {
+            "id": "sum_dims_refused",
+            "steps": [
+                grid,
+                dims(1, [0]),
+                dims(0, [2]),
+                dims(0, [0, 0]),
+                dims(0, [0, 0, 5]),
+                dims(0, [1, 1, 0]),
+                dims(0, [4294967295]),
+                scalar,
+                dims(1, [1]),
+                dims(0, [1]),
+                run(2),
+                *reads(3),
+            ],
+        },
+    ]
+
+
+# Sums over random axes of exact words in random shapes of rank 0 to 3,
+# mixed with add, mul and other sums, so every order of addition gives the
+# same words.
+def dims_generated(count: int, seed: int) -> list[dict]:
+    state = seed
+
+    def draw(bound: int) -> int:
+        nonlocal state
+        state = (state * 1103515245 + 12345) & 0x7FFFFFFF
+        return (state >> 8) % bound
+
+    result = []
+    for index in range(count):
+        rank = draw(4)
+        first = [1 + draw(3) for _ in range(rank)]
+        shapes = [first]
+        steps = [
+            leaf(first, [EXACT[draw(len(EXACT))] for _ in range(math.prod(first))])
+        ]
+        for _ in range(2 + draw(4)):
+            position = len(shapes)
+            a = draw(position)
+            shape = shapes[a]
+            if draw(3):
+                axes = [axis for axis in range(len(shape)) if draw(2)]
+                if len(axes) > 1 and draw(2):
+                    axes.reverse()
+                keepdim = bool(draw(2))
+                plan = sum_dims_plan(shape, axes)
+                if isinstance(plan, int):
+                    raise GateError("A generated sum over axes was refused")
+                steps.append(dims(a, axes, keepdim))
+                shapes.append(plan[0] if keepdim else plan[1])
+                continue
+            other = [extent for extent in shape if draw(2)]
+            words = [EXACT[draw(len(EXACT))] for _ in range(math.prod(other))]
+            steps += [leaf(other, words), op(("add", "mul")[draw(2)], a, position)]
+            shapes += [other, broadcast(shape, other) or []]
+        steps.append(op("sum", len(shapes) - 1))
+        count = len(shapes) + 1
+        steps += [run(count - 1), *reads(count)]
+        if draw(2):
+            steps += [ZERO_GRAD, run(count - 2), *reads(count)]
+        result.append({"id": f"dims_{index:02d}", "steps": steps})
+    return result
+
+
 def cases() -> list[dict]:
     result = (
         handwritten()
@@ -1485,6 +1669,8 @@ def cases() -> list[dict]:
         + generated("relu", RELU_POOL, 16, 0x1F2E3D4C, relu=True)
         + losses()
         + loss_generated(16, 0x3C6EF372)
+        + sum_dims_scripts()
+        + dims_generated(16, 0x6C078965)
     )
     if len({case["id"] for case in result}) != len(result):
         raise GateError("Duplicate autograd tensor backward case identifier")
@@ -1645,18 +1831,48 @@ def elementwise(combine, left: tuple, right: tuple) -> tuple | int:
     return (output, words)
 
 
-# sum_to_size: the words themselves when the shapes agree, otherwise the
-# ordered fold of reduce_to: each target cell adds its fiber in flat order,
-# from +0.0.
-def sum_to_size(tensor: tuple, target: list[int]) -> tuple:
+# reduce_to: each target cell adds its fiber in flat order, from +0.0, even
+# when the shapes agree.
+def reduce_to(tensor: tuple, target: list[int]) -> tuple:
     shape, words = tensor
-    if shape == target:
-        return (target, list(words))
     totals = [0] * math.prod(target)
     for flat in range(math.prod(shape)):
         position = source_index(target, shape, flat)
         totals[position] = add_word(totals[position], words[flat])
     return (target, totals)
+
+
+# sum_to_size: the words themselves when the shapes agree, otherwise the
+# ordered fold of reduce_to.
+def sum_to_size(tensor: tuple, target: list[int]) -> tuple:
+    if tensor[0] == target:
+        return (target, list(tensor[1]))
+    return reduce_to(tensor, target)
+
+
+# The kept and dropped dimensions of a sum over `axes`, or the code of its
+# refusal: an axis at or past the rank (1 for a rank-0 input) first, then an
+# axis listed twice, as PyTorch checks them. No axes reduce every axis.
+def sum_dims_plan(shape: list[int], axes: list[int]) -> tuple[list, list] | int:
+    if any(axis >= max(len(shape), 1) for axis in axes):
+        return AXIS_OUT_OF_BOUNDS
+    if len(set(axes)) != len(axes):
+        return DUPLICATE_AXIS
+    reduced = [not axes or axis in axes for axis in range(len(shape))]
+    kept = [1 if gone else extent for gone, extent in zip(reduced, shape, strict=True)]
+    dropped = [extent for gone, extent in zip(reduced, shape, strict=True) if not gone]
+    return kept, dropped
+
+
+# reduce_to onto the kept shape, then, without keepdim, the same words with
+# the dropped dimensions.
+def sum_dims(tensor: tuple, step: dict) -> tuple | int:
+    plan = sum_dims_plan(tensor[0], step["dims"])
+    if isinstance(plan, int):
+        return plan
+    kept, dropped = plan
+    summed = reduce_to(tensor, kept)
+    return summed if step["keepdim"] else (dropped, summed[1])
 
 
 def broadcast_to(tensor: tuple, target: list[int]) -> tuple:
@@ -1754,6 +1970,9 @@ def vjp(node: dict, gradient: tuple) -> list[tuple[int, tuple]]:
         ]
     if name == "sum":
         return [(node["a"], broadcast_to(gradient, node["left"]))]
+    if name == "sum_dims":
+        unsqueezed = (node["kept"], gradient[1])
+        return [(node["a"], broadcast_to(unsqueezed, node["left"]))]
     if name == "relu":
         passed = accepted(elementwise(relu_backward_word, node["saved"][0], gradient))
         return [(node["a"], sum_to_size(passed, node["left"]))]
@@ -1839,6 +2058,8 @@ def forward(name: str, values: list[tuple], step: dict) -> tuple | int:
         return entropy_forward(values[0], step["targets"])
     if name == "sum":
         return ([], [total(values[0][1])])
+    if name == "sum_dims":
+        return sum_dims(values[0], step)
     if name == "relu":
         return (values[0][0], [relu_word(number) for number in values[0][1]])
     if name == "matmul":
@@ -1895,6 +2116,9 @@ def reference(case: dict, trace: dict | None = None, update=descend_word) -> lis
             node |= {"b": step["b"], "right": values[1][0]}
         if name in ("mul", "matmul", "matmul_nt", "relu"):
             node["saved"] = values
+        if name == "sum_dims":
+            plan = sum_dims_plan(values[0][0], step["dims"])
+            node["kept"] = plan[0] if isinstance(plan, tuple) else None
         if saved is not None:
             node["saved"] = saved
         push(node, shown)
@@ -2088,6 +2312,10 @@ def step_source(step: dict) -> str:
         return f"Harness.Linear{{{step['a']}n, {step['b']}n, {step['bias']}n}}"
     if name == "cross_entropy":
         return f"Harness.CrossEntropy{{{step['a']}n, {list_source(step['targets'])}}}"
+    if name == "sum_dims":
+        keepdim = "True{}" if step["keepdim"] else "False{}"
+        axes = list_source(step["dims"])
+        return f"Harness.SumDims{{{step['a']}n, {axes}, {keepdim}}}"
     fields = ", ".join(f"{identifier}n" for identifier in operands(step))
     title = "".join(part.capitalize() for part in name.split("_"))
     return f"Harness.{title}{{{fields}}}"
