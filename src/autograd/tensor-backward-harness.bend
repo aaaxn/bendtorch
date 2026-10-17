@@ -176,6 +176,18 @@ def forge(tape: Backward.Tape, adds: Bool, +a: Nat, +b: Nat, rec: Backward.Tape 
         IO.print("autograd:forged")
         rec(forge_shaped(tape, adds, a, b, Core.shape(value)))
 
+# A gather's index is built as a tensor of its dimensions is; a refused one
+# leaves the tape unchanged.
+def indexed(tape: Backward.Tape, rec: Backward.Tape -> IO(Unit), +a: Nat, +dim: Signed.Position,
+  index: Result<&2, &2, Gather.Error, Gather.Index>) -> IO(Unit):
+  match index:
+    case Fail{failure}:
+      do IO<Unit>:
+        IO.print("autograd:error:" ++ U32.show(Gather.error_code(failure)))
+        rec(tape)
+    case Done{+index}:
+      recorded(rec, Backward.gather(tape, a, dim, index))
+
 def step(instruction: Step, tape: Backward.Tape, rec: Backward.Tape -> IO(Unit)) -> IO(Unit):
   match instruction:
     case Leaf{dimensions, words}:
@@ -208,8 +220,8 @@ def step(instruction: Step, tape: Backward.Tape, rec: Backward.Tape -> IO(Unit))
       recorded(rec, Backward.select(tape, a, dim, index))
     case IndexSelect{a, dim, entries}:
       recorded(rec, Backward.index_select(tape, a, dim, entries))
-    case Gather{a, dim, dimensions, entries}:
-      recorded(rec, Backward.gather(tape, a, dim, Gather.Index{dimensions, entries}))
+    case Gather{a, +dim, +dimensions, +entries}:
+      indexed(tape, rec, a, dim, Gather.index(dimensions, entries))
     case Relu{a}:
       recorded(rec, Backward.relu(tape, a))
     case MseLoss{a, b}:

@@ -867,9 +867,10 @@ def slice_controls(evidence: Evidence, source_root: Path) -> None:
 # too (source_at). An entry check that accepts the extent falsifies the
 # refusal and planning laws (below_inside), as do a shape check that skips
 # an extent (matches_others) and an entry count one short (count_length);
-# an index_select without its axis check, a gather without its count check,
-# a rank mismatch reported as a shape mismatch, and a gather whose length
-# comes from the input fail the law of that check. A backward that
+# an index_select without its axis check, a gather without its count check
+# or one that counts against the index's rank, a rank mismatch reported as a
+# shape mismatch, and a gather whose length comes from the input fail the
+# law of that check. A backward that
 # overwrites instead of adding (accumulated), adds every entry's word
 # (compared_is), skips the first gradient cell or starts from -0.0
 # (scatter_keeps) falsifies gather_scatter_cells.
@@ -934,6 +935,12 @@ GATHER_CONTROLS = {
         "    case False{}:\n"
         "      gather_axis(dimensions, axis, index, entries, "
         "Nat.is_lt(axis, Shape.rank_dimensions(dimensions)))",
+        "Laws.gather_count_refused",
+    ),
+    "count-against-the-rank": (
+        "    Nat.is_eq(count(entries), Shape.elements(shape)))",
+        "    Nat.is_eq(count(entries), "
+        "Shape.rank_dimensions(Shape.dimensions(shape))))",
         "Laws.gather_count_refused",
     ),
     "rank-mismatch-renamed": (

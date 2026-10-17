@@ -112,78 +112,94 @@ law index_select_planned:
   {Gather.select_plan(input, dim, entries) == taken(Gather.Selected{}, Shape.dimensions(input), axis(input, dim), length(entries)) :
     Result<&2, &2, Gather.Error, Gather.Planned>}
 
-# gather(dim, index): an entry count other than the product of the index's
-# dimensions is refused first, then the axis, an index of another rank, one
+# gather(dim, index): an entry count other than the element count of the
+# index's shape is refused first, then the axis, an index of another rank, one
 # with another extent at another axis, and an entry at or past the extent;
 # any other request is planned, with the index's extent at the axis.
 law gather_count_refused:
   for +input: Shape.Shape
   for +dim: Signed.Position
-  for +dimensions: List<&2, U32>
+  for +index: Shape.Shape
   for +entries: List<&2, U32>
-  for miscounted: {Nat.is_eq(length(entries), Shape.logical_numel(dimensions)) == False{} : Bool}
-  {Gather.gather_plan(input, dim, Gather.Index{dimensions, entries}) == Fail{Gather.TensorError{Core.ValueCountMismatch{}}} :
+  for miscounted: {Nat.is_eq(length(entries), Shape.elements(index)) == False{} : Bool}
+  {Gather.gather_plan(input, dim, Gather.Index{index, entries}) == Fail{Gather.TensorError{Core.ValueCountMismatch{}}} :
     Result<&2, &2, Gather.Error, Gather.Planned>}
 
 law gather_axis_refused:
   for +input: Shape.Shape
   for +dim: Signed.Position
-  for +dimensions: List<&2, U32>
+  for +index: Shape.Shape
   for +entries: List<&2, U32>
-  for counted: {Nat.is_eq(length(entries), Shape.logical_numel(dimensions)) == True{} : Bool}
+  for counted: {Nat.is_eq(length(entries), Shape.elements(index)) == True{} : Bool}
   for outside: {Nat.is_lt(axis(input, dim), rank(input)) == False{} : Bool}
-  {Gather.gather_plan(input, dim, Gather.Index{dimensions, entries}) == Fail{Gather.LayoutError{Layout.AxisOutOfBounds{}}} :
+  {Gather.gather_plan(input, dim, Gather.Index{index, entries}) == Fail{Gather.LayoutError{Layout.AxisOutOfBounds{}}} :
     Result<&2, &2, Gather.Error, Gather.Planned>}
 
 law gather_rank_refused:
   for +input: Shape.Shape
   for +dim: Signed.Position
-  for +dimensions: List<&2, U32>
+  for +index: Shape.Shape
   for +entries: List<&2, U32>
-  for counted: {Nat.is_eq(length(entries), Shape.logical_numel(dimensions)) == True{} : Bool}
+  for counted: {Nat.is_eq(length(entries), Shape.elements(index)) == True{} : Bool}
   for in_rank: {Nat.is_lt(axis(input, dim), rank(input)) == True{} : Bool}
-  for ranked: {Nat.is_eq(Shape.rank_dimensions(dimensions), rank(input)) == False{} : Bool}
-  {Gather.gather_plan(input, dim, Gather.Index{dimensions, entries}) == Fail{Gather.IndexRankMismatch{}} :
+  for ranked: {Nat.is_eq(Shape.rank_dimensions(Shape.dimensions(index)), rank(input)) == False{} : Bool}
+  {Gather.gather_plan(input, dim, Gather.Index{index, entries}) == Fail{Gather.IndexRankMismatch{}} :
     Result<&2, &2, Gather.Error, Gather.Planned>}
 
 law gather_shape_refused:
   for +input: Shape.Shape
   for +dim: Signed.Position
-  for +dimensions: List<&2, U32>
+  for +index: Shape.Shape
   for +entries: List<&2, U32>
-  for counted: {Nat.is_eq(length(entries), Shape.logical_numel(dimensions)) == True{} : Bool}
+  for counted: {Nat.is_eq(length(entries), Shape.elements(index)) == True{} : Bool}
   for in_rank: {Nat.is_lt(axis(input, dim), rank(input)) == True{} : Bool}
-  for ranked: {Nat.is_eq(Shape.rank_dimensions(dimensions), rank(input)) == True{} : Bool}
-  for unmatched: {others(Shape.dimensions(input), dimensions, axis(input, dim)) == False{} : Bool}
-  {Gather.gather_plan(input, dim, Gather.Index{dimensions, entries}) == Fail{Gather.IndexShapeMismatch{}} :
+  for ranked: {Nat.is_eq(Shape.rank_dimensions(Shape.dimensions(index)), rank(input)) == True{} : Bool}
+  for unmatched: {others(Shape.dimensions(input), Shape.dimensions(index), axis(input, dim)) == False{} : Bool}
+  {Gather.gather_plan(input, dim, Gather.Index{index, entries}) == Fail{Gather.IndexShapeMismatch{}} :
     Result<&2, &2, Gather.Error, Gather.Planned>}
 
 law gather_out_of_range:
   for +input: Shape.Shape
   for +dim: Signed.Position
-  for +dimensions: List<&2, U32>
+  for +index: Shape.Shape
   for +entries: List<&2, U32>
-  for counted: {Nat.is_eq(length(entries), Shape.logical_numel(dimensions)) == True{} : Bool}
+  for counted: {Nat.is_eq(length(entries), Shape.elements(index)) == True{} : Bool}
   for in_rank: {Nat.is_lt(axis(input, dim), rank(input)) == True{} : Bool}
-  for ranked: {Nat.is_eq(Shape.rank_dimensions(dimensions), rank(input)) == True{} : Bool}
-  for matched: {others(Shape.dimensions(input), dimensions, axis(input, dim)) == True{} : Bool}
+  for ranked: {Nat.is_eq(Shape.rank_dimensions(Shape.dimensions(index)), rank(input)) == True{} : Bool}
+  for matched: {others(Shape.dimensions(input), Shape.dimensions(index), axis(input, dim)) == True{} : Bool}
   for past: {inside(entries, extent(input, axis(input, dim))) == False{} : Bool}
-  {Gather.gather_plan(input, dim, Gather.Index{dimensions, entries}) == Fail{Gather.OutOfRange{}} :
+  {Gather.gather_plan(input, dim, Gather.Index{index, entries}) == Fail{Gather.OutOfRange{}} :
     Result<&2, &2, Gather.Error, Gather.Planned>}
 
 law gather_planned:
   for +input: Shape.Shape
   for +dim: Signed.Position
+  for +index: Shape.Shape
+  for +entries: List<&2, U32>
+  for counted: {Nat.is_eq(length(entries), Shape.elements(index)) == True{} : Bool}
+  for in_rank: {Nat.is_lt(axis(input, dim), rank(input)) == True{} : Bool}
+  for ranked: {Nat.is_eq(Shape.rank_dimensions(Shape.dimensions(index)), rank(input)) == True{} : Bool}
+  for matched: {others(Shape.dimensions(input), Shape.dimensions(index), axis(input, dim)) == True{} : Bool}
+  for within: {inside(entries, extent(input, axis(input, dim))) == True{} : Bool}
+  {Gather.gather_plan(input, dim, Gather.Index{index, entries}) ==
+    taken(Gather.Gathered{}, Shape.dimensions(input), axis(input, dim), Slice.axis_extent(Shape.dimensions(index), axis(input, dim))) :
+    Result<&2, &2, Gather.Error, Gather.Planned>}
+
+# A gather index is built as a tensor of its dimensions is: refused past
+# rank 4 or 2^20 elements with the shape's own error, else it holds the
+# shape of those dimensions.
+def index_of(+entries: List<&2, U32>, -dimensions: List<&2, U32>, built: Shape.ConstructResult<dimensions>) ->
+  Result<&2, &2, Gather.Error, Gather.Index>:
+  match built:
+    case Shape.SError{error}:
+      Fail{Gather.TensorError{Core.ShapeError{error}}}
+    case Shape.SBuilt{+shape, preserved}:
+      Done{Gather.Index{shape, entries}}
+
+law gather_index_shaped:
   for +dimensions: List<&2, U32>
   for +entries: List<&2, U32>
-  for counted: {Nat.is_eq(length(entries), Shape.logical_numel(dimensions)) == True{} : Bool}
-  for in_rank: {Nat.is_lt(axis(input, dim), rank(input)) == True{} : Bool}
-  for ranked: {Nat.is_eq(Shape.rank_dimensions(dimensions), rank(input)) == True{} : Bool}
-  for matched: {others(Shape.dimensions(input), dimensions, axis(input, dim)) == True{} : Bool}
-  for within: {inside(entries, extent(input, axis(input, dim))) == True{} : Bool}
-  {Gather.gather_plan(input, dim, Gather.Index{dimensions, entries}) ==
-    taken(Gather.Gathered{}, Shape.dimensions(input), axis(input, dim), Slice.axis_extent(dimensions, axis(input, dim))) :
-    Result<&2, &2, Gather.Error, Gather.Planned>}
+  {Gather.index(dimensions, entries) == index_of(entries, dimensions, Shape.construct(dimensions)) : Result<&2, &2, Gather.Error, Gather.Index>}
 
 # A refused plan fails the copy with its error and hands the input back.
 law index_select_refused:
@@ -197,12 +213,12 @@ law index_select_refused:
 law gather_refused:
   for input: Core.Dynamic
   for +dim: Signed.Position
-  for +dimensions: List<&2, U32>
+  for +index: Shape.Shape
   for +entries: List<&2, U32>
   for error: Gather.Error
-  for refused: {Gather.gather_plan(Totality.dynamic_shape(input), dim, Gather.Index{dimensions, entries}) == Fail{error} :
+  for refused: {Gather.gather_plan(Totality.dynamic_shape(input), dim, Gather.Index{index, entries}) == Fail{error} :
     Result<&2, &2, Gather.Error, Gather.Planned>}
-  {Gather.gather(input, dim, Gather.Index{dimensions, entries}) == (input, Fail{error}) : Core.Dynamic & Result<&2, &1, Gather.Error, Core.Dynamic>}
+  {Gather.gather(input, dim, Gather.Index{index, entries}) == (input, Fail{error}) : Core.Dynamic & Result<&2, &1, Gather.Error, Core.Dynamic>}
 
 # The cells of the builds, in the coordinates of the views: cell (o, k, r)
 # of [outer, rows, inner] sits at (o * rows + k) * inner + r.

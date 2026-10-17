@@ -16,8 +16,8 @@ import ./signed.bend as Signed
 #
 # There are no integer tensors (every tensor is F32), so an index is a list
 # of U32 entries, never F32 words: index_select takes a vector of entries,
-# and gather an Index, the dimensions of PyTorch's index tensor and its
-# entries in row-major order. PyTorch refuses a negative entry in both, so
+# and gather an Index, the shape of PyTorch's index tensor and its entries
+# in row-major order. PyTorch refuses a negative entry in both, so
 # a U32 entry loses nothing; an entry at or past the extent is OutOfRange
 # (20). The axis is a signed position, wrapped among the rank: one outside
 # -rank..rank-1, and every axis of a rank-0 input, is AxisOutOfBounds (13).
@@ -27,8 +27,8 @@ import ./signed.bend as Signed
 # inner] holds input cell (o, index[k], r) of [outer, extent, inner].
 # gather's index has the input's rank (else IndexRankMismatch, 21) and the
 # input's extent at every other axis (else IndexShapeMismatch, 22); its
-# entry count must be the product of its dimensions (else
-# ValueCountMismatch, 10). Its output has the index's dimensions, and output
+# entry count must be its shape's element count (else ValueCountMismatch,
+# 10). Its output has the index's dimensions, and output
 # cell (o, k, r) holds input cell (o, index[o, k, r], r).
 #
 # Both builds run on Parallel.build, so no word depends on the split or the
@@ -45,10 +45,24 @@ type Error is Data:
   IndexRankMismatch{}
   IndexShapeMismatch{}
 
-# PyTorch's index tensor for gather: its dimensions and its entries in
-# row-major order.
+# PyTorch's index tensor for gather: its shape, a Shape as every tensor's
+# (rank at most 4, at most 2^20 elements), and its entries in row-major
+# order.
 type Index is Data:
-  Index{dimensions: List<&2, U32>, entries: List<&2, U32>}
+  Index{shape: Shape.Shape, entries: List<&2, U32>}
+
+def built_index(+entries: List<&2, U32>, -dimensions: List<&2, U32>, built: Shape.ConstructResult<dimensions>) -> Result<&2, &2, Error, Index>:
+  match built:
+    case Shape.SError{error}:
+      Fail{TensorError{Core.ShapeError{error}}}
+    case Shape.SBuilt{+shape, preserved}:
+      Done{Index{shape, entries}}
+
+# An Index from an index tensor's dimensions and entries, refused as a tensor
+# of those dimensions is: past rank 4 (RankExceeded, 1) or 2^20 elements
+# (CapacityExceeded, 2). Its entry count is checked by gather.
+def index(+dimensions: List<&2, U32>, +entries: List<&2, U32>) -> Result<&2, &2, Error, Index>:
+  built_index(entries, dimensions, Shape.construct(dimensions))
 
 # Which entry a cell reads: entry k of an index_select, the entry at the
 # output position itself for a gather.
@@ -181,13 +195,14 @@ def gather_counted(+dimensions: List<&2, U32>, +axis: Nat, +index: List<&2, U32>
       gather_axis(dimensions, axis, index, entries, Nat.is_lt(axis, Shape.rank_dimensions(dimensions)))
 
 # The plan of gather(dim, index), or its refusal, in this order: an entry
-# count that is not the product of the index's dimensions, the axis, the
-# index's rank, its extents at the other axes, then its entries.
+# count other than the index shape's element count, the axis, the index's
+# rank, its extents at the other axes, then its entries. The element count
+# is the Shape's own, so no product of its extents is formed here.
 def gather_plan(+input: Shape.Shape, dim: Signed.Position, +index: Index) -> Result<&2, &2, Error, Planned>:
-  Index{+dimensions, +entries} = index
+  Index{+shape, +entries} = index
   +axis = U32.to_nat(Signed.wrap(Shape.rank(input), dim))
-  gather_counted(Shape.dimensions(input), axis, dimensions, entries,
-    Nat.is_eq(count(entries), Shape.logical_numel(dimensions)))
+  gather_counted(Shape.dimensions(input), axis, Shape.dimensions(shape), entries,
+    Nat.is_eq(count(entries), Shape.elements(shape)))
 
 # The entries as a balanced U32 array that a cell reads in a few steps: the
 # smallest depth that holds them, as Storage allocates.
@@ -427,8 +442,8 @@ def index_select(input: Core.Dynamic, dim: Signed.Position, +entries: List<&2, U
 # PyTorch's input.gather(dim, index).
 def gather(input: Core.Dynamic, dim: Signed.Position, +index: Index) -> Core.Dynamic & Result<&2, &1, Error, Core.Dynamic>:
   Core.Packed{+shape, tensor} = input
-  Index{+dimensions, +entries} = index
-  copied(shape, tensor, entries, gather_plan(shape, dim, Index{dimensions, entries}))
+  Index{+index_shape, +entries} = index
+  copied(shape, tensor, entries, gather_plan(shape, dim, Index{index_shape, entries}))
 
 # The backward of a planned index_select or gather: the gradient g of its
 # output, added into +0.0 words of the input's shape at the entries, PyTorch's

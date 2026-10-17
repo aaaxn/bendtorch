@@ -181,7 +181,7 @@ class GateAcceptanceTests(unittest.TestCase):
         source = (ROOT / "src/tensor/gather.bend").read_text()
         laws = (ROOT / "src/tensor/gather-LAWS.bend").read_text()
         proof = (ROOT / "src/tensor/gather-PROOF.bend").read_text()
-        self.assertEqual(len(GATHER_CONTROLS), 14)
+        self.assertEqual(len(GATHER_CONTROLS), 15)
         for original, mutated, location in GATHER_CONTROLS.values():
             self.assertEqual(source.count(original), 1)
             self.assertNotEqual(original, mutated)

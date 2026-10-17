@@ -1556,7 +1556,7 @@ def indexing_entries(+indexing: Indexing) -> List<&2, U32>:
   match indexing:
     case IndexSelected{dim, entries}:
       entries
-    case GatheredBy{dim, Gather.Index{dimensions, entries}}:
+    case GatheredBy{dim, Gather.Index{shape, entries}}:
       entries
 
 def gather_planned(+a: Nat, +shape: Shape.Shape, +indexing: Indexing, entries: List<&1, Entry>,

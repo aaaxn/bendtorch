@@ -117,13 +117,13 @@ def Laws.index_select_planned(input, dim, entries, in_rank, within):
   accepted_taken(Gather.Selected{}, Shape.dimensions(input), Laws.axis(input, dim), Laws.length(entries))
 
 # The entry count rewrites to its value.
-def counted_is(+entries: List<&2, U32>, +dimensions: List<&2, U32>, +value: Bool,
-  given: {Nat.is_eq(Laws.length(entries), Shape.logical_numel(dimensions)) == value : Bool}) ->
-  {value == Nat.is_eq(Gather.count(entries), Shape.logical_numel(dimensions)) : Bool}:
-  Equal.sym(Bool, Nat.is_eq(Gather.count(entries), Shape.logical_numel(dimensions)), value,
-    Equal.trans(Bool, Nat.is_eq(Gather.count(entries), Shape.logical_numel(dimensions)), Nat.is_eq(Laws.length(entries), Shape.logical_numel(dimensions)),
+def counted_is(+entries: List<&2, U32>, +index: Shape.Shape, +value: Bool,
+  given: {Nat.is_eq(Laws.length(entries), Shape.elements(index)) == value : Bool}) ->
+  {value == Nat.is_eq(Gather.count(entries), Shape.elements(index)) : Bool}:
+  Equal.sym(Bool, Nat.is_eq(Gather.count(entries), Shape.elements(index)), value,
+    Equal.trans(Bool, Nat.is_eq(Gather.count(entries), Shape.elements(index)), Nat.is_eq(Laws.length(entries), Shape.elements(index)),
       value,
-      Equal.cong(Nat, Bool, n => Nat.is_eq(n, Shape.logical_numel(dimensions)), Gather.count(entries), Laws.length(entries), count_length(entries)),
+      Equal.cong(Nat, Bool, n => Nat.is_eq(n, Shape.elements(index)), Gather.count(entries), Laws.length(entries), count_length(entries)),
       given))
 
 def matched_is(+dimensions: List<&2, U32>, +index: List<&2, U32>, +at: Nat, +value: Bool,
@@ -131,89 +131,89 @@ def matched_is(+dimensions: List<&2, U32>, +index: List<&2, U32>, +at: Nat, +val
   Equal.sym(Bool, Gather.matches(dimensions, index, at), value,
     Equal.trans(Bool, Gather.matches(dimensions, index, at), Laws.others(dimensions, index, at), value, matches_others(dimensions, index, at), given))
 
-def Laws.gather_count_refused(input, dim, dimensions, entries, miscounted):
-  %counted_is(entries, dimensions, False{}, miscounted) :
-    {Gather.gather_counted(Shape.dimensions(input), Laws.axis(input, dim), dimensions, entries, _) ==
+def Laws.gather_count_refused(input, dim, index, entries, miscounted):
+  %counted_is(entries, index, False{}, miscounted) :
+    {Gather.gather_counted(Shape.dimensions(input), Laws.axis(input, dim), Shape.dimensions(index), entries, _) ==
       Fail{Gather.TensorError{Core.ValueCountMismatch{}}} : Result<&2, &2, Gather.Error, Gather.Planned>}
   {==}
 
-def Laws.gather_axis_refused(input, dim, dimensions, entries, counted, outside):
-  %counted_is(entries, dimensions, True{}, counted) :
-    {Gather.gather_counted(Shape.dimensions(input), Laws.axis(input, dim), dimensions, entries, _) ==
+def Laws.gather_axis_refused(input, dim, index, entries, counted, outside):
+  %counted_is(entries, index, True{}, counted) :
+    {Gather.gather_counted(Shape.dimensions(input), Laws.axis(input, dim), Shape.dimensions(index), entries, _) ==
       Fail{Gather.LayoutError{Layout.AxisOutOfBounds{}}} : Result<&2, &2, Gather.Error, Gather.Planned>}
   %Equal.sym(Bool, Nat.is_lt(Laws.axis(input, dim), Laws.rank(input)), False{}, outside) :
-    {Gather.gather_axis(Shape.dimensions(input), Laws.axis(input, dim), dimensions, entries, _) ==
+    {Gather.gather_axis(Shape.dimensions(input), Laws.axis(input, dim), Shape.dimensions(index), entries, _) ==
       Fail{Gather.LayoutError{Layout.AxisOutOfBounds{}}} : Result<&2, &2, Gather.Error, Gather.Planned>}
   {==}
 
-def Laws.gather_rank_refused(input, dim, dimensions, entries, counted, in_rank, ranked):
-  %counted_is(entries, dimensions, True{}, counted) :
-    {Gather.gather_counted(Shape.dimensions(input), Laws.axis(input, dim), dimensions, entries, _) ==
+def Laws.gather_rank_refused(input, dim, index, entries, counted, in_rank, ranked):
+  %counted_is(entries, index, True{}, counted) :
+    {Gather.gather_counted(Shape.dimensions(input), Laws.axis(input, dim), Shape.dimensions(index), entries, _) ==
       Fail{Gather.IndexRankMismatch{}} : Result<&2, &2, Gather.Error, Gather.Planned>}
   %Equal.sym(Bool, Nat.is_lt(Laws.axis(input, dim), Laws.rank(input)), True{}, in_rank) :
-    {Gather.gather_axis(Shape.dimensions(input), Laws.axis(input, dim), dimensions, entries, _) ==
+    {Gather.gather_axis(Shape.dimensions(input), Laws.axis(input, dim), Shape.dimensions(index), entries, _) ==
       Fail{Gather.IndexRankMismatch{}} : Result<&2, &2, Gather.Error, Gather.Planned>}
-  %Equal.sym(Bool, Nat.is_eq(Shape.rank_dimensions(dimensions), Laws.rank(input)), False{}, ranked) :
-    {Gather.gather_ranked(Shape.dimensions(input), Laws.axis(input, dim), dimensions, entries, _) ==
+  %Equal.sym(Bool, Nat.is_eq(Shape.rank_dimensions(Shape.dimensions(index)), Laws.rank(input)), False{}, ranked) :
+    {Gather.gather_ranked(Shape.dimensions(input), Laws.axis(input, dim), Shape.dimensions(index), entries, _) ==
       Fail{Gather.IndexRankMismatch{}} : Result<&2, &2, Gather.Error, Gather.Planned>}
   {==}
 
-def Laws.gather_shape_refused(input, dim, dimensions, entries, counted, in_rank, ranked, unmatched):
-  %counted_is(entries, dimensions, True{}, counted) :
-    {Gather.gather_counted(Shape.dimensions(input), Laws.axis(input, dim), dimensions, entries, _) ==
+def Laws.gather_shape_refused(input, dim, index, entries, counted, in_rank, ranked, unmatched):
+  %counted_is(entries, index, True{}, counted) :
+    {Gather.gather_counted(Shape.dimensions(input), Laws.axis(input, dim), Shape.dimensions(index), entries, _) ==
       Fail{Gather.IndexShapeMismatch{}} : Result<&2, &2, Gather.Error, Gather.Planned>}
   %Equal.sym(Bool, Nat.is_lt(Laws.axis(input, dim), Laws.rank(input)), True{}, in_rank) :
-    {Gather.gather_axis(Shape.dimensions(input), Laws.axis(input, dim), dimensions, entries, _) ==
+    {Gather.gather_axis(Shape.dimensions(input), Laws.axis(input, dim), Shape.dimensions(index), entries, _) ==
       Fail{Gather.IndexShapeMismatch{}} : Result<&2, &2, Gather.Error, Gather.Planned>}
-  %Equal.sym(Bool, Nat.is_eq(Shape.rank_dimensions(dimensions), Laws.rank(input)), True{}, ranked) :
-    {Gather.gather_ranked(Shape.dimensions(input), Laws.axis(input, dim), dimensions, entries, _) ==
+  %Equal.sym(Bool, Nat.is_eq(Shape.rank_dimensions(Shape.dimensions(index)), Laws.rank(input)), True{}, ranked) :
+    {Gather.gather_ranked(Shape.dimensions(input), Laws.axis(input, dim), Shape.dimensions(index), entries, _) ==
       Fail{Gather.IndexShapeMismatch{}} : Result<&2, &2, Gather.Error, Gather.Planned>}
-  %matched_is(Shape.dimensions(input), dimensions, Laws.axis(input, dim), False{}, unmatched) :
-    {Gather.gather_shaped(Shape.dimensions(input), Laws.axis(input, dim), dimensions, entries, _) ==
+  %matched_is(Shape.dimensions(input), Shape.dimensions(index), Laws.axis(input, dim), False{}, unmatched) :
+    {Gather.gather_shaped(Shape.dimensions(input), Laws.axis(input, dim), Shape.dimensions(index), entries, _) ==
       Fail{Gather.IndexShapeMismatch{}} : Result<&2, &2, Gather.Error, Gather.Planned>}
   {==}
 
-def Laws.gather_out_of_range(input, dim, dimensions, entries, counted, in_rank, ranked, matched, past):
-  %counted_is(entries, dimensions, True{}, counted) :
-    {Gather.gather_counted(Shape.dimensions(input), Laws.axis(input, dim), dimensions, entries, _) ==
+def Laws.gather_out_of_range(input, dim, index, entries, counted, in_rank, ranked, matched, past):
+  %counted_is(entries, index, True{}, counted) :
+    {Gather.gather_counted(Shape.dimensions(input), Laws.axis(input, dim), Shape.dimensions(index), entries, _) ==
       Fail{Gather.OutOfRange{}} : Result<&2, &2, Gather.Error, Gather.Planned>}
   %Equal.sym(Bool, Nat.is_lt(Laws.axis(input, dim), Laws.rank(input)), True{}, in_rank) :
-    {Gather.gather_axis(Shape.dimensions(input), Laws.axis(input, dim), dimensions, entries, _) ==
+    {Gather.gather_axis(Shape.dimensions(input), Laws.axis(input, dim), Shape.dimensions(index), entries, _) ==
       Fail{Gather.OutOfRange{}} : Result<&2, &2, Gather.Error, Gather.Planned>}
-  %Equal.sym(Bool, Nat.is_eq(Shape.rank_dimensions(dimensions), Laws.rank(input)), True{}, ranked) :
-    {Gather.gather_ranked(Shape.dimensions(input), Laws.axis(input, dim), dimensions, entries, _) ==
+  %Equal.sym(Bool, Nat.is_eq(Shape.rank_dimensions(Shape.dimensions(index)), Laws.rank(input)), True{}, ranked) :
+    {Gather.gather_ranked(Shape.dimensions(input), Laws.axis(input, dim), Shape.dimensions(index), entries, _) ==
       Fail{Gather.OutOfRange{}} : Result<&2, &2, Gather.Error, Gather.Planned>}
-  %matched_is(Shape.dimensions(input), dimensions, Laws.axis(input, dim), True{}, matched) :
-    {Gather.gather_shaped(Shape.dimensions(input), Laws.axis(input, dim), dimensions, entries, _) ==
+  %matched_is(Shape.dimensions(input), Shape.dimensions(index), Laws.axis(input, dim), True{}, matched) :
+    {Gather.gather_shaped(Shape.dimensions(input), Laws.axis(input, dim), Shape.dimensions(index), entries, _) ==
       Fail{Gather.OutOfRange{}} : Result<&2, &2, Gather.Error, Gather.Planned>}
   %below_is(entries, Laws.extent(input, Laws.axis(input, dim)), False{}, past) :
     {Gather.ranged(Gather.Gathered{}, Shape.dimensions(input), Laws.axis(input, dim), entries,
-      Slice.axis_extent(dimensions, Laws.axis(input, dim)), _) == Fail{Gather.OutOfRange{}} : Result<&2, &2, Gather.Error, Gather.Planned>}
+      Slice.axis_extent(Shape.dimensions(index), Laws.axis(input, dim)), _) == Fail{Gather.OutOfRange{}} : Result<&2, &2, Gather.Error, Gather.Planned>}
   {==}
 
-def Laws.gather_planned(input, dim, dimensions, entries, counted, in_rank, ranked, matched, within):
-  %counted_is(entries, dimensions, True{}, counted) :
-    {Gather.gather_counted(Shape.dimensions(input), Laws.axis(input, dim), dimensions, entries, _) ==
-      Laws.taken(Gather.Gathered{}, Shape.dimensions(input), Laws.axis(input, dim), Slice.axis_extent(dimensions, Laws.axis(input, dim))) :
+def Laws.gather_planned(input, dim, index, entries, counted, in_rank, ranked, matched, within):
+  %counted_is(entries, index, True{}, counted) :
+    {Gather.gather_counted(Shape.dimensions(input), Laws.axis(input, dim), Shape.dimensions(index), entries, _) ==
+      Laws.taken(Gather.Gathered{}, Shape.dimensions(input), Laws.axis(input, dim), Slice.axis_extent(Shape.dimensions(index), Laws.axis(input, dim))) :
       Result<&2, &2, Gather.Error, Gather.Planned>}
   %Equal.sym(Bool, Nat.is_lt(Laws.axis(input, dim), Laws.rank(input)), True{}, in_rank) :
-    {Gather.gather_axis(Shape.dimensions(input), Laws.axis(input, dim), dimensions, entries, _) ==
-      Laws.taken(Gather.Gathered{}, Shape.dimensions(input), Laws.axis(input, dim), Slice.axis_extent(dimensions, Laws.axis(input, dim))) :
+    {Gather.gather_axis(Shape.dimensions(input), Laws.axis(input, dim), Shape.dimensions(index), entries, _) ==
+      Laws.taken(Gather.Gathered{}, Shape.dimensions(input), Laws.axis(input, dim), Slice.axis_extent(Shape.dimensions(index), Laws.axis(input, dim))) :
       Result<&2, &2, Gather.Error, Gather.Planned>}
-  %Equal.sym(Bool, Nat.is_eq(Shape.rank_dimensions(dimensions), Laws.rank(input)), True{}, ranked) :
-    {Gather.gather_ranked(Shape.dimensions(input), Laws.axis(input, dim), dimensions, entries, _) ==
-      Laws.taken(Gather.Gathered{}, Shape.dimensions(input), Laws.axis(input, dim), Slice.axis_extent(dimensions, Laws.axis(input, dim))) :
+  %Equal.sym(Bool, Nat.is_eq(Shape.rank_dimensions(Shape.dimensions(index)), Laws.rank(input)), True{}, ranked) :
+    {Gather.gather_ranked(Shape.dimensions(input), Laws.axis(input, dim), Shape.dimensions(index), entries, _) ==
+      Laws.taken(Gather.Gathered{}, Shape.dimensions(input), Laws.axis(input, dim), Slice.axis_extent(Shape.dimensions(index), Laws.axis(input, dim))) :
       Result<&2, &2, Gather.Error, Gather.Planned>}
-  %matched_is(Shape.dimensions(input), dimensions, Laws.axis(input, dim), True{}, matched) :
-    {Gather.gather_shaped(Shape.dimensions(input), Laws.axis(input, dim), dimensions, entries, _) ==
-      Laws.taken(Gather.Gathered{}, Shape.dimensions(input), Laws.axis(input, dim), Slice.axis_extent(dimensions, Laws.axis(input, dim))) :
+  %matched_is(Shape.dimensions(input), Shape.dimensions(index), Laws.axis(input, dim), True{}, matched) :
+    {Gather.gather_shaped(Shape.dimensions(input), Laws.axis(input, dim), Shape.dimensions(index), entries, _) ==
+      Laws.taken(Gather.Gathered{}, Shape.dimensions(input), Laws.axis(input, dim), Slice.axis_extent(Shape.dimensions(index), Laws.axis(input, dim))) :
       Result<&2, &2, Gather.Error, Gather.Planned>}
   %below_is(entries, Laws.extent(input, Laws.axis(input, dim)), True{}, within) :
     {Gather.ranged(Gather.Gathered{}, Shape.dimensions(input), Laws.axis(input, dim), entries,
-      Slice.axis_extent(dimensions, Laws.axis(input, dim)), _) ==
-      Laws.taken(Gather.Gathered{}, Shape.dimensions(input), Laws.axis(input, dim), Slice.axis_extent(dimensions, Laws.axis(input, dim))) :
+      Slice.axis_extent(Shape.dimensions(index), Laws.axis(input, dim)), _) ==
+      Laws.taken(Gather.Gathered{}, Shape.dimensions(input), Laws.axis(input, dim), Slice.axis_extent(Shape.dimensions(index), Laws.axis(input, dim))) :
       Result<&2, &2, Gather.Error, Gather.Planned>}
-  accepted_taken(Gather.Gathered{}, Shape.dimensions(input), Laws.axis(input, dim), Slice.axis_extent(dimensions, Laws.axis(input, dim)))
+  accepted_taken(Gather.Gathered{}, Shape.dimensions(input), Laws.axis(input, dim), Slice.axis_extent(Shape.dimensions(index), Laws.axis(input, dim)))
 
 def Laws.index_select_refused(input, dim, entries, error, refused):
   Core.Packed{+shape, tensor} = input
@@ -221,9 +221,9 @@ def Laws.index_select_refused(input, dim, entries, error, refused):
     {Gather.copied(shape, tensor, entries, _) == (Core.Packed{shape, tensor}, Fail{error}) : Core.Dynamic & Result<&2, &1, Gather.Error, Core.Dynamic>}
   {==}
 
-def Laws.gather_refused(input, dim, dimensions, entries, error, refused):
+def Laws.gather_refused(input, dim, index, entries, error, refused):
   Core.Packed{+shape, tensor} = input
-  %Equal.sym(Result<&2, &2, Gather.Error, Gather.Planned>, Gather.gather_plan(shape, dim, Gather.Index{dimensions, entries}), Fail{error}, refused) :
+  %Equal.sym(Result<&2, &2, Gather.Error, Gather.Planned>, Gather.gather_plan(shape, dim, Gather.Index{index, entries}), Fail{error}, refused) :
     {Gather.copied(shape, tensor, entries, _) == (Core.Packed{shape, tensor}, Fail{error}) : Core.Dynamic & Result<&2, &1, Gather.Error, Core.Dynamic>}
   {==}
 
@@ -645,3 +645,14 @@ def Laws.gather_scatter_cells(depth, splits, kind, outer, rows, inner, count, ce
       Laws.Added(dg, G, di, I, kind, count, inner, o, i, r, count, 0n, 0.0, Pair.fst(F32, Array<F32> & Array<U32>, Gather.added(Gather.Plan{kind, outer, rows, inner, count}, o, i, r, count, 0n, (0.0, (G, I))))),
       {\{Generic.Fact: q => q} : Generic.Fact<AddedIs(dg, G, di, I, kind, outer, rows, inner, count, o, i, r, count, 0n, 0.0, Gather.added(Gather.Plan{kind, outer, rows, inner, count}, o, i, r, count, 0n, (0.0, (G, I))))> -> AddedIs(dg, G, di, I, kind, outer, rows, inner, count, o, i, r, count, 0n, 0.0, Gather.added(Gather.Plan{kind, outer, rows, inner, count}, o, i, r, count, 0n, (0.0, (G, I))))}(
         added_is(dg, G, di, I, kind, outer, rows, inner, count, o, i, r, count, 0n, 0.0, valid, index_valid)))}
+
+def index_same(+entries: List<&2, U32>, -dimensions: List<&2, U32>, built: Shape.ConstructResult<dimensions>) ->
+  {Gather.built_index(entries, dimensions, built) == Laws.index_of(entries, dimensions, built) : Result<&2, &2, Gather.Error, Gather.Index>}:
+  match built:
+    case Shape.SError{error}:
+      {==}
+    case Shape.SBuilt{+shape, preserved}:
+      {==}
+
+def Laws.gather_index_shaped(dimensions, entries):
+  index_same(entries, dimensions, Shape.construct(dimensions))

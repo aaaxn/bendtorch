@@ -334,6 +334,7 @@
     "gather_2d_LAWS.gather_shape_refused",
     "gather_2d_LAWS.gather_out_of_range",
     "gather_2d_LAWS.gather_planned",
+    "gather_2d_LAWS.gather_index_shaped",
     "gather_2d_LAWS.index_select_refused",
     "gather_2d_LAWS.gather_refused",
     "gather_2d_LAWS.gather_build_cells",
