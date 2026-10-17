@@ -3036,7 +3036,14 @@ def list_source(numbers: list[int]) -> str:
 def step_source(step: dict) -> str:
     name = step["op"]
     if name in ("leaf", "constant"):
-        tensor = f"{list_source(step['shape'])}, {list_source(step['words'])}"
+        # A large leaf of tools/autograd_parallel.py computes its words with
+        # the `spread` its program defines instead of listing them.
+        words = (
+            f"spread({len(step['words'])}n, {step['spread']}n)"
+            if "spread" in step
+            else list_source(step["words"])
+        )
+        tensor = f"{list_source(step['shape'])}, {words}"
         return f"Harness.{name.capitalize()}{{{tensor}}}"
     if name == "backward":
         return f"Harness.Run{{{step['output']}n}}"
