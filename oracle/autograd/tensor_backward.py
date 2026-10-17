@@ -94,6 +94,25 @@ def replay(case: Json) -> Json:
                 ids = [step[key] for key in ("a", "b") if key in step]
                 operands = [nodes[identifier] for identifier in ids]
                 lines.append(record(operation(name, operands), nodes))
+            elif name == "slice":
+                # Python's indexing with the slice at axis `dim`: an axis past
+                # the rank raises IndexError ("too many indices"), as does a
+                # rank-0 input; a step of 0 raises ValueError.
+                index = (slice(None),) * step["dim"]
+                index += (slice(step["start"], step["stop"], step["step"]),)
+                lines.append(record(nodes[step["a"]][index], nodes))
+            elif name == "narrow":
+                # A start + length past the extent raises RuntimeError, a
+                # start past the extent or an axis past the rank IndexError,
+                # a rank-0 input RuntimeError.
+                x = nodes[step["a"]]
+                narrowed = x.narrow(step["dim"], step["start"], step["length"])
+                lines.append(record(narrowed, nodes))
+            elif name == "select":
+                # An index past the extent, an axis past the rank or a rank-0
+                # input raises IndexError.
+                chosen = nodes[step["a"]].select(step["dim"], step["index"])
+                lines.append(record(chosen, nodes))
             elif name == "sum_dims":
                 # An axis out of range raises IndexError, an axis listed
                 # twice RuntimeError; dim=[] sums every axis.

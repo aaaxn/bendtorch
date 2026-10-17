@@ -148,7 +148,7 @@ class BoundTests(unittest.TestCase):
                 else:
                     kinds["bounded"] += 1
                     self.assertTrue(within(int(bound), bound), (identifier, text))
-        self.assertEqual(kinds, {"fixed": 7851, "bounded": 3527, "unbounded": 431})
+        self.assertEqual(kinds, {"fixed": 9455, "bounded": 3853, "unbounded": 431})
 
     def bounded_line(self, identifier: str, index: int) -> tuple[list[str], Bounded]:
         expected = bounded_reference(self.rows[identifier])
