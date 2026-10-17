@@ -238,11 +238,14 @@ def step_digest(step: Step) -> Result<&2, &2, U32, U32>:
 
 # Tape workloads: a list of prepared tapes, one recording or sweep each.
 
+# A recording names the id it must return, the id whose value the workload
+# digests; a sweep starts at the tape's newest entry, the output the
+# prepared recordings returned last.
 type Act is Data:
-  Linear{}
-  Sweep{output: Nat}
-  Mse{}
-  Entropy{targets: List<&2, U32>}
+  Linear{output: Nat}
+  Sweep{}
+  Mse{output: Nat}
+  Entropy{targets: List<&2, U32>, output: Nat}
   Descend{}
 
 def status(-A: Data, result: Result<&2, &2, Backward.Error, A>) -> U32:
@@ -263,20 +266,44 @@ def coded(-A: Data, pair: Backward.Tape & Result<&2, &2, Backward.Error, A>) -> 
   (tape, r) = pair
   (tape, status(A, r))
 
+# A recording that returns another id than the workload names fails with
+# 3000.
+def recorded_as(+output: Nat, pair: Backward.Tape & Result<&2, &2, Backward.Error, Nat>) -> Backward.Tape & U32:
+  (tape, r) = pair
+  match r:
+    case Fail{error}:
+      (tape, (1000 + Backward.error_code(error) : U32))
+    case Done{+id}:
+      (tape, Bool.pick(U32, Nat.is_eq(id, output), 0, 3000))
+
+# The tape's newest entry, the last recording's output.
+def newest(pair: List<&1, Backward.Entry> & Nat) -> Backward.Tape & Nat:
+  (entries, +count) = pair
+  (Backward.Tape{entries}, Nat.sub(count, 1n))
+
+def sweep_from(pair: Backward.Tape & Nat) -> Backward.Tape & Result<&2, &2, Backward.Error, Unit>:
+  (tape, +output) = pair
+  Backward.backward(tape, output)
+
+# The backward of the newest entry. An empty tape has none and fails.
+def sweep_newest(tape: Backward.Tape) -> Backward.Tape & Result<&2, &2, Backward.Error, Unit>:
+  Backward.Tape{entries} = tape
+  sweep_from(newest(Backward.counted(entries)))
+
 def descended(pair: Backward.Tape & Result<&2, &2, Sgd.Error, Unit>) -> Backward.Tape & U32:
   (tape, r) = pair
   (tape, descent_status(r))
 
 def act(+a: Act, tape: Backward.Tape) -> Backward.Tape & U32:
   match a:
-    case Linear{}:
-      coded(Nat, Backward.linear(tape, 0n, 1n, 2n))
-    case Sweep{+output}:
-      coded(Unit, Backward.backward(tape, output))
-    case Mse{}:
-      coded(Nat, Backward.mse_loss(tape, 0n, 1n))
-    case Entropy{+targets}:
-      coded(Nat, Backward.cross_entropy(tape, 0n, targets))
+    case Linear{+output}:
+      recorded_as(output, Backward.linear(tape, 0n, 1n, 2n))
+    case Sweep{}:
+      coded(Unit, sweep_newest(tape))
+    case Mse{+output}:
+      recorded_as(output, Backward.mse_loss(tape, 0n, 1n))
+    case Entropy{+targets, +output}:
+      recorded_as(output, Backward.cross_entropy(tape, 0n, targets))
     case Descend{}:
       descended(Sgd.step(tape, 0.1, [0n]))
 
@@ -305,60 +332,87 @@ def leaf(pair: Backward.Tape & Nat) -> Backward.Tape:
   (tape, id) = pair
   tape
 
+# A preparing recording or sweep that fails leaves an empty tape, so the
+# workload's act fails instead of timing a shorter tape.
 def recorded(pair: Backward.Tape & Result<&2, &2, Backward.Error, Nat>) -> Backward.Tape:
   (tape, r) = pair
-  tape
+  match r:
+    case Fail{error}:
+      Backward.empty()
+    case Done{id}:
+      tape
 
 def swept(pair: Backward.Tape & Result<&2, &2, Backward.Error, Unit>) -> Backward.Tape:
   (tape, r) = pair
-  tape
+  match r:
+    case Fail{error}:
+      Backward.empty()
+    case Done{unit}:
+      tape
 
 # The digest of the value of each listed id, then of the gradient of each
-# id in the second list, chained.
-def value_digest(+h: U32, pair: Backward.Tape & Result<&2, &1, Backward.Error, Core.Dynamic>) -> Backward.Tape & U32:
+# id in the second list, chained. A listed id without a value fails with
+# 9997, and one whose gradient slot is empty with 9998: a workload lists the
+# leaves its sweep must reach, the biases among them.
+def value_digest(+h: U32, pair: Backward.Tape & Result<&2, &1, Backward.Error, Core.Dynamic>) -> Backward.Tape & Result<&2, &2, U32, U32>:
   (tape, r) = pair
   match r:
     case Fail{error}:
-      (tape, mix(h, 4294967295))
+      (tape, Fail{9997})
     case Done{t}:
-      (tape, digest(h, t))
+      (tape, Done{digest(h, t)})
 
-def grad_digest(+h: U32, pair: Backward.Tape & Result<&2, &1, Backward.Error, Maybe<&1, Core.Dynamic>>) -> Backward.Tape & U32:
+def grad_digest(+h: U32, pair: Backward.Tape & Result<&2, &1, Backward.Error, Maybe<&1, Core.Dynamic>>) ->
+  Backward.Tape & Result<&2, &2, U32, U32>:
   (tape, r) = pair
   match r:
     case Fail{error}:
-      (tape, mix(h, 4294967295))
+      (tape, Fail{9997})
     case Done{slot}:
       match slot:
         case None{}:
-          (tape, mix(h, 4294967294))
+          (tape, Fail{9998})
         case Some{t}:
-          (tape, digest(h, t))
+          (tape, Done{digest(h, t)})
 
-def values_next(rec: U32 -> Backward.Tape -> Backward.Tape & U32, pair: Backward.Tape & U32) -> Backward.Tape & U32:
-  (tape, +h) = pair
-  rec(h, tape)
+def values_next(rec: U32 -> Backward.Tape -> Backward.Tape & Result<&2, &2, U32, U32>, pair: Backward.Tape & Result<&2, &2, U32, U32>) ->
+  Backward.Tape & Result<&2, &2, U32, U32>:
+  (tape, r) = pair
+  match r:
+    case Fail{+code}:
+      (tape, Fail{code})
+    case Done{+h}:
+      rec(h, tape)
 
-def grads_next(rec: U32 -> Backward.Tape -> U32, pair: Backward.Tape & U32) -> U32:
-  (tape, +h) = pair
-  rec(h, tape)
+def grads_next(rec: U32 -> Backward.Tape -> Result<&2, &2, U32, U32>, pair: Backward.Tape & Result<&2, &2, U32, U32>) ->
+  Result<&2, &2, U32, U32>:
+  (tape, r) = pair
+  match r:
+    case Fail{+code}:
+      Fail{code}
+    case Done{+h}:
+      rec(h, tape)
 
-def values_digest(ids: List<&2, Nat>, +h: U32, tape: Backward.Tape) -> Backward.Tape & U32:
+def values_digest(ids: List<&2, Nat>, +h: U32, tape: Backward.Tape) -> Backward.Tape & Result<&2, &2, U32, U32>:
   match ids:
     case Nil{}:
-      (tape, h)
+      (tape, Done{h})
     case Con{+id, rest}:
       values_next(g => t => values_digest(rest, g, t), value_digest(h, Backward.value(tape, id)))
 
-def grads_digest(ids: List<&2, Nat>, +h: U32, tape: Backward.Tape) -> U32:
+def grads_digest(ids: List<&2, Nat>, +h: U32, tape: Backward.Tape) -> Result<&2, &2, U32, U32>:
   match ids:
     case Nil{}:
-      h
+      Done{h}
     case Con{+id, rest}:
       grads_next(g => t => grads_digest(rest, g, t), grad_digest(h, Backward.grad(tape, id)))
 
-def checked_digest(+code: U32, +h: U32) -> Result<&2, &2, U32, U32>:
-  Bool.pick(Result<&2, &2, U32, U32>, U32.is_eq(code, 0), Done{h}, Fail{code})
+def checked_digest(+code: U32, h: Result<&2, &2, U32, U32>) -> Result<&2, &2, U32, U32>:
+  match h:
+    case Fail{+other}:
+      Bool.pick(Result<&2, &2, U32, U32>, U32.is_eq(code, 0), Fail{other}, Fail{code})
+    case Done{+value}:
+      Bool.pick(Result<&2, &2, U32, U32>, U32.is_eq(code, 0), Done{value}, Fail{code})
 
 def tape_digest(+values: List<&2, Nat>, +grads: List<&2, Nat>, acted: Acted) -> Result<&2, &2, U32, U32>:
   Acted{tapes, +code} = acted
@@ -474,9 +528,35 @@ type Prep is Data:
   ThenMatmul{}
   ThenMlp{targets: List<&2, U32>}
 
+# 64-32-10 on the leaves W1, b1, W2, b2, x (ids 0 to 4): each recording
+# takes the id the one before it returned, so the loss is the tape's newest
+# entry. A refused recording leaves an empty tape.
+def mlp_loss(+targets: List<&2, U32>, pair: Backward.Tape & Result<&2, &2, Backward.Error, Nat>) -> Backward.Tape:
+  (tape, r) = pair
+  match r:
+    case Fail{error}:
+      Backward.empty()
+    case Done{+logits}:
+      recorded(Backward.cross_entropy(tape, logits, targets))
+
+def mlp_second(+targets: List<&2, U32>, pair: Backward.Tape & Result<&2, &2, Backward.Error, Nat>) -> Backward.Tape:
+  (tape, r) = pair
+  match r:
+    case Fail{error}:
+      Backward.empty()
+    case Done{+hidden}:
+      mlp_loss(targets, Backward.linear(tape, hidden, 2n, 3n))
+
+def mlp_relu(+targets: List<&2, U32>, pair: Backward.Tape & Result<&2, &2, Backward.Error, Nat>) -> Backward.Tape:
+  (tape, r) = pair
+  match r:
+    case Fail{error}:
+      Backward.empty()
+    case Done{+first}:
+      mlp_second(targets, Backward.relu(tape, first))
+
 def mlp(+targets: List<&2, U32>, tape: Backward.Tape) -> Backward.Tape:
-  recorded(Backward.cross_entropy(recorded(Backward.linear(recorded(Backward.relu(
-    recorded(Backward.linear(tape, 4n, 0n, 1n)), 5n)), 6n, 2n, 3n)), 7n, targets))
+  mlp_relu(targets, Backward.linear(tape, 4n, 0n, 1n))
 
 def prepared(+prep: Prep, tape: Backward.Tape) -> Backward.Tape:
   match prep:
@@ -491,7 +571,7 @@ def prepared(+prep: Prep, tape: Backward.Tape) -> Backward.Tape:
     case ThenEntropy{+targets}:
       recorded(Backward.cross_entropy(tape, 0n, targets))
     case ThenMulSwept{}:
-      swept(Backward.backward(recorded(Backward.mul(tape, 0n, 1n)), 2n))
+      swept(sweep_newest(recorded(Backward.mul(tape, 0n, 1n))))
     case ThenMul{}:
       recorded(Backward.mul(tape, 0n, 1n))
     case ThenSum{}:
@@ -687,31 +767,31 @@ def run_with(w: Workload, +n: U32, +reps: Nat, +sq: List<&2, U32>, +ce: List<&2,
     case WMatmulTN{}:
       binary_product(reps, TN{}, sq)
     case WLinearForward{}:
-      tape_job(reps, layer, Bare{}, Linear{}, [3n], [])
+      tape_job(reps, layer, Bare{}, Linear{4n}, [4n], [])
     case WLinearBackward{}:
-      tape_job(reps, layer, ThenLinear{}, Sweep{3n}, [], [0n, 1n, 2n])
+      tape_job(reps, layer, ThenLinear{}, Sweep{}, [], [0n, 1n, 2n])
     case WReluBackward{}:
-      tape_job(reps, [[n]], ThenRelu{}, Sweep{1n}, [], [0n])
+      tape_job(reps, [[n]], ThenRelu{}, Sweep{}, [], [0n])
     case WMseForward{}:
-      tape_job(reps, [[n], [n]], Bare{}, Mse{}, [2n], [])
+      tape_job(reps, [[n], [n]], Bare{}, Mse{2n}, [2n], [])
     case WMseBackward{}:
-      tape_job(reps, [[n], [n]], ThenMse{}, Sweep{2n}, [], [0n, 1n])
+      tape_job(reps, [[n], [n]], ThenMse{}, Sweep{}, [], [0n, 1n])
     case WEntropyForward{}:
-      tape_job(reps, [[n, 10]], Bare{}, Entropy{ce}, [1n], [])
+      tape_job(reps, [[n, 10]], Bare{}, Entropy{ce, 1n}, [1n], [])
     case WEntropyBackward{}:
-      tape_job(reps, [[n, 10]], ThenEntropy{ce}, Sweep{1n}, [], [0n])
+      tape_job(reps, [[n, 10]], ThenEntropy{ce}, Sweep{}, [], [0n])
     case WSgd{}:
       tape_job(reps, [[n], [n]], ThenMulSwept{}, Descend{}, [0n], [])
     case WMlpBackward{}:
-      tape_job(reps, [[32, 64], [32], [10, 32], [10], [n, 64]], ThenMlp{ce}, Sweep{8n}, [], [0n, 1n, 2n, 3n, 4n])
+      tape_job(reps, [[32, 64], [32], [10, 32], [10], [n, 64]], ThenMlp{ce}, Sweep{}, [], [0n, 1n, 2n, 3n, 4n])
     case WMnistStep{}:
       mnist_job(reps, n)
     case WMulBackward{}:
-      tape_job(reps, [[n], [n]], ThenMul{}, Sweep{2n}, [], [0n, 1n])
+      tape_job(reps, [[n], [n]], ThenMul{}, Sweep{}, [], [0n, 1n])
     case WSumBackward{}:
-      tape_job(reps, [[n]], ThenSum{}, Sweep{1n}, [], [0n])
+      tape_job(reps, [[n]], ThenSum{}, Sweep{}, [], [0n])
     case WMatmulBackward{}:
-      tape_job(reps, [sq, sq], ThenMatmul{}, Sweep{2n}, [], [0n, 1n])
+      tape_job(reps, [sq, sq], ThenMatmul{}, Sweep{}, [], [0n, 1n])
 
 def run(+w: Workload, +n: U32, +reps: Nat) -> IO(Unit):
   run_with(w, n, reps, [n, n], targets(U32.to_nat(n), 10, 0), [[64, n], [128, n], [128]])
