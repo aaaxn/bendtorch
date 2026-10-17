@@ -142,6 +142,13 @@ FAMILY = controls.Family(
             ("reduce.fiber",),
             module=REDUCE_TO,
         ),
+        "reduce-to-strided-walks-target-stride": Site(
+            "fast_fiber",
+            "Reduce.strided_run(remaining, left,",
+            "reduce_2d_parallel_2d_proof.fast_fiber",
+            ("reduce.fiber_fast",),
+            module=REDUCE_TO,
+        ),
         "reduce-to-skips-last-digit": Site(
             "fiber_cons",
             "Nat.sub(oh, 1n)",

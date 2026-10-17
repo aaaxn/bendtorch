@@ -263,6 +263,76 @@ def right_walk(-left: List<&2, Nat>, -right: List<&2, Nat>, -output: List<&2, Na
     case Shape.Unindexed{zero}:
       0n
 
+# Whether the left input's stride is the output's on every axis and the last
+# one is 1, so that the walk of every position is the position itself. Equal
+# left and output shapes with no axis of extent 1 have such rows.
+def same_left(rows: List<&2, Shape.Row>) -> Bool:
+  match rows:
+    case Shape.Row{+stride, +left, right} <> Nil{}:
+      Bool.and(Nat.is_eq(stride, 1n), Nat.is_eq(left, 1n))
+    case Shape.Row{+stride, +left, right} <> rest:
+      Bool.and(Nat.is_eq(left, stride), same_left(rest))
+    case Nil{}:
+      False{}
+
+def same_right(rows: List<&2, Shape.Row>) -> Bool:
+  match rows:
+    case Shape.Row{+stride, left, +right} <> Nil{}:
+      Bool.and(Nat.is_eq(stride, 1n), Nat.is_eq(right, 1n))
+    case Shape.Row{+stride, left, +right} <> rest:
+      Bool.and(Nat.is_eq(right, stride), same_right(rest))
+    case Nil{}:
+      False{}
+
+# Whether the left input's stride is 0 on every axis, as for a rank-0
+# input, so that every position walks to slot 0.
+def zero_left(rows: List<&2, Shape.Row>) -> Bool:
+  match rows:
+    case Shape.Row{stride, +left, right} <> rest:
+      Bool.and(Nat.is_eq(left, 0n), zero_left(rest))
+    case Nil{}:
+      True{}
+
+def zero_right(rows: List<&2, Shape.Row>) -> Bool:
+  match rows:
+    case Shape.Row{stride, left, +right} <> rest:
+      Bool.and(Nat.is_eq(right, 0n), zero_right(rest))
+    case Nil{}:
+      True{}
+
+# Where an input reads output cell p: at its own slot p (`OwnSlot`), always
+# at slot 0 (`FirstSlot`), or wherever the broadcast walk of p lands
+# (`WalkedSlot`).
+type Slot is Data:
+  OwnSlot{}
+  FirstSlot{}
+  WalkedSlot{}
+
+def slot_of(same: Bool, zero: Bool) -> Slot:
+  match same:
+    case True{}:
+      OwnSlot{}
+    case False{}:
+      match zero:
+        case True{}:
+          FirstSlot{}
+        case False{}:
+          WalkedSlot{}
+
+def left_slot(-left: List<&2, Nat>, -right: List<&2, Nat>, -output: List<&2, Nat>, map: Shape.Index<left, right, output>) -> Slot:
+  match map:
+    case Shape.Indexed{+rows, exact}:
+      slot_of(same_left(rows), zero_left(rows))
+    case Shape.Unindexed{zero}:
+      WalkedSlot{}
+
+def right_slot(-left: List<&2, Nat>, -right: List<&2, Nat>, -output: List<&2, Nat>, map: Shape.Index<left, right, output>) -> Slot:
+  match map:
+    case Shape.Indexed{+rows, exact}:
+      slot_of(same_right(rows), zero_right(rows))
+    case Shape.Unindexed{zero}:
+      WalkedSlot{}
+
 # One output cell: `scalar(operation, left[ia], right[ib])` when the cell is
 # below `count`, else `+0.0`. Both input arrays come back with the cell.
 def cell_right(+operation: Operation, x: F32, la: Array<F32>, pair: Array<F32> & F32) ->
@@ -289,22 +359,61 @@ def cell(+operation: Operation, -le: List<&2, Nat>, -re: List<&2, Nat>, -oe: Lis
 type Request is Data:
   Request{operation: Operation, plan: Shape.BroadcastPlan}
 
-# What every cell of a build needs: the operation and the broadcast index
-# map. Each thread below the forks computes its own once.
+# What every cell of a build needs: the operation, the broadcast index map
+# and the slot each input reads (`left_slot`, `right_slot`), so that a build
+# whose inputs have the output's shape or rank 0 skips the walk. Each thread
+# below the forks computes its own once.
 type Walk is Data:
-  Walk{operation: Operation, -le: List<&2, Nat>, -re: List<&2, Nat>, -oe: List<&2, Nat>, map: Shape.Index<le, re, oe>}
+  Walk{operation: Operation, -le: List<&2, Nat>, -re: List<&2, Nat>, -oe: List<&2, Nat>, map: Shape.Index<le, re, oe>,
+    left: Slot, right: Slot}
 
 def walk(+request: Request) -> Walk:
   Request{+operation, +plan} = request
-  Walk{operation, Shape.extents(Shape.left_shape(plan)), Shape.extents(Shape.right_shape(plan)),
-    Shape.extents(Shape.output_shape(plan)), Shape.index_map(plan)}
+  +le = Shape.extents(Shape.left_shape(plan))
+  +re = Shape.extents(Shape.right_shape(plan))
+  +oe = Shape.extents(Shape.output_shape(plan))
+  Walk{operation, le, re, oe, Shape.index_map(plan), left_slot(le, re, oe, Shape.index_map(plan)),
+    right_slot(le, re, oe, Shape.index_map(plan))}
+
+# An inside cell whose input slots are already known: the cell `cell`
+# computes there.
+def direct_cell(+operation: Operation, +left_index: Nat, +right_index: Nat, la: Array<F32>, ra: Array<F32>) ->
+  F32 & (Array<F32> & Array<F32>):
+  cell_left(operation, ra, U32.from_nat(right_index), Array.get(F32, la, U32.from_nat(left_index)))
+
+# A padding cell is the one `cell` computes; an inside cell reads each input
+# at the slot its `Slot` names.
+def cell_by(inside: Bool, +left: Slot, +right: Slot, +operation: Operation, -le: List<&2, Nat>, -re: List<&2, Nat>, -oe: List<&2, Nat>,
+  +map: Shape.Index<le, re, oe>, +position: Nat, la: Array<F32>, ra: Array<F32>) ->
+  F32 & (Array<F32> & Array<F32>):
+  match inside left right:
+    case False{} left right:
+      cell(operation, le, re, oe, map, position, la, ra, False{})
+    case True{} OwnSlot{} OwnSlot{}:
+      direct_cell(operation, position, position, la, ra)
+    case True{} OwnSlot{} FirstSlot{}:
+      direct_cell(operation, position, 0n, la, ra)
+    case True{} OwnSlot{} WalkedSlot{}:
+      direct_cell(operation, position, right_walk(le, re, oe, map, position), la, ra)
+    case True{} FirstSlot{} OwnSlot{}:
+      direct_cell(operation, 0n, position, la, ra)
+    case True{} FirstSlot{} FirstSlot{}:
+      direct_cell(operation, 0n, 0n, la, ra)
+    case True{} FirstSlot{} WalkedSlot{}:
+      direct_cell(operation, 0n, right_walk(le, re, oe, map, position), la, ra)
+    case True{} WalkedSlot{} OwnSlot{}:
+      direct_cell(operation, left_walk(le, re, oe, map, position), position, la, ra)
+    case True{} WalkedSlot{} FirstSlot{}:
+      direct_cell(operation, left_walk(le, re, oe, map, position), 0n, la, ra)
+    case True{} WalkedSlot{} WalkedSlot{}:
+      cell(operation, le, re, oe, map, position, la, ra, True{})
 
 # The cell function `Parallel.build` runs: its state is the pair of input
 # arrays.
 def cell_at(+walk: Walk, +position: Nat, inputs: Array<F32> & Array<F32>, inside: Bool) -> F32 & (Array<F32> & Array<F32>):
-  Walk{+operation, le, re, oe, +map} = walk
+  Walk{+operation, le, re, oe, +map, +left, +right} = walk
   (la, ra) = inputs
-  cell(operation, le, re, oe, map, position, la, ra, inside)
+  cell_by(inside, left, right, operation, le, re, oe, map, position, la, ra)
 
 # Each half of a fork gets its own clone of both input arrays, because an
 # Array has one owner.

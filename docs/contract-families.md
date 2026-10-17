@@ -170,7 +170,9 @@ only.
   tree that holds each family cell below the count and `+0.0` above it, for
   every number of forks: `build_eq` follows the forks, `tree_eq` the
   sequential subtrees, and each read of a cell is the input word the history
-  names.
+  names. `cell_at_eq` turns a cell of the build, which reads a known input
+  slot without the walk, into `Elementwise.cell` (`cell_at_walk`), and
+  `cell_eq` proves that cell.
 - `binary-proof.bend` replays the family history `Pointwise.writes` on the
   storage `Core.new` makes and shows it holds the same tree, by writing one
   cell at a time into `out_spec`. Two owned storages with equal arrays are

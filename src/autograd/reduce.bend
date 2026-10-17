@@ -82,9 +82,85 @@ def fiber(+rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, fuel: Nat, +targe
     case Shape.Row{+stride, +left, +right} <> +rest Nil{} _:
       (accumulator, array)
 
+# Whether every row here takes one digit (span 1), so that the fiber below
+# a digit of the row above is one word.
+def single_rows(+rows: List<&2, Shape.Row>, +extents: List<&2, Nat>) -> Bool:
+  match rows extents:
+    case Nil{} _:
+      True{}
+    case Shape.Row{stride, +left, right} <> +rest +extent <> +others:
+      Bool.and(Nat.is_eq(span(left, extent), 1n), single_rows(rest, others))
+    case Shape.Row{stride, left, right} <> rest Nil{}:
+      False{}
+
+# `single_rows` of the rows below the first one.
+def single_below(+rows: List<&2, Shape.Row>, +extents: List<&2, Nat>) -> Bool:
+  match rows extents:
+    case Shape.Row{stride, left, right} <> +rest +extent <> +others:
+      single_rows(rest, others)
+    case _ _:
+      False{}
+
+# The offset of the one word that rows of span 1 reach from `base`.
+def single_offset(+rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +target: Nat, +base: Nat) -> Nat:
+  match rows extents:
+    case Shape.Row{stride, +left, +right} <> +rest +extent <> +others:
+      single_offset(rest, others, Nat.mod(target, left), Nat.add(base, Nat.mul(right, Nat.div(target, left))))
+    case _ _:
+      base
+
+# The contribution offset of digit d of a row whose right stride is `step`.
+def step_offset(+start: Nat, +step: Nat, +d: Nat) -> Nat:
+  Nat.add(start, Nat.mul(step, d))
+
+def strided_offset(+step: Nat, +base: Nat, +digit: Nat, +lift: Nat) -> Nat:
+  Nat.add(Nat.add(base, Nat.mul(step, digit)), lift)
+
+# The fuel + 1 words at offsets base + step * d + lift for d = digit, digit +
+# 1, ..., added to `accumulator` in that order; `pair` is the read of the
+# first. Each step reads the next word and hands it on as an argument.
+def strided_run(fuel: Nat, +step: Nat, +base: Nat, +digit: Nat, +lift: Nat, accumulator: F32, pair: Array<F32> & F32) ->
+  F32 & Array<F32>:
+  match fuel pair:
+    case 0n Tuple{array, word}:
+      (F32.add(accumulator, word), array)
+    case 1n+remaining Tuple{array, word}:
+      strided_run(remaining, step, base, 1n+digit, lift, F32.add(accumulator, word),
+        Array.get(F32, array, U32.from_nat(strided_offset(step, base, 1n+digit, lift))))
+
+def strided(fuel: Nat, +step: Nat, +base: Nat, +digit: Nat, +lift: Nat, accumulator: F32, array: Array<F32>) -> F32 & Array<F32>:
+  match fuel:
+    case 0n:
+      (accumulator, array)
+    case 1n+remaining:
+      strided_run(remaining, step, base, digit, lift, accumulator, Array.get(F32, array, U32.from_nat(strided_offset(step, base, digit, lift))))
+
+# `fiber`, the same words added in the same order, except that a row whose
+# rows below all take one digit (`single`, which is `single_below` of the
+# rows; a later digit of the same row passes False) walks its digits in one
+# strided loop: below digit d it reads the one word at base + right * d +
+# single_offset(rest, others, target % left, 0), with no closure per word.
+# Column sums, row sums and batch sums over one axis take that loop.
+def fiber_fast(+rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, fuel: Nat, single: Bool, +target: Nat, +base: Nat, +digit: Nat,
+  accumulator: F32, array: Array<F32>) -> F32 & Array<F32>:
+  match rows extents fuel single:
+    case Nil{} _ _ single:
+      leaf_add(accumulator, Array.get(F32, array, U32.from_nat(base)))
+    case Shape.Row{+stride, +left, +right} <> +rest +extent <> +others fuel True{}:
+      strided(fuel, right, base, digit, single_offset(rest, others, Nat.mod(target, left), 0n), accumulator, array)
+    case Shape.Row{+stride, +left, +right} <> +rest +extent <> +others 0n False{}:
+      (accumulator, array)
+    case Shape.Row{+stride, +left, +right} <> +rest +extent <> +others 1n+remaining False{}:
+      +inner = Nat.mod(target, left)
+      walk_next(value => kept => fiber_fast(rows, extents, remaining, False{}, target, base, 1n+digit, value, kept),
+        fiber_fast(rest, others, first_span(rest, others), single_below(rest, others), inner, step_offset(base, right, digit),
+          first_digit(rest, inner), accumulator, array))
+    case Shape.Row{+stride, +left, +right} <> +rest Nil{} _ single:
+      (accumulator, array)
+
 # Cell `target` of the reduction: its whole fiber from +0.0.
 def fiber_of(+rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +target: Nat, array: Array<F32>) -> F32 & Array<F32>:
-  fiber(rows, extents, first_span(rows, extents), target, 0n, first_digit(rows, target), 0.0, array)
+  fiber_fast(rows, extents, first_span(rows, extents), single_below(rows, extents), target, 0n, first_digit(rows, target), 0.0, array)
 
 # One target cell: its fiber sum from +0.0 when the cell is below `count`,
 # else +0.0.

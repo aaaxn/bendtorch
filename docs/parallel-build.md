@@ -34,9 +34,19 @@ faster than the build with one call per leaf.
 
 | Operation | `q` | `prepare(q)` | state | cell |
 | --- | --- | --- | --- | --- |
-| `Elementwise.build` | `Request{operation, plan}` | `Walk`: operation and index map | both inputs | `Elementwise.cell_at` |
+| `Elementwise.build` | `Request{operation, plan}` | `Walk`: operation, index map and the slot each input reads | both inputs | `Elementwise.cell_at` |
 | `Matrix.build` | `Dims{inner, columns}` | a copy of it | both inputs | `Matrix.cell_at` |
 | `Reduce.build` | `Fibers{rows, extents}` | a copy of it | contribution, `Unit` | `Reduce.cell_at` |
+
+`Elementwise.walk` also records where each input reads output cell `p`
+(`Elementwise.left_slot`, `right_slot`): at its own slot `p` when its strides
+are the output's, at slot 0 when all its strides are 0 (a rank-0 operand),
+else wherever the broadcast walk of `p` lands. An inside cell reads a known
+slot without the walk's division per axis; a padding cell is the one
+`Elementwise.cell` computes. `cell_at_walk` in `elementwise-walk-proof.bend`
+proves the cell function is `Elementwise.cell` of the plan: where a slot is
+known, the walk of every position lands on it (`walk_left_same`,
+`walk_left_zero`, from `div_mod`, `s * (i / s) + i % s = i`).
 
 ## Laws
 
