@@ -51,7 +51,6 @@ malformed wiring (an operand that is the node itself, a newer node or a missing
 node) and one with sound wiring but saved state that disagrees with its leaves.
 In `nan_payloads_sub`, PyTorch's `NaN_a - NaN_b` keeps the second payload and
 bendtorch's native lane keeps the first.
-[docs/backward.md](../../docs/backward.md) lists them.
 
 ## Tensor backward
 
@@ -72,8 +71,8 @@ compares the gate's Python reference with this file, under level 2 of the
 [numeric policy](../../AGENTS.md#numeric-policy) (`tools/autograd_tensor_bound.py`
 computes each word's rounding-error bound, checked on top of the listed
 words): 191 of 249 scripts agree line for
-line, and [docs/tensor-backward.md](../../docs/tensor-backward.md) lists the
-other 58.
+line, and [the differences from PyTorch](../../docs/torch-differences.md#tensor-backward)
+explain the other 58.
 
 ## Reproduce
 

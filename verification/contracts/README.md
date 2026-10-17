@@ -171,7 +171,7 @@ Each law is generic over a `Core.new(input, fill)` producer:
   keeps its dimensions, length, word count and every value.
 
 The values a successful permute or transpose writes are not covered here; see
-`docs/proof-boundary.md`.
+`experiments/proof-boundary/BOUNDARY.md`.
 
 `transforms/` holds:
 

@@ -1,7 +1,7 @@
 # Proof-interface experiment
 
 This directory holds the qualified public proof interface for `Core.new(shape,
-fill)`. See [the proof boundary](../../docs/proof-boundary.md) for what it
+fill)`. See [the proof boundary](BOUNDARY.md) for what it
 claims, the controls and the recorded results.
 
 ## Files

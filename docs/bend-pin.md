@@ -64,8 +64,9 @@ uv run --locked python -m tools.check shape storage --output .evidence/shape-sto
 uv run --locked python -m tools.check tensor --output .evidence/tensor-bend-<short sha>
 ```
 
-Also run the native matmul smoke from `docs/sum-and-matmul.md` and compare its full
-output with the documented words. Record each command, its exit code and its
+Also run the matmul demo from the README's "Multiply two matrices" section on
+both pins and compare the two outputs word for word; the first five words must
+be the ones the README lists. Record each command, its exit code and its
 wall time for the PR description.
 
 ## 3. Triage every difference

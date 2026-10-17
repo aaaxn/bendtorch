@@ -8,8 +8,7 @@ the tensor gate protect them. The `reduce_to` laws are stated in
 `src/autograd/sum-to-size-fold-LAWS.bend`, the `broadcast_to` laws in
 `src/autograd/broadcast-pointwise-LAWS.bend` and the tensor VJP value laws in
 `src/autograd/tensor-vjp-LAWS.bend`, and `verification/autograd.json`
-requires them. [Contract
-families](../../docs/contract-families.md) explains what they state. This
+requires them. This
 directory holds literal consumers, false twins and implementation mutants,
 beside the runner that checks them.
 
