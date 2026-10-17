@@ -24,9 +24,9 @@ type Step is Data:
   Linear{x: Nat, w: Nat, bias: Nat}
   Sum{a: Nat}
   SumDims{a: Nat, axes: List<&2, Signed.Position>, keepdim: Bool}
-  Slice{a: Nat, dim: U32, start: U32, stop: U32, step: U32}
-  Narrow{a: Nat, dim: U32, start: U32, length: U32}
-  Select{a: Nat, dim: U32, index: U32}
+  Slice{a: Nat, dim: Signed.Position, start: Signed.Position, stop: Signed.Position, step: U32}
+  Narrow{a: Nat, dim: Signed.Position, start: Signed.Position, length: U32}
+  Select{a: Nat, dim: Signed.Position, index: Signed.Position}
   Relu{a: Nat}
   MseLoss{a: Nat, b: Nat}
   CrossEntropy{a: Nat, targets: List<&2, U32>}

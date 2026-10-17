@@ -252,9 +252,9 @@ the root environment.
   and no `out=` variants.
 - Axes and indices count from either end, as in PyTorch, through
   `src/tensor/signed.bend`: `Signed.Last{0}` is `-1`. `reshape` takes one
-  `-1`, `Signed.Inferred{}`. Basic slicing (`Slice.slice`, `narrow` and
-  `select`, one axis at a time) copies and takes non-negative starts, stops
-  and indices only; there is no advanced indexing.
+  `-1`, `Signed.Inferred{}`. Basic slicing (`Signed.slice`, `narrow` and
+  `select`, one axis at a time) copies and takes negative starts, stops and
+  indices as PyTorch does; there is no advanced indexing.
 - `sum` reduces the whole tensor. On the tape, `sum_dims` sums the listed
   axes, with or without `keepdim`. `matmul` takes two rank-2 tensors.
   `Batched.matmul`, PyTorch's `torch.matmul`, promotes 1-D inputs and

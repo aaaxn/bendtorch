@@ -49,14 +49,14 @@ offer:
 
 - `broadcast_to` with `-1` for a dimension it keeps: `broadcast_to([2,-1])`
   of `[3]` has shape `(2,3)`. Its sizes are U32 and must be given in full.
-- Advanced indexing, and negative starts, stops and indices in slicing:
-  `a[:, -2:]`, `narrow(1, -2, 2)` and `select(1, -1)`. Slicing takes U32
-  positions; the signed positions of `src/tensor/signed.bend` are not wired
-  into it.
+- Advanced indexing.
+- A negative `narrow` length and a negative slice step. PyTorch refuses
+  both; a length and a step are U32, so neither can be written.
 - A slice that shares storage. `Slice.slice`, `narrow` and `select` in
-  `src/tensor/slice.bend`, and the tape's `slice`, `narrow` and `select`,
-  copy, so a write to the result never reaches the input. PyTorch returns a
-  view. A start and a stop past the extent are clamped as PyTorch clamps
+  `src/tensor/slice.bend`, their signed forms in `src/tensor/signed.bend`,
+  and the tape's `slice`, `narrow` and `select`, copy, so a write to the
+  result never reaches the input. PyTorch returns a view. Axes, starts,
+  stops and indices count from either end as in PyTorch. A start and a stop past the extent are clamped as PyTorch clamps
   them, and a step must be at least 1, as in PyTorch; a step of 0 is
   `StepNotPositive` (19).
 
@@ -148,7 +148,7 @@ record is compared under level 2 of the
 [numeric policy](../AGENTS.md#numeric-policy): fixed words bit for bit, the
 `mse_loss` words on their pins and within the rounding-error bound, the
 forward `sum` and `matmul` words within the bound with exact gradients, and
-the `cross_entropy` words, which no bound covers, on their pins. 232 of the 295 scripts agree line for line, the 37 slicing scripts that PyTorch accepts among them, the five `linear`
+the `cross_entropy` words, which no bound covers, on their pins. 255 of the 319 scripts agree line for line, the 60 slicing scripts that PyTorch accepts among them, the five `linear`
 scripts that PyTorch accepts among them, and every `relu` script but four:
 `relu_edges` and `relu_nan_gradient` (NaN payloads of `NaN * NaN` in the
 product after `relu`), `relu_13` (a one-term matmul) and
@@ -184,6 +184,7 @@ accepted. The differences:
 | `batched_matmul` (`torch.matmul`) refusals: a rank-0 operand, unequal inner extents, batches that do not broadcast, an unknown id | 105, 106, 6, 103 | `RuntimeError`, `IndexError` (`batched_refusals`, 1 script) |
 | `batched_matmul` past 2^20 elements: a forward output, or an operand's gradient over the output's batch before it is summed | `CapacityExceeded` (2); a refused product leaves the tape unchanged, a refused backward every slot | Accepts (`batched_output_capacity`, `batched_left_gradient_capacity`, `batched_right_gradient_capacity`, 3 scripts) |
 | Slicing refusals: an axis past the rank or a rank-0 input, a step of 0, a `narrow` past the extent (also with a start of 2^32 - 1), a `select` at or past the extent, an unknown id | 13, 19, 20, 20, 103 | `IndexError` or `RuntimeError`, `ValueError`, `RuntimeError` or `IndexError`, `IndexError`, `IndexError` (`slice_refused`, 1 script) |
+| Signed slicing refusals: an axis before -rank or a rank-0 input, a `narrow` start before -extent or a length past the extent, a `select` index before -extent | 13, 20, 20 | `IndexError`, `IndexError` or `RuntimeError`, `IndexError` (`slice_negative_refused`, 1 script) |
 | `batched_matmul` of NaN words | NaN | NaN with another payload (`batched_special_words`, 1 script) |
 | Forward `sum` of a `batched_matmul` product | Ordered fold from `+0.0` | Another order (`batched_rounding_01`, 1 script, within the bound; the gradients agree) |
 | `batched_matmul` gradients | A product of one term is folded from `+0.0`, so a `-0.0` product gives `+0.0`; a broadcast operand's gradient sums each batch's product in batch order | `-0.0`; the batch folded into one product. 3 scripts, 12 pinned words, each within the bound: 10 signed zeros, a gradient word 1 ulp and a forward `sum` 3 ulp apart |

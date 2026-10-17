@@ -8,6 +8,7 @@ import ./transforms.bend as Transforms
 import ./transpose-spec.bend as Transpose
 import ./elementwise-totality.bend as Totality
 import ./signed.bend as Signed
+import ./slice.bend as Slice
 import ./signed-LAWS.bend as Laws
 
 def Laws.signed_first_kept(limit, k):
@@ -575,4 +576,62 @@ def Laws.signed_filled_inferred(tail, size):
   {==}
 
 def Laws.signed_error_codes(error):
+  {==}
+
+# Signed slicing.
+
+def Laws.signed_bound_first(limit, k):
+  {==}
+
+def bound_inside(+limit: U32, +k: U32, +inside: {U32.is_lt(k, limit) == True{} : Bool}) ->
+  {Nat.add(U32.to_nat(Signed.bound(limit, Signed.Last{k})), 1n+U32.to_nat(k)) == U32.to_nat(limit) : Nat}:
+  %Equal.sym(Bool, U32.is_lt(k, limit), True{}, inside) :
+    {Nat.add(U32.to_nat(Bool.pick(U32, Bool.not(_), 0, Signed.wrap(limit, Signed.Last{k}))), 1n+U32.to_nat(k)) == U32.to_nat(limit) : Nat}
+  last_wrapped(limit, k, inside)
+
+def Laws.signed_bound_last_inside(limit, k, inside):
+  bound_inside(limit, k, inside)
+
+def Laws.signed_bound_last_outside(limit, k, outside):
+  %Equal.sym(Bool, U32.is_lt(k, limit), False{}, outside) :
+    {Bool.pick(U32, Bool.not(_), 0, Signed.wrap(limit, Signed.Last{k})) == 0 : U32}
+  {==}
+
+def Laws.signed_slice_bounds(input, dim, start, stop, step):
+  Core.Packed{+shape, tensor} = input
+  {==}
+
+def Laws.signed_select_wraps(input, dim, index):
+  Core.Packed{+shape, tensor} = input
+  {==}
+
+def Laws.signed_narrow_first(input, dim, k, length):
+  Core.Packed{+shape, tensor} = input
+  {==}
+
+def Laws.signed_narrow_last_inside(input, dim, k, length, inside):
+  Core.Packed{+shape, tensor} = input
+  %Equal.sym(Bool, U32.is_lt(k, Signed.extent(Shape.dimensions(shape), Signed.wrap(Shape.rank(shape), dim))), True{}, inside) :
+    {Signed.narrow_started(shape, tensor, Signed.wrap(Shape.rank(shape), dim), Signed.wrap(Signed.extent(Shape.dimensions(shape), Signed.wrap(Shape.rank(shape), dim)), Signed.Last{k}), length, Bool.not(_)) ==
+      Slice.narrow(Core.Packed{shape, tensor}, Signed.wrap(Shape.rank(shape), dim), Signed.wrap(Signed.extent(Shape.dimensions(shape), Signed.wrap(Shape.rank(shape), dim)), Signed.Last{k}), length) : Core.Dynamic & Result<&2, &1, Slice.Error, Core.Dynamic>}
+  {==}
+
+def Laws.signed_narrow_before(input, dim, k, length, in_rank, before):
+  Core.Packed{+shape, tensor} = input
+  %Equal.sym(Bool, U32.is_lt(k, Signed.extent(Shape.dimensions(shape), Signed.wrap(Shape.rank(shape), dim))), False{}, before) :
+    {Signed.narrow_started(shape, tensor, Signed.wrap(Shape.rank(shape), dim), Signed.wrap(Signed.extent(Shape.dimensions(shape), Signed.wrap(Shape.rank(shape), dim)), Signed.Last{k}), length, Bool.not(_)) ==
+      (Core.Packed{shape, tensor}, Fail{Slice.OutOfRange{}}) : Core.Dynamic & Result<&2, &1, Slice.Error, Core.Dynamic>}
+  %Equal.sym(Bool, Nat.is_lt(U32.to_nat(Signed.wrap(Shape.rank(shape), dim)), Shape.rank_dimensions(Shape.dimensions(shape))), True{}, in_rank) :
+    {Signed.narrow_before(Core.Packed{shape, tensor}, Slice.refused(_, Nat.is_lt(0n, U32.to_nat(1)))) ==
+      (Core.Packed{shape, tensor}, Fail{Slice.OutOfRange{}}) : Core.Dynamic & Result<&2, &1, Slice.Error, Core.Dynamic>}
+  {==}
+
+def Laws.signed_narrow_before_axis(input, dim, k, length, past_rank, before):
+  Core.Packed{+shape, tensor} = input
+  %Equal.sym(Bool, U32.is_lt(k, Signed.extent(Shape.dimensions(shape), Signed.wrap(Shape.rank(shape), dim))), False{}, before) :
+    {Signed.narrow_started(shape, tensor, Signed.wrap(Shape.rank(shape), dim), Signed.wrap(Signed.extent(Shape.dimensions(shape), Signed.wrap(Shape.rank(shape), dim)), Signed.Last{k}), length, Bool.not(_)) ==
+      (Core.Packed{shape, tensor}, Fail{Slice.LayoutError{Layout.AxisOutOfBounds{}}}) : Core.Dynamic & Result<&2, &1, Slice.Error, Core.Dynamic>}
+  %Equal.sym(Bool, Nat.is_lt(U32.to_nat(Signed.wrap(Shape.rank(shape), dim)), Shape.rank_dimensions(Shape.dimensions(shape))), False{}, past_rank) :
+    {Signed.narrow_before(Core.Packed{shape, tensor}, Slice.refused(_, Nat.is_lt(0n, U32.to_nat(1)))) ==
+      (Core.Packed{shape, tensor}, Fail{Slice.LayoutError{Layout.AxisOutOfBounds{}}}) : Core.Dynamic & Result<&2, &1, Slice.Error, Core.Dynamic>}
   {==}
