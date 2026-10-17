@@ -65,16 +65,6 @@ def finish_read(+d: Nat, n: Nat, -original: Array<F32>, -i: U32,
   (array, value) = result
   (Owned{d, n, array, Certificates.get_result(F32, d, original, i, (array, value), exact, balanced), valid}, Done{value})
 
-def read_index(+d: Nat, +n: Nat, array: Array<F32>, +i: U32, matched: Bool,
-  -decision: {matched == index_matches(d, n, i) : Bool},
-  -balanced: Model.Balanced(F32, d, array), -valid: {bounds(d, n) == True{} : Bool}) ->
-  Storage & Result<&2, &2, Error, F32>:
-  match matched:
-    case False{}:
-      (Owned{d, n, array, balanced, valid}, Fail{InvalidIndex{}})
-    case True{}:
-      finish_read(d, n, array, i, Array.get(F32, array, i), {==}, balanced, valid)
-
 def get_checked(+d: Nat, +n: Nat, array: Array<F32>, +i: U32, allowed: Bool,
   -decision: {allowed == Nat.is_lt(U32.to_nat(i), n) : Bool},
   -balanced: Model.Balanced(F32, d, array), -valid: {bounds(d, n) == True{} : Bool}) ->
@@ -83,7 +73,7 @@ def get_checked(+d: Nat, +n: Nat, array: Array<F32>, +i: U32, allowed: Bool,
     case False{}:
       (Owned{d, n, array, balanced, valid}, Fail{OutOfBounds{}})
     case True{}:
-      read_index(d, n, array, i, index_matches(d, n, i), {==}, balanced, valid)
+      finish_read(d, n, array, i, Array.get(F32, array, i), {==}, balanced, valid)
 
 def get(storage: Storage, +i: U32) -> Storage & Result<&2, &2, Error, F32>:
   match storage:
@@ -98,16 +88,6 @@ def finish_write(+d: Nat, n: Nat, -original: Array<F32>, -i: U32, -value: F32,
   Storage & Result<&2, &2, Error, Unit>:
   (Owned{d, n, array, Certificates.set_result(F32, d, original, i, value, array, exact, balanced), valid}, Done{Unit{}})
 
-def write_index(+d: Nat, +n: Nat, array: Array<F32>, +i: U32, +value: F32, matched: Bool,
-  -decision: {matched == index_matches(d, n, i) : Bool},
-  -balanced: Model.Balanced(F32, d, array), -valid: {bounds(d, n) == True{} : Bool}) ->
-  Storage & Result<&2, &2, Error, Unit>:
-  match matched:
-    case False{}:
-      (Owned{d, n, array, balanced, valid}, Fail{InvalidIndex{}})
-    case True{}:
-      finish_write(d, n, array, i, value, Array.set(F32, array, i, value), {==}, balanced, valid)
-
 def set_checked(+d: Nat, +n: Nat, array: Array<F32>, +i: U32, value: F32, allowed: Bool,
   -decision: {allowed == Nat.is_lt(U32.to_nat(i), n) : Bool},
   -balanced: Model.Balanced(F32, d, array), -valid: {bounds(d, n) == True{} : Bool}) ->
@@ -116,7 +96,7 @@ def set_checked(+d: Nat, +n: Nat, array: Array<F32>, +i: U32, value: F32, allowe
     case False{}:
       (Owned{d, n, array, balanced, valid}, Fail{OutOfBounds{}})
     case True{}:
-      write_index(d, n, array, i, value, index_matches(d, n, i), {==}, balanced, valid)
+      finish_write(d, n, array, i, value, Array.set(F32, array, i, value), {==}, balanced, valid)
 
 def set(storage: Storage, +i: U32, value: F32) -> Storage & Result<&2, &2, Error, Unit>:
   match storage:

@@ -3,6 +3,7 @@ import ../shape/core.bend as Shape
 import ../storage/main.bend as Storage
 import ../storage/model.bend as Model
 import ../storage/refinement.bend as Refinement
+import ../storage/route.bend as Route
 import ../storage/clone.bend as Clone
 import ../storage/PROOF.bend as StorageProof
 import ../storage/LAWS.bend as StorageLaws
@@ -122,30 +123,13 @@ def Laws.primitive_clone_second_elements(depth, array, path, balanced):
     Pair.snd(Array<F32>, Array<F32>, Array.clone(F32, array)), array,
     Clone.second_equal(F32, depth, array, Clone.certify(F32, depth, array, balanced)))
 
-def write_index_mapping(-shape: Shape.Shape, +d: Nat, +n: Nat, array: Array<F32>, +i: U32, +value: F32,
-  balanced: Model.Balanced(F32, d, array), -valid: {Storage.bounds(d, n) == True{} : Bool},
-  -exact: {n == Shape.logical_numel(Shape.dimensions(shape)) : Nat}, matched: Bool,
-  -decision: {matched == Storage.index_matches(d, n, i) : Bool},
-  -same: {Storage.write_index(d, n, array, i, value, matched, decision, balanced, valid) ==
-    Storage.set(Storage.Owned{d, n, array, balanced, valid}, i, value) : Storage.Storage & Result<&2, &2, Storage.Error, Unit>},
-  accepted: {matched == True{} : Bool}) ->
-  {Core.write_observe(shape, Core.write_result(shape, Storage.Owned{d, n, array, balanced, valid}, exact, i, value,
-    Storage.write_index(d, n, array, i, value, matched, decision, balanced, valid), same), i) == Some{value} : Maybe<&2, F32>}:
-  match matched:
-    case False{}:
-      Empty.absurd({Core.write_observe(shape, Core.write_result(shape, Storage.Owned{d, n, array, balanced, valid}, exact, i, value,
-        Storage.write_index(d, n, array, i, value, False{}, decision, balanced, valid), same), i) == Some{value} : Maybe<&2, F32>},
-        Lifecycle.false_true(Equal.sym(Bool, False{}, True{}, accepted)))
-    case True{}:
-      StorageLaws.primitive_write_read(F32, d, array, i, value, balanced)
-
 def write_checked_mapping(-shape: Shape.Shape, +d: Nat, +n: Nat, array: Array<F32>, +i: U32, +value: F32,
   balanced: Model.Balanced(F32, d, array), -valid: {Storage.bounds(d, n) == True{} : Bool},
   -exact: {n == Shape.logical_numel(Shape.dimensions(shape)) : Nat}, allowed: Bool,
   -decision: {allowed == Nat.is_lt(U32.to_nat(i), n) : Bool},
   -same: {Storage.set_checked(d, n, array, i, value, allowed, decision, balanced, valid) ==
     Storage.set(Storage.Owned{d, n, array, balanced, valid}, i, value) : Storage.Storage & Result<&2, &2, Storage.Error, Unit>},
-  accepted: {allowed == True{} : Bool}, matched: {Storage.index_matches(d, n, i) == True{} : Bool}) ->
+  accepted: {allowed == True{} : Bool}) ->
   {Core.write_observe(shape, Core.write_result(shape, Storage.Owned{d, n, array, balanced, valid}, exact, i, value,
     Storage.set_checked(d, n, array, i, value, allowed, decision, balanced, valid), same), i) == Some{value} : Maybe<&2, F32>}:
   match allowed:
@@ -154,32 +138,11 @@ def write_checked_mapping(-shape: Shape.Shape, +d: Nat, +n: Nat, array: Array<F3
         Storage.set_checked(d, n, array, i, value, False{}, decision, balanced, valid), same), i) == Some{value} : Maybe<&2, F32>},
         Lifecycle.false_true(Equal.sym(Bool, False{}, True{}, accepted)))
     case True{}:
-      write_index_mapping(shape, d, n, array, i, value, balanced, valid, exact,
-        Storage.index_matches(d, n, i), {==}, same, matched)
+      StorageLaws.primitive_write_read(F32, d, array, i, value, balanced)
 
 def Laws.tensor_write_mapping(shape, depth, length, array, index, value, balanced, valid, exact, allowed, matched):
   write_checked_mapping(shape, depth, length, array, index, value, balanced, valid, exact,
-    Nat.is_lt(U32.to_nat(index), length), {==}, {==}, allowed, matched)
-
-def step_index_mapping(-shape: Shape.Shape, +d: Nat, +n: Nat, array: Array<F32>, +i: U32, +value: F32,
-  -left: Core.Dynamic, -right: Core.Dynamic,
-  balanced: Model.Balanced(F32, d, array), -valid: {Storage.bounds(d, n) == True{} : Bool},
-  -exact: {n == Shape.logical_numel(Shape.dimensions(shape)) : Nat}, matched: Bool,
-  -decision: {matched == Storage.index_matches(d, n, i) : Bool},
-  -same: {Storage.write_index(d, n, array, i, value, matched, decision, balanced, valid) ==
-    Storage.set(Storage.Owned{d, n, array, balanced, valid}, i, value) : Storage.Storage & Result<&2, &2, Storage.Error, Unit>},
-  accepted: {matched == True{} : Bool}) ->
-  {Elementwise.step_observe(shape, Elementwise.step_write(shape, left, right,
-    Core.write_result(shape, Storage.Owned{d, n, array, balanced, valid}, exact, i, value,
-      Storage.write_index(d, n, array, i, value, matched, decision, balanced, valid), same)), i) == Some{value} : Maybe<&2, F32>}:
-  match matched:
-    case False{}:
-      Empty.absurd({Elementwise.step_observe(shape, Elementwise.step_write(shape, left, right,
-        Core.write_result(shape, Storage.Owned{d, n, array, balanced, valid}, exact, i, value,
-          Storage.write_index(d, n, array, i, value, False{}, decision, balanced, valid), same)), i) == Some{value} : Maybe<&2, F32>},
-        Lifecycle.false_true(Equal.sym(Bool, False{}, True{}, accepted)))
-    case True{}:
-      StorageLaws.primitive_write_read(F32, d, array, i, value, balanced)
+    Nat.is_lt(U32.to_nat(index), length), {==}, {==}, allowed)
 
 def step_checked_mapping(-shape: Shape.Shape, +d: Nat, +n: Nat, array: Array<F32>, +i: U32, +value: F32,
   -left: Core.Dynamic, -right: Core.Dynamic,
@@ -188,7 +151,7 @@ def step_checked_mapping(-shape: Shape.Shape, +d: Nat, +n: Nat, array: Array<F32
   -decision: {allowed == Nat.is_lt(U32.to_nat(i), n) : Bool},
   -same: {Storage.set_checked(d, n, array, i, value, allowed, decision, balanced, valid) ==
     Storage.set(Storage.Owned{d, n, array, balanced, valid}, i, value) : Storage.Storage & Result<&2, &2, Storage.Error, Unit>},
-  accepted: {allowed == True{} : Bool}, matched: {Storage.index_matches(d, n, i) == True{} : Bool}) ->
+  accepted: {allowed == True{} : Bool}) ->
   {Elementwise.step_observe(shape, Elementwise.step_write(shape, left, right,
     Core.write_result(shape, Storage.Owned{d, n, array, balanced, valid}, exact, i, value,
       Storage.set_checked(d, n, array, i, value, allowed, decision, balanced, valid), same)), i) == Some{value} : Maybe<&2, F32>}:
@@ -199,13 +162,12 @@ def step_checked_mapping(-shape: Shape.Shape, +d: Nat, +n: Nat, array: Array<F32
           Storage.set_checked(d, n, array, i, value, False{}, decision, balanced, valid), same)), i) == Some{value} : Maybe<&2, F32>},
         Lifecycle.false_true(Equal.sym(Bool, False{}, True{}, accepted)))
     case True{}:
-      step_index_mapping(shape, d, n, array, i, value, left, right, balanced, valid, exact,
-        Storage.index_matches(d, n, i), {==}, same, matched)
+      StorageLaws.primitive_write_read(F32, d, array, i, value, balanced)
 
 def Laws.broadcast_step_mapping(operation, shape, depth, length, array, index, left, right,
   left_value, right_value, balanced, valid, exact, allowed, matched):
   step_checked_mapping(shape, depth, length, array, index, Elementwise.scalar(operation, left_value, right_value),
-    left, right, balanced, valid, exact, Nat.is_lt(U32.to_nat(index), length), {==}, {==}, allowed, matched)
+    left, right, balanced, valid, exact, Nat.is_lt(U32.to_nat(index), length), {==}, {==}, allowed)
 
 def and_true_left(+left: Bool, +right: Bool, equal: {Bool.and(left, right) == True{} : Bool}) -> {left == True{} : Bool}:
   match left:
@@ -283,31 +245,6 @@ def Laws.checked_route_separation(depth, length, index, other, index_checked, ot
   route_separation_decided(depth, length, index, other, index_checked, other_checked, different,
     Model.same(depth, Refinement.route(depth, index), Refinement.route(depth, other)), {==})
 
-def frame_index_mapping(-shape: Shape.Shape, +d: Nat, +n: Nat, array: Array<F32>, +i: U32, +other: U32, +value: F32,
-  balanced: Model.Balanced(F32, d, array), -valid: {Storage.bounds(d, n) == True{} : Bool},
-  -exact: {n == Shape.logical_numel(Shape.dimensions(shape)) : Nat}, matched: Bool,
-  decision: {matched == Storage.index_matches(d, n, i) : Bool},
-  -same: {Storage.write_index(d, n, array, i, value, matched, decision, balanced, valid) ==
-    Storage.set(Storage.Owned{d, n, array, balanced, valid}, i, value) : Storage.Storage & Result<&2, &2, Storage.Error, Unit>},
-  accepted: {matched == True{} : Bool},
-  other_checked: {Storage.index_matches(d, n, other) == True{} : Bool},
-  different: {Nat.is_eq(U32.to_nat(i), U32.to_nat(other)) == False{} : Bool}) ->
-  {Core.write_observe(shape, Core.write_result(shape, Storage.Owned{d, n, array, balanced, valid}, exact, i, value,
-    Storage.write_index(d, n, array, i, value, matched, decision, balanced, valid), same), other) ==
-    Model.observe(F32, d, array, Refinement.route(d, other)) : Maybe<&2, F32>}:
-  match matched:
-    case False{}:
-      Empty.absurd({Core.write_observe(shape, Core.write_result(shape, Storage.Owned{d, n, array, balanced, valid}, exact, i, value,
-        Storage.write_index(d, n, array, i, value, False{}, decision, balanced, valid), same), other) ==
-        Model.observe(F32, d, array, Refinement.route(d, other)) : Maybe<&2, F32>},
-        Lifecycle.false_true(Equal.sym(Bool, False{}, True{}, accepted)))
-    case True{}:
-      %Laws.checked_route_separation(d, n, i, other,
-        Equal.sym(Bool, True{}, Storage.index_matches(d, n, i), decision), other_checked, different) :
-        {Model.observe(F32, d, Array.set(F32, array, i, value), Refinement.route(d, other)) ==
-          Model.select(F32, _, value, Model.observe(F32, d, array, Refinement.route(d, other))) : Maybe<&2, F32>}
-      StorageLaws.primitive_update_frame(F32, d, array, i, Refinement.route(d, other), value, balanced)
-
 def frame_checked_mapping(-shape: Shape.Shape, +d: Nat, +n: Nat, array: Array<F32>, +i: U32, +other: U32, +value: F32,
   balanced: Model.Balanced(F32, d, array), -valid: {Storage.bounds(d, n) == True{} : Bool},
   -exact: {n == Shape.logical_numel(Shape.dimensions(shape)) : Nat}, allowed: Bool,
@@ -328,8 +265,10 @@ def frame_checked_mapping(-shape: Shape.Shape, +d: Nat, +n: Nat, array: Array<F3
         Model.observe(F32, d, array, Refinement.route(d, other)) : Maybe<&2, F32>},
         Lifecycle.false_true(Equal.sym(Bool, False{}, True{}, accepted)))
     case True{}:
-      frame_index_mapping(shape, d, n, array, i, other, value, balanced, valid, exact,
-        Storage.index_matches(d, n, i), {==}, same, index_checked, other_checked, different)
+      %Laws.checked_route_separation(d, n, i, other, index_checked, other_checked, different) :
+        {Model.observe(F32, d, Array.set(F32, array, i, value), Refinement.route(d, other)) ==
+          Model.select(F32, _, value, Model.observe(F32, d, array, Refinement.route(d, other))) : Maybe<&2, F32>}
+      StorageLaws.primitive_update_frame(F32, d, array, i, Refinement.route(d, other), value, balanced)
 
 def Laws.tensor_write_frame(shape, depth, length, array, index, other, value, balanced, valid, exact,
   allowed, index_checked, other_checked, different):
@@ -353,36 +292,6 @@ def Laws.natural_cursor_step(operation, plan, cursor, state):
 def Laws.u32_natural_injective(left, right, equal):
   Injective.u32_natural_injective(left, right)(equal)
 
-type UpdateIndexModel<-shape: Shape.Shape, -depth: Nat, -length: Nat, -array: Array<F32>, -index: U32, -value: F32,
-  -matched: Bool, -decision: {matched == Storage.index_matches(depth, length, index) : Bool},
-  -balanced: Model.Balanced(F32, depth, array), -valid: {Storage.bounds(depth, length) == True{} : Bool},
-  -length_exact: {length == Shape.logical_numel(Shape.dimensions(shape)) : Nat},
-  -same: {Storage.write_index(depth, length, array, index, value, matched, decision, balanced, valid) ==
-    Storage.set(Storage.Owned{depth, length, array, balanced, valid}, index, value) : Storage.Storage & Result<&2, &2, Storage.Error, Unit>}> is Data:
-  UpdateIndexModel{-meaning: Core.UpdateMeaning(shape, Core.TTensor{Storage.Owned{depth, length, array, balanced, valid}, length_exact}, index, value,
-    Core.write_result(shape, Storage.Owned{depth, length, array, balanced, valid}, length_exact, index, value,
-      Storage.write_index(depth, length, array, index, value, matched, decision, balanced, valid), same))}
-
-def update_index_model(-shape: Shape.Shape, +depth: Nat, +length: Nat, -array: Array<F32>, +index: U32, +value: F32,
-  matched: Bool, -decision: {matched == Storage.index_matches(depth, length, index) : Bool},
-  -balanced: Model.Balanced(F32, depth, array), -valid: {Storage.bounds(depth, length) == True{} : Bool},
-  -length_exact: {length == Shape.logical_numel(Shape.dimensions(shape)) : Nat},
-  -same: {Storage.write_index(depth, length, array, index, value, matched, decision, balanced, valid) ==
-    Storage.set(Storage.Owned{depth, length, array, balanced, valid}, index, value) : Storage.Storage & Result<&2, &2, Storage.Error, Unit>}) ->
-  UpdateIndexModel<shape, depth, length, array, index, value, matched, decision, balanced, valid, length_exact, same>:
-  match matched:
-    case False{}:
-      UpdateIndexModel{Unit{}}
-    case True{}:
-      UpdateIndexModel{(Equal.sym(Bool, True{}, Storage.index_matches(depth, length, index), decision),
-        (StorageLaws.primitive_write_read(F32, depth, array, index, value, balanced),
-          other => checked => different => (checked,
-            %Laws.checked_route_separation(depth, length, index, other,
-              Equal.sym(Bool, True{}, Storage.index_matches(depth, length, index), decision), checked, different) :
-              {Model.observe(F32, depth, Array.set(F32, array, index, value), Refinement.route(depth, other)) ==
-                Model.select(F32, _, value, Model.observe(F32, depth, array, Refinement.route(depth, other))) : Maybe<&2, F32>}
-            StorageLaws.primitive_update_frame(F32, depth, array, index, Refinement.route(depth, other), value, balanced))))}
-
 type UpdateCheckedModel<-shape: Shape.Shape, -depth: Nat, -length: Nat, -array: Array<F32>, -index: U32, -value: F32,
   -allowed: Bool, -decision: {allowed == Nat.is_lt(U32.to_nat(index), length) : Bool},
   -balanced: Model.Balanced(F32, depth, array), -valid: {Storage.bounds(depth, length) == True{} : Bool},
@@ -392,17 +301,6 @@ type UpdateCheckedModel<-shape: Shape.Shape, -depth: Nat, -length: Nat, -array: 
   UpdateCheckedModel{-meaning: Core.UpdateMeaning(shape, Core.TTensor{Storage.Owned{depth, length, array, balanced, valid}, length_exact}, index, value,
     Core.write_result(shape, Storage.Owned{depth, length, array, balanced, valid}, length_exact, index, value,
       Storage.set_checked(depth, length, array, index, value, allowed, decision, balanced, valid), same))}
-
-def update_index_checked(-shape: Shape.Shape, +depth: Nat, +length: Nat, -array: Array<F32>, +index: U32, +value: F32,
-  -decision: {True{} == Nat.is_lt(U32.to_nat(index), length) : Bool},
-  -balanced: Model.Balanced(F32, depth, array), -valid: {Storage.bounds(depth, length) == True{} : Bool},
-  -length_exact: {length == Shape.logical_numel(Shape.dimensions(shape)) : Nat},
-  -same: {Storage.set_checked(depth, length, array, index, value, True{}, decision, balanced, valid) ==
-    Storage.set(Storage.Owned{depth, length, array, balanced, valid}, index, value) : Storage.Storage & Result<&2, &2, Storage.Error, Unit>},
-  certificate: UpdateIndexModel<shape, depth, length, array, index, value, Storage.index_matches(depth, length, index), {==}, balanced, valid, length_exact, same>) ->
-  UpdateCheckedModel<shape, depth, length, array, index, value, True{}, decision, balanced, valid, length_exact, same>:
-  UpdateIndexModel{meaning} = certificate
-  UpdateCheckedModel{meaning}
 
 def update_checked_model(-shape: Shape.Shape, +depth: Nat, +length: Nat, -array: Array<F32>, +index: U32, +value: F32,
   allowed: Bool, -decision: {allowed == Nat.is_lt(U32.to_nat(index), length) : Bool},
@@ -415,8 +313,15 @@ def update_checked_model(-shape: Shape.Shape, +depth: Nat, +length: Nat, -array:
     case False{}:
       UpdateCheckedModel{Unit{}}
     case True{}:
-      update_index_checked(shape, depth, length, array, index, value, decision, balanced, valid, length_exact, same,
-        update_index_model(shape, depth, length, array, index, value, Storage.index_matches(depth, length, index), {==}, balanced, valid, length_exact, same))
+      UpdateCheckedModel{(Route.index_matched(depth, length, index, valid, Equal.sym(Bool, True{}, Nat.is_lt(U32.to_nat(index), length), decision)),
+        (StorageLaws.primitive_write_read(F32, depth, array, index, value, balanced),
+          other => checked => different => (checked,
+            %Laws.checked_route_separation(depth, length, index, other,
+              Route.index_matched(depth, length, index, valid, Equal.sym(Bool, True{}, Nat.is_lt(U32.to_nat(index), length), decision)),
+              checked, different) :
+              {Model.observe(F32, depth, Array.set(F32, array, index, value), Refinement.route(depth, other)) ==
+                Model.select(F32, _, value, Model.observe(F32, depth, array, Refinement.route(depth, other))) : Maybe<&2, F32>}
+            StorageLaws.primitive_update_frame(F32, depth, array, index, Refinement.route(depth, other), value, balanced))))}
 
 def update_checked_tensor(-shape: Shape.Shape, +depth: Nat, +length: Nat, -array: Array<F32>, +index: U32, +value: F32,
   -balanced: Model.Balanced(F32, depth, array), -valid: {Storage.bounds(depth, length) == True{} : Bool},

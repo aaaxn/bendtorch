@@ -65,7 +65,7 @@ The program prints `loss STEP WORD` for every step, the loss's F32 bits as a
 decimal, then `correct N ROWS` for the test set, 1000 rows a batch, the
 argmax of each row the first largest logit, as PyTorch's `argmax`. With
 `words` it then prints every word of the trained parameters. The training's
-wall time goes to stderr as `train_ms`.
+wall time goes to stderr as `train_ms`, the test pass's as `test_ms`.
 
 ## Run
 
@@ -199,7 +199,9 @@ at most 3% of a batch-64 step; the other 895 ms are the 19.5 million
 multiply-adds of the products, 46 ns each. The `x` gradient is a
 third of them and nothing reads it: the tape has no leaf that takes no
 gradient. Threads give 3.9 times at 24, close to the 3.6 times that the
-`linear` bench of #13 measured for the same products. Loading a batch takes 19 ms at any thread count.
+`linear` bench of #13 measured for the same products. Loading a batch (64
+row reads on one open file, the pixels, the tensor) takes 3.4 ms on one
+thread and 3.1 ms on eight.
 
 The output is the same at 1, 8 and 24 threads: for the whole epoch, every
 loss word, the test count and every trained word (102708 lines) have one

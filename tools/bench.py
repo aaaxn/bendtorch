@@ -79,6 +79,8 @@ WORKLOADS = [
     Workload("mul_bwd", M, "[1048576]*[1048576]", 4, M, "cell"),
     Workload("sum_bwd", M, "sum([1048576])", 1, M, "cell"),
     Workload("matmul_bwd", 256, "[256,256]@[256,256]", 1, 2 * 256**3, "mac"),
+    Workload("construct", 64, "[64,784] from a list", 20, 64 * 784, "value"),
+    Workload("mnist_eval", 1000, "[1000,784] built, scored", 1, 1000, "row"),
 ]
 
 
