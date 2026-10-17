@@ -1,6 +1,16 @@
 [permute-forward-map]
 file = "src/tensor/permute-build.bend"
 before = '''
+  Recipe{picks(Shape.rank_dimensions(dims), Shape.naturals(axes), Shape.naturals(Axis.order(U32, dims, Shape.naturals(axes))), 0n),
+    strides(Shape.naturals(dims))}'''
+after = '''
+  +out = Axis.order(U32, dims, Shape.naturals(axes))
+  Recipe{picks(Shape.rank_dimensions(out), Axis.inverse_axes(Shape.rank_dimensions(dims), Shape.naturals(axes)), Shape.naturals(dims), 0n),
+    strides(Shape.naturals(out))}'''
+
+[permute-identity-map]
+file = "src/tensor/permute-build.bend"
+before = '''
 def at(+recipe: Recipe, +position: Nat) -> U32:
   U32.from_nat(source(recipe, position))'''
 after = '''

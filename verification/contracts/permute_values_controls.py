@@ -80,7 +80,15 @@ PROOF = "src/tensor/permute-values.bend"
 # metadata only; each WI mutant still passes them.
 OTHER = "src/tensor/transform-contract-PROOF.bend"
 SITES = {
+    # out[map(i)] = input[i]: the recipe of the inverse map, which decodes
+    # against the input's dimensions and flattens against the output's.
     "permute-forward-map": Site(
+        "source_index",
+        "Axis.indices(",
+        "permute_2d_build_2d_proof",
+    ),
+    # out[i] = input[i]: the cell reads the input at its own index.
+    "permute-identity-map": Site(
         "source_word",
         "{U32.from_nat(index) == ",
         "permute_2d_build_2d_proof",

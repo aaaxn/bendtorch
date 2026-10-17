@@ -288,14 +288,17 @@ family's write history replayed on the storage `Core.new` allocates
 | Control | Change | Expected rejection |
 | --- | --- | --- |
 | False twins (3) | one witness statement says `wrong_value` | `Some(v) == Some(8.0)` at that witness, source and kernel |
-| Forward map (WI) | `Build.at` in `permute-build.bend` reads the source at the output index instead of the mapped index | `source_word` in `permute-build-proof.bend`, source and kernel; the released transform contract passes |
+| Forward map (WI) | `recipe` in `permute-build.bend` builds the inverse map, so output index `map(i)` gets source word `i` | `source_index` in `permute-build-proof.bend`, source and kernel; the released transform contract passes |
+| Identity map (WI) | `Build.at` in `permute-build.bend` reads the source at the output index itself | `source_word` in `permute-build-proof.bend`, source and kernel; the released transform contract passes |
 | Swap ignored (WI) | `transpose_decided` permutes by `transpose_axes(dims, a, a)` | `transpose_route`, source and kernel; the released transform contract passes |
 
-Both WI mutants keep every existing law: the erased value laws do not reach
-the kernel, and `transform-contract-PROOF.bend`, which states failures and
-reshape values only, still checks on each mutated copy. The rotation consumer
-uses a 3-cycle because a swap of two axes is its own inverse, so a forward map
-would read the same words for it. The kernel lane exports the mutated module
+The three WI mutants keep every existing law: the erased value laws do not
+reach the kernel, and `transform-contract-PROOF.bend`, which states failures
+and reshape values only, still checks on each mutated copy. The rotation
+consumer uses a 3-cycle because a swap of two axes is its own inverse, so the
+forward map reads the same words as the permute on a swap. On `[2,2,2]` by
+`(2,0,1)` the permute reads source indices `0 2 4 6 1 3 5 7`, the forward map
+`0 4 1 5 2 6 3 7` and the identity map `0 1 2 3 4 5 6 7`. The kernel lane exports the mutated module
 alone (`permute-build.bend` or `transforms.bend`) and transplants its changed
 declarations into the positive export.
 

@@ -408,11 +408,11 @@ class ExperimentRunnerTests(unittest.TestCase):
                 witness.replace("wrong_value", "other"), "grid_last_witness"
             )
 
-    def test_permute_mutants_edit_only_transforms(self):
-        source = (ROOT / "src/tensor/transforms.bend").read_text()
+    def test_permute_mutants_edit_only_the_copy(self):
+        modules = ("src/tensor/transforms.bend", "src/tensor/permute-build.bend")
         for label, (path, old, new) in permutes.MUTANTS.items():
-            self.assertEqual(path, "src/tensor/transforms.bend", label)
-            self.assertEqual(source.count(old), 1, label)
+            self.assertIn(path, modules, label)
+            self.assertEqual((ROOT / path).read_text().count(old), 1, label)
             self.assertNotEqual(old, new, label)
         with tempfile.TemporaryDirectory() as directory:
             snapshot = Path(directory) / "snapshot"
@@ -421,6 +421,7 @@ class ExperimentRunnerTests(unittest.TestCase):
                 target = Path(directory) / label
                 permutes.mutant_copy(snapshot, target, label)
                 changed = (target / path).read_text()
+                source = (ROOT / path).read_text()
                 self.assertEqual(changed.replace(new, old, 1), source, label)
                 self.assertTrue(
                     (target / permutes.EXPERIMENT / "module-entry.bend").exists()
@@ -459,6 +460,8 @@ class ExperimentRunnerTests(unittest.TestCase):
         with self.assertRaises(runner.GateError):
             permutes.source_reason(site, "permute-forward-map")
         with self.assertRaises(runner.GateError):
+            permutes.source_reason(site, "permute-identity-map")
+        with self.assertRaises(runner.GateError):
             permutes.source_reason(
                 "- expected : *2\n- observed : *1\nLocation: transpose_route\n",
                 "transpose-swap-ignored",
@@ -467,9 +470,18 @@ class ExperimentRunnerTests(unittest.TestCase):
     def test_permute_kernel_reason_refuses_other_locations(self):
         site = f"{permutes.SRC}permute_2d_build_2d_proof.source_word"
         good = f"In {site}:\nexpected: a\nobserved: b\n"
-        self.assertIn(site, permutes.kernel_reason(good, "permute-forward-map"))
+        self.assertIn(site, permutes.kernel_reason(good, "permute-identity-map"))
+        with self.assertRaises(runner.GateError):
+            permutes.kernel_reason(good, "permute-forward-map")
         with self.assertRaises(runner.GateError):
             permutes.kernel_reason(good, "transpose-swap-ignored")
+        inverse = f"{permutes.SRC}permute_2d_build_2d_proof.source_index"
+        self.assertIn(
+            inverse,
+            permutes.kernel_reason(
+                f"In {inverse}:\nexpected: a\nobserved: b\n", "permute-forward-map"
+            ),
+        )
         value = f"({permutes.SRC}transform_2d_observation.applied_value x)"
         left = f"({value} ({permutes.CORE}from_values y))"
         witness = (
