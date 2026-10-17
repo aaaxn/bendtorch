@@ -41,6 +41,16 @@ import ./loss.bend as Loss
 #   PyTorch's one_hot gradient minus exp(lp) times its row sum.
 # Each is reduced to its operand's shape before it is delivered.
 #
+# A constant is a leaf that takes no gradient, PyTorch's tensor with
+# requires_grad=False. A recording whose operands are all constants records a
+# constant too, as PyTorch's result does not require grad either. Any other
+# recording that reads a constant wraps its node in Frozen{id, node}, one wrap
+# for each operand id that is a constant, and the VJP of a frozen node sends
+# nothing to id: it drops every contribution to id from node's VJP, so a
+# constant's slot stays empty, as PyTorch's .grad stays None. Where the
+# dropped contribution is the product g @ W of `matmul_nt`, the input of
+# Linear, the VJP does not compute it.
+#
 # Recording and reads hand back the tape. A failed call leaves every slot as
 # it was.
 
@@ -66,6 +76,8 @@ type Node is Data:
   Relu{a: Nat, input: Shape.Shape}
   MseLoss{a: Nat, b: Nat, left: Shape.Shape, right: Shape.Shape}
   CrossEntropy{a: Nat, input: Shape.Shape}
+  Constant{}
+  Frozen{id: Nat, node: Node}
 
 # The operand values a product saves at record time.
 type Saved is Type:
@@ -312,11 +324,17 @@ def nt_left(+target: Nat, +shape: Shape.Shape, copy: Core.Dynamic, pair: Core.Dy
   (right, flipped) = pair
   (right, multiplied(target, shape, Matrix.matmul(copy, flipped)))
 
-# g^T @ x for the right operand, g read in place.
+# g^T @ x, g read in place. It has its own name so that the proofs of where
+# the contribution goes name it without restating the product; the value
+# laws read what it computes.
+def weight_product(copy: Core.Dynamic, flipped: Core.Dynamic) -> Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>:
+  Matrix.matmul_tn(copy, flipped)
+
+# g^T @ x for the right operand.
 def nt_right(+target: Nat, +shape: Shape.Shape, copy: Core.Dynamic, pair: Core.Dynamic & Core.Dynamic) ->
   Core.Dynamic & Result<&2, &1, Error, Contribution>:
   (left, flipped) = pair
-  (left, multiplied(target, shape, Matrix.matmul_tn(copy, flipped)))
+  (left, multiplied(target, shape, weight_product(copy, flipped)))
 
 def nt_fourth(first: Result<&2, &1, Error, Contribution>, y: Core.Dynamic, g: Core.Dynamic,
   pair: Core.Dynamic & Result<&2, &1, Error, Contribution>) -> Pass:
@@ -338,6 +356,31 @@ def nt_first(+a: Nat, +b: Nat, +left: Shape.Shape, +right: Shape.Shape, x: Core.
   (g, copy) = pair
   nt_second(b, right, x, g, nt_left(a, left, copy, Core.clone_dynamic(y)))
 
+def alone(result: Result<&2, &1, Error, Contribution>) -> Result<&2, &1, Error, List<&1, Contribution>>:
+  match result:
+    case Fail{error}:
+      Fail{error}
+    case Done{contribution}:
+      Done{[contribution]}
+
+def nt_alone_second(y: Core.Dynamic, g: Core.Dynamic, pair: Core.Dynamic & Result<&2, &1, Error, Contribution>) -> Pass:
+  (x, second) = pair
+  Pass{Operands{x, y}, g, alone(second)}
+
+def nt_alone_first(+b: Nat, +right: Shape.Shape, x: Core.Dynamic, y: Core.Dynamic, pair: Core.Dynamic & Core.Dynamic) -> Pass:
+  (g, copy) = pair
+  nt_alone_second(y, g, nt_right(b, right, copy, Core.clone_dynamic(x)))
+
+# d(x @ W^T)/dW alone, g^T @ x, for a product whose input x takes no
+# gradient: the second contribution of vjp_matmul_nt, computed the same way,
+# without g @ W.
+def vjp_matmul_nt_right(+b: Nat, +right: Shape.Shape, saved: Saved, g: Core.Dynamic) -> Pass:
+  match saved:
+    case Unsaved{}:
+      Pass{Unsaved{}, g, Fail{TensorError{Core.StorageLengthMismatch{}}}}
+    case Operands{x, y}:
+      nt_alone_first(b, right, x, y, Core.clone_dynamic(g))
+
 # d(x @ W^T)/dx: g @ W; d(x @ W^T)/dW: g^T @ x, with the operand values
 # saved at record time. Neither product builds a transpose: g @ W is
 # `matmul`, and g^T @ x is `matmul_tn`, which reads g in place. Each product
@@ -348,13 +391,6 @@ def vjp_matmul_nt(+a: Nat, +b: Nat, +left: Shape.Shape, +right: Shape.Shape, sav
       Pass{Unsaved{}, g, Fail{TensorError{Core.StorageLengthMismatch{}}}}
     case Operands{x, y}:
       nt_first(a, b, left, right, x, y, Core.clone_dynamic(g))
-
-def alone(result: Result<&2, &1, Error, Contribution>) -> Result<&2, &1, Error, List<&1, Contribution>>:
-  match result:
-    case Fail{error}:
-      Fail{error}
-    case Done{contribution}:
-      Done{[contribution]}
 
 def relu_passed(+a: Nat, +input: Shape.Shape, zero: Core.Dynamic,
   pair: (Core.Dynamic & Core.Dynamic) & Result<&2, &1, Core.Error, Core.Dynamic>) -> Pass:
@@ -430,8 +466,54 @@ def vjp_cross_entropy(+a: Nat, +input: Shape.Shape, saved: Saved, g: Core.Dynami
       entropy_first(a, input, Loss.count_f32(Loss.rows(input)), Loss.one_class(input), lp,
         Elementwise.binary(Elementwise.OneHotGrad{Loss.count_f32(Loss.rows(input))}, g, onehot))
 
+def kept_one(+target: Nat, +shape: Shape.Shape, gradient: Core.Dynamic, mine: Bool, rest: List<&1, Contribution>) ->
+  List<&1, Contribution>:
+  match mine:
+    case True{}:
+      rest
+    case False{}:
+      Contribution{target, shape, gradient} <> rest
+
+# The contributions to every node but id, in order.
+def kept_others(+id: Nat, items: List<&1, Contribution>) -> List<&1, Contribution>:
+  match items:
+    case Nil{}:
+      Nil{}
+    case Con{Contribution{+target, +shape, gradient}, rest}:
+      kept_one(target, shape, gradient, Nat.is_eq(id, target), kept_others(id, rest))
+
+def without(+id: Nat, contributions: Result<&2, &1, Error, List<&1, Contribution>>) -> Result<&2, &1, Error, List<&1, Contribution>>:
+  match contributions:
+    case Fail{error}:
+      Fail{error}
+    case Done{items}:
+      Done{kept_others(id, items)}
+
+# A VJP's pass without its contributions to id.
+def unsent(+id: Nat, pass: Pass) -> Pass:
+  Pass{saved, g, contributions} = pass
+  Pass{saved, g, without(id, contributions)}
+
+# Whether the VJP of Frozen{id, node} skips a product instead of dropping it:
+# node is x @ W^T and id is x and not W.
+def skips(+id: Nat, node: Node) -> Bool:
+  match node:
+    case MatmulNT{a, b, left, right}:
+      Bool.and(Nat.is_eq(id, a), Bool.not(Nat.is_eq(id, b)))
+    case other:
+      False{}
+
+def nt_frozen(+id: Nat, +a: Nat, +b: Nat, +left: Shape.Shape, +right: Shape.Shape, saved: Saved, g: Core.Dynamic, skip: Bool) -> Pass:
+  match skip:
+    case True{}:
+      vjp_matmul_nt_right(b, right, saved, g)
+    case False{}:
+      unsent(id, vjp_matmul_nt(a, b, left, right, saved, g))
+
 # The vector-Jacobian product of one node with gradient g: the contribution
-# each operand receives, in operand order, already reduced to its shape.
+# each operand receives, in operand order, already reduced to its shape. A
+# constant sends nothing, and Frozen{id, node} sends node's contributions
+# without the ones to id.
 def vjp(node: Node, saved: Saved, g: Core.Dynamic) -> Pass:
   match node:
     case Leaf{}:
@@ -454,6 +536,14 @@ def vjp(node: Node, saved: Saved, g: Core.Dynamic) -> Pass:
       vjp_mse(a, b, left, right, saved, g)
     case CrossEntropy{+a, +input}:
       vjp_cross_entropy(a, input, saved, g)
+    case Constant{}:
+      Pass{saved, g, Done{Nil{}}}
+    case Frozen{+id, inner}:
+      match inner:
+        case MatmulNT{+a, +b, +left, +right}:
+          nt_frozen(id, a, b, left, right, saved, g, Bool.and(Nat.is_eq(id, a), Bool.not(Nat.is_eq(id, b))))
+        case other:
+          unsent(id, vjp(other, saved, g))
 
 # Delivery.
 
@@ -584,6 +674,10 @@ def operands_below(node: Node, +bound: Nat) -> Bool:
       Bool.and(Nat.is_lt(a, bound), Nat.is_lt(b, bound))
     case CrossEntropy{a, input}:
       Nat.is_lt(a, bound)
+    case Constant{}:
+      True{}
+    case Frozen{id, inner}:
+      operands_below(inner, bound)
 
 def wired(nodes: List<&2, Node>, +count: Nat) -> Bool:
   match nodes count:
@@ -780,14 +874,112 @@ def done_id(pair: Tape & Nat) -> Tape & Result<&2, &2, Error, Nat>:
   (tape, id) = pair
   (tape, Done{id})
 
-# The new entry's id is the number of entries before it.
+def is_constant(node: Node) -> Bool:
+  match node:
+    case Constant{}:
+      True{}
+    case other:
+      False{}
+
+# Whether node id of a newest-first list of count nodes is a constant.
+def constant_at(nodes: List<&2, Node>, +count: Nat, +id: Nat, same: Bool) -> Bool:
+  match nodes count same:
+    case Nil{} count same:
+      False{}
+    case Con{node, rest} 0n same:
+      False{}
+    case Con{node, rest} 1n+below True{}:
+      is_constant(node)
+    case Con{node, rest} 1n+below False{}:
+      constant_at(rest, below, id, at_head(below, id))
+
+# The operand ids of a node, in operand order.
+def operand_ids(node: Node) -> List<&2, Nat>:
+  match node:
+    case Leaf{}:
+      []
+    case Add{a, b, left, right}:
+      [a, b]
+    case Sub{a, b, left, right}:
+      [a, b]
+    case Mul{a, b, left, right}:
+      [a, b]
+    case Sum{a, input}:
+      [a]
+    case Matmul{a, b, left, right}:
+      [a, b]
+    case MatmulNT{a, b, left, right}:
+      [a, b]
+    case Relu{a, input}:
+      [a]
+    case MseLoss{a, b, left, right}:
+      [a, b]
+    case CrossEntropy{a, input}:
+      [a]
+    case Constant{}:
+      []
+    case Frozen{id, inner}:
+      operand_ids(inner)
+
+def frozen_if(+id: Nat, node: Node, constant: Bool) -> Node:
+  match constant:
+    case True{}:
+      Frozen{id, node}
+    case False{}:
+      node
+
+# node wrapped in Frozen{id, .} for each operand id that is a constant of the
+# newest-first list of count nodes, the first operand outermost.
+def freeze(ids: List<&2, Nat>, +nodes: List<&2, Node>, +count: Nat, node: Node) -> Node:
+  match ids:
+    case Nil{}:
+      node
+    case Con{+id, rest}:
+      frozen_if(id, freeze(rest, nodes, count, node), constant_at(nodes, count, id, at_head(count, id)))
+
+# Whether every id of a list is a constant of the newest-first list of count
+# nodes.
+def all_constant(ids: List<&2, Nat>, +nodes: List<&2, Node>, +count: Nat) -> Bool:
+  match ids:
+    case Nil{}:
+      True{}
+    case Con{+id, rest}:
+      Bool.and(constant_at(nodes, count, id, at_head(count, id)), all_constant(rest, nodes, count))
+
+# A node whose operands are all constants is a constant itself, as in PyTorch
+# an operation on tensors that do not require grad gives one that does not;
+# any other node is frozen at each operand that is a constant.
+def settled(+node: Node, +ids: List<&2, Nat>, +nodes: List<&2, Node>, +count: Nat, constant: Bool) -> Node:
+  match constant:
+    case True{}:
+      Constant{}
+    case False{}:
+      freeze(ids, nodes, count, node)
+
+def marked(+node: Node, value: Core.Dynamic, saved: Saved, pair: List<&1, Entry> & List<&2, Node>) -> Tape & Nat:
+  (entries, +nodes) = pair
+  +count = List.length(&2, Node, nodes)
+  +ids = operand_ids(node)
+  pushed(settled(node, ids, nodes, count, all_constant(ids, nodes, count)), value, saved, (entries, count))
+
+# The new entry's id is the number of entries before it. A recording has at
+# least one operand; when they are all constants it records a constant, and
+# otherwise each operand that is a constant freezes the node.
 def push(node: Node, value: Core.Dynamic, saved: Saved, entries: List<&1, Entry>) -> Tape & Result<&2, &2, Error, Nat>:
-  done_id(pushed(node, value, saved, counted(entries)))
+  done_id(marked(node, value, saved, listed(entries)))
 
 # Records a leaf.
 def leaf(tape: Tape, value: Core.Dynamic) -> Tape & Nat:
   Tape{entries} = tape
   pushed(Leaf{}, value, Unsaved{}, counted(entries))
+
+# Records a constant: a leaf that takes no gradient, PyTorch's tensor with
+# requires_grad=False. No VJP sends it a contribution, so its slot reads None
+# after any backward that does not start at it; Sgd.step takes it as a leaf
+# and keeps it.
+def constant(tape: Tape, value: Core.Dynamic) -> Tape & Nat:
+  Tape{entries} = tape
+  pushed(Constant{}, value, Unsaved{}, counted(entries))
 
 def recorded(node: Node, saved: Saved, entries: List<&1, Entry>, result: Result<&2, &1, Core.Error, Core.Dynamic>) ->
   Tape & Result<&2, &2, Error, Nat>:

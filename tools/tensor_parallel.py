@@ -23,12 +23,22 @@ def matmul_splits(depth: int, inner: int) -> int:
     return min(max(depth + halvings - 13, 0), 6, depth)
 
 
-# Each product the probe runs, as (rows, inner, columns).
+def product_splits(depth: int, inner: int) -> int:
+    """`Matrix.product_splits`: `Matrix.splits`, at most 4."""
+    return min(matmul_splits(depth, inner), 4)
+
+
+# Each product the probe runs, as (rows, inner, columns) of its output and
+# terms. The `matmul_nt` and `matmul_tn` ones build eight-cell row blocks:
+# more than 2^15 cells, padded to 2^16, with a column count that is not a
+# multiple of eight, so some eight-cell subtrees cross a row.
 PRODUCTS = {
     "matmul-128x64x64": (128, 64, 64),
     "matmul-96x40x80": (96, 40, 80),
     "matmul-2x3x2": (2, 3, 2),
     "matmul-64x48x64-rounding": (64, 48, 64),
+    "matmul_nt-200x40x165-rounding": (200, 40, 165),
+    "matmul_tn-181x24x187-rounding": (181, 24, 187),
 }
 # Each reduction the probe runs, as (contribution dimensions, target
 # dimensions).
@@ -48,6 +58,8 @@ BUILDS = (*PRODUCTS, *REDUCTIONS)
 ROUNDING = "matmul-64x48x64-rounding"
 ROUNDING_BUILDS = (
     ROUNDING,
+    "matmul_nt-200x40x165-rounding",
+    "matmul_tn-181x24x187-rounding",
     "reduce-256x64-to-256x1-rounding",
     "reduce-64x16x32-to-64x1x1-rounding",
 )
@@ -82,12 +94,12 @@ def expected_splits(name: str) -> int:
     if name in REDUCTIONS:
         return reduce_splits(*REDUCTIONS[name])
     rows, inner, columns = PRODUCTS[name]
-    return matmul_splits(depth(rows * columns), inner)
+    return product_splits(depth(rows * columns), inner)
 
 
 def check_lines(stdout: str) -> dict[str, int]:
     """The splits each probe line reports, after checking that every line
-    names a known build, forks as `expected_splits` says (`Matrix.splits`
+    names a known build, forks as `expected_splits` says (`Matrix.product_splits`
     for a product, `Reduce.splits` for a reduction) and matches its
     sequential definition word for word."""
     splits = {}

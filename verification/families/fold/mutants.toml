@@ -103,14 +103,51 @@ after = '''
 [matmul-reversed-order]
 file = "src/tensor/matmul.bend"
 before = '''
+# The terms k = cursor .. cursor + fuel - 1 of cell (row, column), added to
+# `accumulator`. Both arrays come back with the total: the run from term
+# cursor, where term k + 1 sits one word on in the left row and `columns`
+# words on in the right column.
+def cell_dot(fuel: Nat, +inner: Nat, +columns: Nat, +row: Nat, +column: Nat, +cursor: Nat, accumulator: F32,
+  la: Array<F32>, ra: Array<F32>) -> F32 & (Array<F32> & Array<F32>):
+  match fuel:
+    case 0n:
+      (accumulator, (la, ra))
     case 1n+rest:
-      term_left(value => l => r => cell_dot(rest, inner, columns, row, column, 1n+cursor, value, l, r),
-        accumulator, ra, right_index(columns, column, cursor), Array.get(F32, la, left_index(inner, row, cursor)))'''
+      product_run(rest, 1n, columns, Nat.add(Nat.mul(row, inner), cursor), Nat.add(Nat.mul(cursor, columns), column), accumulator,
+        Array.get(F32, la, left_index(inner, row, cursor)), Array.get(F32, ra, right_index(columns, column, cursor)))'''
+after = '''
+# PLANT: the terms of cell (row, column) from k = cursor + fuel - 1 down
+# to cursor, each read one word back in the left row and `columns` words
+# back in the right column.
+def back_run(fuel: Nat, +columns: Nat, +lp: Nat, +rp: Nat, accumulator: F32,
+  left: Array<F32> & F32, right: Array<F32> & F32) -> F32 & (Array<F32> & Array<F32>):
+  match fuel left right:
+    case 0n Tuple{la, x} Tuple{ra, y}:
+      (F32.add(accumulator, F32.mul(x, y)), (la, ra))
+    case 1n+rest Tuple{la, x} Tuple{ra, y}:
+      back_run(rest, columns, Nat.sub(lp, 1n), Nat.sub(rp, columns), F32.add(accumulator, F32.mul(x, y)),
+        Array.get(F32, la, U32.from_nat(Nat.sub(lp, 1n))), Array.get(F32, ra, U32.from_nat(Nat.sub(rp, columns))))
+
+def cell_dot(fuel: Nat, +inner: Nat, +columns: Nat, +row: Nat, +column: Nat, +cursor: Nat, accumulator: F32,
+  la: Array<F32>, ra: Array<F32>) -> F32 & (Array<F32> & Array<F32>):
+  match fuel:
+    case 0n:
+      (accumulator, (la, ra))
+    case 1n+rest:
+      +more = rest
+      +back = Nat.add(cursor, more)
+      back_run(more, columns, Nat.add(Nat.mul(row, inner), back), Nat.add(Nat.mul(back, columns), column), accumulator,
+        Array.get(F32, la, left_index(inner, row, back)), Array.get(F32, ra, right_index(columns, column, back)))'''
+
+
+[matmul-swapped-strides]
+file = "src/tensor/matmul.bend"
+before = '''
+    case 1n+rest:
+      product_run(rest, 1n, columns, Nat.add(Nat.mul(row, inner), cursor), Nat.add(Nat.mul(cursor, columns), column), accumulator,'''
 after = '''
     case 1n+rest:
-      +back = rest
-      term_left(value => l => r => cell_dot(back, inner, columns, row, column, 1n+cursor, value, l, r),
-        accumulator, ra, right_index(columns, column, back), Array.get(F32, la, left_index(inner, row, back)))'''
+      product_run(rest, columns, 1n, Nat.add(Nat.mul(row, inner), cursor), Nat.add(Nat.mul(cursor, columns), column), accumulator,'''
 
 [matmul-negative-zero-start]
 file = "src/tensor/matmul.bend"
@@ -148,3 +185,17 @@ before = '''
 after = '''
     case Kept{}:
       Nat.add(Nat.mul(k, inner), outer)'''
+
+[product-row-crossed-terms]
+file = "src/tensor/matmul.bend"
+before = '''
+F32.add(a3, F32.mul(x, y3))'''
+after = '''
+F32.add(a3, F32.mul(x, y4))'''
+
+[product-row-unchecked]
+file = "src/tensor/matmul.bend"
+before = '''
+Nat.is_eq(row_of(columns, Nat.add(7n, base)), row_of(columns, base)), True{}'''
+after = '''
+True{}, True{}'''

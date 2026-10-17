@@ -53,7 +53,7 @@ from tools.autograd_tensor_bound import (
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "e4ae8a154aa8a047a301dd9c50f60e5a406bcb13701c6eae781be7bbc93b8834"
+FIXTURE_SHA256 = "b15ac7711ab65505c81f8b3fa7ae812016bc0a77f8a7a9198f61eb07d9d98521"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
@@ -617,7 +617,7 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
             | NON_LEAF
         )
         self.assertEqual(exact, len(cases()) - len(excluded))
-        self.assertEqual(exact, 131)
+        self.assertEqual(exact, 138)
 
     # Planted wrong results on the reference's side, as a wrong Bend result
     # would be: a sum, a reduction and a matmul that leave out their last
@@ -640,9 +640,9 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                 identifier, seen[identifier], bounded_reference(rows[identifier]), pins
             )
         planted = {
-            "total": (dropping_total, 81, {"loss_07"}, (66, 12, 2)),
-            "sum_to_size": (dropping_sum_to_size, 62, set(), (61, 1, 0)),
-            "matmul": (dropping_matmul, 27, set(), (26, 1, 0)),
+            "total": (dropping_total, 88, {"loss_07"}, (72, 13, 2)),
+            "sum_to_size": (dropping_sum_to_size, 65, set(), (63, 2, 0)),
+            "matmul": (dropping_matmul, 32, set(), (30, 2, 0)),
         }
         for name, (function, changed, missed, reasons) in planted.items():
             with self.subTest(planted=name):
@@ -795,7 +795,7 @@ class GateRegistrationTests(unittest.TestCase):
         ]
         self.assertEqual(
             sum(name.startswith("tensor_2d_backward_2d_LAWS.") for name in required),
-            16,
+            19,
         )
         self.assertEqual(
             [name for name in required if name.startswith("tensor_2d_vjp_2d_LAWS.")],
@@ -806,6 +806,7 @@ class GateRegistrationTests(unittest.TestCase):
                 "tensor_2d_vjp_2d_LAWS.tensor_mul_vjp_values",
                 "tensor_2d_vjp_2d_LAWS.tensor_matmul_vjp_values",
                 "tensor_2d_vjp_2d_LAWS.tensor_matmul_nt_vjp_values",
+                "tensor_2d_vjp_2d_LAWS.tensor_matmul_nt_frozen_vjp_values",
                 "tensor_2d_vjp_2d_LAWS.nt_reads_transpose",
                 "tensor_2d_vjp_2d_LAWS.tn_reads_transpose",
                 "tensor_2d_vjp_2d_LAWS.tensor_relu_vjp_values",
@@ -831,7 +832,7 @@ class GateRegistrationTests(unittest.TestCase):
             self.assertIn("quiet(2143289344)", mutated)
 
     def test_runtime_controls_apply_once(self):
-        self.assertEqual(len(RUNTIME_CONTROLS), 40)
+        self.assertEqual(len(RUNTIME_CONTROLS), 44)
         for control in RUNTIME_CONTROLS.values():
             path, original, mutated = (
                 control

@@ -239,3 +239,13 @@ def steps_next(+cursor: Nat, +rest: Nat, +end: Nat, steps: {Nat.add(cursor, 1n+r
   {Nat.add(1n+cursor, rest) == end : Nat}:
   Equal.trans(Nat, 1n+Nat.add(cursor, rest), Nat.add(cursor, 1n+rest), end,
     Equal.sym(Nat, Nat.add(cursor, 1n+rest), 1n+Nat.add(cursor, rest), Arith.add_succ(cursor, rest)), steps)
+
+# A matmul cell steps its left offset by one word and its right offset by a
+# row of `columns` words: the term after term k sits at the offsets of k + 1.
+def stepped_left(+inner: Nat, +row: Nat, +k: Nat) ->
+  {Nat.add(1n, Nat.add(Nat.mul(row, inner), k)) == Nat.add(Nat.mul(row, inner), 1n+k) : Nat}:
+  Equal.sym(Nat, Nat.add(Nat.mul(row, inner), 1n+k), 1n+Nat.add(Nat.mul(row, inner), k), Arith.add_succ(Nat.mul(row, inner), k))
+
+def stepped_right(+columns: Nat, +column: Nat, +k: Nat) ->
+  {Nat.add(columns, Nat.add(Nat.mul(k, columns), column)) == Nat.add(Nat.mul(1n+k, columns), column) : Nat}:
+  Index.add_assoc(columns, Nat.mul(k, columns), column)

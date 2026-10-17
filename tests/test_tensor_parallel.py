@@ -12,6 +12,7 @@ from tools.tensor_parallel import (
     depth,
     expected_splits,
     matmul_splits,
+    product_splits,
 )
 
 
@@ -45,6 +46,17 @@ class ParallelProbeTests(unittest.TestCase):
             with self.subTest(cells=cells, inner=inner):
                 self.assertEqual(matmul_splits(depth(cells), inner), expected)
 
+    def test_product_splits_at_most_four(self):
+        for cells, inner, expected in (
+            (8192, 64, 4),
+            (7680, 40, 4),
+            (1024, 16, 1),
+            (8192, 784, 4),
+            (4, 3, 0),
+        ):
+            with self.subTest(cells=cells, inner=inner):
+                self.assertEqual(product_splits(depth(cells), inner), expected)
+
     def test_probe_builds_fork(self):
         self.assertTrue(any(expected_splits(name) for name in PRODUCTS))
 
@@ -53,10 +65,24 @@ class ParallelProbeTests(unittest.TestCase):
         self.assertEqual(expected_splits(ROUNDING), 4)
 
     def test_rounding_reductions_fork(self):
-        self.assertEqual(len(ROUNDING_BUILDS), 3)
+        self.assertEqual(len(ROUNDING_BUILDS), 5)
         for name in ROUNDING_BUILDS:
             with self.subTest(name=name):
                 self.assertTrue(expected_splits(name))
+
+    def test_row_block_products_cross_rows_and_pad(self):
+        blocks = [
+            name for name in PRODUCTS if name.startswith(("matmul_nt", "matmul_tn"))
+        ]
+        self.assertEqual(len(blocks), 2)
+        for name in blocks:
+            rows, inner, columns = PRODUCTS[name]
+            with self.subTest(name=name):
+                self.assertIn(name, ROUNDING_BUILDS)
+                self.assertGreater(rows * columns, 1 << 15)
+                self.assertLess(rows * columns, 1 << depth(rows * columns))
+                self.assertNotEqual(columns % 8, 0)
+                self.assertEqual(expected_splits(name), 4)
 
     def test_only_contiguous_fibers_fork(self):
         self.assertTrue(contiguous((256, 64), (256, 1)))
@@ -89,7 +115,7 @@ class ParallelProbeTests(unittest.TestCase):
 
     def test_check_lines_rejects_a_differing_word(self):
         with self.assertRaises(GateError):
-            check_lines(probe_output(**{"matmul-128x64x64": (6, 1)}))
+            check_lines(probe_output(**{"matmul-128x64x64": (4, 1)}))
         with self.assertRaises(GateError):
             check_lines(probe_output(**{"reduce-256x64-to-256x1-rounding": (1, 3)}))
 

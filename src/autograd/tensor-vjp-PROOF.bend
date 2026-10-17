@@ -789,6 +789,144 @@ def Laws.tensor_matmul_nt_vjp_values(a, b, left, right, shape, first, first_plan
             back, back_rows, back_inner, back_right_inner, back_columns, back_le, back_re, back_oe, back_compatible,
             second_planned, second_same, fill, ops, fits, left_fill, left_ops, left_fits, right_fill, right_ops, right_fits)
 
+# The pairs g^T @ x reads on the Second half of g and the Second half of x
+# are the pairs on g and x themselves.
+def frozen_factors(+row: Nat, +column: Nat, +inner: Nat, +rows: Nat, +columns: Nat,
+  +shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>,
+  +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>, +count: Nat) ->
+  {Contracts.product_factors(row, column, Matrix.Swapped{}, Matrix.Swapped{}, inner, rows, columns,
+    shape, fill, Replayed.snoc(ops, StorageLaws.Second{}), left, left_fill, Replayed.snoc(left_ops, StorageLaws.Second{}), count) ==
+    Contracts.product_factors(row, column, Matrix.Swapped{}, Matrix.Swapped{}, inner, rows, columns,
+      shape, fill, ops, left, left_fill, left_ops, count) : List<&2, DotFold.Factors>}:
+  match count:
+    case 0n:
+      {==}
+    case 1n+previous:
+      +g_cell = Matrix.read_index(Matrix.Swapped{}, inner, rows, row, previous)
+      +x_cell = Matrix.read_index(Matrix.Swapped{}, inner, columns, column, previous)
+      factors_snoc(
+        Contracts.product_factors(row, column, Matrix.Swapped{}, Matrix.Swapped{}, inner, rows, columns,
+          shape, fill, Replayed.snoc(ops, StorageLaws.Second{}), left, left_fill, Replayed.snoc(left_ops, StorageLaws.Second{}), previous),
+        Contracts.product_factors(row, column, Matrix.Swapped{}, Matrix.Swapped{}, inner, rows, columns,
+          shape, fill, ops, left, left_fill, left_ops, previous),
+        Replayed.value(shape, fill, Replayed.snoc(ops, StorageLaws.Second{}), g_cell),
+        Replayed.value(left, left_fill, Replayed.snoc(left_ops, StorageLaws.Second{}), x_cell),
+        Replayed.value(shape, fill, ops, g_cell),
+        Replayed.value(left, left_fill, left_ops, x_cell),
+        frozen_factors(row, column, inner, rows, columns, shape, fill, ops, left, left_fill, left_ops, previous),
+        SumToSizeFoldProof.half_keeps(shape, fill, ops, StorageLaws.Second{}, g_cell, {==}),
+        SumToSizeFoldProof.half_keeps(left, left_fill, left_ops, StorageLaws.Second{}, x_cell, {==}))
+
+def FrozenGoal(+b: Nat, +left: Shape.Shape, +right: Shape.Shape, +shape: Shape.Shape,
+  +second: Matrix.Product<Matrix.Swapped{}, Matrix.Swapped{}, shape, left>,
+  +fill: F32, +ops: List<&2, StorageLaws.Op>, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>, pass: Backward.Pass) -> Type:
+  Laws.MatmulSoleContract<b, right,
+    Contracts.product_rows(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second),
+    Contracts.product_columns(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second),
+    row => column => DotFold.dot_fold(Contracts.product_factors(row, column, Matrix.Swapped{}, Matrix.Swapped{},
+      Contracts.product_inner(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second),
+      Contracts.product_rows(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second),
+      Contracts.product_columns(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second),
+      shape, fill, ops, left, left_fill, left_ops, Contracts.product_inner(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second)), 0.0),
+    pass>
+
+def frozen_values(+b: Nat, +left: Shape.Shape, +right: Shape.Shape, +shape: Shape.Shape,
+  +back: Shape.Shape, +back_rows: U32, +back_inner: U32, +back_right_inner: U32, +back_columns: U32,
+  -back_le: {Shape.dimensions(shape) == Matrix.arranged(Matrix.Swapped{}, back_rows, back_inner) : List<&2, U32>},
+  -back_re: {Shape.dimensions(left) == Matrix.arranged(Matrix.Swapped{}, back_columns, back_right_inner) : List<&2, U32>},
+  -back_oe: {Shape.dimensions(back) == [back_rows, back_columns] : List<&2, U32>},
+  -back_compatible: {U32.to_nat(back_inner) == U32.to_nat(back_right_inner) : Nat},
+  +second_planned: {Matrix.product_plan(Matrix.Swapped{}, Matrix.Swapped{}, shape, left) ==
+    Done{Matrix.Product{back, back_rows, back_inner, back_right_inner, back_columns, back_le, back_re, back_oe, back_compatible}} :
+    Result<&2, &2, Matrix.Error, Matrix.Product<Matrix.Swapped{}, Matrix.Swapped{}, shape, left>>},
+  +second_same: {Shape.dimensions(back) == Shape.dimensions(right) : List<&2, U32>},
+  +fill: F32, +ops: List<&2, StorageLaws.Op>,
+  -fits: {Lifecycle.logical_length(Replayed.storage(shape, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat},
+  +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>,
+  -left_fits: {Lifecycle.logical_length(Replayed.storage(left, left_fill, left_ops)) == Shape.logical_numel(Shape.dimensions(left)) : Nat},
+  +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>,
+  -right_fits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_ops)) == Shape.logical_numel(Shape.dimensions(right)) : Nat}) ->
+  FrozenGoal(b, left, right, shape,
+    Matrix.Product{back, back_rows, back_inner, back_right_inner, back_columns, back_le, back_re, back_oe, back_compatible},
+    fill, ops, left_fill, left_ops,
+    Backward.vjp_matmul_nt_right(b, right,
+      Backward.Operands{Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
+        Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}}},
+      Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}})):
+  +second : Matrix.Product<Matrix.Swapped{}, Matrix.Swapped{}, shape, left> =
+    Matrix.Product{back, back_rows, back_inner, back_right_inner, back_columns, back_le, back_re, back_oe, back_compatible}
+  +back_facts : ProductProof.ProductFacts<Matrix.Swapped{}, Matrix.Swapped{}, shape, left, back, back_rows, back_inner, back_right_inner, back_columns> =
+    ProductProof.plan_facts(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second, second_planned)
+  +back_oe_live = ProductProof.output_dimensions(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, back, back_rows, back_inner, back_right_inner,
+    back_columns, back_facts)
+  -Goal : Backward.Pass -> Type = pass => FrozenGoal(b, left, right, shape, second, fill, ops, left_fill, left_ops, pass)
+  -x = {Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}} : Core.Dynamic}
+  -y = {Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}} : Core.Dynamic}
+  SumToSizeFoldProof.clone_lift(shape, fill, ops, fits,
+    pair => Goal(Backward.nt_alone_first(b, right, x, y, Core.clone_dynamic_result(shape, pair))),
+    g_fits => copy_fits =>
+      -g = {Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, Replayed.snoc(ops, StorageLaws.First{})), g_fits}} : Core.Dynamic}
+      -copy = {Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, Replayed.snoc(ops, StorageLaws.Second{})), copy_fits}} : Core.Dynamic}
+      SumToSizeFoldProof.clone_lift(left, left_fill, left_ops, left_fits,
+        pair => Goal(Backward.nt_alone_second(y, g, Backward.nt_right(b, right, copy, Core.clone_dynamic_result(left, pair)))),
+        x_fits => turned_fits =>
+          -x_back = {Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, Replayed.snoc(left_ops, StorageLaws.First{})), x_fits}} :
+            Core.Dynamic}
+          Contracts.product_replayed(Matrix.Swapped{}, Matrix.Swapped{}, shape, left, second, second_planned,
+            fill, Replayed.snoc(ops, StorageLaws.Second{}), copy_fits,
+            left_fill, Replayed.snoc(left_ops, StorageLaws.Second{}), turned_fits,
+            result => Goal(Backward.nt_alone_second(y, g, (x_back, Backward.multiplied(b, right, result)))),
+            again_kept => again_words => again_kept_fits => turned_kept => turned_words => turned_kept_fits =>
+              back_ops => back_cells => back_fits =>
+              Laws.MatmulSoleContract{
+                {==},
+                Equal.cong(List<&2, U32>, Maybe<&2, List<&2, U32>>, dimensions => Some{dimensions},
+                  Shape.dimensions(back), Shape.dimensions(right), second_same),
+                row => row_below => column => column_below =>
+                  +row_below = row_below
+                  +column_below = column_below
+                  product_cell(back, back_rows, back_columns, back_oe_live, back_ops, back_fits, row, row_below, column, column_below,
+                    Contracts.product_factors(row, column, Matrix.Swapped{}, Matrix.Swapped{}, U32.to_nat(back_inner),
+                      U32.to_nat(back_rows), U32.to_nat(back_columns), shape, fill, Replayed.snoc(ops, StorageLaws.Second{}),
+                      left, left_fill, Replayed.snoc(left_ops, StorageLaws.Second{}), U32.to_nat(back_inner)),
+                    Contracts.product_factors(row, column, Matrix.Swapped{}, Matrix.Swapped{}, U32.to_nat(back_inner),
+                      U32.to_nat(back_rows), U32.to_nat(back_columns), shape, fill, ops, left, left_fill, left_ops, U32.to_nat(back_inner)),
+                    back_cells(row, row_below, column, column_below),
+                    frozen_factors(row, column, U32.to_nat(back_inner), U32.to_nat(back_rows), U32.to_nat(back_columns),
+                      shape, fill, ops, left, left_fill, left_ops, U32.to_nat(back_inner)))})))
+
+def same_refl(+number: Nat) -> {True{} == Nat.is_eq(number, number) : Bool}:
+  match number:
+    case 0n:
+      {==}
+    case 1n+rest:
+      same_refl(rest)
+
+# With a not b, Frozen{a, MatmulNT{a, b, ..}} runs the right product alone.
+def frozen_skips(+a: Nat, +b: Nat, +left: Shape.Shape, +right: Shape.Shape, -saved: Backward.Saved, -g: Core.Dynamic,
+  apart: {Nat.is_eq(a, b) == False{} : Bool}) ->
+  {Backward.vjp_matmul_nt_right(b, right, saved, g) == Backward.vjp(Backward.Frozen{a, Backward.MatmulNT{a, b, left, right}}, saved, g) :
+    Backward.Pass}:
+  %same_refl(a) : {Backward.vjp_matmul_nt_right(b, right, saved, g) ==
+    Backward.nt_frozen(a, a, b, left, right, saved, g, Bool.and(_, Bool.not(Nat.is_eq(a, b)))) : Backward.Pass}
+  %Equal.sym(Bool, Nat.is_eq(a, b), False{}, apart) : {Backward.vjp_matmul_nt_right(b, right, saved, g) ==
+    Backward.nt_frozen(a, a, b, left, right, saved, g, Bool.and(True{}, Bool.not(_))) : Backward.Pass}
+  {==}
+
+def Laws.tensor_matmul_nt_frozen_vjp_values(a, b, apart, left, right, shape, second, second_planned, second_same,
+  fill, ops, fits, left_fill, left_ops, left_fits, right_fill, right_ops, right_fits):
+  match second:
+    case Matrix.Product{+back, +back_rows, +back_inner, +back_right_inner, +back_columns, back_le, back_re, back_oe, back_compatible}:
+      %frozen_skips(a, b, left, right,
+        Backward.Operands{Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), left_fits}},
+          Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), right_fits}}},
+        Core.Packed{shape, Core.TTensor{Replayed.storage(shape, fill, ops), fits}}, apart) :
+        FrozenGoal(b, left, right, shape,
+          Matrix.Product{back, back_rows, back_inner, back_right_inner, back_columns, back_le, back_re, back_oe, back_compatible},
+          fill, ops, left_fill, left_ops, _)
+      frozen_values(b, left, right, shape, back, back_rows, back_inner, back_right_inner, back_columns, back_le, back_re, back_oe, back_compatible,
+        second_planned, second_same, fill, ops, fits, left_fill, left_ops, left_fits, right_fill, right_ops, right_fits)
+
 # The axes transpose_dynamic(t, 0, 1) permutes a rank-2 t by are [1, 0].
 def swapped_matrix(+shape: Shape.Shape, +a: U32, +b: U32, +matrix: {Shape.dimensions(shape) == [a, b] : List<&2, U32>}) ->
   {Laws.swapped(shape) == [1, 0] : List<&2, U32>}:

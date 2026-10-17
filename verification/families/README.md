@@ -130,12 +130,15 @@ instance copy, only the instance copy for the swapped maps, or only
 | Pair right failed swapped | `pair_right` returns the inputs as `(right, left)` when the right read fails | `pair_fails_right` | `consumers.pair_fails_right` |
 | Sum swapped add | `Sum.add` returns `F32.add(word, accumulator)` | `total_words` | `total_words` |
 | Dot untransposed right | `Dot.right_index` reads `column * inner + k` | `total_factors` | `total_factors` |
-| `matmul` reversed order | `cell_dot` reads `k` from `inner - 1` down to 0 | `dot_eq` | `dot_eq` |
+| `matmul` reversed order | `cell_dot` runs a loop that reads `k` from `inner - 1` down to 0 | `dot_eq` | `dot_eq` |
+| `matmul` swapped strides | `cell_dot` steps the left offset by `columns` and the right one by one word | `dot_eq` | `dot_eq` |
 | `matmul` negative zero start | `dot_of` starts the cell at `F32.neg(0.0)` | `cell_inside_eq` | `cell_inside_eq` |
-| `matmul` transposed right | `right_index` reads the right matrix at `column * columns + k` | `dot_right_eq` | `dot_right_eq` |
+| `matmul` transposed right | `right_index` reads the right matrix at `column * columns + k` | `run_last` | `run_last` |
 | `matmul_nt` reads the weight untransposed | `matmul_nt` is `product(Kept, Swapped)`, which reads `W` as `[inner, columns]` | `Laws.matmul_nt_ordered` | `matmul_nt_ordered` |
 | `matmul_tn` swaps operands | `matmul_tn(g, x)` multiplies `x^T @ g` | `Laws.matmul_tn_ordered` | `matmul_tn_ordered` |
 | Product reads a `Kept` operand swapped | `read_offset` reads a `Kept` operand at `k * inner + outer` | `read_below` | `read_below` |
+| Product row crosses terms | `eight_terms` adds cell 4's right word to cell 3 | `row_last` | `row_last` |
+| Product row unchecked | `one_row` skips the same-row check of the eighth cell | `row_block_tree` | `row_block_tree` |
 
 The first nine mutants change the generic loops in `fold.bend`, and the
 generic proofs reject them. The next three change what the loops return when
@@ -143,10 +146,11 @@ a read fails. The proofs accept them, since no law covers a failed read, and
 the runner checks them against `fold/consumers.bend` instead, where the
 failure consumers reject them. The next two change one instance each. The
 proof that relates the instance's `Fold.total` to its specification rejects
-them. The last three change the parallel `matmul` build in
+them. The next four change the parallel `matmul` build in
 `src/tensor/matmul.bend`. `src/tensor/contracts/matmul-parallel-proof.bend`,
 the live walk of the build that proves `matmul_ordered`, rejects them in a
-step of the walk: `dot_eq`, `cell_inside_eq` and `dot_right_eq`. The contracts
+step of the walk: `dot_eq` (the reversed order and the swapped strides),
+`cell_inside_eq` and `run_last`. The contracts
 take `dot_fold` from `src/tensor/dot-fold.bend`, which holds no law, so the
 kernel artifact holds no erased matmul proof and BendTT rejects them at the
 same declarations. The products that read an operand in place add three:
@@ -154,7 +158,10 @@ same declarations. The products that read an operand in place add three:
 `matmul_nt` and `matmul_tn` pass to `Matrix.product`, so they reject a
 `matmul_nt` that reads `W` untransposed and a `matmul_tn` with swapped
 operands; `read_below`, which bounds every read of `product-parallel-proof.bend`,
-rejects a `Kept` read at the swapped index. The fold family's BendTT prefix is `src/tensor/`, so the
+rejects a `Kept` read at the swapped index. Two change the row block, the
+loop that runs eight cells of a product row: `row_last` rejects a cell that
+adds another cell's word, and `row_block_tree` a block whose eight cells are
+not checked to share a row. The fold family's BendTT prefix is `src/tensor/`, so the
 transplant also carries the mutated `matmul.bend` declarations.
 
 `fold/entry.bend` imports `broadcast.bend` before `sum.bend`, `dot.bend` and
@@ -342,7 +349,7 @@ template constant.
 | Matmul left untransposed | `matmul_first` transposes `b` by `(0, 0)`, which keeps it as it is | `matmul_values` | `matmul_values` |
 | Matmul right operands swapped | `right_product` multiplies `g @ a^T` instead of `a^T @ g` | `matmul_values` | `matmul_values` |
 | Matmul sends the second to the first | `vjp_matmul` passes `a` for `b` | `matmul_values` | `matmul_values` |
-| MatmulNT `matmul_tn` swaps operands | `nt_right` multiplies `x^T @ g` instead of `g^T @ x` | `nt_values` | `nt_values` |
+| MatmulNT `matmul_tn` swaps operands | `weight_product` multiplies `x^T @ g` instead of `g^T @ x` | `nt_values` | `nt_values` |
 | MatmulNT left reads the weight transposed | `nt_left` runs `matmul_nt(g, W)` instead of `matmul(g, W)` | `nt_values` | `nt_values` |
 | MatmulNT sends the second to the first | `vjp_matmul_nt` passes `a` for `b` | `nt_values` | `nt_values` |
 | Relu VJP reads the gradient as the input | `vjp_relu` runs `ReluBackward` of `g` and `x` instead of `x` and `g` | `Laws.tensor_relu_vjp_values` | `tensor_relu_vjp_values` |
