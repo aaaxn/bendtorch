@@ -147,7 +147,7 @@ accepted. The differences:
 | --- | --- | --- |
 | Seed | Ones of the output's shape, for any output | `backward()` needs a scalar output; the replay passes `torch.ones_like(output)` |
 | Node id the tape does not hold | `UnknownNode` (103) | `IndexError` from the replay's Python list (8 scripts) |
-| `sum_dims` axis outside `-rank..rank-1`, or two axes that name one axis | `AxisOutOfBounds` (13), `DuplicateAxis` (14) | `IndexError`, `RuntimeError` (2 scripts) |
+| `sum_dims` axis outside `-limit..limit-1`, with `limit = max(rank, 1)` (a scalar takes `-1` and `0`), or two axes that name one axis | `AxisOutOfBounds` (13), `DuplicateAxis` (14) | `IndexError`, `RuntimeError` (2 scripts) |
 | Shapes the operation refuses | The tensor layer's error code | `RuntimeError` (5 scripts) |
 | Operand that is the node itself, a newer node or a missing node | `DanglingOperand` (104) for a forged tape | Cannot be built (3 scripts) |
 | `NaN * NaN`, and an SGD step with a NaN parameter, gradient or rate | NaN | NaN with another sign or payload (5 scripts) |

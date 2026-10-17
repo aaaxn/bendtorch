@@ -1351,9 +1351,10 @@ def dims_found(+a: Nat, +axes: List<&2, Signed.Position>, keepdim: Bool, pair: F
 # Records PyTorch's a.sum(dim=axes, keepdim=keepdim), SumDims.sum_dims of a
 # copy of a's value: the kept shape when keepdim is True, else the dropped
 # one. The axes are PyTorch's signed ones: Last{0} is -1, a's last axis. An
-# empty axis list sums every axis. An axis outside -rank..rank-1 is refused
-# with AxisOutOfBounds (13), two axes that name one axis with DuplicateAxis
-# (14), an unknown id with UnknownNode; the tape comes back unchanged.
+# empty axis list sums every axis. An axis outside -limit..limit-1, where
+# limit is max(rank, 1), so a rank-0 a takes -1 and 0, is refused with
+# AxisOutOfBounds (13), two axes that name one axis with DuplicateAxis (14),
+# an unknown id with UnknownNode; the tape comes back unchanged.
 def sum_dims(tape: Tape, +a: Nat, +axes: List<&2, Signed.Position>, keepdim: Bool) -> Tape & Result<&2, &2, Error, Nat>:
   Tape{entries} = tape
   dims_found(a, axes, keepdim, value_counted(a, counted(entries)))
