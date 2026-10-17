@@ -63,7 +63,7 @@ def leaf(shape: list[int], step: int) -> dict:
 # changes an output only where that build forked.
 WRONG_WORD = "1048576.0"
 CONTROLS = {
-    # Elementwise ops, matmul, matmul_nt, matmul_tn and torch.matmul.
+    # Elementwise ops, matmul, matmul_nt, matmul_tn, torch.matmul and slicing.
     "elementwise-fork-copies-a-wrong-word": (
         "src/tensor/elementwise.bend",
         (
@@ -92,6 +92,32 @@ CONTROLS = {
                 "  halves(Array.clone(F32, a), Array.clone(F32, b))",
                 f"  halves(Array.clone(F32, Array.set(F32, a, 0, {WRONG_WORD})), "
                 "Array.clone(F32, b))",
+            ),
+        ),
+    ),
+    # slice, narrow and select, and slice_backward's scatter, borrow the
+    # elementwise split, so their control gives them a split of their own.
+    "slice-fork-copies-a-wrong-word": (
+        "src/tensor/slice.bend",
+        (
+            (
+                "def build(",
+                "def slice_split(inputs: Array<F32> & Array<F32>) -> "
+                "(Array<F32> & Array<F32>) & (Array<F32> & Array<F32>):\n"
+                "  (la, ra) = inputs\n"
+                "  Elementwise.halves(Array.clone(F32, "
+                f"Array.set(F32, la, 0, {WRONG_WORD})), Array.clone(F32, ra))\n\n"
+                "def build(",
+            ),
+            *(
+                (
+                    f"  Parallel.{fold}(~Plan, ~Plan, ~Array<F32>, ~Array<F32>, ~same, "
+                    f"~Elementwise.split, ~{cell},",
+                    f"  Parallel.{fold}(~Plan, ~Plan, ~Array<F32>, ~Array<F32>, ~same, "
+                    f"~slice_split, ~{cell},",
+                )
+                for fold in ("build", "balanced")
+                for cell in ("cell", "scatter_cell")
             ),
         ),
     ),
@@ -198,6 +224,22 @@ def cases() -> list[dict]:
             "steps": [
                 leaf([256, 160], 7),
                 {"op": "sum_dims", "a": 0, "dims": [1], "keepdim": False},
+                {"op": "sum", "a": 1},
+                {"op": "backward", "output": 2},
+                *read(0, 1),
+            ],
+        },
+        {
+            # [512, 160] sliced to every other column: the slice build holds
+            # 40960 cells and slice_backward's scatter 81920.
+            "id": "parallel_slice",
+            "forks": (
+                "elementwise-fork-copies-a-wrong-word",
+                "slice-fork-copies-a-wrong-word",
+            ),
+            "steps": [
+                leaf([512, 160], 7),
+                {"op": "slice", "a": 0, "dim": 1, "start": 0, "stop": 160, "step": 2},
                 {"op": "sum", "a": 1},
                 {"op": "backward", "output": 2},
                 *read(0, 1),
