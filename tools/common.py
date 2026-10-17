@@ -173,7 +173,7 @@ class Evidence:
         with self.lock:
             self.records.append(entry)
             self.places.append(place())
-            self.write_report()
+            self.write_report(artifacts=False)
 
     def run(
         self,
@@ -233,15 +233,16 @@ class Evidence:
 
     def save(self) -> None:
         with self.lock:
-            self.write_report()
+            self.write_report(artifacts=True)
 
-    def write_report(self) -> None:
+    def write_report(self, *, artifacts: bool) -> None:
+        """Write report.json. Every record rewrites it with the commands so
+        far, so a gate that stops early leaves its commands behind; only
+        `save`, at the end of a run, hashes the artifacts. A gate directory
+        holds up to 20,000 files, and hashing them after every command cost
+        the tensor and autograd gates minutes.
+        """
         order = sorted(range(len(self.records)), key=self.places.__getitem__)
-        files = {
-            str(path.relative_to(self.directory)): digest(path)
-            for path in sorted(self.directory.rglob("*"))
-            if path.is_file() and path.name != "report.json"
-        }
         report = {
             "hostname": platform.node(),
             "system": platform.platform(),
@@ -251,8 +252,13 @@ class Evidence:
             "workspace": str(ROOT),
             "reference_manifest_sha256": digest(ROOT / "verification/references.json"),
             "commands": [self.records[i] for i in order],
-            "artifacts": files,
         }
+        if artifacts:
+            report["artifacts"] = {
+                str(path.relative_to(self.directory)): digest(path)
+                for path in sorted(self.directory.rglob("*"))
+                if path.is_file() and path.name != "report.json"
+            }
         (self.directory / "report.json").write_text(json.dumps(report, indent=2) + "\n")
 
 
