@@ -14,7 +14,7 @@ API, is not a drop-in replacement for PyTorch, and runs on the CPU with F32
 tensors only. An experiment trains a 784-128-10 MLP on MNIST with it end to
 end ([MNIST](docs/mnist.md)).
 
-> **Disclaimer.** bendtorch is an experiment.
+> **Disclaimer.** bendtorch is an experiment, and im learning while building this... so expects things to be rough, broken and stupid....
 
 ## What works today
 

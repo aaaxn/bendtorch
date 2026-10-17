@@ -4,6 +4,10 @@ import ./core.bend as Core
 import ./lifecycle.bend as Lifecycle
 import ./layout.bend as Layout
 import ./transpose-spec.bend as Transpose
+import ./permute-build.bend as Build
+import ../storage/main.bend as Storage
+import ../storage/model.bend as Model
+import ../storage/certificates.bend as Certificates
 
 type Error is Data:
   LayoutError{error: Layout.Error}
@@ -177,7 +181,12 @@ def copy_pack(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<inpu
     case Done{target}:
       (source, Done{Core.pack(Layout.output(input, axes, plan), target)})
 
-def copy_allocated(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>,
+# The sequential copy: one checked read and one checked write per output
+# cell, in index order. The laws about the copy loop state what it does, and
+# permute-build-proof.bend proves that `copy_allocated` meets the loop's
+# meaning (`LoopMeaning`) on every source. `permute_copy` no longer runs it;
+# the tensor gate's parallel probe runs it as the sequential reference.
+def loop_allocated(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>,
   source: Core.Tensor<input>, allocated: Result<&2, &1, Core.Error, Core.Tensor<Layout.output(input, axes, plan)>>) ->
   Core.Tensor<input> & Result<&2, &1, Error, Core.Dynamic>:
   match allocated:
@@ -186,6 +195,51 @@ def copy_allocated(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan
     case Done{target}:
       copy_pack(input, axes, plan,
         copy_loop(Shape.elements(Layout.output(input, axes, plan)), input, axes, plan, source, target, 0n))
+
+# The parallel copy from an owned input: the input comes back as the first
+# half of its clone, and the build reads the second half.
+def built_cloned(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +depth: Nat, +length: Nat,
+  -valid: {Storage.bounds(depth, length) == True{} : Bool},
+  -exact: {length == Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))) : Nat},
+  +d: Nat, +n: Nat, -array: Array<F32>, pair: Array<F32> & Array<F32>, -same: {pair == Array.clone(F32, array) : Array<F32> & Array<F32>},
+  -balanced: Model.Balanced(F32, d, array), -ok: {Storage.bounds(d, n) == True{} : Bool},
+  -fits: {Lifecycle.logical_length(Storage.Owned{d, n, array, balanced, ok}) == Shape.logical_numel(Shape.dimensions(input)) : Nat}) ->
+  Core.Tensor<input> & Result<&2, &1, Error, Core.Tensor<Layout.output(input, axes, plan)>>:
+  (kept, copy) = pair
+  (Core.TTensor{Storage.Owned{d, n, kept, Certificates.clone_first(F32, d, array, (kept, copy), same, balanced), ok}, fits},
+    Done{Core.TTensor{Storage.Owned{depth, length, Build.build(depth, Build.Request{input, axes}, length, copy),
+      Build.balanced(depth, Build.Request{input, axes}, length, copy), valid}, exact}})
+
+def built_owned(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, +depth: Nat, +length: Nat,
+  -valid: {Storage.bounds(depth, length) == True{} : Bool},
+  -exact: {length == Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))) : Nat},
+  source: Core.Tensor<input>) -> Core.Tensor<input> & Result<&2, &1, Error, Core.Tensor<Layout.output(input, axes, plan)>>:
+  Core.TTensor{storage, fits} = source
+  match storage:
+    case Storage.Empty{}:
+      (Core.TTensor{Storage.Empty{}, fits}, Fail{TensorError{Core.StorageError{Storage.OutOfBounds{}}}})
+    case Storage.Owned{+d, +n, array, balanced, ok}:
+      built_cloned(input, axes, plan, depth, length, valid, exact, d, n, array, Array.clone(F32, array), {==}, balanced, ok, fits)
+
+# Every output cell at once: `Build.build` with the permute's index map.
+def built(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>,
+  source: Core.Tensor<input>, target: Core.Tensor<Layout.output(input, axes, plan)>) ->
+  Core.Tensor<input> & Result<&2, &1, Error, Core.Tensor<Layout.output(input, axes, plan)>>:
+  Core.TTensor{storage, exact} = target
+  match storage:
+    case Storage.Empty{}:
+      (source, Done{Core.TTensor{Storage.Empty{}, exact}})
+    case Storage.Owned{+depth, +length, array, balanced, valid}:
+      built_owned(input, axes, plan, depth, length, valid, exact, source)
+
+def copy_allocated(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>,
+  source: Core.Tensor<input>, allocated: Result<&2, &1, Core.Error, Core.Tensor<Layout.output(input, axes, plan)>>) ->
+  Core.Tensor<input> & Result<&2, &1, Error, Core.Dynamic>:
+  match allocated:
+    case Fail{error}:
+      (source, Fail{TensorError{error}})
+    case Done{target}:
+      copy_pack(input, axes, plan, built(input, axes, plan, source, target))
 
 def copy_planned(+input: Shape.Shape, +axes: List<&2, U32>, source: Core.Tensor<input>,
   planned: Result<&2, &2, Layout.Error, Layout.Plan<input, axes>>) -> Core.Tensor<input> & Result<&2, &1, Error, Core.Dynamic>:

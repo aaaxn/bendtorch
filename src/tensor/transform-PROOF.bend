@@ -27,6 +27,7 @@ import ./allocation-PROOF.bend as AllocationProof
 import ./allocation-spec.bend as AllocationSpec
 import ./transpose-PROOF.bend as TransposeProof
 import ./transpose-spec.bend as TransposeSpec
+import ./permute-build-proof.bend as PermuteBuild
 
 def Laws.permutation_checked(input, axes, plan):
   Mapping.permutation_checked(input, axes, plan)
@@ -1031,18 +1032,6 @@ def copy_pack_model(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Pla
       Transforms.PublicModel{
         permuted_output(input, axes, plan, original, source, target, meaning)}
 
-def copy_pack_loop_model(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>,
-  -source: Core.Tensor<input>, -target: Core.Tensor<Layout.output(input, axes, plan)>,
-  certificate: Transforms.LoopCertificate<input, axes, plan, source, Shape.elements(Layout.output(input, axes, plan)), 0n, source, target>) ->
-  Transforms.PublicModel<input, axes, source, Transforms.copy_pack(input, axes, plan,
-    Transforms.copy_loop(Shape.elements(Layout.output(input, axes, plan)), input, axes, plan, source, target, 0n))>:
-  Transforms.LoopCertificate{pair, exact, meaning} = certificate
-  %exact : Transforms.PublicModel<input, axes, source, Transforms.copy_pack(input, axes, plan, _)>
-  copy_pack_model(input, axes, plan, source, pair,
-    %Shape.elements_exact(Layout.output(input, axes, plan)) : Transforms.LoopMeaning(input, axes, plan, source, _, pair)
-    %add_zero_right(Shape.elements(Layout.output(input, axes, plan))) : Transforms.LoopMeaning(input, axes, plan, source, _, pair)
-    meaning)
-
 def allocated_model(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, source: Core.Tensor<input>,
   allocated: Result<&2, &1, Core.Error, Core.Tensor<Layout.output(input, axes, plan)>>) ->
   Transforms.PublicModel<input, axes, source, Transforms.copy_allocated(input, axes, plan, source, allocated)>:
@@ -1050,7 +1039,8 @@ def allocated_model(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Pla
     case Fail{error}:
       Transforms.PublicModel{Unit{}}
     case Done{target}:
-      copy_pack_loop_model(input, axes, plan, source, target, whole_copy_certificate(input, axes, plan, source, target))
+      copy_pack_model(input, axes, plan, source, Transforms.built(input, axes, plan, source, target),
+        PermuteBuild.built_meaning(input, axes, plan, source, target))
 
 def planned_model(+input: Shape.Shape, +axes: List<&2, U32>, source: Core.Tensor<input>,
   planned: Result<&2, &2, Layout.Error, Layout.Plan<input, axes>>) ->
@@ -1965,15 +1955,11 @@ def allocated_success(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.P
             Result.is_done(&2, &1, Core.Error, Core.Tensor<Layout.output(input, axes, plan)>), Done{tensor}, Fail{error}, same)))} :
               AllocationSpec.TensorDone<Layout.output(input, axes, plan), Fail{error}> -> {False{} == True{} : Bool}}(certificate)}
     case Done{target}:
-      packed_success(input, axes, plan, Transforms.copy_loop(Shape.elements(Layout.output(input, axes, plan)), input, axes, plan, source, target, 0n),
-        {\{Totality.CopySuccess: successful => successful} :
-          Totality.CopySuccess<input, axes, plan, Transforms.copy_loop(Shape.elements(Layout.output(input, axes, plan)), input, axes, plan, source, target, 0n)> ->
-            {Totality.copy_succeeded(input, axes, plan, Transforms.copy_loop(Shape.elements(Layout.output(input, axes, plan)), input, axes, plan, source, target, 0n)) == True{} : Bool}}(
-              Laws.copy_loop_valid_success(Shape.elements(Layout.output(input, axes, plan)), input, axes, plan, 0n, source, target,
-                %Equal.sym(Nat, Nat.add(Shape.elements(Layout.output(input, axes, plan)), 0n), Shape.elements(Layout.output(input, axes, plan)),
-                  add_zero_right(Shape.elements(Layout.output(input, axes, plan)))) :
-                    {Nat.is_le(_, Shape.elements(Layout.output(input, axes, plan))) == True{} : Bool}
-                WordConversion.le_reflexive(Shape.elements(Layout.output(input, axes, plan))))))
+      packed_success(input, axes, plan, Transforms.built(input, axes, plan, source, target),
+        {\{PermuteBuild.Fact: successful => successful} :
+          PermuteBuild.Fact<{Totality.copy_succeeded(input, axes, plan, Transforms.built(input, axes, plan, source, target)) == True{} : Bool}> ->
+            {Totality.copy_succeeded(input, axes, plan, Transforms.built(input, axes, plan, source, target)) == True{} : Bool}}(
+              PermuteBuild.built_success(input, axes, plan, source, target)))
 
 def planned_success(+input: Shape.Shape, +axes: List<&2, U32>, planned: Result<&2, &2, Layout.Error, Layout.Plan<input, axes>>, source: Core.Tensor<input>,
   -successful: {Result.is_done(&2, &2, Layout.Error, Layout.Plan<input, axes>, planned) == True{} : Bool}) ->
@@ -2163,42 +2149,24 @@ def typed_permutation_impossible(-input: Shape.Shape, -axes: List<&2, U32>, -ori
       Empty.absurd(Core.Tensor<Layout.output(input, axes, Empty.absurd(Layout.Plan<input, axes>, empty))>, empty),
       Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, Empty.absurd(Layout.Plan<input, axes>, empty))))>, empty)}
 
-def typed_loop_result(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, -original: Core.Tensor<input>,
+def typed_built_result(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, -original: Core.Tensor<input>,
   -initial_target: Core.Tensor<Layout.output(input, axes, plan)>,
   pair: Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Tensor<Layout.output(input, axes, plan)>>,
-  -exact: {pair == Transforms.copy_loop(Shape.elements(Layout.output(input, axes, plan)), input, axes, plan, original, initial_target, 0n) :
-    Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Tensor<Layout.output(input, axes, plan)>>},
-  -meaning: Transforms.LoopMeaning(input, axes, plan, original, Nat.add(Shape.elements(Layout.output(input, axes, plan)), 0n), pair),
+  -exact: {pair == Transforms.built(input, axes, plan, original, initial_target) : Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Tensor<Layout.output(input, axes, plan)>>},
+  -meaning: Transforms.LoopMeaning(input, axes, plan, original, Shape.logical_numel(Shape.dimensions(Layout.output(input, axes, plan))), pair),
   -successful: {Totality.copy_succeeded(input, axes, plan, pair) == True{} : Bool}) ->
-  Totality.TypedPermutation<input, axes, original, Transforms.copy_pack(input, axes, plan,
-    Transforms.copy_loop(Shape.elements(Layout.output(input, axes, plan)), input, axes, plan, original, initial_target, 0n))>:
+  Totality.TypedPermutation<input, axes, original, Transforms.copy_pack(input, axes, plan, Transforms.built(input, axes, plan, original, initial_target))>:
   (retained, result) = pair
   match result:
     case Fail{error}:
       typed_permutation_impossible(input, axes, original, Transforms.copy_pack(input, axes, plan,
-        Transforms.copy_loop(Shape.elements(Layout.output(input, axes, plan)), input, axes, plan, original, initial_target, 0n)), Arith.clash(successful))
+        Transforms.built(input, axes, plan, original, initial_target)), Arith.clash(successful))
     case Done{target}:
       Totality.TypedPermutation{plan, retained, target,
         Equal.cong(Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Tensor<Layout.output(input, axes, plan)>>,
           Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Dynamic>, Transforms.copy_pack(input, axes, plan),
-          (retained, Done{target}), Transforms.copy_loop(Shape.elements(Layout.output(input, axes, plan)), input, axes, plan, original, initial_target, 0n), exact),
-        %Shape.elements_exact(Layout.output(input, axes, plan)) : Transforms.Prefix<input, axes, plan, original, retained, target, _>
-        %add_zero_right(Shape.elements(Layout.output(input, axes, plan))) : Transforms.Prefix<input, axes, plan, original, retained, target, _>
+          (retained, Done{target}), Transforms.built(input, axes, plan, original, initial_target), exact),
         meaning}
-
-def typed_loop_certificate(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>, -original: Core.Tensor<input>,
-  -initial_target: Core.Tensor<Layout.output(input, axes, plan)>,
-  certificate: Transforms.LoopCertificate<input, axes, plan, original, Shape.elements(Layout.output(input, axes, plan)), 0n, original, initial_target>,
-  -successful: {Totality.copy_succeeded(input, axes, plan,
-    Transforms.copy_loop(Shape.elements(Layout.output(input, axes, plan)), input, axes, plan, original, initial_target, 0n)) == True{} : Bool}) ->
-  Totality.TypedPermutation<input, axes, original, Transforms.copy_pack(input, axes, plan,
-    Transforms.copy_loop(Shape.elements(Layout.output(input, axes, plan)), input, axes, plan, original, initial_target, 0n))>:
-  Transforms.LoopCertificate{pair, exact, meaning} = certificate
-  typed_loop_result(input, axes, plan, original, initial_target, pair, exact, meaning,
-    %Equal.sym(Core.Tensor<input> & Result<&2, &1, Transforms.Error, Core.Tensor<Layout.output(input, axes, plan)>>, pair,
-      Transforms.copy_loop(Shape.elements(Layout.output(input, axes, plan)), input, axes, plan, original, initial_target, 0n), exact) :
-        {Totality.copy_succeeded(input, axes, plan, _) == True{} : Bool}
-    successful)
 
 def typed_allocated_success(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>,
   allocated: Result<&2, &1, Core.Error, Core.Tensor<Layout.output(input, axes, plan)>>, source: Core.Tensor<input>,
@@ -2212,14 +2180,12 @@ def typed_allocated_success(+input: Shape.Shape, +axes: List<&2, U32>, +plan: La
             Result.is_done(&2, &1, Core.Error, Core.Tensor<Layout.output(input, axes, plan)>), Done{tensor}, Fail{error}, same))} :
               AllocationSpec.TensorDone<Layout.output(input, axes, plan), Fail{error}> -> Empty}(certificate))
     case Done{target}:
-      typed_loop_certificate(input, axes, plan, source, target, whole_copy_certificate(input, axes, plan, source, target),
-        {\{Totality.CopySuccess: successful => successful} :
-          Totality.CopySuccess<input, axes, plan, Transforms.copy_loop(Shape.elements(Layout.output(input, axes, plan)), input, axes, plan, source, target, 0n)> ->
-            {Totality.copy_succeeded(input, axes, plan, Transforms.copy_loop(Shape.elements(Layout.output(input, axes, plan)), input, axes, plan, source, target, 0n)) == True{} : Bool}}(
-              Laws.copy_loop_valid_success(Shape.elements(Layout.output(input, axes, plan)), input, axes, plan, 0n, source, target,
-                %Equal.sym(Nat, Nat.add(Shape.elements(Layout.output(input, axes, plan)), 0n), Shape.elements(Layout.output(input, axes, plan)),
-                  add_zero_right(Shape.elements(Layout.output(input, axes, plan)))) : {Nat.is_le(_, Shape.elements(Layout.output(input, axes, plan))) == True{} : Bool}
-                WordConversion.le_reflexive(Shape.elements(Layout.output(input, axes, plan))))))
+      typed_built_result(input, axes, plan, source, target, Transforms.built(input, axes, plan, source, target), {==},
+        PermuteBuild.built_meaning(input, axes, plan, source, target),
+        {\{PermuteBuild.Fact: successful => successful} :
+          PermuteBuild.Fact<{Totality.copy_succeeded(input, axes, plan, Transforms.built(input, axes, plan, source, target)) == True{} : Bool}> ->
+            {Totality.copy_succeeded(input, axes, plan, Transforms.built(input, axes, plan, source, target)) == True{} : Bool}}(
+              PermuteBuild.built_success(input, axes, plan, source, target)))
 
 def typed_planned_success(+input: Shape.Shape, +axes: List<&2, U32>, planned: Result<&2, &2, Layout.Error, Layout.Plan<input, axes>>, source: Core.Tensor<input>,
   -successful: {Result.is_done(&2, &2, Layout.Error, Layout.Plan<input, axes>, planned) == True{} : Bool}) ->

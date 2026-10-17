@@ -48,6 +48,9 @@ REDUCTIONS = {
     "reduce-64x16x32-to-16x1-rounding": ((64, 16, 32), (16, 1)),
     "reduce-64x16x32-to-64x1x1-rounding": ((64, 16, 32), (64, 1, 1)),
     "reduce-6x5x4-to-5x1": ((6, 5, 4), (5, 1)),
+    "reduce-130x256-to-1x256-rounding": ((130, 256), (1, 256)),
+    "reduce-256x130-to-256x1-rounding": ((256, 130), (256, 1)),
+    "reduce-65536-to-scalar-rounding": ((65536,), ()),
 }
 # Each broadcast_to the probe runs, as (input dimensions, target dimensions).
 BROADCASTS = {
@@ -57,7 +60,37 @@ BROADCASTS = {
     "broadcast-1x128x1-to-4x128x160": ((1, 128, 1), (4, 128, 160)),
     "broadcast-3x1x5-to-7x3x4x5": ((3, 1, 5), (7, 3, 4, 5)),
 }
-BUILDS = (*PRODUCTS, *REDUCTIONS, *BROADCASTS)
+# Each permute the probe runs, by its output cells. The two above 2^15 cells
+# must fork, so the probe checks the forked build against the copy loop.
+PERMUTES = {
+    "transpose-256x257": 65792,
+    "permute-16x64x40-201": 40960,
+    "permute-3x5x7-120": 105,
+}
+FORKED_PERMUTES = ("transpose-256x257", "permute-16x64x40-201")
+# Each elementwise operation the probe runs, as (left dimensions, right
+# dimensions): each input read at its own slot, at slot 0 (a rank-0 operand)
+# or by the broadcast walk, next to the checked loop that walks no slot.
+ELEMENTWISE = {
+    "mul-100000-own-rounding": ((100000,), (100000,)),
+    "add-100000-scalar-rounding": ((100000,), ()),
+    "sub-scalar-100000-rounding": ((), (100000,)),
+    "mul-320x320-row-rounding": ((320, 320), (320,)),
+    "sub-320-320x320-rounding": ((320,), (320, 320)),
+    "add-320x1-1x320-rounding": ((320, 1), (1, 320)),
+}
+# Each `Reduction.sum` the probe runs, as the dimensions of its input.
+SUMS = {"sum-100000-rounding": (100000,)}
+BUILDS = (*PRODUCTS, *REDUCTIONS, *ELEMENTWISE, *SUMS, *PERMUTES, *BROADCASTS)
+# The builds that read or write more than 2^15 words, the cells of one
+# subtree below the elementwise forks.
+LARGE = (
+    "reduce-130x256-to-1x256-rounding",
+    "reduce-256x130-to-256x1-rounding",
+    "reduce-65536-to-scalar-rounding",
+    *ELEMENTWISE,
+    *SUMS,
+)
 # The builds whose inputs round, so that adding a cell's terms in another
 # order changes its bits; the products of multiples of 1/64 above cannot show
 # a reordered sum. Each must fork to check the forked build. The other
@@ -70,6 +103,7 @@ ROUNDING_BUILDS = (
     "matmul_tn-181x24x187-rounding",
     "reduce-256x64-to-256x1-rounding",
     "reduce-64x16x32-to-64x1x1-rounding",
+    "reduce-256x130-to-256x1-rounding",
 )
 
 
@@ -98,6 +132,31 @@ def reduce_splits(dims: tuple[int, ...], target: tuple[int, ...]) -> int:
     return matmul_splits(depth(cells), contribution // cells)
 
 
+def permute_splits(cells: int) -> int:
+    """`Permute.splits`: a subtree below the forks holds 2^15 cells."""
+    return max(depth(cells) - 15, 0)
+
+
+def broadcast(left: tuple[int, ...], right: tuple[int, ...]) -> tuple[int, ...]:
+    """The output dimensions of two broadcast inputs, right-aligned."""
+    rank = max(len(left), len(right))
+    padded = [(1,) * (rank - len(dims)) + dims for dims in (left, right)]
+    return tuple(max(a, b) for a, b in zip(*padded, strict=True))
+
+
+def words(name: str) -> int:
+    """The most words a build reads from one input or writes."""
+    if name in REDUCTIONS:
+        return math.prod(REDUCTIONS[name][0])
+    if name in ELEMENTWISE:
+        left, right = ELEMENTWISE[name]
+        return max(math.prod(left), math.prod(right), math.prod(broadcast(left, right)))
+    if name in SUMS:
+        return math.prod(SUMS[name])
+    rows, inner, columns = PRODUCTS[name]
+    return max(rows * inner, inner * columns, rows * columns)
+
+
 def elementwise_splits(cells: int) -> int:
     """`Elementwise.splits`: depth - 15 levels, so a subtree below the forks
     holds 2^15 cells."""
@@ -107,8 +166,15 @@ def elementwise_splits(cells: int) -> int:
 def expected_splits(name: str) -> int:
     if name in BROADCASTS:
         return elementwise_splits(math.prod(BROADCASTS[name][1]))
+    if name in PERMUTES:
+        return permute_splits(PERMUTES[name])
     if name in REDUCTIONS:
         return reduce_splits(*REDUCTIONS[name])
+    if name in ELEMENTWISE:
+        # `Elementwise.splits`: a subtree below the forks holds 2^15 cells.
+        return max(depth(math.prod(broadcast(*ELEMENTWISE[name]))) - 15, 0)
+    if name in SUMS:
+        return 0
     rows, inner, columns = PRODUCTS[name]
     return product_splits(depth(rows * columns), inner)
 
@@ -116,8 +182,9 @@ def expected_splits(name: str) -> int:
 def check_lines(stdout: str) -> dict[str, int]:
     """The splits each probe line reports, after checking that every line
     names a known build, forks as `expected_splits` says (`Matrix.product_splits`
-    for a product, `Reduce.splits` for a reduction, `Elementwise.splits` for a
-    broadcast) and matches its sequential definition word for word."""
+    for a product, `Reduce.splits` for a reduction, `Elementwise.splits` for
+    a broadcast, `Permute.splits` for a permute) and matches its sequential
+    definition word for word."""
     splits = {}
     for line in stdout.splitlines():
         match = LINE.match(line)
@@ -139,7 +206,7 @@ def check_lines(stdout: str) -> dict[str, int]:
         raise GateError(f"Parallel probe omitted builds: {set(BUILDS) - set(splits)}")
     if not any(splits.values()):
         raise GateError("No parallel probe build forks")
-    for name in ROUNDING_BUILDS:
+    for name in (*ROUNDING_BUILDS, *ELEMENTWISE, *FORKED_PERMUTES):
         if not splits[name]:
             raise GateError(f"{name} does not fork")
     return splits

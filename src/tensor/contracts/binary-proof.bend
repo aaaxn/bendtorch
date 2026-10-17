@@ -3,7 +3,6 @@ import ../../shape/core.bend as Shape
 import ../../shape/LAWS.bend as ShapeLaws
 import ../../shape/plan_proofs.bend as PlanProof
 import ../../shape/index_proofs.bend as Index
-import ../../shape/nat_proofs.bend as Nats
 import ../../storage/model.bend as Model
 import ../../storage/main.bend as Storage
 import ../../storage/LAWS.bend as StorageLaws
@@ -12,7 +11,6 @@ import ../../storage/refinement.bend as Refinement
 import ../../storage/certificates.bend as Certificates
 import ../../storage/api.bend as Api
 import ../../storage/arith.bend as Arith
-import ../../storage/route.bend as Route
 import ../core.bend as Core
 import ../lifecycle.bend as Lifecycle
 import ../elementwise.bend as Elementwise
@@ -28,126 +26,7 @@ import ./LAWS.bend as Contracts
 import ./binary-LAWS.bend as Laws
 import ./binary-build-proof.bend as Build
 import ./binary-storage-proof.bend as Owned
-
-# Natural-number facts the output walk uses.
-
-def lt_zero_false(+x: Nat) -> {Nat.is_lt(x, 0n) == False{} : Bool}:
-  match x:
-    case 0n:
-      {==}
-    case 1n+p:
-      {==}
-
-def lt_self_succ(+k: Nat) -> {Nat.is_lt(k, 1n+k) == True{} : Bool}:
-  match k:
-    case 0n:
-      {==}
-    case 1n+p:
-      lt_self_succ(p)
-
-def lt_succ_right(+b: Nat, +k: Nat, h: {Nat.is_lt(b, k) == True{} : Bool}) -> {Nat.is_lt(b, 1n+k) == True{} : Bool}:
-  match b k:
-    case 0n _:
-      {==}
-    case 1n+p 0n:
-      Empty.absurd({Nat.is_lt(1n+p, 1n) == True{} : Bool}, Arith.clash(h))
-    case 1n+p 1n+q:
-      lt_succ_right(p, q, h)
-
-# k < b gives b < 1 + k false.
-def above_false(+k: Nat, +b: Nat, h: {Nat.is_lt(k, b) == True{} : Bool}) -> {Nat.is_lt(b, 1n+k) == False{} : Bool}:
-  match k b:
-    case 0n 0n:
-      Empty.absurd({Nat.is_lt(0n, 1n) == False{} : Bool}, Arith.clash(h))
-    case 0n 1n+q:
-      lt_zero_false(q)
-    case 1n+p 0n:
-      Empty.absurd({Nat.is_lt(0n, 1n+(1n+p)) == False{} : Bool}, Arith.clash(h))
-    case 1n+p 1n+q:
-      above_false(p, q, h)
-
-def lt_asym(+k: Nat, +b: Nat, h: {Nat.is_lt(k, b) == True{} : Bool}) -> {Nat.is_lt(b, k) == False{} : Bool}:
-  match k b:
-    case 0n 0n:
-      {==}
-    case 0n 1n+q:
-      {==}
-    case 1n+p 0n:
-      Empty.absurd({Nat.is_lt(0n, 1n+p) == False{} : Bool}, Arith.clash(h))
-    case 1n+p 1n+q:
-      lt_asym(p, q, h)
-
-# 1 + b <= k gives b < k.
-def below_true(+b: Nat, +k: Nat, h: {Nat.is_le(1n+b, k) == True{} : Bool}) -> {Nat.is_lt(b, k) == True{} : Bool}:
-  match b k:
-    case 0n 0n:
-      Empty.absurd({Nat.is_lt(0n, 0n) == True{} : Bool}, Arith.clash(h))
-    case 0n 1n+q:
-      {==}
-    case 1n+p 0n:
-      Empty.absurd({Nat.is_lt(1n+p, 0n) == True{} : Bool}, Arith.clash(h))
-    case 1n+p 1n+q:
-      below_true(p, q, h)
-
-def lt_add_right(+a: Nat, +c: Nat, +b: Nat, h: {Nat.is_lt(a, c) == True{} : Bool}) ->
-  {Nat.is_lt(Nat.add(a, b), Nat.add(c, b)) == True{} : Bool}:
-  match a c:
-    case 0n 0n:
-      Empty.absurd({Nat.is_lt(b, b) == True{} : Bool}, Arith.clash(h))
-    case 0n 1n+q:
-      Arith.lt_succ(b, Nat.add(q, b), Api.le_add_left(q, b))
-    case 1n+p 0n:
-      Empty.absurd({Nat.is_lt(1n+Nat.add(p, b), b) == True{} : Bool}, Arith.clash(h))
-    case 1n+p 1n+q:
-      lt_add_right(p, q, b, h)
-
-def le_add_cong(+c: Nat, +x: Nat, +y: Nat, h: {Nat.is_le(x, y) == True{} : Bool}) ->
-  {Nat.is_le(Nat.add(c, x), Nat.add(c, y)) == True{} : Bool}:
-  match c:
-    case 0n:
-      h
-    case 1n+r:
-      le_add_cong(r, x, y, h)
-
-def le_trans(+a: Nat, +b: Nat, +c: Nat, ab: {Nat.is_le(a, b) == True{} : Bool}, bc: {Nat.is_le(b, c) == True{} : Bool}) ->
-  {Nat.is_le(a, c) == True{} : Bool}:
-  match a b c:
-    case 0n _ _:
-      Arith.le_zero(c)
-    case 1n+p 0n _:
-      Empty.absurd({Nat.is_le(1n+p, c) == True{} : Bool}, Arith.clash(ab))
-    case 1n+p 1n+q 0n:
-      Empty.absurd({Nat.is_le(1n+p, 0n) == True{} : Bool}, Arith.clash(bc))
-    case 1n+p 1n+q 1n+r:
-      le_trans(p, q, r, ab, bc)
-
-def position_step(+capacity: Nat, +offset: Nat, +base: Nat) ->
-  {Nat.add(offset, Nat.add(capacity, base)) == Nat.add(Nat.add(capacity, offset), base) : Nat}:
-  Equal.trans(Nat, Nat.add(offset, Nat.add(capacity, base)), Nat.add(capacity, Nat.add(offset, base)), Nat.add(Nat.add(capacity, offset), base),
-    Nats.add_swap(offset, capacity, base), Index.add_assoc(capacity, offset, base))
-
-def add_zero_right(+number: Nat) -> {Nat.add(number, 0n) == number : Nat}:
-  match number:
-    case 0n:
-      {==}
-    case 1n+p:
-      Equal.cong(Nat, Nat, x => 1n+x, Nat.add(p, 0n), p, add_zero_right(p))
-
-# A word index below the storage length is the offset of its own route.
-def output_position(+depth: Nat, +length: Nat, +index: U32, +valid: {Storage.bounds(depth, length) == True{} : Bool},
-  +inside: {Nat.is_lt(U32.to_nat(index), length) == True{} : Bool}) ->
-  {Nat.add(Model.offset(depth, Refinement.route(depth, index)), 0n) == U32.to_nat(index) : Nat}:
-  +rest = Arith.and_right(Nat.is_le(depth, 20n), Bool.and(Nat.is_lt(0n, length), Nat.is_le(length, Model.capacity(depth))), valid)
-  Equal.trans(Nat, Nat.add(Model.offset(depth, Refinement.route(depth, index)), 0n), Model.offset(depth, Refinement.route(depth, index)), U32.to_nat(index),
-    add_zero_right(Model.offset(depth, Refinement.route(depth, index))),
-    Equal.sym(Nat, U32.to_nat(index), Model.offset(depth, Refinement.route(depth, index)),
-      Route.route_offset(depth, index,
-        Arith.and_left(Nat.is_le(depth, 20n), Bool.and(Nat.is_lt(0n, length), Nat.is_le(length, Model.capacity(depth))), valid),
-        Arith.lt_le_trans(U32.to_nat(index), length, Model.capacity(depth), inside,
-          Arith.and_right(Nat.is_lt(0n, length), Nat.is_le(length, Model.capacity(depth)), rest)))))
-
-# The output spec: cell `base` of the tree holds the family cell below
-# `count` and +0.0 above it.
+import ./build-facts.bend as Facts
 
 def cell(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>, +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +index: Nat) -> F32:
   Pointwise.cell(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~Broadcast.left_map, ~Broadcast.right_map, operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, index)
@@ -176,7 +55,7 @@ def out_balanced(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, 
 def new_spec(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>, +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +depth: Nat, +base: Nat) -> {Array.new(F32, depth, 0.0) == out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, 0n, depth, base) : Array<F32>}:
   match depth:
     case 0n:
-      %Equal.sym(Bool, Nat.is_lt(base, 0n), False{}, lt_zero_false(base)) :
+      %Equal.sym(Bool, Nat.is_lt(base, 0n), False{}, Facts.lt_zero_false(base)) :
         {ALeaf{0.0} == ALeaf{out_leaf(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, base, _)} : Array<F32>}
       {==}
     case 1n+inner:
@@ -192,9 +71,9 @@ def above(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +left: 
   {out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, k, depth, b) == out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, 1n+k, depth, b) : Array<F32>}:
   match depth:
     case 0n:
-      %Equal.sym(Bool, Nat.is_lt(b, k), False{}, lt_asym(k, b, h)) :
+      %Equal.sym(Bool, Nat.is_lt(b, k), False{}, Facts.lt_asym(k, b, h)) :
         {ALeaf{out_leaf(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, b, _)} == ALeaf{out_leaf(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, b, Nat.is_lt(b, 1n+k))} : Array<F32>}
-      %Equal.sym(Bool, Nat.is_lt(b, 1n+k), False{}, above_false(k, b, h)) :
+      %Equal.sym(Bool, Nat.is_lt(b, 1n+k), False{}, Facts.above_false(k, b, h)) :
         {ALeaf{0.0} == ALeaf{out_leaf(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, b, _)} : Array<F32>}
       {==}
     case 1n+inner:
@@ -211,10 +90,10 @@ def below(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +left: 
   {out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, k, depth, b) == out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, 1n+k, depth, b) : Array<F32>}:
   match depth:
     case 0n:
-      +lower = below_true(b, k, h)
+      +lower = Facts.below_true(b, k, h)
       %Equal.sym(Bool, Nat.is_lt(b, k), True{}, lower) :
         {ALeaf{out_leaf(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, b, _)} == ALeaf{out_leaf(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, b, Nat.is_lt(b, 1n+k))} : Array<F32>}
-      %Equal.sym(Bool, Nat.is_lt(b, 1n+k), True{}, lt_succ_right(b, k, lower)) :
+      %Equal.sym(Bool, Nat.is_lt(b, 1n+k), True{}, Facts.lt_succ_right(b, k, lower)) :
         {ALeaf{cell(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, b)} == ALeaf{out_leaf(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, b, _)} : Array<F32>}
       {==}
     case 1n+inner:
@@ -222,7 +101,7 @@ def below(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +left: 
       +high = Nat.add(c, b)
       +nested = Equal.trans(Bool, Nat.is_le(Nat.add(c, high), k), Nat.is_le(Nat.add(Nat.add(c, c), b), k), True{},
         Equal.cong(Nat, Bool, x => Nat.is_le(x, k), Nat.add(c, high), Nat.add(Nat.add(c, c), b), Index.add_assoc(c, c, b)), h)
-      +low_h = le_trans(high, Nat.add(c, high), k, le_add_cong(c, b, high, Api.le_add_left(c, b)), nested)
+      +low_h = Facts.le_trans(high, Nat.add(c, high), k, Facts.le_add_cong(c, b, high, Api.le_add_left(c, b)), nested)
       %Equal.sym(Array<F32>, out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, k, inner, b), out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, 1n+k, inner, b), below(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, k, inner, b, low_h)) :
         {ANode{_, out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, k, inner, high)} == out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, 1n+k, 1n+inner, b) : Array<F32>}
       %Equal.sym(Array<F32>, out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, k, inner, high), out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, 1n+k, inner, high), below(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, k, inner, high, nested)) :
@@ -237,7 +116,7 @@ def write_spec(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +l
   match depth:
     case 0n:
       %h : {ALeaf{cell(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, _)} == ALeaf{out_leaf(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, base, Nat.is_lt(base, 1n+_))} : Array<F32>}
-      %Equal.sym(Bool, Nat.is_lt(base, 1n+base), True{}, lt_self_succ(base)) :
+      %Equal.sym(Bool, Nat.is_lt(base, 1n+base), True{}, Facts.lt_self_succ(base)) :
         {ALeaf{cell(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, base)} == ALeaf{out_leaf(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, base, _)} : Array<F32>}
       {==}
     case 1n+inner:
@@ -249,7 +128,7 @@ def write_spec(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +l
           +inside = Equal.trans(Bool, Nat.is_lt(k, high), Nat.is_lt(Nat.add(Model.offset(inner, rest), base), high), True{},
             Equal.cong(Nat, Bool, x => Nat.is_lt(x, high), k, Nat.add(Model.offset(inner, rest), base),
               Equal.sym(Nat, Nat.add(Model.offset(inner, rest), base), k, h)),
-            lt_add_right(Model.offset(inner, rest), c, base, Api.offset_lt(inner, rest)))
+            Facts.lt_add_right(Model.offset(inner, rest), c, base, Api.offset_lt(inner, rest)))
           %Equal.sym(Array<F32>, ArrayCore.write_path(F32, inner, out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, k, inner, base), rest, cell(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, k)),
             out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, 1n+k, inner, base), write_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, k, inner, base, rest, h)) :
             {ANode{_, out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, k, inner, high)} == out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, 1n+k, 1n+inner, base) : Array<F32>}
@@ -265,8 +144,8 @@ def write_spec(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +l
               Equal.trans(Nat, k, Nat.add(Nat.add(c, off), base), Nat.add(c, Nat.add(off, base)),
                 Equal.sym(Nat, Nat.add(Nat.add(c, off), base), k, h),
                 Equal.sym(Nat, Nat.add(c, Nat.add(off, base)), Nat.add(Nat.add(c, off), base), Index.add_assoc(c, off, base)))),
-            le_add_cong(c, base, Nat.add(off, base), Api.le_add_left(off, base)))
-          +shifted = Equal.trans(Nat, Nat.add(off, high), Nat.add(Nat.add(c, off), base), k, position_step(c, off, base), h)
+            Facts.le_add_cong(c, base, Nat.add(off, base), Api.le_add_left(off, base)))
+          +shifted = Equal.trans(Nat, Nat.add(off, high), Nat.add(Nat.add(c, off), base), k, Facts.position_step(c, off, base), h)
           %Equal.sym(Array<F32>, out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, k, inner, base), out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, 1n+k, inner, base), below(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, k, inner, base, lower)) :
             {ANode{_, ArrayCore.write_path(F32, inner, out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, k, inner, high), rest, cell(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, k))} == out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, 1n+k, 1n+inner, base) : Array<F32>}
           %Equal.sym(Array<F32>, ArrayCore.write_path(F32, inner, out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, k, inner, high), rest, cell(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, k)),
@@ -288,11 +167,11 @@ def chain(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +left: 
       +index = U32.from_nat(j)
       +value = cell(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, j)
       +below_n = Conversion.le_successor_lt(j, n, room)
-      +exact = Conversion.natural_word_exact(j, limit, le_trans(j, n, U32.to_nat(limit), Conversion.lt_le(j, n, below_n), n_limit))
+      +exact = Conversion.natural_word_exact(j, limit, Facts.le_trans(j, n, U32.to_nat(limit), Conversion.lt_le(j, n, below_n), n_limit))
       +inside = Equal.trans(Bool, Nat.is_lt(U32.to_nat(index), n), Nat.is_lt(j, n), True{},
         Equal.cong(Nat, Bool, x => Nat.is_lt(x, n), U32.to_nat(index), j, exact), below_n)
       +offset = Equal.trans(Nat, Nat.add(Model.offset(d, Refinement.route(d, index)), 0n), U32.to_nat(index), j,
-        output_position(d, n, index, fits, inside), exact)
+        Facts.output_position(d, n, index, fits, inside), exact)
       +written = Equal.trans(Array<F32>, Array.set(F32, out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, j, d, 0n), index, value), ArrayCore.write_path(F32, d, out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, j, d, 0n), Refinement.route(d, index), value),
         out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, 1n+j, d, 0n), Refinement.law_set_refines(F32, d, out_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, j, d, 0n), index, value, out_balanced(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, j, d, 0n)),
         write_spec(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, j, d, 0n, Refinement.route(d, index), offset))
@@ -454,13 +333,6 @@ def take_owned_lift(+shape: Shape.Shape, +d: Nat, +n: Nat, -array: Array<F32>, p
   (kept, copy) = pair
   h(fits)
 
-def storage_shift(-shape: Shape.Shape, -s: Storage.Storage, -t: Storage.Storage, e: {s == t : Storage.Storage},
-  -R: @st: Storage.Storage -> @-k: {Lifecycle.logical_length(st) == Shape.logical_numel(Shape.dimensions(shape)) : Nat} -> Type,
-  h: @-k: {Lifecycle.logical_length(s) == Shape.logical_numel(Shape.dimensions(shape)) : Nat} -> R(s, k)) ->
-  @-k: {Lifecycle.logical_length(t) == Shape.logical_numel(Shape.dimensions(shape)) : Nat} -> R(t, k):
-  %e : (@-k: {Lifecycle.logical_length(_) == Shape.logical_numel(Shape.dimensions(shape)) : Nat} -> R(_, k))
-  h
-
 def positive_of_lt(+w: Nat, +n: Nat, h: {Nat.is_lt(w, n) == True{} : Bool}) -> {Nat.is_lt(0n, n) == True{} : Bool}:
   match n:
     case 0n:
@@ -494,26 +366,6 @@ def right_positive(+left: Shape.Shape, +right: Shape.Shape, +plan: Shape.Broadca
       Equal.cong(Nat, Bool, x => Nat.is_lt(walk, x), U32.to_nat(Shape.count(right)), Shape.logical_numel(Shape.dimensions(Shape.right_shape(plan))), right_count(left, right, plan, planned)),
       BroadcastProof.right_walk_bound(plan, Shape.index_map(plan), 0n, output_positive(plan, d, fits))))
 
-# A replayed tensor with a cell is an owned storage whose array is `arr` of
-# its normalized history.
-def input_lift(+shape: Shape.Shape, +fill: F32, +ops: List<&2, StorageLaws.Op>,
-  +nonzero: {Nat.is_lt(0n, U32.to_nat(Shape.count(shape))) == True{} : Bool}, -Q: Storage.Storage -> Type,
-  owned: @+d: Nat -> @+fits: {Storage.bounds(d, U32.to_nat(Shape.count(shape))) == True{} : Bool} ->
-    @-b: Model.Balanced(F32, d, Api.arr(Owned.norm(U32.to_nat(Shape.count(shape)), ops, Nil{}), d, fill)) ->
-    @-f: {Storage.bounds(d, U32.to_nat(Shape.count(shape))) == True{} : Bool} ->
-    Q(Storage.Owned{d, U32.to_nat(Shape.count(shape)), Api.arr(Owned.norm(U32.to_nat(Shape.count(shape)), ops, Nil{}), d, fill), b, f})) ->
-  Q(Replayed.storage(shape, fill, ops)):
-  Owned.created_lift(Shape.count(shape), fill, Conversion.shape_count_within(shape), s => Q(StorageLaws.replay(ops, s)),
-    zero => Empty.absurd(Q(StorageLaws.replay(ops, Storage.Empty{})),
-      Arith.clash(Equal.trans(Bool, False{}, Nat.is_lt(0n, U32.to_nat(Shape.count(shape))), True{},
-        Equal.cong(Nat, Bool, x => Nat.is_lt(0n, x), 0n, U32.to_nat(Shape.count(shape)), Equal.sym(Nat, U32.to_nat(Shape.count(shape)), 0n, zero)),
-        nonzero))),
-    d => fits => f => Owned.replay_lift(ops, d, U32.to_nat(Shape.count(shape)), fill, Nil{}, Api.hit_of(U32.to_nat(Shape.count(shape)), ops), {==},
-      ArrayCore.new_balanced(F32, d, fill), f, fits, Q, c => owned(d, fits, c, f)))
-
-# Both inputs are owned storages in normal form and the output storage is
-# owned: the parallel build returns the replayed output of the family
-# history, and the inputs come back as the First halves of their clones.
 def output_eq(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +left: Shape.Shape, +left_fill: F32, +left_ops: List<&2, StorageLaws.Op>, +right: Shape.Shape, +right_fill: F32, +right_ops: List<&2, StorageLaws.Op>, +planned: {Shape.broadcast_checked(left, right) == Done{plan} : Result<&2, &2, Shape.Error, Shape.BroadcastPlan>}, +dl: Nat, +fitsl: {Storage.bounds(dl, U32.to_nat(Shape.count(left))) == True{} : Bool},
   +dr: Nat, +fitsr: {Storage.bounds(dr, U32.to_nat(Shape.count(right))) == True{} : Bool},
   +d: Nat, +fits: {Storage.bounds(d, U32.to_nat(Shape.count(Shape.output_shape(plan)))) == True{} : Bool}, -f: {Storage.bounds(d, U32.to_nat(Shape.count(Shape.output_shape(plan)))) == True{} : Bool}) -> {StorageLaws.replay(Pointwise.writes(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~Broadcast.left_map, ~Broadcast.right_map, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))), operation, plan, left, left_fill, left_ops, right, right_fill, right_ops), Storage.Owned{d, U32.to_nat(Shape.count(Shape.output_shape(plan))), Array.new(F32, d, 0.0), ArrayCore.new_balanced(F32, d, 0.0), f}) == Storage.Owned{d, U32.to_nat(Shape.count(Shape.output_shape(plan))), Elementwise.build(d, Elementwise.splits(d), operation, plan, U32.to_nat(Shape.count(Shape.output_shape(plan))), 0n, Api.arr(Api.Right{} <> Owned.norm(U32.to_nat(Shape.count(left)), left_ops, Nil{}), dl, left_fill), Api.arr(Api.Right{} <> Owned.norm(U32.to_nat(Shape.count(right)), right_ops, Nil{}), dr, right_fill)), Elementwise.build_balanced(d, Elementwise.splits(d), operation, plan, U32.to_nat(Shape.count(Shape.output_shape(plan))), 0n, Api.arr(Api.Right{} <> Owned.norm(U32.to_nat(Shape.count(left)), left_ops, Nil{}), dl, left_fill), Api.arr(Api.Right{} <> Owned.norm(U32.to_nat(Shape.count(right)), right_ops, Nil{}), dr, right_fill)), f} : Storage.Storage}:
@@ -550,7 +402,7 @@ def core(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +left: S
       t => P(Elementwise.parallel_output(operation, plan, d, U32.to_nat(Shape.count(Shape.output_shape(plan))), f, fo, t, Elementwise.take(Core.Packed{right, Core.TTensor{Storage.Owned{dr, U32.to_nat(Shape.count(right)), Api.arr(Owned.norm(U32.to_nat(Shape.count(right)), right_ops, Nil{}), dr, right_fill), br, fr}, rfits}}))),
       kl => take_owned_lift(right, dr, U32.to_nat(Shape.count(right)), Api.arr(Owned.norm(U32.to_nat(Shape.count(right)), right_ops, Nil{}), dr, right_fill), Array.clone(F32, Api.arr(Owned.norm(U32.to_nat(Shape.count(right)), right_ops, Nil{}), dr, right_fill)), {==}, br, fr, rfits,
         t => P(Elementwise.parallel_output(operation, plan, d, U32.to_nat(Shape.count(Shape.output_shape(plan))), f, fo, (Core.Packed{left, Core.TTensor{StorageLaws.step(Storage.Owned{dl, U32.to_nat(Shape.count(left)), Api.arr(Owned.norm(U32.to_nat(Shape.count(left)), left_ops, Nil{}), dl, left_fill), bl, fl}, StorageLaws.First{}), kl}}, Pair.snd(Array<F32>, Array<F32>, Array.clone(F32, Api.arr(Owned.norm(U32.to_nat(Shape.count(left)), left_ops, Nil{}), dl, left_fill)))), t)),
-        kr => storage_shift(Shape.output_shape(plan), StorageLaws.replay(Pointwise.writes(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~Broadcast.left_map, ~Broadcast.right_map, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))), operation, plan, left, left_fill, left_ops, right, right_fill, right_ops), Storage.Owned{d, U32.to_nat(Shape.count(Shape.output_shape(plan))), Array.new(F32, d, 0.0), ArrayCore.new_balanced(F32, d, 0.0), f}), Storage.Owned{d, U32.to_nat(Shape.count(Shape.output_shape(plan))), Elementwise.build(d, Elementwise.splits(d), operation, plan, U32.to_nat(Shape.count(Shape.output_shape(plan))), 0n, Api.arr(Api.Right{} <> Owned.norm(U32.to_nat(Shape.count(left)), left_ops, Nil{}), dl, left_fill), Api.arr(Api.Right{} <> Owned.norm(U32.to_nat(Shape.count(right)), right_ops, Nil{}), dr, right_fill)), Elementwise.build_balanced(d, Elementwise.splits(d), operation, plan, U32.to_nat(Shape.count(Shape.output_shape(plan))), 0n, Api.arr(Api.Right{} <> Owned.norm(U32.to_nat(Shape.count(left)), left_ops, Nil{}), dl, left_fill), Api.arr(Api.Right{} <> Owned.norm(U32.to_nat(Shape.count(right)), right_ops, Nil{}), dr, right_fill)), f},
+        kr => Facts.storage_shift(Shape.output_shape(plan), StorageLaws.replay(Pointwise.writes(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~Broadcast.left_map, ~Broadcast.right_map, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))), operation, plan, left, left_fill, left_ops, right, right_fill, right_ops), Storage.Owned{d, U32.to_nat(Shape.count(Shape.output_shape(plan))), Array.new(F32, d, 0.0), ArrayCore.new_balanced(F32, d, 0.0), f}), Storage.Owned{d, U32.to_nat(Shape.count(Shape.output_shape(plan))), Elementwise.build(d, Elementwise.splits(d), operation, plan, U32.to_nat(Shape.count(Shape.output_shape(plan))), 0n, Api.arr(Api.Right{} <> Owned.norm(U32.to_nat(Shape.count(left)), left_ops, Nil{}), dl, left_fill), Api.arr(Api.Right{} <> Owned.norm(U32.to_nat(Shape.count(right)), right_ops, Nil{}), dr, right_fill)), Elementwise.build_balanced(d, Elementwise.splits(d), operation, plan, U32.to_nat(Shape.count(Shape.output_shape(plan))), 0n, Api.arr(Api.Right{} <> Owned.norm(U32.to_nat(Shape.count(left)), left_ops, Nil{}), dl, left_fill), Api.arr(Api.Right{} <> Owned.norm(U32.to_nat(Shape.count(right)), right_ops, Nil{}), dr, right_fill)), f},
           output_eq(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, planned, dl, fitsl, dr, fitsr, d, fits, f),
           st => k => P(((Core.Packed{left, Core.TTensor{StorageLaws.step(Storage.Owned{dl, U32.to_nat(Shape.count(left)), Api.arr(Owned.norm(U32.to_nat(Shape.count(left)), left_ops, Nil{}), dl, left_fill), bl, fl}, StorageLaws.First{}), kl}}, Core.Packed{right, Core.TTensor{StorageLaws.step(Storage.Owned{dr, U32.to_nat(Shape.count(right)), Api.arr(Owned.norm(U32.to_nat(Shape.count(right)), right_ops, Nil{}), dr, right_fill), br, fr}, StorageLaws.First{}), kr}}), Done{Core.Packed{Shape.output_shape(plan), Core.TTensor{st, k}}})), hyp(kl, kr))(fo)))
 
@@ -563,22 +415,22 @@ def owned_case(+operation: Elementwise.Operation, +plan: Shape.BroadcastPlan, +l
   (@+left_kept: List<&2, StorageLaws.Op> -> @left_words: {Contracts.words(left, left_fill, left_kept, Shape.logical_numel(Shape.dimensions(left))) == Contracts.words(left, left_fill, left_ops, Shape.logical_numel(Shape.dimensions(left))) : List<&2, F32>} -> @-left_kfits: {Lifecycle.logical_length(Replayed.storage(left, left_fill, left_kept)) == Shape.logical_numel(Shape.dimensions(left)) : Nat} -> @+right_kept: List<&2, StorageLaws.Op> -> @right_words: {Contracts.words(right, right_fill, right_kept, Shape.logical_numel(Shape.dimensions(right))) == Contracts.words(right, right_fill, right_ops, Shape.logical_numel(Shape.dimensions(right))) : List<&2, F32>} -> @-right_kfits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_kept)) == Shape.logical_numel(Shape.dimensions(right)) : Nat} -> @-ko: {Lifecycle.logical_length(StorageLaws.replay(Pointwise.writes(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~Broadcast.left_map, ~Broadcast.right_map, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))), operation, plan, left, left_fill, left_ops, right, right_fill, right_ops), Storage.Owned{d, U32.to_nat(Shape.count(Shape.output_shape(plan))), Array.new(F32, d, 0.0), ArrayCore.new_balanced(F32, d, 0.0), f})) == Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))) : Nat} -> P(((Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_kept), left_kfits}}, Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_kept), right_kfits}}), Done{Core.Packed{Shape.output_shape(plan), Core.TTensor{StorageLaws.replay(Pointwise.writes(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~Broadcast.left_map, ~Broadcast.right_map, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))), operation, plan, left, left_fill, left_ops, right, right_fill, right_ops), Storage.Owned{d, U32.to_nat(Shape.count(Shape.output_shape(plan))), Array.new(F32, d, 0.0), ArrayCore.new_balanced(F32, d, 0.0), f}), ko}}}))) -> @-fo: {U32.to_nat(Shape.count(Shape.output_shape(plan))) == Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))) : Nat} ->
   P(Elementwise.parallel_output(operation, plan, d, U32.to_nat(Shape.count(Shape.output_shape(plan))), f, fo, Elementwise.take(Core.pack(left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), lfits})), Elementwise.take(Core.pack(right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), rfits})))):
   ho => fo =>
-    input_lift(left, left_fill, left_ops, left_positive(left, right, plan, planned, d, fits),
+    Facts.input_lift(left, left_fill, left_ops, left_positive(left, right, plan, planned, d, fits),
       sl => (@-lf: {Lifecycle.logical_length(sl) == Shape.logical_numel(Shape.dimensions(left)) : Nat} -> (@-kl: {Lifecycle.logical_length(StorageLaws.step(sl, StorageLaws.First{})) == Shape.logical_numel(Shape.dimensions(left)) : Nat} -> @+right_kept: List<&2, StorageLaws.Op> -> @right_words: {Contracts.words(right, right_fill, right_kept, Shape.logical_numel(Shape.dimensions(right))) == Contracts.words(right, right_fill, right_ops, Shape.logical_numel(Shape.dimensions(right))) : List<&2, F32>} -> @-right_kfits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_kept)) == Shape.logical_numel(Shape.dimensions(right)) : Nat} -> @-ko: {Lifecycle.logical_length(StorageLaws.replay(Pointwise.writes(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~Broadcast.left_map, ~Broadcast.right_map, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))), operation, plan, left, left_fill, left_ops, right, right_fill, right_ops), Storage.Owned{d, U32.to_nat(Shape.count(Shape.output_shape(plan))), Array.new(F32, d, 0.0), ArrayCore.new_balanced(F32, d, 0.0), f})) == Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))) : Nat} -> P(((Core.Packed{left, Core.TTensor{StorageLaws.step(sl, StorageLaws.First{}), kl}}, Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_kept), right_kfits}}), Done{Core.Packed{Shape.output_shape(plan), Core.TTensor{StorageLaws.replay(Pointwise.writes(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~Broadcast.left_map, ~Broadcast.right_map, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))), operation, plan, left, left_fill, left_ops, right, right_fill, right_ops), Storage.Owned{d, U32.to_nat(Shape.count(Shape.output_shape(plan))), Array.new(F32, d, 0.0), ArrayCore.new_balanced(F32, d, 0.0), f}), ko}}}))) ->
         P(Elementwise.parallel_output(operation, plan, d, U32.to_nat(Shape.count(Shape.output_shape(plan))), f, fo, Elementwise.take(Core.Packed{left, Core.TTensor{sl, lf}}), Elementwise.take(Core.pack(right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), rfits}))))),
       dl => fitsl => bl => fl => lf => hl =>
-        input_lift(right, right_fill, right_ops, right_positive(left, right, plan, planned, d, fits),
+        Facts.input_lift(right, right_fill, right_ops, right_positive(left, right, plan, planned, d, fits),
           sr => (@-rf: {Lifecycle.logical_length(sr) == Shape.logical_numel(Shape.dimensions(right)) : Nat} -> (@-kl: {Lifecycle.logical_length(StorageLaws.step(Storage.Owned{dl, U32.to_nat(Shape.count(left)), Api.arr(Owned.norm(U32.to_nat(Shape.count(left)), left_ops, Nil{}), dl, left_fill), bl, fl}, StorageLaws.First{})) == Shape.logical_numel(Shape.dimensions(left)) : Nat} -> @-kr: {Lifecycle.logical_length(StorageLaws.step(sr, StorageLaws.First{})) == Shape.logical_numel(Shape.dimensions(right)) : Nat} -> @-ko: {Lifecycle.logical_length(StorageLaws.replay(Pointwise.writes(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~Broadcast.left_map, ~Broadcast.right_map, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))), operation, plan, left, left_fill, left_ops, right, right_fill, right_ops), Storage.Owned{d, U32.to_nat(Shape.count(Shape.output_shape(plan))), Array.new(F32, d, 0.0), ArrayCore.new_balanced(F32, d, 0.0), f})) == Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))) : Nat} -> P(((Core.Packed{left, Core.TTensor{StorageLaws.step(Storage.Owned{dl, U32.to_nat(Shape.count(left)), Api.arr(Owned.norm(U32.to_nat(Shape.count(left)), left_ops, Nil{}), dl, left_fill), bl, fl}, StorageLaws.First{}), kl}}, Core.Packed{right, Core.TTensor{StorageLaws.step(sr, StorageLaws.First{}), kr}}), Done{Core.Packed{Shape.output_shape(plan), Core.TTensor{StorageLaws.replay(Pointwise.writes(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~Broadcast.left_map, ~Broadcast.right_map, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))), operation, plan, left, left_fill, left_ops, right, right_fill, right_ops), Storage.Owned{d, U32.to_nat(Shape.count(Shape.output_shape(plan))), Array.new(F32, d, 0.0), ArrayCore.new_balanced(F32, d, 0.0), f}), ko}}}))) ->
             P(Elementwise.parallel_output(operation, plan, d, U32.to_nat(Shape.count(Shape.output_shape(plan))), f, fo, Elementwise.take(Core.Packed{left, Core.TTensor{Storage.Owned{dl, U32.to_nat(Shape.count(left)), Api.arr(Owned.norm(U32.to_nat(Shape.count(left)), left_ops, Nil{}), dl, left_fill), bl, fl}, lf}}),
               Elementwise.take(Core.Packed{right, Core.TTensor{sr, rf}})))),
           dr => fitsr => br => fr => rf => hr => core(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, planned, dl, fitsl, bl, fl, dr, fitsr, br, fr, d, fits, f, P, hr)(lf, rf, fo))(
           rfits,
-          kl => storage_shift(right, Replayed.storage(right, right_fill, Replayed.snoc(right_ops, StorageLaws.First{})),
+          kl => Facts.storage_shift(right, Replayed.storage(right, right_fill, Replayed.snoc(right_ops, StorageLaws.First{})),
             StorageLaws.step(Replayed.storage(right, right_fill, right_ops), StorageLaws.First{}), Replayed.replay_snoc(right_ops, StorageLaws.First{}, right, right_fill),
             st => k => (@-ko: {Lifecycle.logical_length(StorageLaws.replay(Pointwise.writes(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~Broadcast.left_map, ~Broadcast.right_map, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))), operation, plan, left, left_fill, left_ops, right, right_fill, right_ops), Storage.Owned{d, U32.to_nat(Shape.count(Shape.output_shape(plan))), Array.new(F32, d, 0.0), ArrayCore.new_balanced(F32, d, 0.0), f})) == Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))) : Nat} -> P(((Core.Packed{left, Core.TTensor{StorageLaws.step(Storage.Owned{dl, U32.to_nat(Shape.count(left)), Api.arr(Owned.norm(U32.to_nat(Shape.count(left)), left_ops, Nil{}), dl, left_fill), bl, fl}, StorageLaws.First{}), kl}}, Core.Packed{right, Core.TTensor{st, k}}), Done{Core.Packed{Shape.output_shape(plan), Core.TTensor{StorageLaws.replay(Pointwise.writes(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~Broadcast.left_map, ~Broadcast.right_map, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))), operation, plan, left, left_fill, left_ops, right, right_fill, right_ops), Storage.Owned{d, U32.to_nat(Shape.count(Shape.output_shape(plan))), Array.new(F32, d, 0.0), ArrayCore.new_balanced(F32, d, 0.0), f}), ko}}}))),
             rk => hl(kl, Replayed.snoc(right_ops, StorageLaws.First{}), words_first(right, right_fill, right_ops, Shape.logical_numel(Shape.dimensions(right))), rk))))(
       lfits,
-      storage_shift(left, Replayed.storage(left, left_fill, Replayed.snoc(left_ops, StorageLaws.First{})),
+      Facts.storage_shift(left, Replayed.storage(left, left_fill, Replayed.snoc(left_ops, StorageLaws.First{})),
         StorageLaws.step(Replayed.storage(left, left_fill, left_ops), StorageLaws.First{}), Replayed.replay_snoc(left_ops, StorageLaws.First{}, left, left_fill),
         st => k => (@+right_kept: List<&2, StorageLaws.Op> -> @right_words: {Contracts.words(right, right_fill, right_kept, Shape.logical_numel(Shape.dimensions(right))) == Contracts.words(right, right_fill, right_ops, Shape.logical_numel(Shape.dimensions(right))) : List<&2, F32>} -> @-right_kfits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_kept)) == Shape.logical_numel(Shape.dimensions(right)) : Nat} -> @-ko: {Lifecycle.logical_length(StorageLaws.replay(Pointwise.writes(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~Broadcast.left_map, ~Broadcast.right_map, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))), operation, plan, left, left_fill, left_ops, right, right_fill, right_ops), Storage.Owned{d, U32.to_nat(Shape.count(Shape.output_shape(plan))), Array.new(F32, d, 0.0), ArrayCore.new_balanced(F32, d, 0.0), f})) == Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))) : Nat} -> P(((Core.Packed{left, Core.TTensor{st, k}}, Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_kept), right_kfits}}), Done{Core.Packed{Shape.output_shape(plan), Core.TTensor{StorageLaws.replay(Pointwise.writes(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~Broadcast.left_map, ~Broadcast.right_map, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))), operation, plan, left, left_fill, left_ops, right, right_fill, right_ops), Storage.Owned{d, U32.to_nat(Shape.count(Shape.output_shape(plan))), Array.new(F32, d, 0.0), ArrayCore.new_balanced(F32, d, 0.0), f}), ko}}}))),
         lk => ho(Replayed.snoc(left_ops, StorageLaws.First{}), words_first(left, left_fill, left_ops, Shape.logical_numel(Shape.dimensions(left))), lk)))
@@ -595,7 +447,7 @@ def allocated_replayed(+operation: Elementwise.Operation, +plan: Shape.Broadcast
         s => ((@+left_kept: List<&2, StorageLaws.Op> -> @left_words: {Contracts.words(left, left_fill, left_kept, Shape.logical_numel(Shape.dimensions(left))) == Contracts.words(left, left_fill, left_ops, Shape.logical_numel(Shape.dimensions(left))) : List<&2, F32>} -> @-left_kfits: {Lifecycle.logical_length(Replayed.storage(left, left_fill, left_kept)) == Shape.logical_numel(Shape.dimensions(left)) : Nat} -> @+right_kept: List<&2, StorageLaws.Op> -> @right_words: {Contracts.words(right, right_fill, right_kept, Shape.logical_numel(Shape.dimensions(right))) == Contracts.words(right, right_fill, right_ops, Shape.logical_numel(Shape.dimensions(right))) : List<&2, F32>} -> @-right_kfits: {Lifecycle.logical_length(Replayed.storage(right, right_fill, right_kept)) == Shape.logical_numel(Shape.dimensions(right)) : Nat} -> @-ko: {Lifecycle.logical_length(StorageLaws.replay(Pointwise.writes(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~Broadcast.left_map, ~Broadcast.right_map, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))), operation, plan, left, left_fill, left_ops, right, right_fill, right_ops), s)) == Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))) : Nat} -> P(((Core.Packed{left, Core.TTensor{Replayed.storage(left, left_fill, left_kept), left_kfits}}, Core.Packed{right, Core.TTensor{Replayed.storage(right, right_fill, right_kept), right_kfits}}), Done{Core.Packed{Shape.output_shape(plan), Core.TTensor{StorageLaws.replay(Pointwise.writes(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~Broadcast.left_map, ~Broadcast.right_map, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))), operation, plan, left, left_fill, left_ops, right, right_fill, right_ops), s), ko}}}))) -> @-fo: {Lifecycle.logical_length(s) == Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))) : Nat} ->
           P(Elementwise.parallel_allocated(operation, plan, Core.pack(left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), lfits}), Core.pack(right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), rfits}), Done{Core.TTensor{s, fo}}))),
         zero => ho => fo =>
-          storage_shift(Shape.output_shape(plan), StorageLaws.replay(Pointwise.writes(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~Broadcast.left_map, ~Broadcast.right_map, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))), operation, plan, left, left_fill, left_ops, right, right_fill, right_ops), Storage.Empty{}), Storage.Empty{}, Owned.replay_empty(Pointwise.writes(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~Broadcast.left_map, ~Broadcast.right_map, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))), operation, plan, left, left_fill, left_ops, right, right_fill, right_ops)),
+          Facts.storage_shift(Shape.output_shape(plan), StorageLaws.replay(Pointwise.writes(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~Broadcast.left_map, ~Broadcast.right_map, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))), operation, plan, left, left_fill, left_ops, right, right_fill, right_ops), Storage.Empty{}), Storage.Empty{}, Owned.replay_empty(Pointwise.writes(~Elementwise.Operation, ~Elementwise.scalar, ~Shape.BroadcastPlan, ~Broadcast.left_map, ~Broadcast.right_map, Shape.logical_numel(Shape.dimensions(Shape.output_shape(plan))), operation, plan, left, left_fill, left_ops, right, right_fill, right_ops)),
             st => k => P(((Core.pack(left, Core.TTensor{Replayed.storage(left, left_fill, left_ops), lfits}), Core.pack(right, Core.TTensor{Replayed.storage(right, right_fill, right_ops), rfits})), Done{Core.Packed{Shape.output_shape(plan), Core.TTensor{st, k}}})),
             ho(left_ops, {==}, lfits, right_ops, {==}, rfits))(fo),
         d => fits => f => owned_case(operation, plan, left, left_fill, left_ops, right, right_fill, right_ops, planned, lfits, rfits, P, d, fits, f))(

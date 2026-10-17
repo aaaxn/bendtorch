@@ -19,12 +19,38 @@ through the frozen shape API, and checked to retain the natural element count.
 Every Boolean dispatch carries equality to the predicate it decides.
 
 `permute_copy` and `transpose_copy` retain the input owner and allocate separate
-output storage. For each output flat index they obtain a checked output
-coordinate, scatter it back to the original axes, obtain a checked input flat
-index, read the input through the owned storage adapter, and write the output.
-They do not use shared views or silently default invalid coordinates. Empty
-outputs skip the coordinate loop entirely, including huge-zero dimensions;
-no strides or dimension products are precomputed on that path.
+output storage. They do not use shared views or silently default invalid
+coordinates. Empty outputs skip the copy entirely, including huge-zero
+dimensions.
+
+The copy runs every output cell at once, as `Parallel.build` with the cell
+function of `src/tensor/permute-build.bend`: output cell `i` reads the input
+at `Values.permute_source_index(input, axes, i)`, the index the checked copy
+loop below reads, computed from a recipe of strides worked out once per
+subtree below the forks (once per up to 2^15 cells) instead of three
+coordinate lists per cell
+(`permute-build-proof.bend` proves the two indexes equal). The input comes
+back as the First half of its clone and the build reads the Second half.
+On a `[1024,1024]` transpose this takes 95 ms on one thread and 38 ms on
+eight, against 1.60 s and 2.32 s for the loop (medians of five alternating
+runs); the words are the same at every thread count.
+
+The tensor gate's parallel probe (`probes/parallel_builds.bend`) runs a
+transpose of `[256,257]` and a permute of `[16,64,40]`, which fork two levels
+and one, next to the copy loop (`loop_allocated`) at 1, 8 and 24 threads and
+requires the same words.
+
+The laws below about the loop (`copy_loop`, `natural_step`, `copy_step`,
+`copy_read`) state what the checked sequential copy does; `copy_allocated`
+no longer runs it, and the parallel probe keeps it (`loop_allocated`) as its
+sequential reference. `permute_result_interpretation`,
+`permute_typed_success` and the other public laws are proved for the parallel
+copy: `permute-build-proof.bend` shows that it meets the loop's own meaning
+(`LoopMeaning`, the successful prefix of the whole output) on every source.
+
+For each output flat index the loop obtains a checked output coordinate,
+scatters it back to the original axes, obtains a checked input flat index,
+reads the input through the owned storage adapter, and writes the output.
 
 The copy loop uses natural logical-numel fuel and a natural cursor. At each
 step it converts the cursor to U32 and checks that converting that candidate
@@ -92,8 +118,8 @@ internally and uses the erased cached-count bridge to quantify the final
 prefix over the mathematical logical count. It needs no mapping, frame,
 initial-prefix or cursor-conversion premise from its caller.
 
-`permute_result_interpretation` follows the actual plan, allocation, loop and
-packing computations. A successful result carries the selected output
+`permute_result_interpretation` follows the actual plan, allocation, parallel
+copy and packing computations. A successful result carries the selected output
 dimensions, retained original source observations, exact natural-to-word
 cursors, checked output routes and every in-range final observation. Those
 observations are proved both for `Core.checked_observe_dynamic` and for the

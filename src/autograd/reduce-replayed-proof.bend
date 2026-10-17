@@ -504,6 +504,207 @@ def fiber_eq(+rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +fuel: Nat, +t
     case Shape.Row{+stride, +left, +right} <> +rest Nil{} _:
       {==}
 
+# The facts of `ReduceParallel.fast_fiber`, stated for the replayed arrays
+# `Api.arr`, which a proof can name as often as it needs: a read of
+# `Api.arr(h, d, f)` hands back that array, next to the word it read.
+def eta(pair: Array<F32> & F32) -> {pair == (Refinement.first(F32, pair), Refinement.second(F32, pair)) : Array<F32> & F32}:
+  match pair:
+    case Tuple{x, y}:
+      {==}
+
+def got(+h: List<&2, Api.Effect>, +d: Nat, +f: F32, +i: U32) ->
+  {Array.get(F32, Api.arr(h, d, f), i) == (Api.arr(h, d, f), Refinement.second(F32, Array.get(F32, Api.arr(h, d, f), i))) : Array<F32> & F32}:
+  Equal.trans(Array<F32> & F32, Array.get(F32, Api.arr(h, d, f), i),
+    (Refinement.first(F32, Array.get(F32, Api.arr(h, d, f), i)), Refinement.second(F32, Array.get(F32, Api.arr(h, d, f), i))),
+    (Api.arr(h, d, f), Refinement.second(F32, Array.get(F32, Api.arr(h, d, f), i))),
+    eta(Array.get(F32, Api.arr(h, d, f), i)),
+    Equal.cong(Array<F32>, Array<F32> & F32, a => (a, Refinement.second(F32, Array.get(F32, Api.arr(h, d, f), i))),
+      Refinement.first(F32, Array.get(F32, Api.arr(h, d, f), i)), Api.arr(h, d, f),
+      Refinement.law_get_retains(F32, d, Api.arr(h, d, f), i, Api.bal(h, d, f))))
+
+def single_arr(+rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +single: {Reduce.single_rows(rows, extents) == True{} : Bool},
+  +target: Nat, +base: Nat, +accumulator: F32, +h: List<&2, Api.Effect>, +d: Nat, +f: F32) ->
+  {Reduce.fiber(rows, extents, Reduce.first_span(rows, extents), target, base, Reduce.first_digit(rows, target), accumulator, Api.arr(h, d, f)) ==
+    Reduce.leaf_add(accumulator, Array.get(F32, Api.arr(h, d, f), U32.from_nat(Reduce.single_offset(rows, extents, target, base)))) : F32 & Array<F32>}:
+  match rows extents:
+    case Nil{} +extents:
+      {==}
+    case Shape.Row{+stride, +left, +right} <> +rest +extent <> +others:
+      +one = ReduceParallel.span_one(left, extent, Arith.and_left(Nat.is_eq(Reduce.span(left, extent), 1n), Reduce.single_rows(rest, others), single))
+      +inner = Nat.mod(target, left)
+      +offset = Nat.add(base, Nat.mul(right, Nat.div(target, left)))
+      %Equal.sym(Nat, Reduce.span(left, extent), 1n, one) :
+        {Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, _, target, base, Nat.div(target, left), accumulator, Api.arr(h, d, f)) ==
+          Reduce.leaf_add(accumulator, Array.get(F32, Api.arr(h, d, f), U32.from_nat(Reduce.single_offset(rest, others, inner, offset)))) : F32 & Array<F32>}
+      Equal.trans(F32 & Array<F32>,
+        Reduce.walk_next(v => k => Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, 0n, target, base, 1n+Nat.div(target, left), v, k),
+          Reduce.fiber(rest, others, Reduce.first_span(rest, others), inner, offset, Reduce.first_digit(rest, inner), accumulator, Api.arr(h, d, f))),
+        Reduce.walk_next(v => k => Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, 0n, target, base, 1n+Nat.div(target, left), v, k),
+          Reduce.leaf_add(accumulator, Array.get(F32, Api.arr(h, d, f), U32.from_nat(Reduce.single_offset(rest, others, inner, offset))))),
+        Reduce.leaf_add(accumulator, Array.get(F32, Api.arr(h, d, f), U32.from_nat(Reduce.single_offset(rest, others, inner, offset)))),
+        Equal.cong(F32 & Array<F32>, F32 & Array<F32>,
+          p => Reduce.walk_next(v => k => Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, 0n, target, base, 1n+Nat.div(target, left), v, k), p),
+          Reduce.fiber(rest, others, Reduce.first_span(rest, others), inner, offset, Reduce.first_digit(rest, inner), accumulator, Api.arr(h, d, f)),
+          Reduce.leaf_add(accumulator, Array.get(F32, Api.arr(h, d, f), U32.from_nat(Reduce.single_offset(rest, others, inner, offset)))),
+          single_arr(rest, others, Arith.and_right(Nat.is_eq(Reduce.span(left, extent), 1n), Reduce.single_rows(rest, others), single),
+            inner, offset, accumulator, h, d, f)),
+        ReduceParallel.leaf_kept(v => k => Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, 0n, target, base, 1n+Nat.div(target, left), v, k),
+          value => kept => {==}, accumulator, Array.get(F32, Api.arr(h, d, f), U32.from_nat(Reduce.single_offset(rest, others, inner, offset)))))
+    case Shape.Row{+stride, +left, +right} <> +rest Nil{}:
+      Empty.absurd({Reduce.fiber(Shape.Row{stride, left, right} <> rest, Nil{}, Reduce.first_span(Shape.Row{stride, left, right} <> rest, Nil{}), target, base,
+        Reduce.first_digit(Shape.Row{stride, left, right} <> rest, target), accumulator, Api.arr(h, d, f)) ==
+        Reduce.leaf_add(accumulator, Array.get(F32, Api.arr(h, d, f), U32.from_nat(Reduce.single_offset(Shape.Row{stride, left, right} <> rest, Nil{}, target, base)))) :
+        F32 & Array<F32>}, Arith.clash(single))
+
+# The word a strided read of `Api.arr(h, d, f)` gets.
+def word_at(+h: List<&2, Api.Effect>, +d: Nat, +f: F32, +at: Nat) -> F32:
+  Refinement.second(F32, Array.get(F32, Api.arr(h, d, f), U32.from_nat(at)))
+
+def step_arr(+stride: Nat, +left: Nat, +right: Nat, +rest: List<&2, Shape.Row>, +extent: Nat, +others: List<&2, Nat>,
+  +single: {Reduce.single_rows(rest, others) == True{} : Bool}, +fuel: Nat, +target: Nat, +base: Nat, +digit: Nat, +accumulator: F32,
+  +h: List<&2, Api.Effect>, +d: Nat, +f: F32) ->
+  {Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, 1n+fuel, target, base, digit, accumulator, Api.arr(h, d, f)) ==
+    Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, fuel, target, base, 1n+digit,
+      F32.add(accumulator, word_at(h, d, f, Reduce.strided_offset(right, base, digit, Reduce.single_offset(rest, others, Nat.mod(target, left), 0n)))),
+      Api.arr(h, d, f)) : F32 & Array<F32>}:
+  +inner = Nat.mod(target, left)
+  +lift = Reduce.single_offset(rest, others, inner, 0n)
+  +offset = Nat.add(base, Nat.mul(right, digit))
+  +at = Reduce.strided_offset(right, base, digit, lift)
+  Equal.trans(F32 & Array<F32>,
+    Reduce.walk_next(v => k => Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, fuel, target, base, 1n+digit, v, k),
+      Reduce.fiber(rest, others, Reduce.first_span(rest, others), inner, offset, Reduce.first_digit(rest, inner), accumulator, Api.arr(h, d, f))),
+    Reduce.walk_next(v => k => Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, fuel, target, base, 1n+digit, v, k),
+      Reduce.leaf_add(accumulator, Array.get(F32, Api.arr(h, d, f), U32.from_nat(Reduce.single_offset(rest, others, inner, offset))))),
+    Reduce.walk_next(v => k => Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, fuel, target, base, 1n+digit, v, k),
+      Reduce.leaf_add(accumulator, (Api.arr(h, d, f), word_at(h, d, f, at)))),
+    Equal.cong(F32 & Array<F32>, F32 & Array<F32>,
+      p => Reduce.walk_next(v => k => Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, fuel, target, base, 1n+digit, v, k), p),
+      Reduce.fiber(rest, others, Reduce.first_span(rest, others), inner, offset, Reduce.first_digit(rest, inner), accumulator, Api.arr(h, d, f)),
+      Reduce.leaf_add(accumulator, Array.get(F32, Api.arr(h, d, f), U32.from_nat(Reduce.single_offset(rest, others, inner, offset)))),
+      single_arr(rest, others, single, inner, offset, accumulator, h, d, f)),
+    Equal.trans(F32 & Array<F32>,
+      Reduce.walk_next(v => k => Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, fuel, target, base, 1n+digit, v, k),
+        Reduce.leaf_add(accumulator, Array.get(F32, Api.arr(h, d, f), U32.from_nat(Reduce.single_offset(rest, others, inner, offset))))),
+      Reduce.walk_next(v => k => Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, fuel, target, base, 1n+digit, v, k),
+        Reduce.leaf_add(accumulator, Array.get(F32, Api.arr(h, d, f), U32.from_nat(at)))),
+      Reduce.walk_next(v => k => Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, fuel, target, base, 1n+digit, v, k),
+        Reduce.leaf_add(accumulator, (Api.arr(h, d, f), word_at(h, d, f, at)))),
+      Equal.cong(Nat, F32 & Array<F32>,
+        n => Reduce.walk_next(v => k => Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, fuel, target, base, 1n+digit, v, k),
+          Reduce.leaf_add(accumulator, Array.get(F32, Api.arr(h, d, f), U32.from_nat(n)))),
+        Reduce.single_offset(rest, others, inner, offset), at, ReduceParallel.offset_shift(rest, others, inner, offset)),
+      Equal.cong(Array<F32> & F32, F32 & Array<F32>,
+        p => Reduce.walk_next(v => k => Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, fuel, target, base, 1n+digit, v, k),
+          Reduce.leaf_add(accumulator, p)),
+        Array.get(F32, Api.arr(h, d, f), U32.from_nat(at)), (Api.arr(h, d, f), word_at(h, d, f, at)),
+        got(h, d, f, U32.from_nat(at)))))
+
+def run_arr(+stride: Nat, +left: Nat, +right: Nat, +rest: List<&2, Shape.Row>, +extent: Nat, +others: List<&2, Nat>,
+  +single: {Reduce.single_rows(rest, others) == True{} : Bool}, +fuel: Nat, +target: Nat, +base: Nat, +digit: Nat, +accumulator: F32,
+  +h: List<&2, Api.Effect>, +d: Nat, +f: F32) ->
+  {Reduce.strided_run(fuel, right, base, digit, Reduce.single_offset(rest, others, Nat.mod(target, left), 0n), accumulator,
+    Array.get(F32, Api.arr(h, d, f), U32.from_nat(Reduce.strided_offset(right, base, digit, Reduce.single_offset(rest, others, Nat.mod(target, left), 0n))))) ==
+    Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, 1n+fuel, target, base, digit, accumulator, Api.arr(h, d, f)) : F32 & Array<F32>}:
+  match fuel:
+    case 0n:
+      +lift = Reduce.single_offset(rest, others, Nat.mod(target, left), 0n)
+      +at = Reduce.strided_offset(right, base, digit, lift)
+      %Equal.sym(Array<F32> & F32, Array.get(F32, Api.arr(h, d, f), U32.from_nat(at)), (Api.arr(h, d, f), word_at(h, d, f, at)), got(h, d, f, U32.from_nat(at))) :
+        {Reduce.strided_run(0n, right, base, digit, lift, accumulator, _) ==
+          Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, 1n, target, base, digit, accumulator, Api.arr(h, d, f)) : F32 & Array<F32>}
+      Equal.sym(F32 & Array<F32>,
+        Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, 1n, target, base, digit, accumulator, Api.arr(h, d, f)),
+        (F32.add(accumulator, word_at(h, d, f, at)), Api.arr(h, d, f)),
+        step_arr(stride, left, right, rest, extent, others, single, 0n, target, base, digit, accumulator, h, d, f))
+    case 1n+remaining:
+      +lift = Reduce.single_offset(rest, others, Nat.mod(target, left), 0n)
+      +at = Reduce.strided_offset(right, base, digit, lift)
+      +next = F32.add(accumulator, word_at(h, d, f, at))
+      %Equal.sym(Array<F32> & F32, Array.get(F32, Api.arr(h, d, f), U32.from_nat(at)), (Api.arr(h, d, f), word_at(h, d, f, at)), got(h, d, f, U32.from_nat(at))) :
+        {Reduce.strided_run(1n+remaining, right, base, digit, lift, accumulator, _) ==
+          Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, 2n+remaining, target, base, digit, accumulator, Api.arr(h, d, f)) : F32 & Array<F32>}
+      Equal.trans(F32 & Array<F32>,
+        Reduce.strided_run(remaining, right, base, 1n+digit, lift, next,
+          Array.get(F32, Api.arr(h, d, f), U32.from_nat(Reduce.strided_offset(right, base, 1n+digit, lift)))),
+        Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, 1n+remaining, target, base, 1n+digit, next, Api.arr(h, d, f)),
+        Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, 2n+remaining, target, base, digit, accumulator, Api.arr(h, d, f)),
+        run_arr(stride, left, right, rest, extent, others, single, remaining, target, base, 1n+digit, next, h, d, f),
+        Equal.sym(F32 & Array<F32>,
+          Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, 2n+remaining, target, base, digit, accumulator, Api.arr(h, d, f)),
+          Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, 1n+remaining, target, base, 1n+digit, next, Api.arr(h, d, f)),
+          step_arr(stride, left, right, rest, extent, others, single, 1n+remaining, target, base, digit, accumulator, h, d, f)))
+
+def strided_arr(+stride: Nat, +left: Nat, +right: Nat, +rest: List<&2, Shape.Row>, +extent: Nat, +others: List<&2, Nat>,
+  +single: {Reduce.single_rows(rest, others) == True{} : Bool}, +fuel: Nat, +target: Nat, +base: Nat, +digit: Nat, +accumulator: F32,
+  +h: List<&2, Api.Effect>, +d: Nat, +f: F32) ->
+  {Reduce.strided(fuel, right, base, digit, Reduce.single_offset(rest, others, Nat.mod(target, left), 0n), accumulator, Api.arr(h, d, f)) ==
+    Reduce.fiber(Shape.Row{stride, left, right} <> rest, extent <> others, fuel, target, base, digit, accumulator, Api.arr(h, d, f)) : F32 & Array<F32>}:
+  match fuel:
+    case 0n:
+      {==}
+    case 1n+remaining:
+      run_arr(stride, left, right, rest, extent, others, single, remaining, target, base, digit, accumulator, h, d, f)
+
+# A fiber of `Api.arr(h, d, f)` hands that array back.
+def fiber_kept(+rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +fuel: Nat, +target: Nat, +base: Nat, +digit: Nat, +accumulator: F32,
+  +h: List<&2, Api.Effect>, +d: Nat, +f: F32) ->
+  {Reduce.fiber(rows, extents, fuel, target, base, digit, accumulator, Api.arr(h, d, f)) ==
+    (Pair.fst(F32, Array<F32>, Reduce.fiber(rows, extents, fuel, target, base, digit, accumulator, Api.arr(h, d, f))), Api.arr(h, d, f)) : F32 & Array<F32>}:
+  match rows extents fuel:
+    case Nil{} _ _:
+      %Equal.sym(Array<F32> & F32, Array.get(F32, Api.arr(h, d, f), U32.from_nat(base)), (Api.arr(h, d, f), word_at(h, d, f, base)), got(h, d, f, U32.from_nat(base))) :
+        {Reduce.leaf_add(accumulator, _) == (Pair.fst(F32, Array<F32>, Reduce.leaf_add(accumulator, _)), Api.arr(h, d, f)) : F32 & Array<F32>}
+      {==}
+    case Shape.Row{+stride, +left, +right} <> +rest +extent <> +others 0n:
+      {==}
+    case Shape.Row{+stride, +left, +right} <> +rest +extent <> +others 1n+remaining:
+      +rows : List<&2, Shape.Row> = Shape.Row{stride, left, right} <> rest
+      +extents : List<&2, Nat> = extent <> others
+      +inner = Nat.mod(target, left)
+      +offset = Nat.add(base, Nat.mul(right, digit))
+      +value = Pair.fst(F32, Array<F32>, Reduce.fiber(rest, others, Reduce.first_span(rest, others), inner, offset, Reduce.first_digit(rest, inner), accumulator, Api.arr(h, d, f)))
+      %Equal.sym(F32 & Array<F32>, Reduce.fiber(rest, others, Reduce.first_span(rest, others), inner, offset, Reduce.first_digit(rest, inner), accumulator, Api.arr(h, d, f)), (value, Api.arr(h, d, f)),
+        fiber_kept(rest, others, Reduce.first_span(rest, others), inner, offset, Reduce.first_digit(rest, inner), accumulator, h, d, f)) :
+        {Reduce.walk_next(v => k => Reduce.fiber(rows, extents, remaining, target, base, 1n+digit, v, k), _) ==
+          (Pair.fst(F32, Array<F32>, Reduce.walk_next(v => k => Reduce.fiber(rows, extents, remaining, target, base, 1n+digit, v, k), _)), Api.arr(h, d, f)) :
+          F32 & Array<F32>}
+      fiber_kept(rows, extents, remaining, target, base, 1n+digit, value, h, d, f)
+    case Shape.Row{+stride, +left, +right} <> +rest Nil{} _:
+      {==}
+
+def fast_arr(+rows: List<&2, Shape.Row>, +extents: List<&2, Nat>, +fuel: Nat, single: Bool, +ok: ReduceParallel.SingleOk(single, rows, extents),
+  +target: Nat, +base: Nat, +digit: Nat, +accumulator: F32, +h: List<&2, Api.Effect>, +d: Nat, +f: F32) ->
+  {Reduce.fiber_fast(rows, extents, fuel, single, target, base, digit, accumulator, Api.arr(h, d, f)) ==
+    Reduce.fiber(rows, extents, fuel, target, base, digit, accumulator, Api.arr(h, d, f)) : F32 & Array<F32>}:
+  match rows extents fuel single:
+    case Nil{} _ _ single:
+      {==}
+    case Shape.Row{+stride, +left, +right} <> +rest +extent <> +others fuel True{}:
+      strided_arr(stride, left, right, rest, extent, others, ok, fuel, target, base, digit, accumulator, h, d, f)
+    case Shape.Row{+stride, +left, +right} <> +rest +extent <> +others 0n False{}:
+      {==}
+    case Shape.Row{+stride, +left, +right} <> +rest +extent <> +others 1n+remaining False{}:
+      +rows : List<&2, Shape.Row> = Shape.Row{stride, left, right} <> rest
+      +extents : List<&2, Nat> = extent <> others
+      +inner = Nat.mod(target, left)
+      +offset = Nat.add(base, Nat.mul(right, digit))
+      +value = Pair.fst(F32, Array<F32>, Reduce.fiber(rest, others, Reduce.first_span(rest, others), inner, offset, Reduce.first_digit(rest, inner), accumulator, Api.arr(h, d, f)))
+      %Equal.sym(F32 & Array<F32>,
+        Reduce.fiber_fast(rest, others, Reduce.first_span(rest, others), Reduce.single_below(rest, others), inner, offset, Reduce.first_digit(rest, inner), accumulator, Api.arr(h, d, f)),
+        Reduce.fiber(rest, others, Reduce.first_span(rest, others), inner, offset, Reduce.first_digit(rest, inner), accumulator, Api.arr(h, d, f)),
+        fast_arr(rest, others, Reduce.first_span(rest, others), Reduce.single_below(rest, others),
+          ReduceParallel.single_ok(rest, others, Reduce.single_below(rest, others), {==}), inner, offset, Reduce.first_digit(rest, inner), accumulator, h, d, f)) :
+        {Reduce.walk_next(v => k => Reduce.fiber_fast(rows, extents, remaining, False{}, target, base, 1n+digit, v, k), _) ==
+          Reduce.walk_next(v => k => Reduce.fiber(rows, extents, remaining, target, base, 1n+digit, v, k), Reduce.fiber(rest, others, Reduce.first_span(rest, others), inner, offset, Reduce.first_digit(rest, inner), accumulator, Api.arr(h, d, f))) : F32 & Array<F32>}
+      %Equal.sym(F32 & Array<F32>, Reduce.fiber(rest, others, Reduce.first_span(rest, others), inner, offset, Reduce.first_digit(rest, inner), accumulator, Api.arr(h, d, f)), (value, Api.arr(h, d, f)),
+        fiber_kept(rest, others, Reduce.first_span(rest, others), inner, offset, Reduce.first_digit(rest, inner), accumulator, h, d, f)) :
+        {Reduce.walk_next(v => k => Reduce.fiber_fast(rows, extents, remaining, False{}, target, base, 1n+digit, v, k), _) ==
+          Reduce.walk_next(v => k => Reduce.fiber(rows, extents, remaining, target, base, 1n+digit, v, k), _) : F32 & Array<F32>}
+      fast_arr(rows, extents, remaining, False{}, Unit{}, target, base, 1n+digit, value, h, d, f)
+    case Shape.Row{+stride, +left, +right} <> +rest Nil{} _ single:
+      {==}
+
 # What the cells of the build need from the plan: the target is the plan's
 # left shape, with `count` cells, and the contribution is its right shape.
 type Facts<-plan: Shape.BroadcastPlan, -shape: Shape.Shape, -count: Nat> is Data:
@@ -548,8 +749,13 @@ def cell_eq(+plan: Shape.BroadcastPlan, +rows: List<&2, Shape.Row>,
       +output = Shape.extents(Shape.output_shape(plan))
       +word = rfold(shape, fill, ops, ReduceParallel.visited_of(rows, output, base), 0.0)
       %Equal.sym(F32 & Array<F32>, Reduce.fiber_of(rows, output, base, Api.arr(h, d, f)), (word, Api.arr(h, d, f)),
-        fiber_eq(rows, output, Reduce.first_span(rows, output), base, 0n, Reduce.first_digit(rows, base), 0.0, shape, fill, ops, h, d, f, source,
-          walk_below(plan, rows, rows_exact, shape, count, facts, base, Equal.sym(Bool, True{}, Nat.is_lt(base, count), decided)))) :
+        Equal.trans(F32 & Array<F32>, Reduce.fiber_of(rows, output, base, Api.arr(h, d, f)),
+          Reduce.fiber(rows, output, Reduce.first_span(rows, output), base, 0n, Reduce.first_digit(rows, base), 0.0, Api.arr(h, d, f)),
+          (word, Api.arr(h, d, f)),
+          fast_arr(rows, output, Reduce.first_span(rows, output), Reduce.single_below(rows, output),
+            ReduceParallel.single_ok(rows, output, Reduce.single_below(rows, output), {==}), base, 0n, Reduce.first_digit(rows, base), 0.0, h, d, f),
+          fiber_eq(rows, output, Reduce.first_span(rows, output), base, 0n, Reduce.first_digit(rows, base), 0.0, shape, fill, ops, h, d, f, source,
+            walk_below(plan, rows, rows_exact, shape, count, facts, base, Equal.sym(Bool, True{}, Nat.is_lt(base, count), decided))))) :
         TreeEq(plan, rows, rows_exact, shape, fill, ops, h, d, f, count, 0n, base, Parallel.leaf(~(Array<F32> & Unit), Reduce.keep(_, Unit{})))
       (%decided : {ALeaf{word} == ALeaf{out_leaf(plan, Shape.Indexed{rows, rows_exact}, shape, fill, ops, base, _)} : Array<F32>}
        {==}, {==})

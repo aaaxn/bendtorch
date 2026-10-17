@@ -514,8 +514,32 @@ def product_cells(request: dict) -> int:
     return 0 if product is None else shape_oracle(product)["count"]
 
 
+def permuted_cells(request: dict) -> int:
+    """Output cells of the permute build a request runs, 0 if none runs.
+
+    `permute_copy` builds its output once the axes are a permutation of the
+    input's axes; `transpose_copy` once both axes lie below the rank, or both
+    are 0 on a scalar.
+    """
+    op = request.get("op")
+    if op not in ("permute_copy", "transpose_copy"):
+        return 0
+    source = request["inputs"]["a"]
+    if not constructs(source):
+        return 0
+    shape = source["shape"]
+    rank = len(shape)
+    if op == "permute_copy":
+        axes = request["parameters"]["axes"]
+        planned = sorted(axes) == list(range(rank))
+    else:
+        a, b = request["parameters"]["dims"]
+        planned = a < rank and b < rank if rank > 0 else a == b == 0
+    return shape_oracle(shape)["count"] if planned else 0
+
+
 def build_joins(cells: int) -> int:
-    """`blk_node` calls of one elementwise or matmul build.
+    """`blk_node` calls of one elementwise, matmul or permute build.
 
     The build joins every inner node of its balanced output tree once, by
     `ANode` in `fork` or `tree_join`. Storage of `cells` cells has depth
@@ -526,7 +550,9 @@ def build_joins(cells: int) -> int:
 
 def expected_copy_audit(requests: list[dict]) -> tuple[int, int]:
     return 0, sum(
-        build_joins(built_cells(request)) + build_joins(product_cells(request))
+        build_joins(built_cells(request))
+        + build_joins(product_cells(request))
+        + build_joins(permuted_cells(request))
         for request in requests
     )
 
@@ -539,7 +565,7 @@ def check_copy_audit(stderr: str, requests: list[dict]) -> None:
             "Native copy audit reported "
             + (", ".join(" ".join(row) for row in found) or "nothing")
             + f"; expected {expected[0]} splits and {expected[1]} joins, "
-            "exactly the joins of the elementwise and matmul output builds"
+            "exactly the joins of the elementwise, matmul and permute output builds"
         )
 
 

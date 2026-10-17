@@ -90,6 +90,22 @@ offsets `base + walk_right(p)` of the positions `p = 0 .. count - 1` with
 `walk_left(p) == t`, the positions `fiber` adds, in the order it adds them.
 So each cell is word-identical to the ordered fold, whatever the split.
 
+`Reduce.fiber_of` runs `Reduce.fiber_fast`, which reads the same offsets in
+the same order. On a row whose rows below all take one digit
+(`Reduce.single_below`: column sums, row sums and sums over one batch axis),
+it walks the row's digits in one strided loop, `Reduce.strided`: digit `d`
+reads the one word at `base + right * d + single_offset(rest, others, t %
+left, 0)`, with no closure per word; on any other row it walks as `fiber`
+does. `fast_fiber` in `reduce-parallel-proof.bend` and `fast_arr` in
+`reduce-replayed-proof.bend` prove that `fiber_fast` returns what `fiber`
+returns, so the laws below hold for it as they did for `fiber`. On the bench,
+five alternating runs, `[1024, 1024]` to `[1024]` took 123 ms on one thread
+and 311 ms on eight with the closure walk, and takes 3.0 ms and 3.25 ms now;
+`[1024, 1024]` to `[1024, 1]` went from 58 to 12.4 ms on one thread and from
+22.5 to 10.5 ms on eight, with the same words. Strided fibers still do not
+fork: with the loop, forking `[1024, 1024]` to `[1024]` took 10.5 ms on eight
+threads, the clone per fork costing more than the threads give back.
+
 | contribution | target | result |
 | --- | --- | --- |
 | `[2,3]` = 1..6 | `[3]` | 5, 7, 9 |
