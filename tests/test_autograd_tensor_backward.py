@@ -829,7 +829,7 @@ class GateRegistrationTests(unittest.TestCase):
         ]
         self.assertEqual(
             sum(name.startswith("tensor_2d_backward_2d_LAWS.") for name in required),
-            20,
+            21,
         )
         self.assertEqual(
             [name for name in required if name.startswith("tensor_2d_vjp_2d_LAWS.")],
