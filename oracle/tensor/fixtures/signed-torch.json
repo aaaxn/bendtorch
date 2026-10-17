@@ -11,7 +11,7 @@
     "torch_version": "2.14.1+cpu"
   },
   "purpose": "PyTorch observations for every signed axis, index and -1 reshape request; the root test compares the gate reference with them",
-  "requests": "837d61596c7597d6c87cf4ce668f99fa0412105329ad7ffb1d92a400897ceb42",
+  "requests": "8456ebee99c66fe87920e5bf743e9ec1da9584c3de5d847ca392c6ec3ea95ba0",
   "schema_version": 1,
   "signed": [
     {
@@ -189,6 +189,50 @@
     },
     {
       "id": "reshape_empty_twice",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "reshape_empty_large",
+      "lines": [
+        "tensor:shape:[0, 16777216, 16777216]",
+        "tensor:count:0"
+      ]
+    },
+    {
+      "id": "reshape_empty_large_last",
+      "lines": [
+        "tensor:shape:[16777216, 16777216, 0]",
+        "tensor:count:0"
+      ]
+    },
+    {
+      "id": "reshape_large_mismatch",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "reshape_largest_mismatch",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "reshape_empty_large_ambiguous",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "reshape_empty_large_ambiguous_middle",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "reshape_past_count",
       "lines": [
         "tensor:rejected:RuntimeError"
       ]

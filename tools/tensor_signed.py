@@ -32,6 +32,8 @@ MAX_ELEMENTS = 1 << 20
 QUIET_NAN = 0x7FC00001
 NEGATIVE_ZERO = 0x80000000
 NEGATIVE_INFINITY = 0xFF800000
+LARGE = 1 << 24
+MAX_U32 = (1 << 32) - 1
 
 # A grid whose words a copy must keep bit for bit: -0.0, a NaN payload, a
 # subnormal and an infinity among ordinary words.
@@ -72,6 +74,15 @@ def cases() -> list[dict]:
         ("empty_ambiguous_last", EMPTY, [0, -1]),
         ("empty_ambiguous_three", EMPTY, [-1, 0, 2]),
         ("empty_twice", EMPTY, [0, -1, -1]),
+        # Exact sizes whose product passes the native Nat limit of 2^48: the
+        # inference classifies it against the count and never forms it.
+        ("empty_large", EMPTY, [-1, LARGE, LARGE]),
+        ("empty_large_last", EMPTY, [LARGE, LARGE, -1]),
+        ("large_mismatch", GRID, [-1, LARGE, LARGE]),
+        ("largest_mismatch", GRID, [-1, MAX_U32, MAX_U32]),
+        ("empty_large_ambiguous", EMPTY, [-1, 0, LARGE, LARGE]),
+        ("empty_large_ambiguous_middle", EMPTY, [-1, LARGE, 0, LARGE]),
+        ("past_count", GRID, [-1, 7]),
         ("scalar_all", SCALAR, [-1]),
         ("scalar_column", SCALAR, [-1, 1]),
         ("scalar_rank0", SCALAR, []),

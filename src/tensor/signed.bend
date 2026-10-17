@@ -88,7 +88,9 @@ def inferred_count(extents: List<&2, Extent>) -> Nat:
     case Inferred{} <> tail:
       1n+inferred_count(tail)
 
-# The product of the exact sizes, in Nat.
+# The product of the exact sizes, in Nat: what the laws state the inference
+# against. The inference never forms it, since it can pass the native Nat
+# limit of 2^48 on an empty input: [-1, 2^24, 2^24] multiplies to 2^48.
 def exact_product(extents: List<&2, Extent>) -> Nat:
   match extents:
     case Nil{}:
@@ -107,6 +109,57 @@ def filled(extents: List<&2, Extent>, +size: U32) -> List<&2, U32>:
       extent <> filled(tail, size)
     case Inferred{} <> tail:
       size <> filled(tail, size)
+
+# The exact product against a bound, the input's element count: ZeroProduct
+# when it is 0, Within{p} when it is p > 0 at most the bound, and Beyond when
+# it is past the bound. capped only multiplies a size and a product that are
+# both at most the bound, and a tensor holds at most 2^20 elements, so no
+# number it forms passes 2^40.
+type Product is Data:
+  ZeroProduct{}
+  Within{product: Nat}
+  Beyond{}
+
+def bounded(product: Nat, below: Bool) -> Product:
+  match below:
+    case True{}:
+      Within{product}
+    case False{}:
+      Beyond{}
+
+def cap(+bound: Nat, +product: Nat) -> Product:
+  bounded(product, Nat.is_le(product, bound))
+
+def scaled(+bound: Nat, +size: Nat, +product: Nat, past: Bool) -> Product:
+  match past:
+    case True{}:
+      Beyond{}
+    case False{}:
+      cap(bound, Nat.mul(size, product))
+
+# A nonzero size times the product of the sizes after it. A size past the
+# bound makes any nonzero product pass it, so it is never multiplied.
+def times(+bound: Nat, size: Nat, rest: Product) -> Product:
+  match size:
+    case 0n:
+      ZeroProduct{}
+    case 1n+(+less):
+      match rest:
+        case ZeroProduct{}:
+          ZeroProduct{}
+        case Within{+product}:
+          scaled(bound, 1n+less, product, Nat.is_lt(bound, 1n+less))
+        case Beyond{}:
+          Beyond{}
+
+def capped(+bound: Nat, extents: List<&2, Extent>) -> Product:
+  match extents:
+    case Nil{}:
+      cap(bound, 1n)
+    case Exact{+size} <> tail:
+      times(bound, U32.to_nat(size), capped(bound, tail))
+    case Inferred{} <> tail:
+      capped(bound, tail)
 
 def count_mismatch() -> Error:
   TransformError{Transforms.LayoutError{Layout.ElementCountMismatch{}}}
@@ -128,12 +181,23 @@ def divided(+extents: List<&2, Extent>, split: Nat & Nat) -> Result<&2, &2, Erro
     case 1n+rest:
       Fail{count_mismatch()}
 
-def inferred_one(+count: Nat, +extents: List<&2, Extent>, product: Nat) -> Result<&2, &2, Error, List<&2, U32>>:
-  match product:
+# A product past the count: the inferred size is 0 on an empty input, and no
+# size fits any other.
+def beyond(count: Nat, +extents: List<&2, Extent>) -> Result<&2, &2, Error, List<&2, U32>>:
+  match count:
     case 0n:
-      unfilled(count)
+      Done{filled(extents, 0)}
     case 1n+rest:
-      divided(extents, Nat.divmod(count, 1n+rest))
+      Fail{count_mismatch()}
+
+def inferred_one(+count: Nat, +extents: List<&2, Extent>, product: Product) -> Result<&2, &2, Error, List<&2, U32>>:
+  match product:
+    case ZeroProduct{}:
+      unfilled(count)
+    case Within{product}:
+      divided(extents, Nat.divmod(count, product))
+    case Beyond{}:
+      beyond(count, extents)
 
 def inferred_from(+count: Nat, +extents: List<&2, Extent>, inferred: Nat) -> Result<&2, &2, Error, List<&2, U32>>:
   match inferred:
@@ -142,13 +206,14 @@ def inferred_from(+count: Nat, +extents: List<&2, Extent>, inferred: Nat) -> Res
     case 1n+more:
       match more:
         case 0n:
-          inferred_one(count, extents, exact_product(extents))
+          inferred_one(count, extents, capped(count, extents))
         case 1n+rest:
           Fail{RepeatedInferred{}}
 
 # PyTorch's infer_size: the sizes of a reshape of `count` elements. With no
 # Inferred size, the sizes themselves; with one, it is count / product of
-# the others when that divides exactly; more than one is refused first.
+# the others when that divides exactly, the product capped at the count;
+# more than one is refused first.
 def inferred_dimensions(+count: Nat, +extents: List<&2, Extent>) -> Result<&2, &2, Error, List<&2, U32>>:
   inferred_from(count, extents, inferred_count(extents))
 

@@ -284,6 +284,8 @@
     "signed_2d_LAWS.signed_inferred_indivisible",
     "signed_2d_LAWS.signed_inferred_ambiguous",
     "signed_2d_LAWS.signed_inferred_zero_product",
+    "signed_2d_LAWS.signed_capped_classifies",
+    "signed_2d_LAWS.signed_capped_within",
     "signed_2d_LAWS.signed_inferred_repeated",
     "signed_2d_LAWS.signed_filled_exact",
     "signed_2d_LAWS.signed_filled_inferred",

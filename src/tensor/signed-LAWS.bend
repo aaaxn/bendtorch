@@ -247,6 +247,32 @@ law signed_inferred_zero_product:
   {Signed.inferred_dimensions(1n+count, extents) == Fail{Signed.TransformError{Transforms.LayoutError{Layout.ElementCountMismatch{}}}} :
     Result<&2, &2, Signed.Error, List<&2, U32>>}
 
+# The class of a product against a bound, in Signed.Product.
+def classify(+bound: Nat, product: Nat) -> Signed.Product:
+  match product:
+    case 0n:
+      Signed.ZeroProduct{}
+    case 1n+rest:
+      Signed.cap(bound, 1n+rest)
+
+# The inference never forms the exact sizes' product: capped classifies it
+# against the input's element count, ZeroProduct, Within{p} with p at most
+# the count, or Beyond, multiplying only numbers at most the count. So the
+# inferred size is worked out from numbers at most 2^20, however large the
+# exact sizes, as [-1, 2^24, 2^24] of an empty input, whose product 2^48 is
+# past the native Nat limit.
+law signed_capped_classifies:
+  for +bound: Nat
+  for +extents: List<&2, Signed.Extent>
+  {Signed.capped(bound, extents) == classify(bound, Signed.exact_product(extents)) : Signed.Product}
+
+law signed_capped_within:
+  for +bound: Nat
+  for +extents: List<&2, Signed.Extent>
+  for +product: Nat
+  for within: {Signed.capped(bound, extents) == Signed.Within{product} : Signed.Product}
+  {Nat.is_le(product, bound) == True{} : Bool}
+
 # More than one Inferred size is refused before anything else.
 law signed_inferred_repeated:
   for +count: Nat

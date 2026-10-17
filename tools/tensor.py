@@ -419,10 +419,10 @@ SIGNED_CONTROLS = {
         "Laws.signed_read_flat_wraps",
     ),
     "inferred-ignores-remainder": (
-        "    case 1n+rest:\n      Fail{count_mismatch()}\n\ndef inferred_one",
+        "    case 1n+rest:\n      Fail{count_mismatch()}\n\n# A product past",
         "    case 1n+rest:\n      Done{filled(extents, U32.from_nat(quotient))}\n\n"
-        "def inferred_one",
-        "Laws.signed_inferred_indivisible",
+        "# A product past",
+        "indivisible_decided",
     ),
     "ambiguous-as-count-mismatch": (
         "    case 0n:\n      Fail{AmbiguousInferred{}}",
@@ -432,13 +432,44 @@ SIGNED_CONTROLS = {
     "second-inferred-accepted": (
         "        case 1n+rest:\n          Fail{RepeatedInferred{}}",
         "        case 1n+rest:\n"
-        "          inferred_one(count, extents, exact_product(extents))",
+        "          inferred_one(count, extents, capped(count, extents))",
         "Laws.signed_inferred_repeated",
     ),
     "inferred-counts-as-zero": (
         "    case Inferred{} <> tail:\n      exact_product(tail)",
         "    case Inferred{} <> tail:\n      Nat.mul(0n, exact_product(tail))",
-        "filled_one",
+        "capped_classifies",
+    ),
+    "zero-size-keeps-product": (
+        "    case 0n:\n      ZeroProduct{}\n    case 1n+(+less):",
+        "    case 0n:\n      rest\n    case 1n+(+less):",
+        "times_classify",
+    ),
+    "empty-list-multiplies-to-zero": (
+        "    case Nil{}:\n      cap(bound, 1n)",
+        "    case Nil{}:\n      cap(bound, 0n)",
+        "capped_classifies",
+    ),
+    "past-size-kept": (
+        "    case True{}:\n      Beyond{}\n    case False{}:\n"
+        "      cap(bound, Nat.mul(size, product))",
+        "    case True{}:\n      Within{size}\n    case False{}:\n"
+        "      cap(bound, Nat.mul(size, product))",
+        "times_scaled",
+    ),
+    "past-count-infers-one": (
+        "      Done{filled(extents, 0)}\n    case 1n+rest:\n"
+        "      Fail{count_mismatch()}",
+        "      Done{filled(extents, 1)}\n    case 1n+rest:\n"
+        "      Fail{count_mismatch()}",
+        "size_beyond",
+    ),
+    "past-count-accepted": (
+        "      Done{filled(extents, 0)}\n    case 1n+rest:\n"
+        "      Fail{count_mismatch()}",
+        "      Done{filled(extents, 0)}\n    case 1n+rest:\n"
+        "      Done{filled(extents, 0)}",
+        "indivisible_beyond",
     ),
 }
 

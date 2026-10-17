@@ -21,7 +21,7 @@ from tools.tensor_signed import (
 )
 
 FIXTURE = ROOT / "oracle/tensor/fixtures/signed-torch.json"
-FIXTURE_SHA256 = "21e263f1be68cbfd1b235985436d876fefa68be1bc2ad9a116a0bbc1a3558825"
+FIXTURE_SHA256 = "156017b750ac1356fd1d0b0fb8a34e350701b4996236b883380c6ae91d8c7177"
 # The exception PyTorch raises for each refusal code: an axis, coordinate or
 # flat index out of range is IndexError; an axis count other than the rank
 # (12), a repeated axis (14), a size count mismatch (15), a second -1 (17)
@@ -57,6 +57,9 @@ class SignedReferenceTests(unittest.TestCase):
         self.assertEqual(inferred(0, [-1, 0]), AMBIGUOUS_INFERRED)
         self.assertEqual(inferred(0, [-1, 3]), [0, 3])
         self.assertEqual(inferred(6, [-1, -1, 7]), REPEATED_INFERRED)
+        self.assertEqual(inferred(0, [-1, 1 << 24, 1 << 24]), [0, 1 << 24, 1 << 24])
+        self.assertEqual(inferred(6, [-1, 1 << 24, 1 << 24]), ELEMENT_COUNT)
+        self.assertEqual(inferred(0, [-1, 1 << 24, 0, 1 << 24]), AMBIGUOUS_INFERRED)
 
     def test_refusals_keep_the_unsigned_codes(self):
         row = {"shape": [2, 3], "words": list(range(6))}
@@ -112,7 +115,7 @@ class SignedTorchTests(unittest.TestCase):
                     self.assertEqual(FIRST_ERROR[case["id"]][0], code)
                     kind = FIRST_ERROR[case["id"]][1]
                 self.assertEqual(seen, [f"tensor:rejected:{kind}"])
-        self.assertEqual((succeeded, refused), (44, 34))
+        self.assertEqual((succeeded, refused), (46, 39))
 
 
 class SignedRegistrationTests(unittest.TestCase):
@@ -123,7 +126,7 @@ class SignedRegistrationTests(unittest.TestCase):
         laws = re.findall(
             r"^law (\w+):", (ROOT / "src/tensor/signed-LAWS.bend").read_text(), re.M
         )
-        self.assertEqual(len(laws), 34)
+        self.assertEqual(len(laws), 36)
         self.assertEqual(
             [name for name in required if name.startswith("signed_2d_LAWS.")],
             [f"signed_2d_LAWS.{name}" for name in laws],
@@ -132,7 +135,7 @@ class SignedRegistrationTests(unittest.TestCase):
     def test_controls_apply_once_and_name_a_proof(self):
         source = (ROOT / "src/tensor/signed.bend").read_text()
         proof = (ROOT / "src/tensor/signed-PROOF.bend").read_text()
-        self.assertEqual(len(SIGNED_CONTROLS), 12)
+        self.assertEqual(len(SIGNED_CONTROLS), 17)
         for original, mutated, location in SIGNED_CONTROLS.values():
             with self.subTest(location=location):
                 self.assertEqual(source.count(original), 1)
