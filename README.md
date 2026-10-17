@@ -156,7 +156,7 @@ Each module builds on the one below it.
 | --- | --- | --- |
 | `src/shape/` | Validated shapes, row-major flatten and unflatten, checked coordinates, broadcast plans | `src/shape/LAWS.bend` |
 | `src/storage/` | F32 storage with one owner and a bounds check before every access | `src/storage/LAWS.bend` |
-| `src/tensor/` | The tensor core, elementwise operations, `sum`, `matmul`, `reshape`, `permute_copy`, `transpose_copy`, and the proved contracts | `src/tensor/LAWS.bend` |
+| `src/tensor/` | The tensor core, elementwise operations, `sum`, `matmul`, `reshape`, `permute_copy`, `transpose_copy`, PyTorch's signed axes and indices, and the proved contracts | `src/tensor/LAWS.bend` |
 | `src/autograd/` | `broadcast_to`, `reduce_to`, `sum_to_size`, `sum_dims`, gradient slots, scalar and tensor `backward`, the losses, SGD | `src/autograd/LAWS.bend` |
 | `experiments/` | The MNIST training run, the autograd prototypes, the benchmarks, and other experiments outside `src/` | [MNIST](docs/mnist.md), [autograd design](experiments/autograd-prototypes/DESIGN.md) |
 | `oracle/` | The PyTorch references, in their own uv project | [oracle](oracle/README.md) |
@@ -250,9 +250,9 @@ the root environment.
 - No views. `reshape` moves the storage to the new shape, and `permute_copy`
   and `transpose_copy` always copy. There are no strides, no in-place methods,
   and no `out=` variants.
-- Axes, dimensions and indices are unsigned 32-bit integers. There are no
-  negative axes or indices, no `-1` in `reshape`, no slicing, and no advanced
-  indexing.
+- Axes and indices count from either end, as in PyTorch, through
+  `src/tensor/signed.bend`: `Signed.Last{0}` is `-1`. `reshape` takes one
+  `-1`, `Signed.Inferred{}`. There is no slicing and no advanced indexing.
 - `sum` reduces the whole tensor. On the tape, `sum_dims` sums the listed
   axes, with or without `keepdim`. `matmul` takes two rank-2 tensors. It does
   not promote 1-D inputs and does not batch.

@@ -149,6 +149,16 @@ sequential fold. The file records the `s2-v2` hash it extends.
 `supplement.py` builds it with the same identity check and CPU configuration
 as `generate.py`; `--check` regenerates it in memory and compares bytes.
 
+## Signed axes, indices and -1 reshape sizes
+
+`signed.py` replays the requests of `tools/tensor_signed.py` (reshape with
+`-1`, `permute_copy` and `transpose_copy` with negative axes, `x[index]`,
+`x.flatten()[index]` and their writes with negative indices) and writes
+`fixtures/signed-torch.json`: each result's shape and words, or the exception
+kind PyTorch raises. `tests/test_tensor_signed.py` in the root suite compares
+the gate's reference with it. `--check` regenerates it in memory and compares
+bytes.
+
 ## Reproduce locally
 
 From the repository root, verify hostname/worktree first, then use the existing
@@ -166,9 +176,10 @@ export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
 PYTHONDONTWRITEBYTECODE=1 uv run --project oracle --frozen --no-sync python oracle/tensor/generate.py --identity-only
 PYTHONDONTWRITEBYTECODE=1 uv run --project oracle --frozen --no-sync python oracle/tensor/generate.py --check
 PYTHONDONTWRITEBYTECODE=1 uv run --project oracle --frozen --no-sync python oracle/tensor/supplement.py --check
+PYTHONDONTWRITEBYTECODE=1 uv run --project oracle --frozen --no-sync python oracle/tensor/signed.py --check
 (cd oracle/tensor && PYTHONDONTWRITEBYTECODE=1 uv run --project .. --frozen --no-sync python -m unittest discover -s tests -v)
-uv run --locked --no-sync ruff check --config pyproject.toml oracle/tensor/generate.py oracle/tensor/transpose_reference.py oracle/tensor/ordered_reference.py oracle/tensor/supplement.py oracle/tensor/tests/test_oracle.py oracle/tensor/tests/test_ordered_reference.py oracle/tensor/tests/test_supplement.py
-uv run --locked --no-sync ruff format --check --config pyproject.toml oracle/tensor/generate.py oracle/tensor/transpose_reference.py oracle/tensor/ordered_reference.py oracle/tensor/supplement.py oracle/tensor/tests/test_oracle.py oracle/tensor/tests/test_ordered_reference.py oracle/tensor/tests/test_supplement.py
+uv run --locked --no-sync ruff check --config pyproject.toml oracle/tensor/generate.py oracle/tensor/transpose_reference.py oracle/tensor/ordered_reference.py oracle/tensor/supplement.py oracle/tensor/signed.py oracle/tensor/tests/test_oracle.py oracle/tensor/tests/test_ordered_reference.py oracle/tensor/tests/test_supplement.py
+uv run --locked --no-sync ruff format --check --config pyproject.toml oracle/tensor/generate.py oracle/tensor/transpose_reference.py oracle/tensor/ordered_reference.py oracle/tensor/supplement.py oracle/tensor/signed.py oracle/tensor/tests/test_oracle.py oracle/tensor/tests/test_ordered_reference.py oracle/tensor/tests/test_supplement.py
 uv run --frozen --no-sync ty check --python oracle/.venv/bin/python --python-version 3.12 --extra-search-path oracle/tensor --config 'src.include=["oracle/tensor"]' --error-on-warning oracle/tensor
 ```
 
