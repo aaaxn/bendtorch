@@ -60,7 +60,7 @@ Each script records leaves (constants as tensors without `requires_grad`) and `+
 (`matmul_nt`), `linear(x, W) + b` (`linear`, two entries, as the tape records
 it; both are computed before either is recorded, so a refused `linear`
 records nothing), `torch.relu`, `mse_loss`, `cross_entropy` with class
-indices, `.sum()` and `.sum(dim=..., keepdim=...)`, basic slicing (`a[..., start:stop:step]` at one axis, counted from the last after an `Ellipsis` when negative, `narrow` and `select`, with negative positions) in order, and SGD steps
+indices, `.sum()` and `.sum(dim=..., keepdim=...)`, basic slicing (`a[..., start:stop:step]` at one axis, counted from the last after an `Ellipsis` when negative, `narrow` and `select`, with negative positions), `index_select` and `gather` (the entries as an `int64` tensor, a `gather` index reshaped to its dimensions) in order, and SGD steps
 (`torch.optim.SGD(params, lr=lr).step()` over the listed nodes; a rate below
 zero is recorded as `ValueError`; an empty list, which `torch.optim.SGD`
 refuses, updates nothing); every `backward` seeds `torch.ones_like(output)` and keeps the graph
@@ -70,9 +70,9 @@ gate's own format. `tests/test_autograd_tensor_backward.py` in the root suite
 compares the gate's Python reference with this file, under level 2 of the
 [numeric policy](../../AGENTS.md#numeric-policy) (`tools/autograd_tensor_bound.py`
 computes each word's rounding-error bound, checked on top of the listed
-words): 255 of 319 scripts agree line for
+words): 281 of 347 scripts agree line for
 line, and [the differences from PyTorch](../../docs/torch-differences.md#tensor-backward)
-explain the other 64.
+explain the other 66.
 
 ## Reproduce
 
