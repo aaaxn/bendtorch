@@ -956,7 +956,7 @@ class GateRegistrationTests(unittest.TestCase):
         controls = [
             name for name in PROOF_CONTROLS if name.startswith("tensor-backward-")
         ]
-        self.assertEqual(len(controls), 10)
+        self.assertEqual(len(controls), 11)
         self.assertIn("negate-left-keeps-sign", PROOF_CONTROLS)
         for path, original, _ in PROOF_CONTROLS.values():
             self.assertEqual((ROOT / path).read_text().count(original), 1)
