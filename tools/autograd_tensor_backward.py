@@ -2484,7 +2484,8 @@ def gather_scripts() -> list[dict]:
         # dimensions, at an axis past the rank, of another rank, wider than
         # the input at another axis, with an entry at the extent; an unknown
         # id; a gather index past 2^20 elements (its product, 2^48, is never
-        # formed) and one past rank 4.
+        # formed) and one past rank 4, also of an unknown id, which the index
+        # is built before.
         {
             "id": "gather_refused",
             "steps": [
@@ -2501,6 +2502,8 @@ def gather_scripts() -> list[dict]:
                 gathered(0, 0, [1, 4], [0, 1, 2, 2]),
                 gathered(0, 0, [2**24, 2**24], []),
                 gathered(0, 0, [1, 1, 1, 1, 1], [0]),
+                gathered(9, 0, [2**24, 2**24], []),
+                gathered(9, 0, [1, 1, 1, 1, 1], [0]),
                 run(1),
                 *reads(2),
             ],
@@ -2532,9 +2535,14 @@ def gather_scripts() -> list[dict]:
                 leaf([0, 2**24, 2**24], []),
                 gathered(0, 1, [0, 2**24, 2**24], []),
                 index_selected(0, 2, [5, 1]),
+                leaf([2**24, 2**24, 0], []),
+                gathered(3, 2, [2**24, 2**24, 0], []),
+                index_selected(3, 0, [1, 0]),
                 run(1),
                 run(2),
-                *reads(3),
+                run(4),
+                run(5),
+                *reads(6),
             ],
         },
         # More than 2^15 cells, so both builds fork: x = a * b * c of
@@ -2893,6 +2901,17 @@ def slice_cells(shape: list[int], dim: int, indices: range) -> list[tuple]:
     ]
 
 
+# A gather index whose dimensions no tensor has, refused as the index is
+# built, before the tape looks up its operand: past rank 4 or 2^20
+# elements.
+def index_refusal(step: dict) -> int | None:
+    if len(step["index_shape"]) > MAX_RANK:
+        return RANK_EXCEEDED
+    if math.prod(step["index_shape"]) > MAX_ELEMENTS:
+        return CAPACITY_EXCEEDED
+    return None
+
+
 # An index_select's or a gather's output shape and, for each output cell, the
 # input cell it copies, as flat indices; or the code of its refusal, in
 # order: a gather index whose dimensions no tensor has (past rank 4 or 2^20
@@ -2904,10 +2923,9 @@ def slice_cells(shape: list[int], dim: int, indices: range) -> list[tuple]:
 def gather_plan(shape: list[int], step: dict) -> tuple[list, list] | int:
     entries = step["index"]
     gather = step["op"] == "gather"
-    if gather and len(step["index_shape"]) > MAX_RANK:
-        return RANK_EXCEEDED
-    if gather and math.prod(step["index_shape"]) > MAX_ELEMENTS:
-        return CAPACITY_EXCEEDED
+    refused = index_refusal(step) if gather else None
+    if refused is not None:
+        return refused
     if gather and len(entries) != math.prod(step["index_shape"]):
         return VALUE_COUNT_MISMATCH
     dim = wrap(step["dim"], len(shape))
@@ -2926,6 +2944,9 @@ def gather_plan(shape: list[int], step: dict) -> tuple[list, list] | int:
     output = [*shape[:dim], length, *shape[dim + 1 :]]
     if math.prod(output) > MAX_ELEMENTS:
         return CAPACITY_EXCEEDED
+    # No cell, whatever the other extents: their product can be 2^48.
+    if math.prod(output) == 0 or math.prod(shape) == 0:
+        return output, []
     outer, inner = math.prod(shape[:dim]), math.prod(shape[dim + 1 :])
     pairs = []
     for o in range(outer):
@@ -3278,6 +3299,10 @@ def reference(case: dict, trace: dict | None = None, update=descend_word) -> lis
 
     def record(name: str, step: dict, shown: bool = True) -> bool:
         ids = operands(step)
+        refused = index_refusal(step) if name == "gather" else None
+        if refused is not None:
+            lines.append(f"autograd:error:{refused}")
+            return False
         if any(identifier >= len(nodes) for identifier in ids):
             lines.append(f"autograd:error:{UNKNOWN_NODE}")
             return False

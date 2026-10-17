@@ -62,7 +62,7 @@ from tools.autograd_tensor_bound import (
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "203526284069f3032519a41e169edd2f70b314be7a4a47c39edd71612328f8ae"
+FIXTURE_SHA256 = "6c88564b86f37b5ab271df7360527c6e0ee38200b388f38ac3b858484d85587e"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
@@ -117,7 +117,9 @@ RUNTIME_ERROR_CODES = {6, MATMUL_RANK, MATMUL_INNER, 10}
 # IndexShapeMismatch 22), with an entry at the extent (RuntimeError, 20);
 # an unknown id (IndexError, 103); an index past 2^20 elements and one past
 # rank 4 (RuntimeError from the replay's reshape and from the rank check,
-# CapacityExceeded 2 and RankExceeded 1, the index built as a tensor is).
+# CapacityExceeded 2 and RankExceeded 1, the index built as a tensor is),
+# and both again at an unknown id, as the index is built first (PyTorch
+# builds a rank-5 index, so it raises IndexError for the id there).
 STEP_REJECTIONS = {
     "cross_entropy_refused": [
         ("IndexError", TARGET_OUT_OF_RANGE),
@@ -169,6 +171,8 @@ STEP_REJECTIONS = {
         ("IndexError", UNKNOWN_NODE),
         ("RuntimeError", CAPACITY),
         ("RuntimeError", RANK_EXCEEDED),
+        ("RuntimeError", CAPACITY),
+        ("IndexError", RANK_EXCEEDED),
     ],
     "slice_negative_refused": [
         ("IndexError", AXIS_OUT_OF_BOUNDS),
