@@ -22,6 +22,7 @@ from tools.bench import (
     parse,
     verdict,
 )
+from tools.bench_compare import compared
 
 CPU = str(min(os.sched_getaffinity(0)))
 ADD = next(w for w in WORKLOADS if w.name == "add" and w.n == 1 << 14)
@@ -52,6 +53,21 @@ class VerdictTests(unittest.TestCase):
         for w in WORKLOADS:
             with self.subTest(workload=w.name, n=w.n):
                 self.assertIn(f"{w.name} {w.n}", stored)
+
+
+class CompareTests(unittest.TestCase):
+    def test_both_revisions_must_print_the_stored_digest(self):
+        expected = {"add 16384": "7"}
+        good = [Sample(1, "7", 1.0)]
+        self.assertEqual(compared(ADD, good, good, expected), ("same output", False))
+        same, bad = compared(ADD, good, [Sample(1, "8", 1.0)], expected)
+        self.assertTrue(bad)
+        self.assertIn("DIFFERS", same)
+        wrong = [Sample(1, "8", 1.0)]
+        same, bad = compared(ADD, wrong, wrong, expected)
+        self.assertTrue(bad)
+        self.assertIn("NOT THE STORED DIGEST 7", same)
+        self.assertTrue(compared(ADD, good, good, {})[1])
 
 
 class RunTests(unittest.TestCase):
