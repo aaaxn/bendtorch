@@ -9,7 +9,8 @@ same harness. The runs alternate, A then B in even rounds and B then A in odd on
 on the same CPUs. Each workload gets one line: the median time of one call
 with its range for A and for B, the median and range of the per-round ratio
 B / A, and whether the two printed the same digest, the one in this tree's
-`experiments/bench/expected.txt`.
+`experiments/bench/expected.txt`. The command exits 1 when any run of either
+revision prints another digest, even when both revisions agree on it.
 """
 
 import argparse
@@ -28,6 +29,7 @@ from tools.bench import (
     expected_digests,
     key,
     run,
+    verdict,
 )
 from tools.common import ROOT
 
@@ -59,16 +61,25 @@ def checkout(rev: str, place: Path) -> Path:
         git("worktree", "remove", str(place))
 
 
-def ratio_line(
+def compared(
     w: Workload, a: list[Sample], b: list[Sample], expected: dict[str, str]
-) -> str:
+) -> tuple[str, bool]:
+    """What the two revisions printed, and whether that fails the comparison:
+    every run of both must print the stored digest, so two revisions that
+    agree on another digest fail too."""
+    want = expected.get(key(w))
+    digests = sorted({s.digest for s in a + b})
+    if verdict(w, a + b, expected) == "ok":
+        return "same output", False
+    if len(digests) > 1:
+        return f"OUTPUT DIFFERS {digests} (expected {want})", True
+    return f"same output, NOT THE STORED DIGEST {want}", True
+
+
+def ratio_line(w: Workload, a: list[Sample], b: list[Sample], same: str) -> str:
     per_a = [s.ms / w.reps for s in a]
     per_b = [s.ms / w.reps for s in b]
     ratios = [y / x for x, y in zip(per_a, per_b, strict=True) if x > 0]
-    digests = {s.digest for s in a} | {s.digest for s in b}
-    same = "same output" if len(digests) == 1 else f"OUTPUT DIFFERS {sorted(digests)}"
-    if expected.get(key(w)) not in digests or len(digests) != 1:
-        same += f" (expected {expected.get(key(w))})"
     text = f"{w.name:<17} {w.shape:<24}"
     text += (
         f" A {statistics.median(per_a):10.4g} ms [{min(per_a):.4g}-{max(per_a):.4g}]"
@@ -110,9 +121,9 @@ def main(argv: list[str] | None = None) -> int:
         for r in range(args.rounds):
             for side in ("a", "b") if r % 2 == 0 else ("b", "a"):
                 samples[side].append(run(binaries[side], w, args.threads, args.cpu))
-        text = ratio_line(w, samples["a"], samples["b"], expected)
-        failed = failed or "DIFFERS" in text
-        print(text, flush=True)
+        same, bad = compared(w, samples["a"], samples["b"], expected)
+        failed = failed or bad
+        print(ratio_line(w, samples["a"], samples["b"], same), flush=True)
     return 1 if failed else 0
 
 

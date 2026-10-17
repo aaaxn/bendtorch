@@ -66,10 +66,24 @@ class ParallelProbeTests(unittest.TestCase):
         self.assertEqual(expected_splits(ROUNDING), 4)
 
     def test_rounding_reductions_fork(self):
-        self.assertEqual(len(ROUNDING_BUILDS), 3)
+        self.assertEqual(len(ROUNDING_BUILDS), 5)
         for name in ROUNDING_BUILDS:
             with self.subTest(name=name):
                 self.assertTrue(expected_splits(name))
+
+    def test_row_block_products_cross_rows_and_pad(self):
+        blocks = [
+            name for name in PRODUCTS if name.startswith(("matmul_nt", "matmul_tn"))
+        ]
+        self.assertEqual(len(blocks), 2)
+        for name in blocks:
+            rows, inner, columns = PRODUCTS[name]
+            with self.subTest(name=name):
+                self.assertIn(name, ROUNDING_BUILDS)
+                self.assertGreater(rows * columns, 1 << 15)
+                self.assertLess(rows * columns, 1 << depth(rows * columns))
+                self.assertNotEqual(columns % 8, 0)
+                self.assertEqual(expected_splits(name), 4)
 
     def test_only_contiguous_fibers_fork(self):
         self.assertTrue(contiguous((256, 64), (256, 1)))
