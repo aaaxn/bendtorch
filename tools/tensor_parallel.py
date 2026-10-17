@@ -40,6 +40,10 @@ PRODUCTS = {
     "matmul_nt-200x40x165-rounding": (200, 40, 165),
     "matmul_tn-181x24x187-rounding": (181, 24, 187),
 }
+# Each torch.matmul the probe runs, as (batch, rows, inner, columns): a
+# batch of matrices times one matrix, next to the stacked rank-2 product. It
+# forks as `Matrix.splits` says, up to six levels.
+BATCHED = {"batched-8x64x48x64-rounding": (8, 64, 48, 64)}
 # Each reduction the probe runs, as (contribution dimensions, target
 # dimensions).
 REDUCTIONS = {
@@ -81,7 +85,7 @@ ELEMENTWISE = {
 }
 # Each `Reduction.sum` the probe runs, as the dimensions of its input.
 SUMS = {"sum-100000-rounding": (100000,)}
-BUILDS = (*PRODUCTS, *REDUCTIONS, *ELEMENTWISE, *SUMS, *PERMUTES, *BROADCASTS)
+BUILDS = (*PRODUCTS, *BATCHED, *REDUCTIONS, *ELEMENTWISE, *SUMS, *PERMUTES, *BROADCASTS)
 # The builds that read or write more than 2^15 words, the cells of one
 # subtree below the elementwise forks.
 LARGE = (
@@ -101,6 +105,7 @@ ROUNDING_BUILDS = (
     ROUNDING,
     "matmul_nt-200x40x165-rounding",
     "matmul_tn-181x24x187-rounding",
+    "batched-8x64x48x64-rounding",
     "reduce-256x64-to-256x1-rounding",
     "reduce-64x16x32-to-64x1x1-rounding",
     "reduce-256x130-to-256x1-rounding",
@@ -153,6 +158,9 @@ def words(name: str) -> int:
         return max(math.prod(left), math.prod(right), math.prod(broadcast(left, right)))
     if name in SUMS:
         return math.prod(SUMS[name])
+    if name in BATCHED:
+        batch, rows, inner, columns = BATCHED[name]
+        return batch * max(rows * inner, rows * columns)
     rows, inner, columns = PRODUCTS[name]
     return max(rows * inner, inner * columns, rows * columns)
 
@@ -175,6 +183,9 @@ def expected_splits(name: str) -> int:
         return max(depth(math.prod(broadcast(*ELEMENTWISE[name]))) - 15, 0)
     if name in SUMS:
         return 0
+    if name in BATCHED:
+        batch, rows, inner, columns = BATCHED[name]
+        return matmul_splits(depth(batch * rows * columns), inner)
     rows, inner, columns = PRODUCTS[name]
     return product_splits(depth(rows * columns), inner)
 

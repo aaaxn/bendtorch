@@ -113,9 +113,10 @@ NAN_PAYLOAD = {
 # the ordered dot adds it to +0.0 and gives +0.0, PyTorch's gemm keeps -0.0.
 # relu_13 has the same inner-dimension-1 matmul, whose products 0.5 * -1e-45
 # and 0.5 * -0.0 are -0.0. batched_rounding_01 sums the words of a
-# torch.matmul in order, where PyTorch's sum takes another. Every gradient must agree word for word, and every value word that differs
-# must lie within its rounding-error bound (AGENTS.md, numeric policy, level
-# 2; tools/autograd_tensor_bound.py).
+# torch.matmul in order, where PyTorch's sum takes another. Every gradient
+# must agree word for word, and every value word that differs must lie
+# within its rounding-error bound (AGENTS.md, numeric policy, level 2;
+# tools/autograd_tensor_bound.py).
 FORWARD_ORDER = {
     "rounding_09",
     "rounding_14",
