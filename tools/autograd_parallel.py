@@ -1,11 +1,12 @@
 """Tape scripts large enough that every parallel build the tensor backward
 calls forks: elementwise ops above 2^15 cells, matmul, matmul_nt and
 matmul_tn, `torch.matmul` with a batch, the transpose of a matmul's
-backward, `reduce_to`, the row maximum of `cross_entropy`, and slicing with
-its scatter. The gate runs them natively at each thread count of the tensor
-probe, requires that the runtime reports a pool of that many workers, the
-same bytes at every count and every word the reference computes, and plants
-a bug in each build's fork to show that the scripts take the forked path.
+backward, `reduce_to`, the row maximum of `cross_entropy`, slicing with its
+scatter, and index_select and gather with theirs. The gate runs them
+natively at each thread count of the tensor probe, requires that the runtime
+reports a pool of that many workers, the same bytes at every count and every
+word the reference computes, and plants a bug in each build's fork to show
+that the scripts take the forked path.
 """
 
 import argparse
@@ -52,7 +53,28 @@ def spread_go(fuel: Nat, +index: Nat, +step: Nat, acc: List<&2, U32>) -> List<&2
 
 def spread(+count: Nat, +step: Nat) -> List<&2, U32>:
   spread_go(count, Nat.sub(count, 1n), step, Nil{})
+
+def cycle_word(+index: Nat, +step: Nat, +modulus: Nat) -> U32:
+  U32.from_nat(Nat.mod(Nat.mul(index, step), modulus))
+
+def cycle_go(fuel: Nat, +index: Nat, +step: Nat, +modulus: Nat,
+  acc: List<&2, U32>) -> List<&2, U32>:
+  match fuel:
+    case 0n:
+      acc
+    case 1n+rest:
+      +word = cycle_word(index, step, modulus)
+      cycle_go(rest, Nat.sub(index, 1n), step, modulus, word <> acc)
+
+def cycle(+count: Nat, +step: Nat, +modulus: Nat) -> List<&2, U32>:
+  cycle_go(count, Nat.sub(count, 1n), step, modulus, Nil{})
 """
+
+
+# Entry `index` of a cycled gather index: index * step mod modulus. `cycle`
+# computes the same entries in Bend.
+def cycle(count: int, step: int, modulus: int) -> list[int]:
+    return [index * step % modulus for index in range(count)]
 
 
 def leaf(shape: list[int], step: int) -> dict:
@@ -94,6 +116,16 @@ def unit_split(halves: str) -> str:
         "(Array<F32> & Unit) & (Array<F32> & Unit):\n"
         "  (array, none) = state\n"
         f"  {halves}(Array.clone(F32, Array.set(F32, array, 0, {WRONG_WORD})))\n\n"
+    )
+
+
+def index_split(halves: str) -> str:
+    return (
+        "def wrong_split(state: Array<F32> & Array<U32>) -> "
+        "(Array<F32> & Array<U32>) & (Array<F32> & Array<U32>):\n"
+        "  (array, index) = state\n"
+        f"  {halves}(Array.clone(F32, Array.set(F32, array, 0, {WRONG_WORD})), "
+        "Array.clone(U32, index))\n\n"
     )
 
 
@@ -238,6 +270,28 @@ CONTROLS = {
         ),
         "~Elementwise.split,",
     ),
+    # index_select and gather, whose state is the input and the index array.
+    "gather-fork-copies-a-wrong-word": own_split(
+        "src/tensor/gather.bend",
+        "def build(",
+        index_split("halves"),
+        folds(
+            "~Plan, ~Plan, ~Array<F32>, ~Array<U32>, ~same, ~split, ~cell, "
+            "plan, depth, splits,"
+        ),
+        "~split,",
+    ),
+    # Their backward, index_add and scatter_add.
+    "gather-backward-fork-copies-a-wrong-word": own_split(
+        "src/tensor/gather.bend",
+        "def scatter_build(",
+        index_split("halves"),
+        folds(
+            "~Plan, ~Plan, ~Array<F32>, ~Array<U32>, ~same, ~split, ~scatter_cell, "
+            "plan, depth, splits,"
+        ),
+        "~split,",
+    ),
 }
 
 
@@ -337,6 +391,54 @@ def cases() -> list[dict]:
             "steps": [
                 leaf([512, 160], 7),
                 {"op": "slice", "a": 0, "dim": 1, "start": 0, "stop": 160, "step": 2},
+                {"op": "sum", "a": 1},
+                {"op": "backward", "output": 2},
+                *read(0, 1),
+            ],
+        },
+        {
+            # [256, 160] indexed along its rows by 300 entries, each row at
+            # least once and some twice: the index_select build holds 48000
+            # cells and its backward 40960, each a sum of one or two words.
+            "id": "parallel_index_select",
+            "forks": (
+                "elementwise-fork-copies-a-wrong-word",
+                "gather-fork-copies-a-wrong-word",
+                "gather-backward-fork-copies-a-wrong-word",
+            ),
+            "steps": [
+                leaf([256, 160], 7),
+                {
+                    "op": "index_select",
+                    "a": 0,
+                    "dim": 0,
+                    "index": [k * 77 % 256 for k in range(300)],
+                },
+                {"op": "sum", "a": 1},
+                {"op": "backward", "output": 2},
+                *read(0, 1),
+            ],
+        },
+        {
+            # [256, 160] gathered along its columns by an index of its own
+            # shape, each entry of a row twice: both builds hold 40960
+            # cells.
+            "id": "parallel_gather",
+            "forks": (
+                "elementwise-fork-copies-a-wrong-word",
+                "gather-fork-copies-a-wrong-word",
+                "gather-backward-fork-copies-a-wrong-word",
+            ),
+            "steps": [
+                leaf([256, 160], 11),
+                {
+                    "op": "gather",
+                    "a": 0,
+                    "dim": -1,
+                    "index_shape": [256, 160],
+                    "index": cycle(40960, 38, 160),
+                    "cycle": (38, 160),
+                },
                 {"op": "sum", "a": 1},
                 {"op": "backward", "output": 2},
                 *read(0, 1),

@@ -48,6 +48,9 @@ PRODUCTS = ("batched_matmul",)
 # Basic slicing, each recorded as one Slice node. Not in UNARY either, for the
 # same reason.
 SLICES = ("slice", "narrow", "select")
+# index_select and gather, each recorded as one Gathered node, with an index
+# of U32 entries. Not in UNARY either.
+GATHERS = ("index_select", "gather")
 NOT_LOGITS = 107
 TARGET_OUT_OF_RANGE = 108
 NEGATIVE_INFINITY = 0xFF800000
@@ -57,6 +60,10 @@ DUPLICATE_AXIS = 14
 # A slice's refusals: a step of 0, and a narrow or select past the extent.
 STEP_NOT_POSITIVE = 19
 OUT_OF_RANGE = 20
+# A gather index of another rank than the input, or with another extent at
+# another axis.
+INDEX_RANK_MISMATCH = 21
+INDEX_SHAPE_MISMATCH = 22
 
 RUNTIME_CONTROLS = {
     "seed-newest-node": (
@@ -164,6 +171,17 @@ RUNTIME_CONTROLS = {
     "select-records-the-next-index": (
         "      Slice.plan(shape, axis, first, U32.add(first, 1), 1)",
         "      Slice.plan(shape, axis, U32.add(first, 1), U32.add(first, 2), 1)",
+    ),
+    # index_select and gather: a backward that overwrites a cell an entry
+    # listed twice adds to, and a tape that records no entries.
+    "gather-scatter-overwrites": (
+        "src/tensor/gather.bend",
+        "  (F32.add(acc, x), (g, index))",
+        "  (x, (g, index))",
+    ),
+    "gather-records-no-entries": (
+        "    case IndexSelected{dim, entries}:\n      entries",
+        "    case IndexSelected{dim, entries}:\n      Nil{}",
     ),
     "slice-plan-wraps-the-start": (
         "      Slice.plan(shape, axis, Signed.bound(slice_extent(shape, axis), start),",
@@ -524,6 +542,14 @@ def selected(a: int, dim: int, index: int) -> dict:
     return {"op": "select", "a": a, "dim": dim, "index": index}
 
 
+def index_selected(a: int, dim: int, entries: list[int]) -> dict:
+    return {"op": "index_select", "a": a, "dim": dim, "index": entries}
+
+
+def gathered(a: int, dim: int, shape: list[int], entries: list[int]) -> dict:
+    return {"op": "gather", "a": a, "dim": dim, "index_shape": shape, "index": entries}
+
+
 def run(output: int) -> dict:
     return {"op": "backward", "output": output}
 
@@ -549,7 +575,8 @@ def sgd(lr: int, params: list[int]) -> dict:
 
 def program_case(identifier: str, steps: list[dict], output: int) -> dict:
     count = sum(
-        step["op"] in ("leaf", "constant", *UNARY, *BINARY, *PRODUCTS, *SLICES)
+        step["op"]
+        in ("leaf", "constant", *UNARY, *BINARY, *PRODUCTS, *SLICES, *GATHERS)
         for step in steps
     )
     count += 2 * sum(step["op"] == "linear" for step in steps)
@@ -2375,6 +2402,211 @@ def signed_slices_generated(count: int, seed: int) -> list[dict]:
     return result
 
 
+# index_select and gather: copies whose backward adds each gradient word into
+# +0.0 words at the input cell it came from, so an entry listed twice gets
+# the sum of both words, in output order.
+def gather_scripts() -> list[dict]:
+    grid = leaf([3, 4], f(*[0.5 * k - 2.0 for k in range(12)]))
+    cube = leaf([2, 3, 4], f(*[0.25 * k - 3.0 for k in range(24)]))
+    scalar = leaf([], f(-2.5))
+    special = leaf(
+        [2, 3],
+        [INFINITY, NEGATIVE_ZERO, OTHER_NAN, word(2.0), NEGATIVE_INFINITY, QUIET_NAN],
+    )
+    return [
+        program_case(
+            "index_select_rows_repeated",
+            [grid, index_selected(0, 0, [2, 0, 2]), leaf([3, 4], f(*range(1, 13)))]
+            + [op("mul", 1, 2), op("sum", 3)],
+            4,
+        ),
+        program_case(
+            "index_select_last_axis",
+            [cube, index_selected(0, -1, [3, 3, 0, 1, 3]), op("mul", 1, 1)]
+            + [op("sum", 2)],
+            3,
+        ),
+        program_case(
+            "index_select_empty_index",
+            [grid, index_selected(0, 1, []), op("sum", 1)],
+            2,
+        ),
+        # The gradient words of one input row, added in output order: words
+        # that round, so another order gives another word.
+        program_case(
+            "index_select_rounding_order",
+            [
+                leaf([3, 2], f(*range(6))),
+                index_selected(0, 0, [1, 0, 1, 1, 2, 1]),
+                leaf([6, 2], counted_words(12, ROUNDING, 4)),
+                op("mul", 1, 2),
+                op("sum", 3),
+            ],
+            4,
+        ),
+        program_case(
+            "gather_columns_repeated",
+            [grid, gathered(0, 1, [3, 2], [3, 3, 0, 1, 2, 2]), op("mul", 1, 1)]
+            + [op("sum", 2)],
+            3,
+        ),
+        program_case(
+            "gather_rows_negative_axis",
+            [grid, gathered(0, -2, [2, 4], [2, 0, 1, 2, 2, 2, 0, 0]), op("mul", 1, 1)]
+            + [op("sum", 2)],
+            3,
+        ),
+        # A gather longer than the input along its axis.
+        program_case(
+            "gather_longer_axis",
+            [
+                cube,
+                gathered(0, 1, [2, 5, 4], counted_words(40, (0, 1, 2), 1)),
+                leaf([2, 5, 4], counted_words(40, ROUNDING, 2)),
+                op("mul", 1, 2),
+                op("sum", 3),
+            ],
+            4,
+        ),
+        program_case(
+            "gather_special_words",
+            [special, gathered(0, 1, [2, 2], [2, 0, 1, 1])],
+            1,
+        ),
+        program_case(
+            "index_select_constant",
+            [constant([3, 4], grid["words"]), index_selected(0, 1, [1, 1]), grid]
+            + [index_selected(2, 1, [0, 3]), op("mul", 1, 3), op("sum", 4)],
+            5,
+        ),
+        # Refusals: an axis past the rank and before -rank, an entry at the
+        # extent; a gather whose entry count is not the product of its
+        # dimensions, at an axis past the rank, of another rank, wider than
+        # the input at another axis, with an entry at the extent; an unknown
+        # id; a gather index past 2^20 elements (its product, 2^48, is never
+        # formed) and one past rank 4.
+        {
+            "id": "gather_refused",
+            "steps": [
+                grid,
+                index_selected(0, 2, [0]),
+                index_selected(0, -3, [0]),
+                index_selected(0, 1, [1, 4]),
+                gathered(0, 1, [3, 2], [0, 1, 2]),
+                gathered(0, 2, [3, 1], [0, 0, 0]),
+                gathered(0, 1, [3], [0, 0, 0]),
+                gathered(0, 1, [4, 1], [0, 0, 0, 0]),
+                gathered(0, 0, [1, 4], [0, 1, 3, 2]),
+                index_selected(5, 0, [0]),
+                gathered(0, 0, [1, 4], [0, 1, 2, 2]),
+                gathered(0, 0, [2**24, 2**24], []),
+                gathered(0, 0, [1, 1, 1, 1, 1], [0]),
+                run(1),
+                *reads(2),
+            ],
+        },
+        # What PyTorch takes and bendtorch refuses: a gather index narrower
+        # than the input at another axis (IndexShapeMismatch), an index_select
+        # and a gather of a rank-0 input, which PyTorch reads as one element
+        # along axis 0 (AxisOutOfBounds), and two empty gather indexes, of
+        # another rank (IndexRankMismatch) and wider than the input at another
+        # axis (IndexShapeMismatch), which PyTorch takes unchecked.
+        {
+            "id": "gather_pytorch_accepts",
+            "steps": [
+                grid,
+                scalar,
+                gathered(0, 1, [2, 4], [0, 1, 2, 3, 3, 2, 1, 0]),
+                index_selected(1, 0, [0]),
+                gathered(1, 0, [], [0]),
+                gathered(0, 1, [0], []),
+                gathered(0, 1, [4, 0], []),
+            ],
+        },
+        # Inputs and indexes with no element whose other extents multiply to
+        # 2^48, past the largest Nat Bend's runtime holds: no product of them
+        # is formed.
+        {
+            "id": "gather_empty_wide",
+            "steps": [
+                leaf([0, 2**24, 2**24], []),
+                gathered(0, 1, [0, 2**24, 2**24], []),
+                index_selected(0, 2, [5, 1]),
+                run(1),
+                run(2),
+                *reads(3),
+            ],
+        },
+        # More than 2^15 cells, so both builds fork: x = a * b * c of
+        # [3, 200, 100], then 150 of its 200 rows along the middle axis,
+        # some twice. The gradients of a, b and c sum the products of the
+        # added ones; exact words keep every sum exact in any order.
+        {
+            "id": "index_select_parallel",
+            "steps": [
+                leaf([3, 1, 1], f(1.0, -2.0, 0.5)),
+                leaf([1, 200, 1], counted_words(200, EXACT, 1)),
+                leaf([1, 1, 100], counted_words(100, EXACT, 4)),
+                op("mul", 0, 1),
+                op("mul", 3, 2),
+                index_selected(4, 1, [(7 * k) % 200 for k in range(150)]),
+                op("sum", 5),
+                run(6),
+                *reads(3),
+                {"op": "read", "id": 6},
+            ],
+        },
+    ]
+
+
+# index_selects and gathers of exact words at random signed axes of random
+# shapes of rank 1 to 3, with repeated entries, mixed with mul.
+def gathers_generated(count: int, seed: int) -> list[dict]:
+    state = seed
+
+    def draw(bound: int) -> int:
+        nonlocal state
+        state = (state * 1103515245 + 12345) & 0x7FFFFFFF
+        return (state >> 8) % bound
+
+    result = []
+    for index in range(count):
+        first = [1 + draw(4) for _ in range(1 + draw(3))]
+        shapes = [first]
+        steps = [leaf(first, counted_words(math.prod(first), EXACT, draw(10)))]
+        for _ in range(2 + draw(3)):
+            a = draw(len(shapes))
+            shape = shapes[a]
+            if not shape or draw(4) == 0:
+                steps.append(op("mul", a, a))
+                shapes.append(shape)
+                continue
+            dim = draw(2 * len(shape)) - len(shape)
+            axis = dim % len(shape)
+            extent = shape[axis]
+            length = draw(5)
+            if not extent:
+                length = 0
+            if draw(2):
+                entries = [draw(extent) for _ in range(length)] if extent else []
+                step = index_selected(a, dim, entries)
+            else:
+                index_shape = [*shape[:axis], length, *shape[axis + 1 :]]
+                total = math.prod(index_shape)
+                entries = [draw(extent) for _ in range(total)] if extent else []
+                step = gathered(a, dim, index_shape, entries)
+            plan = gather_plan(shape, step)
+            if isinstance(plan, int):
+                raise GateError(f"A generated gather was refused: {plan}")
+            steps.append(step)
+            shapes.append(plan[0])
+        steps.append(op("sum", len(shapes) - 1))
+        total = len(shapes) + 1
+        steps += [run(total - 1), *reads(total)]
+        result.append({"id": f"gathers_{index:02d}", "steps": steps})
+    return result
+
+
 def cases() -> list[dict]:
     result = (
         handwritten()
@@ -2390,6 +2622,8 @@ def cases() -> list[dict]:
         + slices_generated(16, 0x41C64E6D)
         + signed_slice_scripts()
         + signed_slices_generated(16, 0x2F6B3A91)
+        + gather_scripts()
+        + gathers_generated(16, 0x1B873593)
     )
     if len({case["id"] for case in result}) != len(result):
         raise GateError("Duplicate autograd tensor backward case identifier")
@@ -2659,6 +2893,61 @@ def slice_cells(shape: list[int], dim: int, indices: range) -> list[tuple]:
     ]
 
 
+# An index_select's or a gather's output shape and, for each output cell, the
+# input cell it copies, as flat indices; or the code of its refusal, in
+# order: a gather index whose dimensions no tensor has (past rank 4 or 2^20
+# elements), a gather's entry count, the axis, a gather index's rank and its
+# extents at the other axes, then an entry at or past the extent. Output cell
+# (o, k, r) of [outer, length, inner] reads input cell (o, j, r) of [outer,
+# extent, inner], with j entry k of an index_select's index, and the entry
+# at the output cell itself of a gather's.
+def gather_plan(shape: list[int], step: dict) -> tuple[list, list] | int:
+    entries = step["index"]
+    gather = step["op"] == "gather"
+    if gather and len(step["index_shape"]) > MAX_RANK:
+        return RANK_EXCEEDED
+    if gather and math.prod(step["index_shape"]) > MAX_ELEMENTS:
+        return CAPACITY_EXCEEDED
+    if gather and len(entries) != math.prod(step["index_shape"]):
+        return VALUE_COUNT_MISMATCH
+    dim = wrap(step["dim"], len(shape))
+    if dim >= len(shape):
+        return AXIS_OUT_OF_BOUNDS
+    if gather:
+        index_shape = step["index_shape"]
+        if len(index_shape) != len(shape):
+            return INDEX_RANK_MISMATCH
+        if any(index_shape[d] != shape[d] for d in range(len(shape)) if d != dim):
+            return INDEX_SHAPE_MISMATCH
+    extent = shape[dim]
+    if any(entry >= extent for entry in entries):
+        return OUT_OF_RANGE
+    length = step["index_shape"][dim] if gather else len(entries)
+    output = [*shape[:dim], length, *shape[dim + 1 :]]
+    if math.prod(output) > MAX_ELEMENTS:
+        return CAPACITY_EXCEEDED
+    outer, inner = math.prod(shape[:dim]), math.prod(shape[dim + 1 :])
+    pairs = []
+    for o in range(outer):
+        for k in range(length):
+            for r in range(inner):
+                at = (o * length + k) * inner + r
+                j = entries[at] if gather else entries[k]
+                pairs.append((at, (o * extent + j) * inner + r))
+    return output, pairs
+
+
+def gather_forward(tensor: tuple, step: dict) -> tuple | int:
+    plan = gather_plan(tensor[0], step)
+    if isinstance(plan, int):
+        return plan
+    output, pairs = plan
+    words = [0] * math.prod(output)
+    for target, source in pairs:
+        words[target] = tensor[1][source]
+    return (output, words)
+
+
 def slice_forward(tensor: tuple, step: dict) -> tuple | int:
     plan = slice_plan(tensor[0], step)
     if isinstance(plan, int):
@@ -2844,6 +3133,13 @@ def vjp(node: dict, gradient: tuple) -> list[tuple[int, tuple]] | int:
         for target, source in slice_cells(node["left"], node["dim"], node["indices"]):
             words[source] = gradient[1][target]
         return [(node["a"], (node["left"], words))]
+    if name in GATHERS:
+        # index_add and scatter_add: each gradient word added, in output
+        # order, to +0.0 at the input cell it came from.
+        words = [0] * math.prod(node["left"])
+        for target, source in node["pairs"]:
+            words[source] = add_word(words[source], gradient[1][target])
+        return [(node["a"], (node["left"], words))]
     if name == "sum_dims":
         unsqueezed = (node["kept"], gradient[1])
         return [(node["a"], broadcast_to(unsqueezed, node["left"]))]
@@ -2942,6 +3238,8 @@ def forward(name: str, values: list[tuple], step: dict) -> tuple | int:
         return ([], [total(values[0][1])])
     if name in SLICES:
         return slice_forward(values[0], step)
+    if name in GATHERS:
+        return gather_forward(values[0], step)
     if name == "sum_dims":
         return sum_dims(values[0], step)
     if name == "relu":
@@ -2998,8 +3296,13 @@ def reference(case: dict, trace: dict | None = None, update=descend_word) -> lis
         if len(node["frozen"]) == len(ids):
             node["op"] = "constant"
         node["left"] = values[0][0]
-        if name not in UNARY and name not in SLICES:
+        if name not in UNARY and name not in SLICES and name not in GATHERS:
             node |= {"b": step["b"], "right": values[1][0]}
+        if name in GATHERS:
+            plan = gather_plan(values[0][0], step)
+            if isinstance(plan, int):
+                raise GateError(f"A recorded gather refuses its own input: {plan}")
+            node["pairs"] = plan[1]
         if name in SLICES:
             plan = slice_plan(values[0][0], step)
             if isinstance(plan, int):
@@ -3029,7 +3332,7 @@ def reference(case: dict, trace: dict | None = None, update=descend_word) -> lis
                 lines.append(f"autograd:error:{VALUE_COUNT_MISMATCH}")
             else:
                 push({"op": name, "shape": shape, "value": (shape, list(words))})
-        elif name in BINARY or name in UNARY or name in PRODUCTS or name in SLICES:
+        elif name in (*BINARY, *UNARY, *PRODUCTS, *SLICES, *GATHERS):
             record(name, step)
         elif name == "linear":
             # The product, then the bias added to it; only the sum's id is
@@ -3224,6 +3527,19 @@ def step_source(step: dict) -> str:
     if name == "select":
         fields = ", ".join(position_source(step[key]) for key in ("dim", "index"))
         return f"Harness.Select{{{step['a']}n, {fields}}}"
+    if name == "index_select":
+        dim, entries = position_source(step["dim"]), list_source(step["index"])
+        return f"Harness.IndexSelect{{{step['a']}n, {dim}, {entries}}}"
+    if name == "gather":
+        dim, shape = position_source(step["dim"]), list_source(step["index_shape"])
+        # A large index of tools/autograd_parallel.py computes its entries
+        # with the `cycle` its program defines.
+        entries = (
+            f"cycle({len(step['index'])}n, {step['cycle'][0]}n, {step['cycle'][1]}n)"
+            if "cycle" in step
+            else list_source(step["index"])
+        )
+        return f"Harness.Gather{{{step['a']}n, {dim}, {shape}, {entries}}}"
     if name == "sum_dims":
         keepdim = "True{}" if step["keepdim"] else "False{}"
         axes = positions_source(step["dims"])

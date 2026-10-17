@@ -858,6 +858,154 @@ def slice_controls(evidence: Evidence, source_root: Path) -> None:
     )
 
 
+# Mutants of index_select and gather (src/tensor/gather.bend), each applied to
+# a copy of the source, and where the proof of src/tensor/gather-PROOF.bend
+# fails: the law, or the lemma of a law, whose proof no longer checks. An
+# index_select that reads the next entry, or a gather that reads the entry
+# of its row's first cell, falsifies gather_build_cells (entry_same), and a
+# source that strides by the output's length instead of the input's extent
+# too (source_at). An entry check that accepts the extent falsifies the
+# refusal and planning laws (below_inside), as do a shape check that skips
+# an extent (matches_others) and an entry count one short (count_length);
+# an index_select without its axis check, a gather without its count check
+# or one that counts against the index's rank, a rank mismatch reported as a
+# shape mismatch, and a gather whose length comes from the input fail the
+# law of that check. A backward that
+# overwrites instead of adding (accumulated), adds every entry's word
+# (compared_is), skips the first gradient cell or starts from -0.0
+# (scatter_keeps) falsifies gather_scatter_cells.
+GATHER_CONTROLS = {
+    "select-reads-the-next-entry": (
+        "    case Selected{}:\n"
+        "      k\n"
+        "    case Gathered{}:\n"
+        "      position(length, inner, o, k, r)",
+        "    case Selected{}:\n"
+        "      1n+k\n"
+        "    case Gathered{}:\n"
+        "      position(length, inner, o, k, r)",
+        "entry_same",
+    ),
+    "gather-reads-the-row-entry": (
+        "    case Selected{}:\n"
+        "      k\n"
+        "    case Gathered{}:\n"
+        "      position(length, inner, o, k, r)",
+        "    case Selected{}:\n"
+        "      k\n"
+        "    case Gathered{}:\n"
+        "      position(length, inner, o, k, 0n)",
+        "entry_same",
+    ),
+    "source-strides-by-the-length": (
+        "  position(extent, inner, Nat.div(Nat.div(at, inner), "
+        "length), j, Nat.mod(at, inner))",
+        "  position(length, inner, Nat.div(Nat.div(at, inner), "
+        "length), j, Nat.mod(at, inner))",
+        "source_at",
+    ),
+    "below-accepts-the-extent": (
+        "      Bool.and(Nat.is_lt(U32.to_nat(head), extent), below(rest, extent))",
+        "      Bool.and(Nat.is_le(U32.to_nat(head), extent), below(rest, extent))",
+        "below_inside",
+    ),
+    "matches-skips-an-extent": (
+        "      Bool.and(Nat.is_eq(U32.to_nat(extent), "
+        "U32.to_nat(other)), matches(rest, more, next))",
+        "      matches(rest, more, next)",
+        "matches_others",
+    ),
+    "count-one-short": (
+        "    case head <> rest:\n      1n+count(rest)",
+        "    case head <> rest:\n      count(rest)",
+        "count_length",
+    ),
+    "select-skips-the-axis-check": (
+        "      Fail{LayoutError{Layout.AxisOutOfBounds{}}}\n"
+        "    case True{}:\n"
+        "      ranged(Selected{}",
+        "      ranged(Selected{}, dimensions, axis, entries, "
+        "count(entries), below(entries, Slice.axis_extent(dimensions, axis)))\n"
+        "    case True{}:\n"
+        "      ranged(Selected{}",
+        "Laws.index_select_axis_refused",
+    ),
+    "gather-skips-the-count-check": (
+        "    case False{}:\n      Fail{TensorError{Core.ValueCountMismatch{}}}",
+        "    case False{}:\n"
+        "      gather_axis(dimensions, axis, index, entries, "
+        "Nat.is_lt(axis, Shape.rank_dimensions(dimensions)))",
+        "Laws.gather_count_refused",
+    ),
+    "count-against-the-rank": (
+        "    Nat.is_eq(count(entries), Shape.elements(shape)))",
+        "    Nat.is_eq(count(entries), "
+        "Shape.rank_dimensions(Shape.dimensions(shape))))",
+        "Laws.gather_count_refused",
+    ),
+    "rank-mismatch-renamed": (
+        "      Fail{IndexRankMismatch{}}",
+        "      Fail{IndexShapeMismatch{}}",
+        "Laws.gather_rank_refused",
+    ),
+    "gather-length-from-the-input": (
+        "      ranged(Gathered{}, dimensions, axis, entries, "
+        "Slice.axis_extent(index, axis),",
+        "      ranged(Gathered{}, dimensions, axis, entries, "
+        "Slice.axis_extent(dimensions, axis),",
+        "Laws.gather_out_of_range",
+    ),
+    "scatter-overwrites": (
+        "  (F32.add(acc, x), (g, index))",
+        "  (x, (g, index))",
+        "accumulated",
+    ),
+    "scatter-adds-every-entry": (
+        "  summed(Nat.is_eq(U32.to_nat(j), i), at, acc, g, index)",
+        "  summed(True{}, at, acc, g, index)",
+        "compared_is",
+    ),
+    "scatter-starts-at-the-second": (
+        "Nat.mod(at, inner), length, 0n, (0.0, state))",
+        "Nat.mod(at, inner), length, 1n, (0.0, state))",
+        "scatter_keeps",
+    ),
+    "scatter-starts-at-negative-zero": (
+        "Nat.mod(at, inner), length, 0n, (0.0, state))",
+        "Nat.mod(at, inner), length, 0n, (F32.neg(0.0), state))",
+        "scatter_keeps",
+    ),
+}
+
+
+def gather_controls(evidence: Evidence, source_root: Path) -> None:
+    def control(name: str, original: str, mutated: str, location: str) -> None:
+        copy = evidence.directory / "gather-controls" / name
+        shutil.copytree(source_root / "src", copy / "src")
+        target = copy / "src/tensor/gather.bend"
+        text = target.read_text()
+        if text.count(original) != 1:
+            raise GateError(f"{name}: control anchor is missing or ambiguous")
+        target.write_text(text.replace(original, mutated))
+        evidence.run(
+            f"gather-control-{name}",
+            bend(
+                evidence.tool_root,
+                copy / "src/tensor/gather-PROOF.bend",
+                "--check-only",
+            ),
+            expected_code=1,
+            contains=("SOME PROOFS FAIL", f"Location: {location}"),
+        )
+
+    parallel(
+        *(
+            partial(control, name, *control_text)
+            for name, control_text in GATHER_CONTROLS.items()
+        )
+    )
+
+
 def certificate_controls(evidence: Evidence, source_root: Path) -> None:
     imports = "import Base\n"
     for path, alias in (
@@ -1211,6 +1359,7 @@ def run_gate(tool_root: Path, output: Path) -> None:
         signed_controls(evidence, output / "source")
         batched_controls(evidence, output / "source")
         slice_controls(evidence, output / "source")
+        gather_controls(evidence, output / "source")
 
     parallel(
         partial(

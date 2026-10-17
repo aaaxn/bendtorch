@@ -4,6 +4,7 @@ import ../shape/core.bend as Shape
 import ../tensor/core.bend as Core
 import ../tensor/harness.bend as Tensor
 import ../tensor/signed.bend as Signed
+import ../tensor/gather.bend as Gather
 import ./gradient.bend as Gradient
 import ./tensor-backward.bend as Backward
 import ./sgd.bend as Sgd
@@ -27,6 +28,8 @@ type Step is Data:
   Slice{a: Nat, dim: Signed.Position, start: Signed.Position, stop: Signed.Position, step: U32}
   Narrow{a: Nat, dim: Signed.Position, start: Signed.Position, length: U32}
   Select{a: Nat, dim: Signed.Position, index: Signed.Position}
+  IndexSelect{a: Nat, dim: Signed.Position, entries: List<&2, U32>}
+  Gather{a: Nat, dim: Signed.Position, dimensions: List<&2, U32>, entries: List<&2, U32>}
   Relu{a: Nat}
   MseLoss{a: Nat, b: Nat}
   CrossEntropy{a: Nat, targets: List<&2, U32>}
@@ -173,6 +176,18 @@ def forge(tape: Backward.Tape, adds: Bool, +a: Nat, +b: Nat, rec: Backward.Tape 
         IO.print("autograd:forged")
         rec(forge_shaped(tape, adds, a, b, Core.shape(value)))
 
+# A gather's index is built as a tensor of its dimensions is; a refused one
+# leaves the tape unchanged.
+def indexed(tape: Backward.Tape, rec: Backward.Tape -> IO(Unit), +a: Nat, +dim: Signed.Position,
+  index: Result<&2, &2, Gather.Error, Gather.Index>) -> IO(Unit):
+  match index:
+    case Fail{failure}:
+      do IO<Unit>:
+        IO.print("autograd:error:" ++ U32.show(Gather.error_code(failure)))
+        rec(tape)
+    case Done{+index}:
+      recorded(rec, Backward.gather(tape, a, dim, index))
+
 def step(instruction: Step, tape: Backward.Tape, rec: Backward.Tape -> IO(Unit)) -> IO(Unit):
   match instruction:
     case Leaf{dimensions, words}:
@@ -203,6 +218,10 @@ def step(instruction: Step, tape: Backward.Tape, rec: Backward.Tape -> IO(Unit))
       recorded(rec, Backward.narrow(tape, a, dim, start, length))
     case Select{a, dim, index}:
       recorded(rec, Backward.select(tape, a, dim, index))
+    case IndexSelect{a, dim, entries}:
+      recorded(rec, Backward.index_select(tape, a, dim, entries))
+    case Gather{a, +dim, +dimensions, +entries}:
+      indexed(tape, rec, a, dim, Gather.index(dimensions, entries))
     case Relu{a}:
       recorded(rec, Backward.relu(tape, a))
     case MseLoss{a, b}:

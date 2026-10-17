@@ -10,6 +10,7 @@ from unittest.mock import Mock
 from tools.common import ROOT, Evidence, GateError
 from tools.tensor import (
     BATCHED_CONTROLS,
+    GATHER_CONTROLS,
     LOSS_CONTROLS,
     RELU_CONTROLS,
     RELU_WITNESSES,
@@ -170,6 +171,18 @@ class GateAcceptanceTests(unittest.TestCase):
         proof = (ROOT / "src/tensor/slice-PROOF.bend").read_text()
         self.assertEqual(len(SLICE_CONTROLS), 28)
         for original, mutated, location in SLICE_CONTROLS.values():
+            self.assertEqual(source.count(original), 1)
+            self.assertNotEqual(original, mutated)
+            if location.startswith("Laws."):
+                self.assertIn(f"law {location.removeprefix('Laws.')}:\n", laws)
+            self.assertIn(f"def {location}(", proof)
+
+    def test_gather_controls_apply_once_and_name_a_gather_proof(self):
+        source = (ROOT / "src/tensor/gather.bend").read_text()
+        laws = (ROOT / "src/tensor/gather-LAWS.bend").read_text()
+        proof = (ROOT / "src/tensor/gather-PROOF.bend").read_text()
+        self.assertEqual(len(GATHER_CONTROLS), 15)
+        for original, mutated, location in GATHER_CONTROLS.values():
             self.assertEqual(source.count(original), 1)
             self.assertNotEqual(original, mutated)
             if location.startswith("Laws."):

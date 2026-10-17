@@ -57,6 +57,8 @@ def leaf_refusal(node: Backward.Node) -> Maybe<&2, Error>:
       Some{NotLeaf{}}
     case Backward.Slice{a, input, kept, plan}:
       Some{NotLeaf{}}
+    case Backward.Gathered{a, input, plan, entries}:
+      Some{NotLeaf{}}
     case Backward.Constant{}:
       None{}
     case Backward.Frozen{id, inner}:

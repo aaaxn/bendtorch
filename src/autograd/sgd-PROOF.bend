@@ -74,6 +74,8 @@ def Laws.sgd_only_leaves_accepted(node):
       {==}
     case Backward.Slice{a, input, kept, plan}:
       {==}
+    case Backward.Gathered{a, input, plan, entries}:
+      {==}
     case Backward.Constant{}:
       {==}
     case Backward.Frozen{id, inner}:
