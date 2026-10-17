@@ -16,11 +16,11 @@ before they run it. The key holds everything that decides the result:
 
 A command whose inputs the key cannot pin runs as usual: a hub or named
 import, or a foreign (`import "x.c"`) definition anywhere in its files. An
-entry stores the key, the exit code, stdout, stderr and the `-o` file, and
-a digest of all of them; an entry whose key or digest does not match is
-reported, run again and replaced, never replayed. Only exit codes 0 and 1
-are stored (and for `-o`, only 0), so a crash or a signal is never
-replayed.
+entry, a gzipped JSON file, stores the key, the exit code, stdout, stderr
+and the `-o` file, and a digest of all of them; an entry whose key or
+digest does not match is reported, run again and replaced, never
+replayed. Only exit codes 0 and 1 are stored (and for `-o`, only 0), so a
+crash or a signal is never replayed.
 
 The cache trusts DIR: a writer who can recompute the digest can make a
 command pass. A run without `--cache` runs every command, and stays the
@@ -28,6 +28,7 @@ reference for the gates a merge needs.
 """
 
 import argparse
+import gzip
 import hashlib
 import json
 import os
@@ -36,6 +37,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import zlib
 from pathlib import Path
 
 FORMAT = 1
@@ -191,7 +193,7 @@ class Cache:
         if material is None:
             return run(command, cwd=cwd, env=env, timeout=timeout), False
         name = sha256(json.dumps(material, sort_keys=True).encode())
-        path = self.directory / name[:2] / f"{name}.json"
+        path = self.directory / name[:2] / f"{name}.json.gz"
         target = cwd / str(command[4]) if "target" in material else None
         stored = self.load(path, material)
         if stored is not None and (target is None) == (stored["artifact"] is None):
@@ -218,7 +220,7 @@ class Cache:
             entry["sha256"] = seal(entry)
             path.parent.mkdir(exist_ok=True)
             temporary = path.with_suffix(f".{os.getpid()}.{threading.get_ident()}")
-            temporary.write_text(json.dumps(entry))
+            temporary.write_bytes(gzip.compress(json.dumps(entry).encode(), 1))
             os.replace(temporary, path)
         return result, False
 
@@ -226,10 +228,10 @@ class Cache:
         if not path.exists():
             return None
         try:
-            stored = json.loads(path.read_text())
+            stored = json.loads(gzip.decompress(path.read_bytes()))
             if stored["key"] == material and stored["sha256"] == seal(stored):
                 return stored
-        except (OSError, ValueError, KeyError, TypeError):
+        except (OSError, EOFError, zlib.error, ValueError, KeyError, TypeError):
             pass
         with self.lock:
             self.rejected.append(path.name)

@@ -1,3 +1,4 @@
+import gzip
 import json
 import os
 import subprocess
@@ -34,7 +35,7 @@ class CacheTests(unittest.TestCase):
         )
 
     def entries(self) -> list[Path]:
-        return sorted((self.root / "cache").rglob("*.json"))
+        return sorted((self.root / "cache").rglob("*.json.gz"))
 
     def test_a_second_run_replays_the_first(self):
         cold, replayed = self.run_bend(self.src / "law.bend", "--verdict")
@@ -147,17 +148,17 @@ class CacheTests(unittest.TestCase):
         law = self.src / "law.bend"
         self.run_bend(law, "--verdict")
         (entry,) = self.entries()
-        stored = json.loads(entry.read_text())
+        stored = json.loads(gzip.decompress(entry.read_bytes()))
         stored["exit_code"] = 0
         stored["stdout"] = "ALL PROOFS CHECK\nforged\n"
-        entry.write_text(json.dumps(stored))
+        entry.write_bytes(gzip.compress(json.dumps(stored).encode()))
         result, replayed = self.run_bend(law, "--verdict")
         self.assertFalse(replayed)
         self.assertNotIn("forged", result.stdout)
         self.assertEqual(self.cache.summary()["rejected"], [entry.name])
         # The rerun replaced the entry, which now replays.
         self.assertTrue(self.run_bend(law, "--verdict")[1])
-        entry.write_text("{not json")
+        entry.write_bytes(b"not gzip")
         self.assertFalse(self.run_bend(law, "--verdict")[1])
 
     def test_a_forged_pass_for_a_false_law_is_not_replayed(self):
@@ -169,7 +170,7 @@ class CacheTests(unittest.TestCase):
         law.write_text(LAW.replace("== 2n", "== 3n"))
         self.run_bend(law, "--verdict")
         (bad,) = [path for path in self.entries() if path != good]
-        bad.write_text(good.read_text())
+        bad.write_bytes(good.read_bytes())
         result, replayed = self.run_bend(law, "--verdict")
         self.assertFalse(replayed)
         self.assertEqual(result.returncode, 1)
