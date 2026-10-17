@@ -1,0 +1,772 @@
+{
+  "configuration": {
+    "deterministic_algorithms": true,
+    "num_threads": 1
+  },
+  "corpus_version": "signed-torch",
+  "oracle": {
+    "cuda_version": null,
+    "hip_version": null,
+    "torch_git_version": "5c4886908584029761b579af026dcfb627c84070",
+    "torch_version": "2.14.1+cpu"
+  },
+  "purpose": "PyTorch observations for every signed axis, index and -1 reshape request; the root test compares the gate reference with them",
+  "requests": "837d61596c7597d6c87cf4ce668f99fa0412105329ad7ffb1d92a400897ceb42",
+  "schema_version": 1,
+  "signed": [
+    {
+      "id": "reshape_all",
+      "lines": [
+        "tensor:shape:[6]",
+        "tensor:count:6",
+        "tensor:word:1056964608",
+        "tensor:word:2147483648",
+        "tensor:word:2143289345",
+        "tensor:word:1",
+        "tensor:word:4286578688",
+        "tensor:word:1077936128"
+      ]
+    },
+    {
+      "id": "reshape_first",
+      "lines": [
+        "tensor:shape:[3, 2]",
+        "tensor:count:6",
+        "tensor:word:1056964608",
+        "tensor:word:2147483648",
+        "tensor:word:2143289345",
+        "tensor:word:1",
+        "tensor:word:4286578688",
+        "tensor:word:1077936128"
+      ]
+    },
+    {
+      "id": "reshape_last",
+      "lines": [
+        "tensor:shape:[3, 2]",
+        "tensor:count:6",
+        "tensor:word:1056964608",
+        "tensor:word:2147483648",
+        "tensor:word:2143289345",
+        "tensor:word:1",
+        "tensor:word:4286578688",
+        "tensor:word:1077936128"
+      ]
+    },
+    {
+      "id": "reshape_one",
+      "lines": [
+        "tensor:shape:[1, 6]",
+        "tensor:count:6",
+        "tensor:word:1056964608",
+        "tensor:word:2147483648",
+        "tensor:word:2143289345",
+        "tensor:word:1",
+        "tensor:word:4286578688",
+        "tensor:word:1077936128"
+      ]
+    },
+    {
+      "id": "reshape_middle",
+      "lines": [
+        "tensor:shape:[6, 1, 1]",
+        "tensor:count:6",
+        "tensor:word:1056964608",
+        "tensor:word:2147483648",
+        "tensor:word:2143289345",
+        "tensor:word:1",
+        "tensor:word:4286578688",
+        "tensor:word:1077936128"
+      ]
+    },
+    {
+      "id": "reshape_rank4",
+      "lines": [
+        "tensor:shape:[6, 1, 1, 1]",
+        "tensor:count:6",
+        "tensor:word:1056964608",
+        "tensor:word:2147483648",
+        "tensor:word:2143289345",
+        "tensor:word:1",
+        "tensor:word:4286578688",
+        "tensor:word:1077936128"
+      ]
+    },
+    {
+      "id": "reshape_exact",
+      "lines": [
+        "tensor:shape:[3, 2]",
+        "tensor:count:6",
+        "tensor:word:1056964608",
+        "tensor:word:2147483648",
+        "tensor:word:2143289345",
+        "tensor:word:1",
+        "tensor:word:4286578688",
+        "tensor:word:1077936128"
+      ]
+    },
+    {
+      "id": "reshape_indivisible",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "reshape_twice",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "reshape_twice_before_count",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "reshape_zero_other",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "reshape_other_zero",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "reshape_exact_count",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "reshape_empty_all",
+      "lines": [
+        "tensor:shape:[0]",
+        "tensor:count:0"
+      ]
+    },
+    {
+      "id": "reshape_empty_first",
+      "lines": [
+        "tensor:shape:[0, 3]",
+        "tensor:count:0"
+      ]
+    },
+    {
+      "id": "reshape_empty_last",
+      "lines": [
+        "tensor:shape:[3, 0]",
+        "tensor:count:0"
+      ]
+    },
+    {
+      "id": "reshape_empty_pair",
+      "lines": [
+        "tensor:shape:[2, 0]",
+        "tensor:count:0"
+      ]
+    },
+    {
+      "id": "reshape_empty_ambiguous",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "reshape_empty_ambiguous_last",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "reshape_empty_ambiguous_three",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "reshape_empty_twice",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "reshape_scalar_all",
+      "lines": [
+        "tensor:shape:[1]",
+        "tensor:count:1",
+        "tensor:word:1084227584"
+      ]
+    },
+    {
+      "id": "reshape_scalar_column",
+      "lines": [
+        "tensor:shape:[1, 1]",
+        "tensor:count:1",
+        "tensor:word:1084227584"
+      ]
+    },
+    {
+      "id": "reshape_scalar_rank0",
+      "lines": [
+        "tensor:shape:[]",
+        "tensor:count:1",
+        "tensor:word:1084227584"
+      ]
+    },
+    {
+      "id": "reshape_scalar_indivisible",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "permute_last_first",
+      "lines": [
+        "tensor:shape:[3, 2]",
+        "tensor:count:6",
+        "tensor:word:1056964608",
+        "tensor:word:1",
+        "tensor:word:2147483648",
+        "tensor:word:4286578688",
+        "tensor:word:2143289345",
+        "tensor:word:1077936128"
+      ]
+    },
+    {
+      "id": "permute_both_negative",
+      "lines": [
+        "tensor:shape:[2, 3]",
+        "tensor:count:6",
+        "tensor:word:1056964608",
+        "tensor:word:2147483648",
+        "tensor:word:2143289345",
+        "tensor:word:1",
+        "tensor:word:4286578688",
+        "tensor:word:1077936128"
+      ]
+    },
+    {
+      "id": "permute_swapped",
+      "lines": [
+        "tensor:shape:[3, 2]",
+        "tensor:count:6",
+        "tensor:word:1056964608",
+        "tensor:word:1",
+        "tensor:word:2147483648",
+        "tensor:word:4286578688",
+        "tensor:word:2143289345",
+        "tensor:word:1077936128"
+      ]
+    },
+    {
+      "id": "permute_cube",
+      "lines": [
+        "tensor:shape:[4, 2, 3]",
+        "tensor:count:24",
+        "tensor:word:0",
+        "tensor:word:1082130432",
+        "tensor:word:1090519040",
+        "tensor:word:1094713344",
+        "tensor:word:1098907648",
+        "tensor:word:1101004800",
+        "tensor:word:1065353216",
+        "tensor:word:1084227584",
+        "tensor:word:1091567616",
+        "tensor:word:1095761920",
+        "tensor:word:1099431936",
+        "tensor:word:1101529088",
+        "tensor:word:1073741824",
+        "tensor:word:1086324736",
+        "tensor:word:1092616192",
+        "tensor:word:1096810496",
+        "tensor:word:1099956224",
+        "tensor:word:1102053376",
+        "tensor:word:1077936128",
+        "tensor:word:1088421888",
+        "tensor:word:1093664768",
+        "tensor:word:1097859072",
+        "tensor:word:1100480512",
+        "tensor:word:1102577664"
+      ]
+    },
+    {
+      "id": "permute_cube_mixed",
+      "lines": [
+        "tensor:shape:[4, 2, 3]",
+        "tensor:count:24",
+        "tensor:word:0",
+        "tensor:word:1082130432",
+        "tensor:word:1090519040",
+        "tensor:word:1094713344",
+        "tensor:word:1098907648",
+        "tensor:word:1101004800",
+        "tensor:word:1065353216",
+        "tensor:word:1084227584",
+        "tensor:word:1091567616",
+        "tensor:word:1095761920",
+        "tensor:word:1099431936",
+        "tensor:word:1101529088",
+        "tensor:word:1073741824",
+        "tensor:word:1086324736",
+        "tensor:word:1092616192",
+        "tensor:word:1096810496",
+        "tensor:word:1099956224",
+        "tensor:word:1102053376",
+        "tensor:word:1077936128",
+        "tensor:word:1088421888",
+        "tensor:word:1093664768",
+        "tensor:word:1097859072",
+        "tensor:word:1100480512",
+        "tensor:word:1102577664"
+      ]
+    },
+    {
+      "id": "permute_repeated",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "permute_below",
+      "lines": [
+        "tensor:rejected:IndexError"
+      ]
+    },
+    {
+      "id": "permute_below_first",
+      "lines": [
+        "tensor:rejected:IndexError"
+      ]
+    },
+    {
+      "id": "permute_past",
+      "lines": [
+        "tensor:rejected:IndexError"
+      ]
+    },
+    {
+      "id": "permute_short",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "permute_long",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "permute_scalar",
+      "lines": [
+        "tensor:shape:[]",
+        "tensor:count:1",
+        "tensor:word:1084227584"
+      ]
+    },
+    {
+      "id": "permute_scalar_axis",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "permute_range_after_repeat",
+      "lines": [
+        "tensor:rejected:RuntimeError"
+      ]
+    },
+    {
+      "id": "transpose_last_first",
+      "lines": [
+        "tensor:shape:[3, 2]",
+        "tensor:count:6",
+        "tensor:word:1056964608",
+        "tensor:word:1",
+        "tensor:word:2147483648",
+        "tensor:word:4286578688",
+        "tensor:word:2143289345",
+        "tensor:word:1077936128"
+      ]
+    },
+    {
+      "id": "transpose_first_last",
+      "lines": [
+        "tensor:shape:[3, 2]",
+        "tensor:count:6",
+        "tensor:word:1056964608",
+        "tensor:word:1",
+        "tensor:word:2147483648",
+        "tensor:word:4286578688",
+        "tensor:word:2143289345",
+        "tensor:word:1077936128"
+      ]
+    },
+    {
+      "id": "transpose_both_negative",
+      "lines": [
+        "tensor:shape:[3, 2]",
+        "tensor:count:6",
+        "tensor:word:1056964608",
+        "tensor:word:1",
+        "tensor:word:2147483648",
+        "tensor:word:4286578688",
+        "tensor:word:2143289345",
+        "tensor:word:1077936128"
+      ]
+    },
+    {
+      "id": "transpose_same",
+      "lines": [
+        "tensor:shape:[2, 3]",
+        "tensor:count:6",
+        "tensor:word:1056964608",
+        "tensor:word:2147483648",
+        "tensor:word:2143289345",
+        "tensor:word:1",
+        "tensor:word:4286578688",
+        "tensor:word:1077936128"
+      ]
+    },
+    {
+      "id": "transpose_mixed",
+      "lines": [
+        "tensor:shape:[3, 2]",
+        "tensor:count:6",
+        "tensor:word:1056964608",
+        "tensor:word:1",
+        "tensor:word:2147483648",
+        "tensor:word:4286578688",
+        "tensor:word:2143289345",
+        "tensor:word:1077936128"
+      ]
+    },
+    {
+      "id": "transpose_cube",
+      "lines": [
+        "tensor:shape:[4, 3, 2]",
+        "tensor:count:24",
+        "tensor:word:0",
+        "tensor:word:1094713344",
+        "tensor:word:1082130432",
+        "tensor:word:1098907648",
+        "tensor:word:1090519040",
+        "tensor:word:1101004800",
+        "tensor:word:1065353216",
+        "tensor:word:1095761920",
+        "tensor:word:1084227584",
+        "tensor:word:1099431936",
+        "tensor:word:1091567616",
+        "tensor:word:1101529088",
+        "tensor:word:1073741824",
+        "tensor:word:1096810496",
+        "tensor:word:1086324736",
+        "tensor:word:1099956224",
+        "tensor:word:1092616192",
+        "tensor:word:1102053376",
+        "tensor:word:1077936128",
+        "tensor:word:1097859072",
+        "tensor:word:1088421888",
+        "tensor:word:1100480512",
+        "tensor:word:1093664768",
+        "tensor:word:1102577664"
+      ]
+    },
+    {
+      "id": "transpose_cube_middle",
+      "lines": [
+        "tensor:shape:[3, 2, 4]",
+        "tensor:count:24",
+        "tensor:word:0",
+        "tensor:word:1065353216",
+        "tensor:word:1073741824",
+        "tensor:word:1077936128",
+        "tensor:word:1094713344",
+        "tensor:word:1095761920",
+        "tensor:word:1096810496",
+        "tensor:word:1097859072",
+        "tensor:word:1082130432",
+        "tensor:word:1084227584",
+        "tensor:word:1086324736",
+        "tensor:word:1088421888",
+        "tensor:word:1098907648",
+        "tensor:word:1099431936",
+        "tensor:word:1099956224",
+        "tensor:word:1100480512",
+        "tensor:word:1090519040",
+        "tensor:word:1091567616",
+        "tensor:word:1092616192",
+        "tensor:word:1093664768",
+        "tensor:word:1101004800",
+        "tensor:word:1101529088",
+        "tensor:word:1102053376",
+        "tensor:word:1102577664"
+      ]
+    },
+    {
+      "id": "transpose_below",
+      "lines": [
+        "tensor:rejected:IndexError"
+      ]
+    },
+    {
+      "id": "transpose_past_first",
+      "lines": [
+        "tensor:rejected:IndexError"
+      ]
+    },
+    {
+      "id": "transpose_scalar",
+      "lines": [
+        "tensor:shape:[]",
+        "tensor:count:1",
+        "tensor:word:1084227584"
+      ]
+    },
+    {
+      "id": "transpose_scalar_last",
+      "lines": [
+        "tensor:shape:[]",
+        "tensor:count:1",
+        "tensor:word:1084227584"
+      ]
+    },
+    {
+      "id": "transpose_scalar_both",
+      "lines": [
+        "tensor:shape:[]",
+        "tensor:count:1",
+        "tensor:word:1084227584"
+      ]
+    },
+    {
+      "id": "transpose_scalar_below",
+      "lines": [
+        "tensor:rejected:IndexError"
+      ]
+    },
+    {
+      "id": "transpose_scalar_past",
+      "lines": [
+        "tensor:rejected:IndexError"
+      ]
+    },
+    {
+      "id": "transpose_vector",
+      "lines": [
+        "tensor:shape:[3]",
+        "tensor:count:3",
+        "tensor:word:1065353216",
+        "tensor:word:1073741824",
+        "tensor:word:1077936128"
+      ]
+    },
+    {
+      "id": "transpose_vector_below",
+      "lines": [
+        "tensor:rejected:IndexError"
+      ]
+    },
+    {
+      "id": "get_last_row",
+      "lines": [
+        "tensor:shape:[]",
+        "tensor:count:1",
+        "tensor:word:1"
+      ]
+    },
+    {
+      "id": "get_both_negative",
+      "lines": [
+        "tensor:shape:[]",
+        "tensor:count:1",
+        "tensor:word:1056964608"
+      ]
+    },
+    {
+      "id": "get_last_column",
+      "lines": [
+        "tensor:shape:[]",
+        "tensor:count:1",
+        "tensor:word:1077936128"
+      ]
+    },
+    {
+      "id": "get_cube",
+      "lines": [
+        "tensor:shape:[]",
+        "tensor:count:1",
+        "tensor:word:1099431936"
+      ]
+    },
+    {
+      "id": "get_below_row",
+      "lines": [
+        "tensor:rejected:IndexError"
+      ]
+    },
+    {
+      "id": "get_below_column",
+      "lines": [
+        "tensor:rejected:IndexError"
+      ]
+    },
+    {
+      "id": "get_past_row",
+      "lines": [
+        "tensor:rejected:IndexError"
+      ]
+    },
+    {
+      "id": "get_past_column",
+      "lines": [
+        "tensor:rejected:IndexError"
+      ]
+    },
+    {
+      "id": "get_empty",
+      "lines": [
+        "tensor:rejected:IndexError"
+      ]
+    },
+    {
+      "id": "get_scalar",
+      "lines": [
+        "tensor:shape:[]",
+        "tensor:count:1",
+        "tensor:word:1084227584"
+      ]
+    },
+    {
+      "id": "set_last",
+      "lines": [
+        "tensor:shape:[2, 3]",
+        "tensor:count:6",
+        "tensor:word:1056964608",
+        "tensor:word:2147483648",
+        "tensor:word:2143289345",
+        "tensor:word:1",
+        "tensor:word:4286578688",
+        "tensor:word:1091567616"
+      ]
+    },
+    {
+      "id": "set_cube",
+      "lines": [
+        "tensor:shape:[2, 3, 4]",
+        "tensor:count:24",
+        "tensor:word:0",
+        "tensor:word:1065353216",
+        "tensor:word:1073741824",
+        "tensor:word:1077936128",
+        "tensor:word:1082130432",
+        "tensor:word:1084227584",
+        "tensor:word:1086324736",
+        "tensor:word:1088421888",
+        "tensor:word:1090519040",
+        "tensor:word:1091567616",
+        "tensor:word:1091567616",
+        "tensor:word:1093664768",
+        "tensor:word:1094713344",
+        "tensor:word:1095761920",
+        "tensor:word:1096810496",
+        "tensor:word:1097859072",
+        "tensor:word:1098907648",
+        "tensor:word:1099431936",
+        "tensor:word:1099956224",
+        "tensor:word:1100480512",
+        "tensor:word:1101004800",
+        "tensor:word:1101529088",
+        "tensor:word:1102053376",
+        "tensor:word:1102577664"
+      ]
+    },
+    {
+      "id": "set_below",
+      "lines": [
+        "tensor:rejected:IndexError"
+      ]
+    },
+    {
+      "id": "get_flat_last",
+      "lines": [
+        "tensor:shape:[]",
+        "tensor:count:1",
+        "tensor:word:1077936128"
+      ]
+    },
+    {
+      "id": "get_flat_first",
+      "lines": [
+        "tensor:shape:[]",
+        "tensor:count:1",
+        "tensor:word:1056964608"
+      ]
+    },
+    {
+      "id": "get_flat_end",
+      "lines": [
+        "tensor:shape:[]",
+        "tensor:count:1",
+        "tensor:word:1077936128"
+      ]
+    },
+    {
+      "id": "get_flat_below",
+      "lines": [
+        "tensor:rejected:IndexError"
+      ]
+    },
+    {
+      "id": "get_flat_past",
+      "lines": [
+        "tensor:rejected:IndexError"
+      ]
+    },
+    {
+      "id": "get_flat_scalar",
+      "lines": [
+        "tensor:shape:[]",
+        "tensor:count:1",
+        "tensor:word:1084227584"
+      ]
+    },
+    {
+      "id": "get_flat_scalar_first",
+      "lines": [
+        "tensor:shape:[]",
+        "tensor:count:1",
+        "tensor:word:1084227584"
+      ]
+    },
+    {
+      "id": "get_flat_empty",
+      "lines": [
+        "tensor:rejected:IndexError"
+      ]
+    },
+    {
+      "id": "set_flat_second_last",
+      "lines": [
+        "tensor:shape:[2, 3]",
+        "tensor:count:6",
+        "tensor:word:1056964608",
+        "tensor:word:2147483648",
+        "tensor:word:2143289345",
+        "tensor:word:1",
+        "tensor:word:1091567616",
+        "tensor:word:1077936128"
+      ]
+    },
+    {
+      "id": "set_flat_below",
+      "lines": [
+        "tensor:rejected:IndexError"
+      ]
+    }
+  ]
+}
