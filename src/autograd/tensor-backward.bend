@@ -2,6 +2,7 @@ import Base
 import ../shape/core.bend as Shape
 import ../tensor/core.bend as Core
 import ../tensor/elementwise.bend as Elementwise
+import ../tensor/layout.bend as Layout
 import ../tensor/matmul.bend as Matrix
 import ../tensor/batched-matmul.bend as Batched
 import ../tensor/reduction.bend as Reduction
@@ -9,6 +10,7 @@ import ../tensor/transforms.bend as Transforms
 import ./broadcast.bend as Broadcast
 import ./reduce.bend as Reduce
 import ./sum-to-size.bend as SumToSize
+import ./sum-dims.bend as SumDims
 import ./gradient.bend as Gradient
 import ./loss.bend as Loss
 
@@ -75,6 +77,7 @@ type Node is Data:
   Sub{a: Nat, b: Nat, left: Shape.Shape, right: Shape.Shape}
   Mul{a: Nat, b: Nat, left: Shape.Shape, right: Shape.Shape}
   Sum{a: Nat, input: Shape.Shape}
+  SumDims{a: Nat, input: Shape.Shape, kept: Shape.Shape}
   Matmul{a: Nat, b: Nat, left: Shape.Shape, right: Shape.Shape}
   MatmulNT{a: Nat, b: Nat, left: Shape.Shape, right: Shape.Shape}
   Relu{a: Nat, input: Shape.Shape}
@@ -263,6 +266,40 @@ def expanded(+a: Nat, +input: Shape.Shape, pair: Core.Dynamic & Result<&2, &1, B
 # d(sum a)/da: g broadcast to a's shape, as PyTorch's g.expand(a.shape).
 def vjp_sum(+a: Nat, +input: Shape.Shape, g: Core.Dynamic) -> Pass:
   expanded(a, input, Broadcast.broadcast_to(g, input))
+
+def relabel_decided(+held: Shape.Shape, +shape: Shape.Shape, tensor: Core.Tensor<held>,
+  decision: Shape.BoolCase<Nat.is_eq(Shape.elements(held), Shape.elements(shape))>) -> Core.Dynamic:
+  match decision:
+    case Shape.BFalse{equal}:
+      Core.Packed{held, tensor}
+    case Shape.BTrue{equal}:
+      Transforms.reshape_equal(held, shape, tensor, Transforms.elements_equal(held, shape, equal))
+
+# g with the dimensions of `shape`, which has as many elements: a reshape,
+# which moves no word. A g with another element count keeps its own.
+def relabeled(+shape: Shape.Shape, gradient: Core.Dynamic) -> Core.Dynamic:
+  Core.Packed{+held, tensor} = gradient
+  relabel_decided(held, shape, tensor, Shape.bool_case(Nat.is_eq(Shape.elements(held), Shape.elements(shape))))
+
+# The pass with g back in its own shape.
+def restored(+shape: Shape.Shape, pass: Pass) -> Pass:
+  Pass{saved, gradient, contributions} = pass
+  Pass{saved, relabeled(shape, gradient), contributions}
+
+def unsqueezed(+a: Nat, +input: Shape.Shape, +kept: Shape.Shape, +shape: Shape.Shape, tensor: Core.Tensor<shape>,
+  decision: Shape.BoolCase<Nat.is_eq(Shape.elements(shape), Shape.elements(kept))>) -> Pass:
+  match decision:
+    case Shape.BFalse{equal}:
+      Pass{Unsaved{}, Core.Packed{shape, tensor}, Fail{TransformError{Transforms.LayoutError{Layout.ElementCountMismatch{}}}}}
+    case Shape.BTrue{equal}:
+      restored(shape, vjp_sum(a, input, Transforms.reshape_equal(shape, kept, tensor, Transforms.elements_equal(shape, kept, equal))))
+
+# d(sum of a over some axes)/da: g read with the kept shape, the reduced axes
+# put back as 1 (PyTorch's unsqueeze when keepdim is False), then broadcast
+# to a's shape, as the Sum VJP does.
+def vjp_sum_dims(+a: Nat, +input: Shape.Shape, +kept: Shape.Shape, g: Core.Dynamic) -> Pass:
+  Core.Packed{+shape, tensor} = g
+  unsqueezed(a, input, kept, shape, tensor, Shape.bool_case(Nat.is_eq(Shape.elements(shape), Shape.elements(kept))))
 
 def multiplied(+target: Nat, +shape: Shape.Shape,
   result: Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>) -> Result<&2, &1, Error, Contribution>:
@@ -599,6 +636,8 @@ def vjp(node: Node, saved: Saved, g: Core.Dynamic) -> Pass:
       vjp_mul(a, b, left, right, saved, g)
     case Sum{+a, +input}:
       vjp_sum(a, input, g)
+    case SumDims{+a, +input, +kept}:
+      vjp_sum_dims(a, input, kept, g)
     case Matmul{+a, +b, +left, +right}:
       vjp_matmul(a, b, left, right, saved, g)
     case MatmulNT{+a, +b, +left, +right}:
@@ -738,6 +777,8 @@ def operands_below(node: Node, +bound: Nat) -> Bool:
     case Mul{a, b, left, right}:
       Bool.and(Nat.is_lt(a, bound), Nat.is_lt(b, bound))
     case Sum{a, input}:
+      Nat.is_lt(a, bound)
+    case SumDims{a, input, kept}:
       Nat.is_lt(a, bound)
     case Matmul{a, b, left, right}:
       Bool.and(Nat.is_lt(a, bound), Nat.is_lt(b, bound))
@@ -982,6 +1023,8 @@ def operand_ids(node: Node) -> List<&2, Nat>:
     case Mul{a, b, left, right}:
       [a, b]
     case Sum{a, input}:
+      [a]
+    case SumDims{a, input, kept}:
       [a]
     case Matmul{a, b, left, right}:
       [a, b]
@@ -1264,6 +1307,52 @@ def sum_found(+a: Nat, pair: Found()) -> Tape & Result<&2, &2, Error, Nat>:
 def sum(tape: Tape, +a: Nat) -> Tape & Result<&2, &2, Error, Nat>:
   Tape{entries} = tape
   sum_found(a, value_counted(a, counted(entries)))
+
+def dims_error(error: SumDims.Error) -> Error:
+  match error:
+    case SumDims.ReduceError{error}:
+      ReduceError{error}
+    case SumDims.TransformError{error}:
+      TransformError{error}
+
+def dims_summed(node: Node, entries: List<&1, Entry>, pair: Core.Dynamic & Result<&2, &1, SumDims.Error, Core.Dynamic>) ->
+  Tape & Result<&2, &2, Error, Nat>:
+  (input, result) = pair
+  match result:
+    case Fail{error}:
+      (Tape{entries}, Fail{dims_error(error)})
+    case Done{output}:
+      push(node, output, Unsaved{}, entries)
+
+def dims_planned(+a: Nat, entries: List<&1, Entry>, input: Core.Dynamic, +shape: Shape.Shape, keepdim: Bool,
+  planned: Result<&2, &2, SumDims.Error, SumDims.Plan>) -> Tape & Result<&2, &2, Error, Nat>:
+  match planned:
+    case Fail{error}:
+      (Tape{entries}, Fail{dims_error(error)})
+    case Done{SumDims.Plan{+kept, +dropped}}:
+      dims_summed(SumDims{a, shape, kept}, entries, SumDims.sum_planned(input, SumDims.Plan{kept, dropped}, keepdim))
+
+def dims_shaped(+a: Nat, +axes: List<&2, U32>, keepdim: Bool, entries: List<&1, Entry>, pair: Core.Dynamic & Shape.Shape) ->
+  Tape & Result<&2, &2, Error, Nat>:
+  (input, +shape) = pair
+  dims_planned(a, entries, input, shape, keepdim, SumDims.plan(shape, axes))
+
+def dims_found(+a: Nat, +axes: List<&2, U32>, keepdim: Bool, pair: Found()) -> Tape & Result<&2, &2, Error, Nat>:
+  (entries, input) = pair
+  match input:
+    case Fail{error}:
+      (Tape{entries}, Fail{UnknownNode{}})
+    case Done{input}:
+      dims_shaped(a, axes, keepdim, entries, Core.shape(input))
+
+# Records PyTorch's a.sum(dim=axes, keepdim=keepdim), SumDims.sum_dims of a
+# copy of a's value: the kept shape when keepdim is True, else the dropped
+# one. An empty axis list sums every axis. An axis past a's rank is refused
+# with AxisOutOfBounds (13), an axis listed twice with DuplicateAxis (14), an
+# unknown id with UnknownNode; the tape comes back unchanged.
+def sum_dims(tape: Tape, +a: Nat, +axes: List<&2, U32>, keepdim: Bool) -> Tape & Result<&2, &2, Error, Nat>:
+  Tape{entries} = tape
+  dims_found(a, axes, keepdim, value_counted(a, counted(entries)))
 
 def relu_zeroed(+a: Nat, entries: List<&1, Entry>, +shape: Shape.Shape, input: Core.Dynamic,
   zero: Result<&2, &1, Core.Error, Core.Tensor<Reduction.scalar_shape()>>) -> Tape & Result<&2, &2, Error, Nat>:

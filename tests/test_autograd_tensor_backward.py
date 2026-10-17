@@ -11,7 +11,9 @@ from tools.autograd import PROOF_CONTROLS, SUBGATES
 from tools.autograd_backward import DANGLING_OPERAND, NEGATIVE_ZERO, UNKNOWN_NODE
 from tools.autograd_broadcast import is_nan, word
 from tools.autograd_tensor_backward import (
+    AXIS_OUT_OF_BOUNDS,
     CHAIN_CONTROLS,
+    DUPLICATE_AXIS,
     INVALID_LEARNING_RATE,
     MATMUL_INNER,
     MATMUL_RANK,
@@ -53,7 +55,7 @@ from tools.autograd_tensor_bound import (
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "9f4ffd73142cf4f7b8b9de6d2bf04841be4610fa0ab4f09cdfc43618e2a6a030"
+FIXTURE_SHA256 = "c4097bbec5e864ef84b27049692129c2a297037ddab6cec9ce050eb31087e998"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
@@ -77,17 +79,30 @@ REJECTIONS = {
     "batched_refusals",
 }
 RUNTIME_ERROR_CODES = {6, MATMUL_RANK, MATMUL_INNER, 10}
-# The refusals of cross_entropy_refused, step by step, as PyTorch's kind and
-# the tape's code: a target equal to the columns (IndexError, 108), too few
-# and too many targets (ValueError, 108), logits of rank 3 (RuntimeError,
-# 107) and an unknown id (IndexError, 103).
-LOSS_REJECTIONS = {
+# Refusals step by step, as PyTorch's kind and the tape's code. Those of
+# cross_entropy_refused: a target equal to the columns (IndexError, 108), too
+# few and too many targets (ValueError, 108), logits of rank 3 (RuntimeError,
+# 107) and an unknown id (IndexError, 103). Those of sum_dims_refused: an
+# unknown id, an axis past the rank (IndexError, AxisOutOfBounds 13), an axis
+# listed twice (RuntimeError, DuplicateAxis 14), a list with both (13, as
+# PyTorch checks every axis's range first), the U32 word of -1 (13) and axis
+# 1 of a rank-0 input (13).
+STEP_REJECTIONS = {
     "cross_entropy_refused": [
         ("IndexError", TARGET_OUT_OF_RANGE),
         ("ValueError", TARGET_OUT_OF_RANGE),
         ("ValueError", TARGET_OUT_OF_RANGE),
         ("RuntimeError", NOT_LOGITS),
         ("IndexError", UNKNOWN_NODE),
+    ],
+    "sum_dims_refused": [
+        ("IndexError", UNKNOWN_NODE),
+        ("IndexError", AXIS_OUT_OF_BOUNDS),
+        ("RuntimeError", DUPLICATE_AXIS),
+        ("IndexError", AXIS_OUT_OF_BOUNDS),
+        ("RuntimeError", DUPLICATE_AXIS),
+        ("IndexError", AXIS_OUT_OF_BOUNDS),
+        ("IndexError", AXIS_OUT_OF_BOUNDS),
     ],
 }
 FORGED = {"dangling_self", "dangling_newer", "dangling_missing"}
@@ -112,7 +127,9 @@ NAN_PAYLOAD = {
 # rounding_14 has a matmul with inner dimension 1 whose only product is -0.0:
 # the ordered dot adds it to +0.0 and gives +0.0, PyTorch's gemm keeps -0.0.
 # relu_13 has the same inner-dimension-1 matmul, whose products 0.5 * -1e-45
-# and 0.5 * -0.0 are -0.0. batched_rounding_01 sums the words of a
+# and 0.5 * -0.0 are -0.0. sum_dims_rounding sums rows of 20 rounding words
+# over axis 1, which PyTorch adds in a vectorized order: 4 of its row sums
+# differ, its column sums agree. batched_rounding_01 sums the words of a
 # torch.matmul in order, where PyTorch's sum takes another. Every gradient
 # must agree word for word, and every value word that differs must lie
 # within its rounding-error bound (AGENTS.md, numeric policy, level 2;
@@ -121,6 +138,7 @@ FORWARD_ORDER = {
     "rounding_09",
     "rounding_14",
     "relu_13",
+    "sum_dims_rounding",
     "batched_rounding_01",
 }
 # torch.matmul words in the last bits, each pinned as (PyTorch's word, the
@@ -240,7 +258,7 @@ FUSED_UPDATE = {"sgd_two_layers", "sgd_rounding"}
 NON_LEAF = {"sgd_not_leaf"}
 # The families that record_rule does not judge; each keeps its own check.
 OTHER_FAMILIES = (
-    REJECTIONS | set(LOSS_REJECTIONS) | FORGED | NAN_PAYLOAD | FUSED_UPDATE | NON_LEAF
+    REJECTIONS | set(STEP_REJECTIONS) | FORGED | NAN_PAYLOAD | FUSED_UPDATE | NON_LEAF
 )
 
 
@@ -538,14 +556,18 @@ def dropping_total(words: list[int]) -> Bounded:
     return bounded_total(words[:-1] if len(words) > 1 else words)
 
 
-def dropping_sum_to_size(tensor: tuple, target: list[int]) -> tuple:
+def dropping_reduce_to(tensor: tuple, target: list[int]) -> tuple:
     shape, words = tensor
-    if shape == target:
-        return (target, list(words))
     fibers: list[list[int]] = [[] for _ in range(math.prod(target))]
     for flat in range(math.prod(shape)):
         fibers[source_index(target, shape, flat)].append(words[flat])
     return (target, [dropping_total(fiber) for fiber in fibers])
+
+
+def dropping_sum_to_size(tensor: tuple, target: list[int]) -> tuple:
+    if tensor[0] == target:
+        return (target, list(tensor[1]))
+    return dropping_reduce_to(tensor, target)
 
 
 def dropping_matmul(left: tuple, right: tuple) -> tuple | int:
@@ -596,13 +618,13 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                 seen = observed["lines"]
                 self.assertEqual(len(seen), len(expected))
                 differ = [(a, b) for a, b in zip(seen, expected, strict=True) if a != b]
-                if identifier in LOSS_REJECTIONS:
+                if identifier in STEP_REJECTIONS:
                     self.assertEqual(
                         [
                             (a.rsplit(":", 1)[1], int(b.rsplit(":", 1)[1]))
                             for a, b in differ
                         ],
-                        LOSS_REJECTIONS[identifier],
+                        STEP_REJECTIONS[identifier],
                     )
                     for a, b in differ:
                         self.assertEqual(
@@ -650,7 +672,7 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                     exact += 1
         excluded = (
             REJECTIONS
-            | set(LOSS_REJECTIONS)
+            | set(STEP_REJECTIONS)
             | FORGED
             | NAN_PAYLOAD
             | FORWARD_ORDER
@@ -661,11 +683,12 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
             | NON_LEAF
         )
         self.assertEqual(exact, len(cases()) - len(excluded))
-        self.assertEqual(exact, 164)
+        self.assertEqual(exact, 191)
 
     # Planted wrong results on the reference's side, as a wrong Bend result
-    # would be: a sum, a reduction and a matmul that leave out their last
-    # term. The clean lines of every script pass first. The bound comparison
+    # would be: a sum, a broadcast reduction, a sum over axes (reduce_to) and
+    # a matmul that leave out their last term. The clean lines of every
+    # script pass first. The bound comparison
     # rejects each changed script but loss_07, whose omitted square adds about
     # 9e-5 to a loss of 144 (6 ulp), inside that word's 15-ulp bound; its old
     # pins reject it under the whole rule. A word with no bound (the
@@ -684,9 +707,10 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                 identifier, seen[identifier], bounded_reference(rows[identifier]), pins
             )
         planted = {
-            "total": (dropping_total, 107, {"loss_07"}, (91, 13, 2)),
-            "sum_to_size": (dropping_sum_to_size, 80, set(), (78, 2, 0)),
+            "total": (dropping_total, 114, {"loss_07"}, (98, 13, 2)),
+            "sum_to_size": (dropping_sum_to_size, 84, set(), (82, 2, 0)),
             "matmul": (dropping_matmul, 58, set(), (56, 2, 0)),
+            "reduce_to": (dropping_reduce_to, 18, set(), (18, 0, 0)),
         }
         for name, (function, changed, missed, reasons) in planted.items():
             with self.subTest(planted=name):
@@ -839,7 +863,7 @@ class GateRegistrationTests(unittest.TestCase):
         ]
         self.assertEqual(
             sum(name.startswith("tensor_2d_backward_2d_LAWS.") for name in required),
-            19,
+            20,
         )
         self.assertEqual(
             [name for name in required if name.startswith("tensor_2d_vjp_2d_LAWS.")],
@@ -861,7 +885,7 @@ class GateRegistrationTests(unittest.TestCase):
         controls = [
             name for name in PROOF_CONTROLS if name.startswith("tensor-backward-")
         ]
-        self.assertEqual(len(controls), 9)
+        self.assertEqual(len(controls), 10)
         self.assertIn("negate-left-keeps-sign", PROOF_CONTROLS)
         for path, original, _ in PROOF_CONTROLS.values():
             self.assertEqual((ROOT / path).read_text().count(original), 1)
@@ -876,7 +900,7 @@ class GateRegistrationTests(unittest.TestCase):
             self.assertIn("quiet(2143289344)", mutated)
 
     def test_runtime_controls_apply_once(self):
-        self.assertEqual(len(RUNTIME_CONTROLS), 47)
+        self.assertEqual(len(RUNTIME_CONTROLS), 50)
         for control in RUNTIME_CONTROLS.values():
             path, original, mutated = (
                 control

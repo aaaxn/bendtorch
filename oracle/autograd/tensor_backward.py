@@ -94,6 +94,11 @@ def replay(case: Json) -> Json:
                 ids = [step[key] for key in ("a", "b") if key in step]
                 operands = [nodes[identifier] for identifier in ids]
                 lines.append(record(operation(name, operands), nodes))
+            elif name == "sum_dims":
+                # An axis out of range raises IndexError, an axis listed
+                # twice RuntimeError; dim=[] sums every axis.
+                total = nodes[step["a"]].sum(dim=step["dims"], keepdim=step["keepdim"])
+                lines.append(record(total, nodes))
             elif name == "cross_entropy":
                 # Class indices, mean reduction. A target count other than
                 # the batch raises ValueError, a target out of range

@@ -6,6 +6,7 @@ import ./reduce-fold-PROOF.bend as ReduceFold
 import ./reduce-to-fold-PROOF.bend as ReduceTo
 import ./sum-to-size-PROOF.bend as SumToSize
 import ./sum-to-size-fold-PROOF.bend as SumToSizeFold
+import ./sum-dims-PROOF.bend as SumDims
 import ./gradient-PROOF.bend as Gradient
 import ./backward-PROOF.bend as Backward
 import ./tensor-backward-PROOF.bend as TensorBackward

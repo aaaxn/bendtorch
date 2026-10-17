@@ -37,9 +37,9 @@ offer:
 
 - `reshape` with an inferred `-1` dimension: `reshape(-1,2)` of `[2,3]` has
   shape `(3,2)`. bendtorch dimensions are U32 and must be given in full.
-- Negative axes in `permute`: `permute(-1,0)` of `[2,3]` has shape `(3,2)`.
-- Per-axis `sum(dim, keepdim)`: `sum(dim=0, keepdim=True)` of `[2,3]` has shape
-  `(1,3)`. bendtorch's `sum` reduces every element to a scalar `[]`.
+- Negative axes in `permute` and in the tape's `sum_dims`: `permute(-1,0)`
+  of `[2,3]` has shape `(3,2)`, and `sum(dim=-1)` of `[2,3]` has shape `(2,)`.
+  An axis is a U32, and the word of `-1` is out of bounds.
 - Slicing, advanced indexing and negative flat indices.
 
 ## Same request, different first error
@@ -108,7 +108,7 @@ record is compared under level 2 of the
 [numeric policy](../AGENTS.md#numeric-policy): fixed words bit for bit, the
 `mse_loss` words on their pins and within the rounding-error bound, the
 forward `sum` and `matmul` words within the bound with exact gradients, and
-the `cross_entropy` words, which no bound covers, on their pins. 164 of the 220 scripts agree line for line, the five `linear`
+the `cross_entropy` words, which no bound covers, on their pins. 191 of the 249 scripts agree line for line, the five `linear`
 scripts that PyTorch accepts among them, and every `relu` script but four:
 `relu_edges` and `relu_nan_gradient` (NaN payloads of `NaN * NaN` in the
 product after `relu`), `relu_13` (a one-term matmul) and
@@ -130,7 +130,8 @@ accepted. The differences:
 | Behavior | bendtorch | PyTorch |
 | --- | --- | --- |
 | Seed | Ones of the output's shape, for any output | `backward()` needs a scalar output; the replay passes `torch.ones_like(output)` |
-| Node id the tape does not hold | `UnknownNode` (103) | `IndexError` from the replay's Python list (7 scripts) |
+| Node id the tape does not hold | `UnknownNode` (103) | `IndexError` from the replay's Python list (8 scripts) |
+| `sum_dims` axis past the rank, or listed twice | `AxisOutOfBounds` (13), `DuplicateAxis` (14) | `IndexError`, `RuntimeError` (1 script) |
 | Shapes the operation refuses | The tensor layer's error code | `RuntimeError` (5 scripts) |
 | Operand that is the node itself, a newer node or a missing node | `DanglingOperand` (104) for a forged tape | Cannot be built (3 scripts) |
 | `NaN * NaN`, and an SGD step with a NaN parameter, gradient or rate | NaN | NaN with another sign or payload (5 scripts) |
@@ -139,7 +140,7 @@ accepted. The differences:
 | `cross_entropy` logits | `[rows, columns]` only; a target count other than the rows is `TargetOutOfRange` (108) | Also `[C]` and `[N, C, d...]`; `ValueError` for the count |
 | Sums inside `mse_loss` and `cross_entropy` | Left to right from `+0.0` | A cascade of partial sums; the loss can differ in the last bits (14 scripts, up to 3 ulp, every word pinned; the 6 `mse_loss` scripts' words also within the bound) |
 | `exp` in the `cross_entropy` backward | Correctly rounded in practice (binary64 `exp`, rounded) | A vectorized `exp`; about 1 gradient word in 10 differs by 1 or 2 ulp |
-| Forward `sum` and `matmul` | Ordered folds from `+0.0` (see above) | Another order, and `-0.0` from a one-term matmul (3 scripts, within the bound; the gradients agree) |
+| Forward `sum`, `sum_dims` and `matmul` | Ordered folds from `+0.0` (see above) | Another order, and `-0.0` from a one-term matmul (4 scripts, within the bound; the gradients agree) |
 | SGD step `p - lr * g` | The product rounded, then the difference | One rounding on AVX2 and AVX512, two on the `DEFAULT` kernel; `sgd_two_layers` and `sgd_rounding` match a one-rounding reference word for word (2 scripts; 6 of 337 words differ, by 1 to 6 ulp) |
 | SGD step over a node that is not a leaf | `NotLeaf` (109) | `torch.optim.SGD` accepts a non-leaf that retains its gradient, as every non-leaf of the replay does (1 script) |
 | `backward` of a constant, or of an operation on constants only | Seeds the output with ones and sends nothing on | `RuntimeError`: the output does not require grad (no script) |

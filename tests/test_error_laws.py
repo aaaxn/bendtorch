@@ -31,6 +31,9 @@ ERROR_LAWS = {
             "backward_2d_LAWS.backward_rejects_unbound_operand",
             "tensor_2d_backward_2d_LAWS.tensor_backward_unknown",
             "tensor_2d_backward_2d_LAWS.tensor_backward_dangling",
+            "sum_2d_dims_2d_LAWS.sum_dims_axis_out_of_bounds",
+            "sum_2d_dims_2d_LAWS.sum_dims_duplicate_axis",
+            "sum_2d_dims_2d_LAWS.sum_dims_plan_refused",
         ],
     ),
 }
@@ -45,7 +48,7 @@ class ErrorLawTests(unittest.TestCase):
                     self.assertIn(prefix + name, required)
 
     def test_error_controls_apply_once_and_name_a_proof(self):
-        self.assertEqual(len(ERROR_CONTROLS), 14)
+        self.assertEqual(len(ERROR_CONTROLS), 17)
         for name, (path, original, mutated, root, location) in ERROR_CONTROLS.items():
             with self.subTest(control=name):
                 self.assertEqual((ROOT / path).read_text().count(original), 1)

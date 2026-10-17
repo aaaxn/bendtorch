@@ -44,6 +44,8 @@ OTHER_FAMILIES = {
     "sgd_unknown_param",
     "sgd_rate_negative",
     "cross_entropy_refused",
+    "sum_dims_refused",
+    "batched_refusals",
     "dangling_self",
     "dangling_newer",
     "dangling_missing",
@@ -59,6 +61,7 @@ OTHER_FAMILIES = {
     "cross_entropy_two_class_scaled",
     "sgd_edges",
     "sgd_rate_nan",
+    "batched_special_words",
     "sgd_two_layers",
     "sgd_rounding",
     "sgd_not_leaf",
@@ -142,7 +145,7 @@ class BoundTests(unittest.TestCase):
                 else:
                     kinds["bounded"] += 1
                     self.assertTrue(within(int(bound), bound), (identifier, text))
-        self.assertEqual(kinds, {"fixed": 5709, "bounded": 1968, "unbounded": 431})
+        self.assertEqual(kinds, {"fixed": 7851, "bounded": 3527, "unbounded": 431})
 
     def bounded_line(self, identifier: str, index: int) -> tuple[list[str], Bounded]:
         expected = bounded_reference(self.rows[identifier])

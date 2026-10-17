@@ -22,6 +22,7 @@ type Step is Data:
   BatchedMatmul{a: Nat, b: Nat}
   Linear{x: Nat, w: Nat, bias: Nat}
   Sum{a: Nat}
+  SumDims{a: Nat, axes: List<&2, U32>, keepdim: Bool}
   Relu{a: Nat}
   MseLoss{a: Nat, b: Nat}
   CrossEntropy{a: Nat, targets: List<&2, U32>}
@@ -190,6 +191,8 @@ def step(instruction: Step, tape: Backward.Tape, rec: Backward.Tape -> IO(Unit))
       recorded(rec, Backward.linear(tape, x, w, bias))
     case Sum{a}:
       recorded(rec, Backward.sum(tape, a))
+    case SumDims{a, axes, keepdim}:
+      recorded(rec, Backward.sum_dims(tape, a, axes, keepdim))
     case Relu{a}:
       recorded(rec, Backward.relu(tape, a))
     case MseLoss{a, b}:
