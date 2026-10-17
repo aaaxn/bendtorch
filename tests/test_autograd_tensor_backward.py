@@ -53,7 +53,7 @@ from tools.autograd_tensor_bound import (
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "b15ac7711ab65505c81f8b3fa7ae812016bc0a77f8a7a9198f61eb07d9d98521"
+FIXTURE_SHA256 = "0993ec6a86c68d64f1189154c83f8563a0e9716951bfb4ebd0b3affea68f3091"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
@@ -74,6 +74,7 @@ REJECTIONS = {
     "mse_refused",
     "sgd_unknown_param",
     "sgd_rate_negative",
+    "batched_refusals",
 }
 RUNTIME_ERROR_CODES = {6, MATMUL_RANK, MATMUL_INNER, 10}
 # The refusals of cross_entropy_refused, step by step, as PyTorch's kind and
@@ -104,16 +105,38 @@ NAN_PAYLOAD = {
     "cross_entropy_two_class_scaled",
     "sgd_edges",
     "sgd_rate_nan",
+    "batched_special_words",
 }
 # The forward value differs, not the backward: rounding_09 sums six words in
 # ascending order where PyTorch's vectorized sum takes another order, and
 # rounding_14 has a matmul with inner dimension 1 whose only product is -0.0:
 # the ordered dot adds it to +0.0 and gives +0.0, PyTorch's gemm keeps -0.0.
 # relu_13 has the same inner-dimension-1 matmul, whose products 0.5 * -1e-45
-# and 0.5 * -0.0 are -0.0. Every gradient must agree word for word, and every
-# value word that differs must lie within its rounding-error bound (AGENTS.md,
-# numeric policy, level 2; tools/autograd_tensor_bound.py).
-FORWARD_ORDER = {"rounding_09", "rounding_14", "relu_13"}
+# and 0.5 * -0.0 are -0.0. batched_rounding_04 and batched_rounding_06 sum
+# the words of a torch.matmul in order, where PyTorch's sum takes another.
+# Every gradient must agree word for word, and every value word that differs
+# must lie within its rounding-error bound (AGENTS.md, numeric policy, level
+# 2; tools/autograd_tensor_bound.py).
+FORWARD_ORDER = {
+    "rounding_09",
+    "rounding_14",
+    "relu_13",
+    "batched_rounding_04",
+    "batched_rounding_06",
+}
+# Gradient words of a product with one term: g @ right^T of a [3, 4] @ [4, 1]
+# matmul in batched_rounding_02, whose only product is -0.0 (g times a -0.0
+# word): the ordered dot adds it to +0.0 and gives +0.0, PyTorch's gemm keeps
+# -0.0. For each script, the line index of every word that differs and the
+# pair (PyTorch's word, the reference's word); every other line must be
+# exact, and each pinned word must also lie within its rounding-error bound.
+PRODUCT_ZERO_SIGN = {
+    "batched_rounding_02": {
+        24: (0x80000000, 0x00000000),
+        28: (0x80000000, 0x00000000),
+        32: (0x80000000, 0x00000000),
+    },
+}
 # mse_loss words in the last bits: PyTorch sums the squares, and the
 # broadcast target's gradient, in a cascade where the tape adds left to right.
 # For each script, the line index of every word that differs and the pair
@@ -471,13 +494,17 @@ def record_rule(row: dict, seen: list[str], expected: list[str] | None = None) -
         if not bounded:
             raise GateError(f"{identifier}: no forward word differs")
         return "forward_order"
-    if identifier in MSE_ROUNDING:
-        if word_pairs(seen, expected) != MSE_ROUNDING[identifier]:
-            raise GateError(f"{identifier}: not the pinned words")
-        bounded, _ = compare(identifier, seen, expected)
-        if bounded != len(MSE_ROUNDING[identifier]):
-            raise GateError(f"{identifier}: a pinned word is not bounded")
-        return "mse_rounding"
+    for family, pinned in (
+        ("mse_rounding", MSE_ROUNDING),
+        ("product_zero_sign", PRODUCT_ZERO_SIGN),
+    ):
+        if identifier in pinned:
+            if word_pairs(seen, expected) != pinned[identifier]:
+                raise GateError(f"{identifier}: not the pinned words")
+            bounded, _ = compare(identifier, seen, expected)
+            if bounded != len(pinned[identifier]):
+                raise GateError(f"{identifier}: a pinned word is not bounded")
+            return family
     if identifier in LOSS_ROUNDING:
         if word_pairs(seen, expected) != LOSS_ROUNDING[identifier]:
             raise GateError(f"{identifier}: not the pinned words")
@@ -612,12 +639,13 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
             | NAN_PAYLOAD
             | FORWARD_ORDER
             | set(MSE_ROUNDING)
+            | set(PRODUCT_ZERO_SIGN)
             | set(LOSS_ROUNDING)
             | FUSED_UPDATE
             | NON_LEAF
         )
         self.assertEqual(exact, len(cases()) - len(excluded))
-        self.assertEqual(exact, 138)
+        self.assertEqual(exact, 165)
 
     # Planted wrong results on the reference's side, as a wrong Bend result
     # would be: a sum, a reduction and a matmul that leave out their last
@@ -640,9 +668,9 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                 identifier, seen[identifier], bounded_reference(rows[identifier]), pins
             )
         planted = {
-            "total": (dropping_total, 88, {"loss_07"}, (72, 13, 2)),
-            "sum_to_size": (dropping_sum_to_size, 65, set(), (63, 2, 0)),
-            "matmul": (dropping_matmul, 32, set(), (30, 2, 0)),
+            "total": (dropping_total, 108, {"loss_07"}, (92, 13, 2)),
+            "sum_to_size": (dropping_sum_to_size, 80, set(), (78, 2, 0)),
+            "matmul": (dropping_matmul, 58, set(), (56, 2, 0)),
         }
         for name, (function, changed, missed, reasons) in planted.items():
             with self.subTest(planted=name):
