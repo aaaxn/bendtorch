@@ -528,6 +528,7 @@ def run_gate(tool_root: Path, output: Path) -> None:
         ROOT / "verification/references.json",
         *sorted((ROOT / "tools").glob("autograd*.py")),
         ROOT / "tools/common.py",
+        ROOT / "tools/cache.py",
     ]
     frozen = {}
     for path in sources:

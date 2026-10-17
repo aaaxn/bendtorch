@@ -12,6 +12,8 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
 
+from tools.cache import Cache
+from tools.cache import run as run_command
 from tools.common import CONTRACT_WORKERS, GateError, check_sources, cpus
 
 reads = importlib.import_module("verification.contracts.reads_controls")
@@ -1123,6 +1125,12 @@ def main() -> None:
         help=f"Commands to run at once (default {CONTRACT_WORKERS} for the "
         f"{cpus()} CPUs this process may use).",
     )
+    parser.add_argument(
+        "--cache",
+        type=Path,
+        help="Replay unchanged checker and kernel results from this directory "
+        "(tools/cache.py). Without it every command runs.",
+    )
     args = parser.parse_args()
     if args.workers < 1:
         parser.error("--workers needs at least one worker")
@@ -1140,6 +1148,7 @@ def main() -> None:
         "LEAN_NUM_THREADS": "1",
     }
     records: list[dict] = []
+    cache = None if args.cache is None else Cache(args.cache)
     summary = {
         "repository_commit": subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
@@ -1163,6 +1172,8 @@ def main() -> None:
 
     def save() -> None:
         records.sort(key=lambda row: row["name"])
+        if cache is not None:
+            summary["cache"] = cache.summary()
         (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
 
     slots = threading.BoundedSemaphore(args.workers)
@@ -1170,27 +1181,26 @@ def main() -> None:
     def run(name: str, command: list, expected_code: int) -> str:
         with slots:
             start = time.monotonic()
-            result = subprocess.run(
-                command,
-                cwd=ROOT,
-                env=env,
-                capture_output=True,
-                text=True,
-                timeout=1500,
-                check=False,
-            )
+            if cache is None:
+                result, cached = (
+                    run_command(command, cwd=ROOT, env=env, timeout=1500),
+                    False,
+                )
+            else:
+                result, cached = cache.run(command, cwd=ROOT, env=env, timeout=1500)
             seconds = time.monotonic() - start
         text = result.stdout + result.stderr
         (output / f"{name}.out").write_text(text)
-        records.append(
-            {
-                "name": name,
-                "command": [str(part) for part in command],
-                "exit_code": result.returncode,
-                "expected_code": expected_code,
-                "seconds": round(seconds, 1),
-            }
-        )
+        record = {
+            "name": name,
+            "command": [str(part) for part in command],
+            "exit_code": result.returncode,
+            "expected_code": expected_code,
+            "seconds": round(seconds, 1),
+        }
+        if cached:
+            record["cached"] = True
+        records.append(record)
         if result.returncode != expected_code:
             raise GateError(f"{name}: exit {result.returncode}; see {output}")
         if (

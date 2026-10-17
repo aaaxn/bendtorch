@@ -14,6 +14,8 @@ from contextvars import ContextVar, copy_context
 from pathlib import Path
 from typing import Any
 
+from tools.cache import Cache, run
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -85,6 +87,16 @@ def native(target: Path | str, *args: str, threads: int | None = None) -> list[s
     """The command that runs a native Bend executable on the CPU."""
     count = THREADS if threads is None else threads
     return [str(target), "--threads", str(count), "--gpu", "off", *args]
+
+
+# Opt-in cache of checker and kernel results (tools/cache.py); None runs
+# every command.
+CACHE: Cache | None = None
+
+
+def set_cache(directory: Path | None) -> None:
+    global CACHE
+    CACHE = None if directory is None else Cache(directory)
 
 
 def set_jobs(jobs: int) -> None:
@@ -186,18 +198,17 @@ class Evidence:
         timeout: int = 300,
         cwd: Path = ROOT,
     ) -> subprocess.CompletedProcess[str]:
+        cached = False
         with SLOTS:
             start = time.monotonic()
+            env = environment(self.tool_root)
             try:
-                result = subprocess.run(
-                    command,
-                    cwd=cwd,
-                    env=environment(self.tool_root),
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout,
-                    check=False,
-                )
+                if CACHE is None:
+                    result = run(command, cwd=cwd, env=env, timeout=timeout)
+                else:
+                    result, cached = CACHE.run(
+                        command, cwd=cwd, env=env, timeout=timeout
+                    )
             except subprocess.TimeoutExpired:
                 result = None
             seconds = time.monotonic() - start
@@ -214,19 +225,20 @@ class Evidence:
         )
         if expected_output is not None:
             passed = passed and result.stdout == expected_output
-        self.record(
-            {
-                "name": name,
-                "command": command,
-                "cwd": str(cwd),
-                "exit_code": result.returncode,
-                "expected_code": expected_code,
-                "seconds": seconds,
-                "stdout_sha256": digest(self.directory / f"{name}.stdout"),
-                "stderr_sha256": digest(self.directory / f"{name}.stderr"),
-                "passed": passed,
-            }
-        )
+        entry = {
+            "name": name,
+            "command": command,
+            "cwd": str(cwd),
+            "exit_code": result.returncode,
+            "expected_code": expected_code,
+            "seconds": seconds,
+            "stdout_sha256": digest(self.directory / f"{name}.stdout"),
+            "stderr_sha256": digest(self.directory / f"{name}.stderr"),
+            "passed": passed,
+        }
+        if cached:
+            entry["cached"] = True
+        self.record(entry)
         if not passed:
             raise GateError(f"{name}: unexpected result; see {self.directory}")
         return result
