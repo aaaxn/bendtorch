@@ -174,18 +174,22 @@ def both_parsed(+left: Operand, result: Result<&2, &2, Matrix.Error, Operand>) -
     case Done{+right}:
       compatible(left, right, Nat.is_eq(U32.to_nat(inner_of(left)), U32.to_nat(inner_of(right))))
 
-def left_parsed(+right: Shape.Shape, result: Result<&2, &2, Matrix.Error, Operand>) -> Result<&2, &2, Matrix.Error, Plan>:
+def left_parsed(right: List<&2, U32>, result: Result<&2, &2, Matrix.Error, Operand>) -> Result<&2, &2, Matrix.Error, Plan>:
   match result:
     case Fail{error}:
       Fail{error}
     case Done{+left}:
-      both_parsed(left, right_operand(Shape.dimensions(right)))
+      both_parsed(left, right_operand(right))
 
-# The plan of left @ right for operands of rank 1 to 4: the left operand's
-# rank is checked first, then the right one's, the inner extents, the
-# batch dimensions and the output's capacity.
+# The plan of left @ right for operands of dimensions `left` and `right`,
+# each of rank 1 to 4: the left operand's rank is checked first, then the
+# right one's, the inner extents, the batch dimensions and the output's
+# capacity.
+def plan_dims(left: List<&2, U32>, right: List<&2, U32>) -> Result<&2, &2, Matrix.Error, Plan>:
+  left_parsed(right, left_operand(left))
+
 def plan(+left: Shape.Shape, +right: Shape.Shape) -> Result<&2, &2, Matrix.Error, Plan>:
-  left_parsed(right, left_operand(Shape.dimensions(left)))
+  plan_dims(Shape.dimensions(left), Shape.dimensions(right))
 
 # What every cell of a build reads: the orders and extents of the product
 # (as in `Matrix.Layout`), and each operand's padded batch extents with the
@@ -343,22 +347,31 @@ def planned(+left: Shape.Shape, +right: Shape.Shape, a: Core.Tensor<left>, b: Co
     case Done{+plan}:
       tensor_failed(product(forward_layout(plan), output_of(plan), Core.Packed{left, a}, Core.Packed{right, b}))
 
-def both_matrices(+left: Shape.Shape, +right: Shape.Shape) -> Bool:
-  Bool.and(Nat.is_eq(Shape.rank_dimensions(Shape.dimensions(left)), 2n), Nat.is_eq(Shape.rank_dimensions(Shape.dimensions(right)), 2n))
+def matrices(dims: List<&2, U32>, other: List<&2, U32>) -> Bool:
+  Bool.and(Nat.is_eq(Shape.rank_dimensions(dims), 2n), Nat.is_eq(Shape.rank_dimensions(other), 2n))
 
-def routed(+left: Shape.Shape, +right: Shape.Shape, a: Core.Tensor<left>, b: Core.Tensor<right>, matrices: Bool) ->
-  Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>:
-  match matrices:
+def both_matrices(+left: Shape.Shape, +right: Shape.Shape) -> Bool:
+  matrices(Shape.dimensions(left), Shape.dimensions(right))
+
+def dispatched(+left: Shape.Shape, +right: Shape.Shape, a: Core.Tensor<left>, b: Core.Tensor<right>,
+  +dims: List<&2, U32>, +other: List<&2, U32>, both: Bool) -> Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>:
+  match both:
     case True{}:
       Matrix.matmul(Core.Packed{left, a}, Core.Packed{right, b})
     case False{}:
-      planned(left, right, a, b, plan(left, right))
+      planned(left, right, a, b, plan_dims(dims, other))
+
+# The operands' dimensions `dims` and `other` decide: two rank-2 operands go
+# to `Matrix.matmul`, every other pair to the plan.
+def routed(+left: Shape.Shape, +right: Shape.Shape, a: Core.Tensor<left>, b: Core.Tensor<right>,
+  +dims: List<&2, U32>, +other: List<&2, U32>) -> Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>:
+  dispatched(left, right, a, b, dims, other, matrices(dims, other))
 
 # torch.matmul(left, right). Both inputs come back to the caller.
 def matmul(left: Core.Dynamic, right: Core.Dynamic) -> Result<&2, &1, Matrix.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>:
   Core.Packed{+left_shape, a} = left
   Core.Packed{+right_shape, b} = right
-  routed(left_shape, right_shape, a, b, both_matrices(left_shape, right_shape))
+  routed(left_shape, right_shape, a, b, Shape.dimensions(left_shape), Shape.dimensions(right_shape))
 
 def gradient_shaped(+given: Layout, first: Core.Dynamic, second: Core.Dynamic, -dims: List<&2, U32>,
   result: Shape.ConstructResult<dims>) -> Result<&2, &1, Core.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>:
