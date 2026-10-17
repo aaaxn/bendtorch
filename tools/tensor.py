@@ -606,7 +606,7 @@ def run_gate(tool_root: Path, output: Path) -> None:
         ROOT / "oracle/tensor/transpose_reference.py",
         ROOT / "oracle/tensor/fixtures/scalar-transpose-correction.json",
         ROOT / "tests/test_scalar_transpose.py",
-        ROOT / "docs/scalar-transpose.md",
+        ROOT / "oracle/tensor/SCALAR_TRANSPOSE.md",
         CORPUS,
         POLICY,
         POLICY_V3,

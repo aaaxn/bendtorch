@@ -461,7 +461,7 @@ def copy_sources(output: Path) -> dict:
         "oracle/tensor/transpose_reference.py",
         "oracle/tensor/fixtures/scalar-transpose-correction.json",
         "tests/test_scalar_transpose.py",
-        "docs/scalar-transpose.md",
+        "oracle/tensor/SCALAR_TRANSPOSE.md",
         "verification/references.json",
     ):
         target = output / "source" / relative

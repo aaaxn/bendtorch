@@ -47,9 +47,14 @@ one. A broadcast contribution sums back to the shape of its operand with
 `sum_to_size`. Two laws state the chain rule for every tape. `Sgd.step` then
 moves each parameter to `p - lr * g`.
 
-The [tensor backward](docs/tensor-backward.md) page lists the operations the
-tape records. The [gradient slots](docs/gradient-slots.md) and
-[losses](docs/losses.md) pages cover the rest.
+The laws in `src/autograd/` state what each recorded operation sends back,
+and the [differences from PyTorch](docs/torch-differences.md#tensor-backward)
+page describes where the results differ from PyTorch's. For `mse_loss` and
+`cross_entropy`, the laws state every cell of the gradient sent back, but no
+law states the loss value the tape records, the row maximum or the one-hot
+rows; the runtime lanes check those against the Python reference. `F32.exp`
+and `F32.log` are opaque to the checker, so a law says which of them runs, not
+how close it is to the exact value.
 
 ## Large outputs build in parallel halves
 
@@ -61,9 +66,7 @@ Bend runs `a b = low(l1, r1) high(l2, r2)` as two parallel calls.
 `src/tensor/parallel.bend` uses that line to split the cells of a large
 output, such as a `matmul` product, an elementwise result, or a `reduce_to`
 gradient, into balanced halves. Every cell gets the word that the one-thread build computes there, so
-no output word depends on the number of threads. The
-[parallel build](docs/parallel-build.md) page explains the split and its
-proofs.
+no output word depends on the number of threads.
 
 ## Laws state the rules, and Bend proves them
 
@@ -104,9 +107,8 @@ arithmetic as opaque. A law can say "this element is `F32.add` of these two
 words in this order", but not that the result is correctly rounded. The
 trusted base also includes the Bend compiler, the native runtime, Clang, the
 BendTT translation, Lean, and the hardware. The
-[guarantee ledger](docs/guarantees.md) lists the whole boundary, and the
-[proof boundary](docs/proof-boundary.md) page says which proofs later code can
-use as inputs.
+[proof boundary](experiments/proof-boundary/BOUNDARY.md) page says which
+proofs later code can use as inputs.
 
 The numbers are tested at three levels, which the
 [numeric policy](AGENTS.md#numeric-policy) defines:
@@ -150,13 +152,13 @@ seed, both PyTorch kernels, and the timings.
 
 Each module builds on the one below it.
 
-| Path | What it holds | Pages |
+| Path | What it holds | See |
 | --- | --- | --- |
-| `src/shape/` | Validated shapes, row-major flatten and unflatten, checked coordinates, broadcast plans | [shapes](docs/shapes.md) |
-| `src/storage/` | F32 storage with one owner and a bounds check before every access | [storage](docs/storage.md) |
-| `src/tensor/` | The tensor core, elementwise operations, `sum`, `matmul`, `reshape`, `permute_copy`, `transpose_copy`, and the proved contracts | [tensor core](docs/tensor-core.md), [construction and clone](docs/construction.md), [elementwise](docs/elementwise.md), [sum and matmul](docs/sum-and-matmul.md), [transforms](docs/transforms.md), [contract families](docs/contract-families.md) |
-| `src/autograd/` | `broadcast_to`, `reduce_to`, `sum_to_size`, `sum_dims`, gradient slots, scalar and tensor `backward`, the losses, SGD | [broadcast](docs/broadcast-to.md), [reduce to shape](docs/reduce-to.md), [sum over axes](docs/reduce-to.md#sum-over-axes), [sum to size](docs/sum-to-size.md), [scalar backward](docs/backward.md), [tensor backward](docs/tensor-backward.md) |
-| `experiments/` | The MNIST training run, the autograd prototypes, the benchmarks, and other experiments outside `src/` | [MNIST](docs/mnist.md), [autograd design](docs/autograd-design.md) |
+| `src/shape/` | Validated shapes, row-major flatten and unflatten, checked coordinates, broadcast plans | `src/shape/LAWS.bend` |
+| `src/storage/` | F32 storage with one owner and a bounds check before every access | `src/storage/LAWS.bend` |
+| `src/tensor/` | The tensor core, elementwise operations, `sum`, `matmul`, `reshape`, `permute_copy`, `transpose_copy`, and the proved contracts | `src/tensor/LAWS.bend` |
+| `src/autograd/` | `broadcast_to`, `reduce_to`, `sum_to_size`, `sum_dims`, gradient slots, scalar and tensor `backward`, the losses, SGD | `src/autograd/LAWS.bend` |
+| `experiments/` | The MNIST training run, the autograd prototypes, the benchmarks, and other experiments outside `src/` | [MNIST](docs/mnist.md), [autograd design](experiments/autograd-prototypes/DESIGN.md) |
 | `oracle/` | The PyTorch references, in their own uv project | [oracle](oracle/README.md) |
 | `tools/` | One gate per suite, run by `python -m tools.check` | [AGENTS.md](AGENTS.md#gates) |
 
@@ -257,7 +259,8 @@ the root environment.
 - `sum`, `sum_dims`, `matmul`, `reduce_to` and a reducing `sum_to_size` add
   in a fixed order. PyTorch adds in another order, so on longer inputs the
   two agree within the rounding bound, not word for word.
-- Tensor `backward` records only the operations its page lists.
+- Tensor `backward` records only `add`, `sub`, `mul`, `matmul`, `matmul_nt`,
+  `sum`, `sum_dims`, `relu`, `mse_loss` and `cross_entropy`.
 - CPU only.
 
 The [differences from PyTorch](docs/torch-differences.md) page lists each

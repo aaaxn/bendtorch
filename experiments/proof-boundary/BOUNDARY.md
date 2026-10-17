@@ -225,4 +225,4 @@ The same walk takes any replayed source, not only a `Core.from_values` one.
 is a replayed tensor of the plan's shape whose word `i` is the source's word
 at `permute_source(input, axes, i)`, and the source comes back with the same
 words. The tensor backward's `Matmul` VJP value law chains it into
-`matmul_replayed` ([contract families](contract-families.md)).
+`matmul_replayed`.

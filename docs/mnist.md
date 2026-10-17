@@ -22,7 +22,7 @@ PyTorch.
 Download the four files and check them:
 
 ```sh
-mkdir -p /scratch/$USER/datasets/mnist && cd /scratch/$USER/datasets/mnist
+mkdir -p ~/datasets/mnist && cd ~/datasets/mnist
 for f in train-images-idx3-ubyte train-labels-idx1-ubyte t10k-images-idx3-ubyte t10k-labels-idx1-ubyte; do
   curl -sSfL -o $f.gz https://ossci-datasets.s3.amazonaws.com/mnist/$f.gz
 done
