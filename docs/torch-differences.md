@@ -2,7 +2,8 @@
 
 bendtorch implements a bounded subset of PyTorch's tensor API. This page lists
 where a request that PyTorch accepts is rejected by bendtorch, where both
-reject but report a different first error, and where results agree with
+reject but report a different first error, where bendtorch accepts a request
+that PyTorch rejects, and where results agree with
 PyTorch only within a numerical envelope. Each row was observed with the
 isolated oracle environment (PyTorch `2.14.1+cpu`, one thread,
 `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1`), not inferred.
@@ -11,7 +12,11 @@ isolated oracle environment (PyTorch `2.14.1+cpu`, one thread,
 
 Of the 45 expected-error requests in `oracle/tensor/fixtures/s2-v2.json`, PyTorch
 raises on 24 and accepts 21. The 21 accepted requests are deliberate
-restrictions of the bounded API, not bugs:
+restrictions of the bounded API, not bugs. Two of them, `negative_coordinate`
+and `transpose_negative_axis`, drive the unsigned entry points, whose
+arguments are U32 words, so the gate's decoder refuses `-1`; the signed entry
+points of `src/tensor/signed.bend` accept both requests as PyTorch does
+(`oracle/tensor/fixtures/signed-torch.json`):
 
 | Corpus ids | bendtorch error | PyTorch behavior |
 | --- | --- | --- |
@@ -42,13 +47,12 @@ was, where PyTorch gives the `[1025]` operand its gradient.
 API forms with no corpus case, which PyTorch accepts and bendtorch does not
 offer:
 
-- `reshape` with an inferred `-1` dimension: `reshape(-1,2)` of `[2,3]` has
-  shape `(3,2)`. bendtorch dimensions are U32 and must be given in full.
-- Negative axes in `permute` and in the tape's `sum_dims`: `permute(-1,0)`
-  of `[2,3]` has shape `(3,2)`, and `sum(dim=-1)` of `[2,3]` has shape `(2,)`.
-  An axis is a U32, and the word of `-1` is out of bounds.
-- Advanced indexing, negative flat indices, and negative starts, stops
-  and indices in slicing: `a[:, -2:]`, `narrow(1, -2, 2)` and `select(1, -1)`.
+- `broadcast_to` with `-1` for a dimension it keeps: `broadcast_to([2,-1])`
+  of `[3]` has shape `(2,3)`. Its sizes are U32 and must be given in full.
+- Advanced indexing, and negative starts, stops and indices in slicing:
+  `a[:, -2:]`, `narrow(1, -2, 2)` and `select(1, -1)`. Slicing takes U32
+  positions; the signed positions of `src/tensor/signed.bend` are not wired
+  into it.
 - A slice that shares storage. `Slice.slice`, `narrow` and `select` in
   `src/tensor/slice.bend`, and the tape's `slice`, `narrow` and `select`,
   copy, so a write to the result never reaches the input. PyTorch returns a
@@ -65,6 +69,27 @@ before bounds. PyTorch treats `[9]` as a partial index and reports
 `IndexError: index 9 is out of bounds for dimension 0 with size 2`. The
 bendtorch precedence is part of the frozen policy
 (`oracle/tensor/numerical-policy.json`, `expected_errors.precedence`).
+
+Both reject `permute([0, -3, 5])` of a rank-3 tensor, but the first error
+differs. PyTorch wraps and checks each axis in turn, so it meets `-3`, which
+wraps to the repeated `0`, before `5`, and raises `RuntimeError` for the
+repeat. bendtorch wraps every axis, then checks every range before any repeat,
+as the unsigned `permute_copy` does for `[0, 0, 5]`, and reports
+`AxisOutOfBounds` (13).
+
+## Requests bendtorch accepts and PyTorch rejects
+
+An empty shape whose other sizes multiply past PyTorch's 64-bit element
+count or strides is accepted by bendtorch and refused by PyTorch.
+`torch.empty(0).reshape([-1, 4294967295, 4294967295])` raises `RuntimeError`
+("shape is invalid for input of size 0"), and so does `[0, 4294967295,
+4294967295]` ("Stride calculation overflowed"); bendtorch gives the shape
+`[0, 4294967295, 4294967295]` on both lanes for both. Its sizes are exact
+naturals and it keeps no strides, so the shape holds 0 elements, as
+`signed_inferred_size` states. The two requests are
+`reshape_empty_huge` and `reshape_empty_huge_exact` of
+`oracle/tensor/fixtures/signed-torch.json`. `[-1, 2^31, 2^31]` of an empty
+tensor, whose other sizes multiply to 2^62, is accepted by both.
 
 ## Reduction order: parity with PyTorch is envelope-only
 
@@ -123,7 +148,7 @@ record is compared under level 2 of the
 [numeric policy](../AGENTS.md#numeric-policy): fixed words bit for bit, the
 `mse_loss` words on their pins and within the rounding-error bound, the
 forward `sum` and `matmul` words within the bound with exact gradients, and
-the `cross_entropy` words, which no bound covers, on their pins. 228 of the 290 scripts agree line for line, the 37 slicing scripts that PyTorch accepts among them, the five `linear`
+the `cross_entropy` words, which no bound covers, on their pins. 232 of the 295 scripts agree line for line, the 37 slicing scripts that PyTorch accepts among them, the five `linear`
 scripts that PyTorch accepts among them, and every `relu` script but four:
 `relu_edges` and `relu_nan_gradient` (NaN payloads of `NaN * NaN` in the
 product after `relu`), `relu_13` (a one-term matmul) and
@@ -146,7 +171,7 @@ accepted. The differences:
 | --- | --- | --- |
 | Seed | Ones of the output's shape, for any output | `backward()` needs a scalar output; the replay passes `torch.ones_like(output)` |
 | Node id the tape does not hold | `UnknownNode` (103) | `IndexError` from the replay's Python list (8 scripts) |
-| `sum_dims` axis past the rank, or listed twice | `AxisOutOfBounds` (13), `DuplicateAxis` (14) | `IndexError`, `RuntimeError` (1 script) |
+| `sum_dims` axis outside `-limit..limit-1`, with `limit = max(rank, 1)` (a scalar takes `-1` and `0`), or two axes that name one axis | `AxisOutOfBounds` (13), `DuplicateAxis` (14) | `IndexError`, `RuntimeError` (2 scripts) |
 | Shapes the operation refuses | The tensor layer's error code | `RuntimeError` (5 scripts) |
 | Operand that is the node itself, a newer node or a missing node | `DanglingOperand` (104) for a forged tape | Cannot be built (3 scripts) |
 | `NaN * NaN`, and an SGD step with a NaN parameter, gradient or rate | NaN | NaN with another sign or payload (5 scripts) |

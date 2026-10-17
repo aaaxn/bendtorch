@@ -53,6 +53,15 @@ class SumDimsReferenceTests(unittest.TestCase):
         self.assertEqual(sum_dims_plan([2, 3], [0, 0, 5]), AXIS_OUT_OF_BOUNDS)
         self.assertEqual(sum_dims_plan([2, 3], [4294967295]), AXIS_OUT_OF_BOUNDS)
 
+    def test_negative_axes_count_from_the_last(self):
+        self.assertEqual(sum_dims_plan([2, 3], [-1]), ([2, 1], [2]))
+        self.assertEqual(sum_dims_plan([2, 3], [-2, -1]), ([1, 1], []))
+        self.assertEqual(sum_dims_plan([], [-1]), ([], []))
+        self.assertEqual(sum_dims_plan([2, 3], [-3]), AXIS_OUT_OF_BOUNDS)
+        self.assertEqual(sum_dims_plan([2, 3], [-1, 1]), DUPLICATE_AXIS)
+        self.assertEqual(sum_dims_plan([], [0, -1]), DUPLICATE_AXIS)
+        self.assertEqual(sum_dims_plan([2, 3], [5, -3]), AXIS_OUT_OF_BOUNDS)
+
 
 class SumDimsRegistrationTests(unittest.TestCase):
     def test_autograd_gate_requires_the_laws_and_their_controls(self):
@@ -73,8 +82,9 @@ class SumDimsRegistrationTests(unittest.TestCase):
         self.assertIn(
             "tensor_2d_backward_2d_LAWS.tensor_sum_dims_vjp_pointwise", required
         )
+        self.assertIn("tensor_2d_backward_2d_LAWS.tensor_sum_dims_wraps", required)
         proofs = [name for name in PROOF_CONTROLS if "sum-dims-" in name]
-        self.assertEqual(len(proofs), 8)
+        self.assertEqual(len(proofs), 9)
         errors = {name: v for name, v in ERROR_CONTROLS.items() if "sum-dims-" in name}
         self.assertEqual(len(errors), 3)
         proof = (ROOT / "src/autograd/sum-dims-PROOF.bend").read_text()

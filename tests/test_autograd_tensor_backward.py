@@ -59,7 +59,7 @@ from tools.autograd_tensor_bound import (
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "88216baeda7c65df91f75bb69bc25a1f100e457a2428c0c3cf3fd288a1e3a012"
+FIXTURE_SHA256 = "236888b76858cf6cdad2a06cdea9990bf27f1a154def7e728fe2502471624e7c"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
@@ -90,13 +90,16 @@ RUNTIME_ERROR_CODES = {6, MATMUL_RANK, MATMUL_INNER, 10}
 # unknown id, an axis past the rank (IndexError, AxisOutOfBounds 13), an axis
 # listed twice (RuntimeError, DuplicateAxis 14), a list with both (13, as
 # PyTorch checks every axis's range first), the U32 word of -1 (13) and axis
-# 1 of a rank-0 input (13). Those of slice_refused: an unknown id, an axis
-# past the rank (IndexError, 13), a step of 0 (ValueError, StepNotPositive
-# 19), a slice of a rank-0 input (IndexError, 13); a narrow past the extent
-# (RuntimeError, OutOfRange 20), one whose start is the largest U32
-# (IndexError, 20), one past the rank (IndexError, 13) and one of a rank-0
-# input (RuntimeError, 13); a select at the extent (IndexError, 20), one past
-# the rank and one of a rank-0 input (IndexError, 13).
+# 1 of a rank-0 input (13). Those of sum_dims_negative_refused: -3 on rank 2
+# (13), -1 and 1 (14), 0 and -2 (14), 5 and -3 (13), -3 before a repeated 0
+# (13), -2 on rank 0 (13), and 0 and -1 on rank 0, both axis 0 (14). Those of
+# slice_refused: an unknown id, an axis past the rank (IndexError, 13), a step
+# of 0 (ValueError, StepNotPositive 19), a slice of a rank-0 input
+# (IndexError, 13); a narrow past the extent (RuntimeError, OutOfRange 20),
+# one whose start is the largest U32 (IndexError, 20), one past the rank
+# (IndexError, 13) and one of a rank-0 input (RuntimeError, 13); a select at
+# the extent (IndexError, 20), one past the rank and one of a rank-0 input
+# (IndexError, 13).
 STEP_REJECTIONS = {
     "cross_entropy_refused": [
         ("IndexError", TARGET_OUT_OF_RANGE),
@@ -113,6 +116,15 @@ STEP_REJECTIONS = {
         ("RuntimeError", DUPLICATE_AXIS),
         ("IndexError", AXIS_OUT_OF_BOUNDS),
         ("IndexError", AXIS_OUT_OF_BOUNDS),
+    ],
+    "sum_dims_negative_refused": [
+        ("IndexError", AXIS_OUT_OF_BOUNDS),
+        ("RuntimeError", DUPLICATE_AXIS),
+        ("RuntimeError", DUPLICATE_AXIS),
+        ("IndexError", AXIS_OUT_OF_BOUNDS),
+        ("IndexError", AXIS_OUT_OF_BOUNDS),
+        ("IndexError", AXIS_OUT_OF_BOUNDS),
+        ("RuntimeError", DUPLICATE_AXIS),
     ],
     "slice_refused": [
         ("IndexError", UNKNOWN_NODE),
@@ -764,7 +776,7 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
             | set(CAPACITY_REFUSALS)
         )
         self.assertEqual(exact, len(cases()) - len(excluded))
-        self.assertEqual(exact, 228)
+        self.assertEqual(exact, 232)
 
     # Planted wrong results on the reference's side, as a wrong Bend result
     # would be: a sum, a broadcast reduction, a sum over axes (reduce_to) and
@@ -790,10 +802,10 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                 identifier, seen[identifier], bounded_reference(rows[identifier]), pins
             )
         planted = {
-            "total": (dropping_total, 128, {"loss_07", "slice_parallel"}, (111, 13, 2)),
-            "sum_to_size": (dropping_sum_to_size, 86, set(), (84, 2, 0)),
+            "total": (dropping_total, 130, {"loss_07", "slice_parallel"}, (113, 13, 2)),
+            "sum_to_size": (dropping_sum_to_size, 87, set(), (85, 2, 0)),
             "matmul": (dropping_matmul, 58, set(), (56, 2, 0)),
-            "reduce_to": (dropping_reduce_to, 18, set(), (18, 0, 0)),
+            "reduce_to": (dropping_reduce_to, 21, set(), (21, 0, 0)),
         }
         for name, (function, changed, missed, reasons) in planted.items():
             with self.subTest(planted=name):
@@ -946,7 +958,7 @@ class GateRegistrationTests(unittest.TestCase):
         ]
         self.assertEqual(
             sum(name.startswith("tensor_2d_backward_2d_LAWS.") for name in required),
-            20,
+            21,
         )
         self.assertEqual(
             [name for name in required if name.startswith("tensor_2d_vjp_2d_LAWS.")],
@@ -968,7 +980,7 @@ class GateRegistrationTests(unittest.TestCase):
         controls = [
             name for name in PROOF_CONTROLS if name.startswith("tensor-backward-")
         ]
-        self.assertEqual(len(controls), 10)
+        self.assertEqual(len(controls), 11)
         self.assertIn("negate-left-keeps-sign", PROOF_CONTROLS)
         for path, original, _ in PROOF_CONTROLS.values():
             self.assertEqual((ROOT / path).read_text().count(original), 1)

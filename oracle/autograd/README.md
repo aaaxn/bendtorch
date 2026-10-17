@@ -70,9 +70,9 @@ gate's own format. `tests/test_autograd_tensor_backward.py` in the root suite
 compares the gate's Python reference with this file, under level 2 of the
 [numeric policy](../../AGENTS.md#numeric-policy) (`tools/autograd_tensor_bound.py`
 computes each word's rounding-error bound, checked on top of the listed
-words): 228 of 290 scripts agree line for
+words): 232 of 295 scripts agree line for
 line, and [the differences from PyTorch](../../docs/torch-differences.md#tensor-backward)
-explain the other 62.
+explain the other 63.
 
 ## Reproduce
 

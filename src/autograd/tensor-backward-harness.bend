@@ -3,6 +3,7 @@ import Base
 import ../shape/core.bend as Shape
 import ../tensor/core.bend as Core
 import ../tensor/harness.bend as Tensor
+import ../tensor/signed.bend as Signed
 import ./gradient.bend as Gradient
 import ./tensor-backward.bend as Backward
 import ./sgd.bend as Sgd
@@ -22,7 +23,7 @@ type Step is Data:
   BatchedMatmul{a: Nat, b: Nat}
   Linear{x: Nat, w: Nat, bias: Nat}
   Sum{a: Nat}
-  SumDims{a: Nat, axes: List<&2, U32>, keepdim: Bool}
+  SumDims{a: Nat, axes: List<&2, Signed.Position>, keepdim: Bool}
   Slice{a: Nat, dim: U32, start: U32, stop: U32, step: U32}
   Narrow{a: Nat, dim: U32, start: U32, length: U32}
   Select{a: Nat, dim: U32, index: U32}

@@ -37,6 +37,7 @@ from tools.tensor_runtime import (
     run_native_corpus,
     run_supplement,
 )
+from tools.tensor_signed import run_gate as signed_requests
 
 
 def verify_lane(corpus: dict, observations: list[dict], *, native: bool) -> dict:
@@ -368,6 +369,140 @@ def loss_controls(evidence: Evidence, source_root: Path) -> None:
         *(
             partial(control, name, *control_text)
             for name, control_text in LOSS_CONTROLS.items()
+        )
+    )
+
+
+# Mutants of the signed wrap and the reshape size inference, each applied to
+# a copy of src/tensor/signed.bend, and the definition of
+# src/tensor/signed-PROOF.bend that rejects it: a law, or the lemma that
+# proves one.
+SIGNED_CONTROLS = {
+    "last-wraps-to-limit-minus-k": (
+        "U32.sub(U32.sub(limit, 1), k), limit)",
+        "U32.sub(limit, k), limit)",
+        "last_wrapped",
+    ),
+    "last-accepts-limit": (
+        "Bool.pick(U32, U32.is_lt(k, limit),",
+        "Bool.pick(U32, U32.is_le(k, limit),",
+        "last_wrapped",
+    ),
+    "outside-wraps-to-zero": (
+        "U32.sub(U32.sub(limit, 1), k), limit)",
+        "U32.sub(U32.sub(limit, 1), k), 0)",
+        "last_wrapped",
+    ),
+    "first-counts-from-end": (
+        "    case First{k}:\n      k\n",
+        "    case First{k}:\n      U32.sub(limit, k)\n",
+        "Laws.signed_first_kept",
+    ),
+    "coordinates-wrap-among-zero": (
+        "wrap(extent, head) <> wrap_each(rest, tail)",
+        "wrap(0, head) <> wrap_each(rest, tail)",
+        "Laws.signed_wrap_each_step",
+    ),
+    "permute-skips-wrap": (
+        "Transforms.permute_copy(input, source, wrap_all(Shape.rank(input), axes))",
+        "Transforms.permute_copy(input, source, wrap_all(0, axes))",
+        "Laws.signed_permute_wraps",
+    ),
+    "transpose-wraps-among-rank": (
+        "wrap(axis_limit(input), a), wrap(axis_limit(input), b))",
+        "wrap(Shape.rank(input), a), wrap(Shape.rank(input), b))",
+        "Laws.signed_transpose_wraps",
+    ),
+    "flat-wraps-among-rank": (
+        "Core.read_flat(shape, tensor, wrap(Shape.count(shape), index))",
+        "Core.read_flat(shape, tensor, wrap(Shape.rank(shape), index))",
+        "Laws.signed_read_flat_wraps",
+    ),
+    "inferred-ignores-remainder": (
+        "    case 1n+rest:\n      Fail{count_mismatch()}\n\n# A product past",
+        "    case 1n+rest:\n      Done{filled(extents, U32.from_nat(quotient))}\n\n"
+        "# A product past",
+        "indivisible_decided",
+    ),
+    "ambiguous-as-count-mismatch": (
+        "    case 0n:\n      Fail{AmbiguousInferred{}}",
+        "    case 0n:\n      Fail{count_mismatch()}",
+        "Laws.signed_inferred_ambiguous",
+    ),
+    "second-inferred-accepted": (
+        "        case 1n+rest:\n          Fail{RepeatedInferred{}}",
+        "        case 1n+rest:\n"
+        "          inferred_one(count, extents, capped(count, extents))",
+        "Laws.signed_inferred_repeated",
+    ),
+    "inferred-counts-as-zero": (
+        "    case Inferred{} <> tail:\n      exact_product(tail)",
+        "    case Inferred{} <> tail:\n      Nat.mul(0n, exact_product(tail))",
+        "capped_classifies",
+    ),
+    "zero-size-keeps-product": (
+        "    case 0n:\n      ZeroProduct{}\n    case 1n+(+less):",
+        "    case 0n:\n      rest\n    case 1n+(+less):",
+        "times_classify",
+    ),
+    "empty-list-multiplies-to-zero": (
+        "    case Nil{}:\n      cap(bound, 1n)",
+        "    case Nil{}:\n      cap(bound, 0n)",
+        "capped_classifies",
+    ),
+    "past-size-kept": (
+        "    case True{}:\n      Beyond{}\n    case False{}:\n"
+        "      cap(bound, Nat.mul(size, product))",
+        "    case True{}:\n      Within{size}\n    case False{}:\n"
+        "      cap(bound, Nat.mul(size, product))",
+        "times_scaled",
+    ),
+    "past-count-infers-one": (
+        "      Done{filled(extents, 0)}\n    case 1n+rest:\n"
+        "      Fail{count_mismatch()}",
+        "      Done{filled(extents, 1)}\n    case 1n+rest:\n"
+        "      Fail{count_mismatch()}",
+        "size_beyond",
+    ),
+    "past-count-accepted": (
+        "      Done{filled(extents, 0)}\n    case 1n+rest:\n"
+        "      Fail{count_mismatch()}",
+        "      Done{filled(extents, 0)}\n    case 1n+rest:\n"
+        "      Done{filled(extents, 0)}",
+        "indivisible_beyond",
+    ),
+    "cap-always-beyond": (
+        "  bounded(product, Nat.is_le(product, bound))\n",
+        "  Beyond{}\n",
+        "times_scaled",
+    ),
+}
+
+
+def signed_controls(evidence: Evidence, source_root: Path) -> None:
+    def control(name: str, original: str, mutated: str, location: str) -> None:
+        copy = evidence.directory / "signed-controls" / name
+        shutil.copytree(source_root / "src", copy / "src")
+        target = copy / "src/tensor/signed.bend"
+        text = target.read_text()
+        if text.count(original) != 1:
+            raise GateError(f"{name}: control anchor is missing or ambiguous")
+        target.write_text(text.replace(original, mutated))
+        evidence.run(
+            f"signed-control-{name}",
+            bend(
+                evidence.tool_root,
+                copy / "src/tensor/signed-PROOF.bend",
+                "--check-only",
+            ),
+            expected_code=1,
+            contains=("SOME PROOFS FAIL", f"Location: {location}"),
+        )
+
+    parallel(
+        *(
+            partial(control, name, *control_text)
+            for name, control_text in SIGNED_CONTROLS.items()
         )
     )
 
@@ -894,6 +1029,7 @@ def run_gate(tool_root: Path, output: Path) -> None:
         ROOT / "tools/tensor_numerics.py",
         ROOT / "tools/tensor_ordered.py",
         ROOT / "tools/tensor_parallel.py",
+        ROOT / "tools/tensor_signed.py",
         ROOT / "probes/parallel_builds.bend",
         ROOT / "tools/common.py",
         ROOT / "tools/storage.py",
@@ -989,16 +1125,18 @@ def run_gate(tool_root: Path, output: Path) -> None:
                 for lane, observations in result["results"].items()
             }
 
-        acceptance, supplement_acceptance, family, builds = parallel(
+        acceptance, supplement_acceptance, family, builds, signed = parallel(
             corpus,
             supplement,
             partial(pointwise_family, tool_root, output / "pointwise-family"),
             partial(parallel_builds, tool_root, output / "parallel-builds"),
+            partial(signed_requests, tool_root, output / "signed"),
         )
         for lane, accepted in supplement_acceptance.items():
             acceptance[lane]["supplement"] = accepted
         acceptance["pointwise_family"] = family
         acceptance["parallel_builds"] = builds
+        acceptance["signed"] = signed
         (output / "acceptance.json").write_text(json.dumps(acceptance, indent=2) + "\n")
         links = evidence.run(
             "native-dependencies", ["ldd", str(output / "runtime/corpus")]
@@ -1019,6 +1157,7 @@ def run_gate(tool_root: Path, output: Path) -> None:
         certificate_controls(evidence, output / "runtime/source")
         relu_controls(evidence, output / "source")
         loss_controls(evidence, output / "source")
+        signed_controls(evidence, output / "source")
         batched_controls(evidence, output / "source")
         slice_controls(evidence, output / "source")
 
