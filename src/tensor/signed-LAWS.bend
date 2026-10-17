@@ -6,6 +6,7 @@ import ./transforms.bend as Transforms
 import ./transpose-spec.bend as Transpose
 import ./elementwise-totality.bend as Totality
 import ./signed.bend as Signed
+import ./slice.bend as Slice
 
 # PyTorch's signed axes, indices and -1 reshape sizes (signed.bend). These
 # laws state the wrap against PyTorch's definition, the range it accepts, the
@@ -309,3 +310,103 @@ law signed_error_codes:
   for error: Transforms.Error
   {(Signed.error_code(Signed.TransformError{error}), Signed.error_code(Signed.RepeatedInferred{}), Signed.error_code(Signed.AmbiguousInferred{})) ==
     (Transforms.error_code(error), 17, 18) : U32 & U32 & U32}
+
+# Signed slicing (Signed.slice, narrow and select). The axis is wrapped among
+# the input's rank, as every other signed axis; the positions along it among
+# its extent, each as PyTorch takes it.
+def axis_of(input: Core.Dynamic, dim: Signed.Position) -> U32:
+  Signed.wrap(Shape.rank(Totality.dynamic_shape(input)), dim)
+
+def extent_of(input: Core.Dynamic, +axis: U32) -> U32:
+  U32.from_nat(Slice.extent_at(Shape.dimensions(Totality.dynamic_shape(input)), axis))
+
+def rank_of(input: Core.Dynamic) -> Nat:
+  Shape.rank_dimensions(Shape.dimensions(Totality.dynamic_shape(input)))
+
+# A slice's start and stop, PyTorch's get_slice_bounds before its clamp to
+# the axis: a position counted from the start is kept; Last{k}, the position
+# d = -1 - k, becomes d + limit in range, and 0 below -limit.
+law signed_bound_first:
+  for +limit: U32
+  for +k: U32
+  {Signed.bound(limit, Signed.First{k}) == k : U32}
+
+law signed_bound_last_inside:
+  for +limit: U32
+  for +k: U32
+  for inside: {U32.is_lt(k, limit) == True{} : Bool}
+  {Nat.add(U32.to_nat(Signed.bound(limit, Signed.Last{k})), 1n+U32.to_nat(k)) == U32.to_nat(limit) : Nat}
+
+law signed_bound_last_outside:
+  for +limit: U32
+  for +k: U32
+  for outside: {U32.is_lt(k, limit) == False{} : Bool}
+  {Signed.bound(limit, Signed.Last{k}) == 0 : U32}
+
+# A signed slice is the unsigned slice at the wrapped axis of the bounds of
+# its start and stop among that axis's extent; slice-LAWS.bend's clamp then
+# gives PyTorch's.
+law signed_slice_bounds:
+  for input: Core.Dynamic
+  for +dim: Signed.Position
+  for start: Signed.Position
+  for stop: Signed.Position
+  for +step: U32
+  {Signed.slice(input, dim, start, stop, step) ==
+    Slice.slice(input, axis_of(input, dim), Signed.bound(extent_of(input, axis_of(input, dim)), start),
+      Signed.bound(extent_of(input, axis_of(input, dim)), stop), step) :
+    Core.Dynamic & Result<&2, &1, Slice.Error, Core.Dynamic>}
+
+# A signed select is the unsigned select at the wrapped axis of the index
+# wrapped among that axis's extent: an index outside -extent..extent-1 stays
+# at or past the extent, which the unsigned select refuses.
+law signed_select_wraps:
+  for input: Core.Dynamic
+  for +dim: Signed.Position
+  for index: Signed.Position
+  {Signed.select(input, dim, index) ==
+    Slice.select(input, axis_of(input, dim), Signed.wrap(extent_of(input, axis_of(input, dim)), index)) :
+    Core.Dynamic & Result<&2, &1, Slice.Error, Core.Dynamic>}
+
+# A signed narrow takes a start in -extent..extent, PyTorch's range. A start
+# counted from the start is the unsigned narrow's, which refuses one past
+# the extent itself; Last{k} below the extent is wrapped among it ...
+law signed_narrow_first:
+  for input: Core.Dynamic
+  for +dim: Signed.Position
+  for +k: U32
+  for +length: U32
+  {Signed.narrow(input, dim, Signed.First{k}, length) == Slice.narrow(input, axis_of(input, dim), k, length) :
+    Core.Dynamic & Result<&2, &1, Slice.Error, Core.Dynamic>}
+
+law signed_narrow_last_inside:
+  for input: Core.Dynamic
+  for +dim: Signed.Position
+  for +k: U32
+  for +length: U32
+  for inside: {U32.is_lt(k, extent_of(input, axis_of(input, dim))) == True{} : Bool}
+  {Signed.narrow(input, dim, Signed.Last{k}, length) ==
+    Slice.narrow(input, axis_of(input, dim), Signed.wrap(extent_of(input, axis_of(input, dim)), Signed.Last{k}), length) :
+    Core.Dynamic & Result<&2, &1, Slice.Error, Core.Dynamic>}
+
+# ... and a start before -extent is refused: OutOfRange once the axis is in
+# range, and AxisOutOfBounds first, as the unsigned narrow checks it.
+law signed_narrow_before:
+  for input: Core.Dynamic
+  for +dim: Signed.Position
+  for +k: U32
+  for +length: U32
+  for in_rank: {Nat.is_lt(U32.to_nat(axis_of(input, dim)), rank_of(input)) == True{} : Bool}
+  for before: {U32.is_lt(k, extent_of(input, axis_of(input, dim))) == False{} : Bool}
+  {Signed.narrow(input, dim, Signed.Last{k}, length) == (input, Fail{Slice.OutOfRange{}}) :
+    Core.Dynamic & Result<&2, &1, Slice.Error, Core.Dynamic>}
+
+law signed_narrow_before_axis:
+  for input: Core.Dynamic
+  for +dim: Signed.Position
+  for +k: U32
+  for +length: U32
+  for past_rank: {Nat.is_lt(U32.to_nat(axis_of(input, dim)), rank_of(input)) == False{} : Bool}
+  for before: {U32.is_lt(k, extent_of(input, axis_of(input, dim))) == False{} : Bool}
+  {Signed.narrow(input, dim, Signed.Last{k}, length) == (input, Fail{Slice.LayoutError{Layout.AxisOutOfBounds{}}}) :
+    Core.Dynamic & Result<&2, &1, Slice.Error, Core.Dynamic>}

@@ -32,7 +32,7 @@ from tools.autograd_broadcast import (
 )
 from tools.autograd_reduce import bits, f32, value
 from tools.common import ROOT, Evidence, GateError, bend, native
-from tools.tensor_signed import positions_source, wrap
+from tools.tensor_signed import position_source, positions_source, wrap
 
 VALUE_COUNT_MISMATCH = 10
 MATMUL_RANK = 105
@@ -153,15 +153,21 @@ RUNTIME_CONTROLS = {
         "      transformed(Transforms.reshape_dynamic(output, dropped))",
     ),
     # Slicing: a narrow whose tape plan takes the length for the stop, a
-    # select whose tape plan scatters into the next index, and a scatter that
-    # fills the cells no output cell came from with 1.0 instead of +0.0.
+    # select whose tape plan scatters into the next index, a scatter that
+    # fills the cells no output cell came from with 1.0 instead of +0.0, and
+    # a plan that wraps a start before -extent among the extent, as an index,
+    # instead of bounding it at 0, so the plan and the value disagree.
     "narrow-records-the-length-as-stop": (
-        "      Slice.plan(shape, dim, start, U32.add(start, length), 1)",
-        "      Slice.plan(shape, dim, start, length, 1)",
+        "      Slice.plan(shape, axis, first, U32.add(first, length), 1)",
+        "      Slice.plan(shape, axis, first, length, 1)",
     ),
     "select-records-the-next-index": (
-        "      Slice.plan(shape, dim, index, U32.add(index, 1), 1)",
-        "      Slice.plan(shape, dim, U32.add(index, 1), U32.add(index, 2), 1)",
+        "      Slice.plan(shape, axis, first, U32.add(first, 1), 1)",
+        "      Slice.plan(shape, axis, U32.add(first, 1), U32.add(first, 2), 1)",
+    ),
+    "slice-plan-wraps-the-start": (
+        "      Slice.plan(shape, axis, Signed.bound(slice_extent(shape, axis), start),",
+        "      Slice.plan(shape, axis, Signed.wrap(slice_extent(shape, axis), start),",
     ),
     "slice-scatter-fills-ones": (
         "src/tensor/slice.bend",
@@ -2192,6 +2198,87 @@ def slice_scripts() -> list[dict]:
     ]
 
 
+# PyTorch's signed positions: an axis counted from the last, a slice's start
+# and stop counted from the end and clamped at 0 below -extent, a narrow's
+# start in -extent..extent and a select's index in -extent..extent-1.
+def signed_slice_scripts() -> list[dict]:
+    grid = leaf([2, 5], f(*[0.5 * k - 1.0 for k in range(10)]))
+    cube = leaf([2, 3, 4], f(*[0.25 * k - 3.0 for k in range(24)]))
+    line = leaf([4], f(1.0, -2.0, 0.5, 3.0))
+    scalar = leaf([], f(-2.5))
+    return [
+        program_case(
+            "slice_negative_bounds",
+            [grid, sliced(0, -1, -4, -1), op("mul", 1, 1), op("sum", 2)],
+            3,
+        ),
+        program_case(
+            "slice_negative_axis_step",
+            [cube, sliced(0, -2, -3, 3, 2), sliced(1, -1, 1, -1), op("mul", 2, 2)]
+            + [op("sum", 3)],
+            4,
+        ),
+        # A start before -extent is clamped to 0, a stop before -extent ends
+        # the slice at its start, and a negative start past a positive stop
+        # gives an empty axis.
+        program_case(
+            "slice_negative_clamped",
+            [grid, sliced(0, 1, -100, 3), sliced(0, 1, 1, -100), op("sum", 2)]
+            + [sliced(0, 1, -2, 2), op("sum", 4), op("add", 3, 5), op("sum", 1)]
+            + [op("add", 6, 7)],
+            8,
+        ),
+        program_case(
+            "narrow_negative",
+            [cube, narrowed(0, -1, -3, 2), narrowed(1, -3, -2, 2), op("mul", 2, 2)]
+            + [op("sum", 3)],
+            4,
+        ),
+        program_case(
+            "narrow_negative_whole_axis",
+            [grid, narrowed(0, 1, -5, 5), narrowed(0, -1, -1, 0), op("sum", 1)]
+            + [op("sum", 2), op("add", 3, 4)],
+            5,
+        ),
+        program_case(
+            "select_negative",
+            [cube, selected(0, -1, -1), selected(1, -2, -2), op("mul", 2, 2)]
+            + [op("sum", 3)],
+            4,
+        ),
+        program_case(
+            "select_negative_to_rank_zero",
+            [line, selected(0, -1, -4), selected(0, 0, -1), op("mul", 1, 2)],
+            3,
+        ),
+        # Refusals: an axis before -rank and a rank-0 input (AxisOutOfBounds);
+        # a narrow start before -extent, with and without a length, and one
+        # at -extent whose length passes the extent (OutOfRange); a narrow
+        # whose axis is before -rank and whose start is before -extent too
+        # (AxisOutOfBounds first); a select before -extent (OutOfRange), at
+        # an axis before -rank and of a rank-0 input (AxisOutOfBounds).
+        {
+            "id": "slice_negative_refused",
+            "steps": [
+                grid,
+                sliced(0, -3, 0, 1),
+                scalar,
+                sliced(1, -1, 0, 1),
+                narrowed(0, -1, -6, 0),
+                narrowed(0, 1, -6, 1),
+                narrowed(0, 1, -5, 6),
+                narrowed(0, -3, -9, 0),
+                selected(0, -1, -6),
+                selected(0, -3, 0),
+                selected(1, -1, -1),
+                sliced(0, -1, -4, -1, 2),
+                run(2),
+                *reads(3),
+            ],
+        },
+    ]
+
+
 # Slices, narrows and selects of exact words on random axes of random shapes
 # of rank 1 to 3, with starts, stops and steps past the extent, mixed with
 # mul and other slices.
@@ -2229,11 +2316,62 @@ def slices_generated(count: int, seed: int) -> list[dict]:
             if isinstance(plan, int):
                 raise GateError("A generated slice was refused")
             steps.append(step)
-            shapes.append(plan[2])
+            shapes.append(plan[3])
         steps.append(op("sum", len(shapes) - 1))
         total = len(shapes) + 1
         steps += [run(total - 1), *reads(total)]
         result.append({"id": f"slices_{index:02d}", "steps": steps})
+    return result
+
+
+# The same with signed axes and positions: axes in -rank..rank-1, slice
+# starts and stops in -extent-2..extent+2, narrow starts in -extent..extent
+# and select indices in -extent..extent-1, none refused.
+def signed_slices_generated(count: int, seed: int) -> list[dict]:
+    state = seed
+
+    def draw(bound: int) -> int:
+        nonlocal state
+        state = (state * 1103515245 + 12345) & 0x7FFFFFFF
+        return (state >> 8) % bound
+
+    def between(low: int, high: int) -> int:
+        return low + draw(high - low + 1)
+
+    result = []
+    for index in range(count):
+        first = [1 + draw(4) for _ in range(1 + draw(3))]
+        shapes = [first]
+        steps = [leaf(first, counted_words(math.prod(first), EXACT, draw(10)))]
+        for _ in range(2 + draw(4)):
+            a = draw(len(shapes))
+            shape = shapes[a]
+            if not shape or draw(4) == 0:
+                steps.append(op("mul", a, a))
+                shapes.append(shape)
+                continue
+            dim = between(-len(shape), len(shape) - 1)
+            extent = shape[dim]
+            kind = draw(3) if extent else 0
+            if kind == 0:
+                start = between(-extent - 2, extent + 2)
+                step = sliced(a, dim, start, between(-extent - 2, extent + 2))
+                step["step"] = 1 + draw(3)
+            elif kind == 1:
+                start = between(-extent, extent)
+                room = extent - (start + extent if start < 0 else start)
+                step = narrowed(a, dim, start, draw(room + 1))
+            else:
+                step = selected(a, dim, between(-extent, extent - 1))
+            plan = slice_plan(shape, step)
+            if isinstance(plan, int):
+                raise GateError("A generated signed slice was refused")
+            steps.append(step)
+            shapes.append(plan[3])
+        steps.append(op("sum", len(shapes) - 1))
+        total = len(shapes) + 1
+        steps += [run(total - 1), *reads(total)]
+        result.append({"id": f"signed_slices_{index:02d}", "steps": steps})
     return result
 
 
@@ -2250,6 +2388,8 @@ def cases() -> list[dict]:
         + batched()
         + slice_scripts()
         + slices_generated(16, 0x41C64E6D)
+        + signed_slice_scripts()
+        + signed_slices_generated(16, 0x2F6B3A91)
     )
     if len({case["id"] for case in result}) != len(result):
         raise GateError("Duplicate autograd tensor backward case identifier")
@@ -2465,33 +2605,42 @@ def broadcast_to(tensor: tuple, target: list[int]) -> tuple:
     )
 
 
-# A slice's indices along its axis, its shape with the axis kept and the
-# shape it returns, or the code of its refusal: an axis at or past the rank
-# (every axis of a rank-0 input) first, then a step of 0, or a narrow or select
-# past the extent. The start and stop are clamped to the axis as PyTorch
-# clamps them.
-def slice_plan(shape: list[int], step: dict) -> tuple[range, list, list] | int:
-    dim = step["dim"]
+# A slice's axis, its indices along the axis, its shape with the axis kept
+# and the shape it returns, or the code of its refusal. The axis is wrapped
+# among the rank, and one outside -rank..rank-1 (every axis of a rank-0 input)
+# is refused first, then a step of 0, or a narrow or select out of range. A
+# slice's start and stop count from the end when negative and are clamped to
+# the axis as PyTorch clamps them; a narrow takes a start in -extent..extent
+# and a select an index in -extent..extent-1.
+def slice_plan(shape: list[int], step: dict) -> tuple[int, range, list, list] | int:
+    dim = wrap(step["dim"], len(shape))
     if dim >= len(shape):
         return AXIS_OUT_OF_BOUNDS
     extent = shape[dim]
     if step["op"] == "slice":
-        start, stop, stride = step["start"], step["stop"], step["step"]
+        start, stop = (
+            max(0, p + extent) if p < 0 else p for p in (step["start"], step["stop"])
+        )
+        stride = step["step"]
         if stride == 0:
             return STEP_NOT_POSITIVE
     elif step["op"] == "narrow":
-        start, stop, stride = step["start"], step["start"] + step["length"], 1
+        if step["start"] < -extent:
+            return OUT_OF_RANGE
+        start = wrap(step["start"], extent)
+        stop, stride = start + step["length"], 1
         if stop > extent:
             return OUT_OF_RANGE
     else:
-        start, stop, stride = step["index"], step["index"] + 1, 1
+        start = wrap(step["index"], extent)
+        stop, stride = start + 1, 1
         if start >= extent:
             return OUT_OF_RANGE
     low = min(start, extent)
     indices = range(low, max(low, min(stop, extent)), stride)
     kept = [*shape[:dim], len(indices), *shape[dim + 1 :]]
     output = [*kept[:dim], *kept[dim + 1 :]] if step["op"] == "select" else kept
-    return indices, kept, output
+    return dim, indices, kept, output
 
 
 # Output cell (o, k, r) of [outer, len(indices), inner] and the input cell
@@ -2514,9 +2663,9 @@ def slice_forward(tensor: tuple, step: dict) -> tuple | int:
     plan = slice_plan(tensor[0], step)
     if isinstance(plan, int):
         return plan
-    indices, kept, output = plan
+    dim, indices, kept, output = plan
     words = [0] * math.prod(kept)
-    for target, source in slice_cells(tensor[0], step["dim"], indices):
+    for target, source in slice_cells(tensor[0], dim, indices):
         words[target] = tensor[1][source]
     return (output, words)
 
@@ -2855,7 +3004,7 @@ def reference(case: dict, trace: dict | None = None, update=descend_word) -> lis
             plan = slice_plan(values[0][0], step)
             if isinstance(plan, int):
                 raise GateError(f"A recorded slice refuses its own input: {plan}")
-            node |= {"dim": step["dim"], "indices": plan[0]}
+            node |= {"dim": plan[0], "indices": plan[1]}
         if name in ("mul", "matmul", "matmul_nt", "relu", *PRODUCTS):
             node["saved"] = values
         if name == "sum_dims":
@@ -3065,13 +3214,16 @@ def step_source(step: dict) -> str:
     if name == "cross_entropy":
         return f"Harness.CrossEntropy{{{step['a']}n, {list_source(step['targets'])}}}"
     if name == "slice":
-        fields = ", ".join(str(step[key]) for key in ("dim", "start", "stop", "step"))
-        return f"Harness.Slice{{{step['a']}n, {fields}}}"
+        fields = ", ".join(
+            position_source(step[key]) for key in ("dim", "start", "stop")
+        )
+        return f"Harness.Slice{{{step['a']}n, {fields}, {step['step']}}}"
     if name == "narrow":
-        fields = ", ".join(str(step[key]) for key in ("dim", "start", "length"))
-        return f"Harness.Narrow{{{step['a']}n, {fields}}}"
+        fields = ", ".join(position_source(step[key]) for key in ("dim", "start"))
+        return f"Harness.Narrow{{{step['a']}n, {fields}, {step['length']}}}"
     if name == "select":
-        return f"Harness.Select{{{step['a']}n, {step['dim']}, {step['index']}}}"
+        fields = ", ".join(position_source(step[key]) for key in ("dim", "index"))
+        return f"Harness.Select{{{step['a']}n, {fields}}}"
     if name == "sum_dims":
         keepdim = "True{}" if step["keepdim"] else "False{}"
         axes = positions_source(step["dims"])

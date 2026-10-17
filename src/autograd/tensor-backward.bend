@@ -1418,30 +1418,51 @@ def slice_taken(+a: Nat, +shape: Shape.Shape, entries: List<&1, Entry>, planned:
   slice_planned(a, shape, entries, result, planned)
 
 # Which of the three a slice step is: PyTorch's a[..., start:stop:step, ...]
-# at axis `dim`, a.narrow(dim, start, length) and a.select(dim, index).
+# at axis `dim`, a.narrow(dim, start, length) and a.select(dim, index). The
+# axis and the positions along it are PyTorch's signed ints (signed.bend).
 type Slicing is Data:
-  Sliced{dim: U32, start: U32, stop: U32, step: U32}
-  Narrowed{dim: U32, start: U32, length: U32}
-  Selected{dim: U32, index: U32}
+  Sliced{dim: Signed.Position, start: Signed.Position, stop: Signed.Position, step: U32}
+  Narrowed{dim: Signed.Position, start: Signed.Position, length: U32}
+  Selected{dim: Signed.Position, index: Signed.Position}
 
-# The slice each one records: its plan, and the value it computes.
-def slice_plan(+shape: Shape.Shape, +slicing: Slicing) -> Result<&2, &2, Slice.Error, Slice.Planned>:
+def slice_extent(+shape: Shape.Shape, +axis: U32) -> U32:
+  Signed.extent(Shape.dimensions(shape), axis)
+
+def slice_axis_plan(+shape: Shape.Shape, +axis: U32, +slicing: Slicing) -> Result<&2, &2, Slice.Error, Slice.Planned>:
   match slicing:
-    case Sliced{+dim, +start, +stop, +step}:
-      Slice.plan(shape, dim, start, stop, step)
-    case Narrowed{+dim, +start, +length}:
-      Slice.plan(shape, dim, start, U32.add(start, length), 1)
-    case Selected{+dim, +index}:
-      Slice.plan(shape, dim, index, U32.add(index, 1), 1)
+    case Sliced{dim, start, stop, +step}:
+      Slice.plan(shape, axis, Signed.bound(slice_extent(shape, axis), start), Signed.bound(slice_extent(shape, axis), stop), step)
+    case Narrowed{dim, start, +length}:
+      +first = Signed.wrap(slice_extent(shape, axis), start)
+      Slice.plan(shape, axis, first, U32.add(first, length), 1)
+    case Selected{dim, index}:
+      +first = Signed.wrap(slice_extent(shape, axis), index)
+      Slice.plan(shape, axis, first, U32.add(first, 1), 1)
+
+def slice_dim(+slicing: Slicing) -> Signed.Position:
+  match slicing:
+    case Sliced{dim, start, stop, step}:
+      dim
+    case Narrowed{dim, start, length}:
+      dim
+    case Selected{dim, index}:
+      dim
+
+# The slice each one records: its plan, at the axis and positions the value
+# takes (Signed.slice, narrow and select), and the value it computes. The
+# value is checked first, so a narrow whose start lies before -extent, which
+# only the value refuses, records nothing.
+def slice_plan(+shape: Shape.Shape, +slicing: Slicing) -> Result<&2, &2, Slice.Error, Slice.Planned>:
+  slice_axis_plan(shape, Signed.wrap(Shape.rank(shape), slice_dim(slicing)), slicing)
 
 def slice_value(input: Core.Dynamic, +slicing: Slicing) -> Core.Dynamic & Result<&2, &1, Slice.Error, Core.Dynamic>:
   match slicing:
     case Sliced{+dim, +start, +stop, +step}:
-      Slice.slice(input, dim, start, stop, step)
+      Signed.slice(input, dim, start, stop, step)
     case Narrowed{+dim, +start, +length}:
-      Slice.narrow(input, dim, start, length)
+      Signed.narrow(input, dim, start, length)
     case Selected{+dim, +index}:
-      Slice.select(input, dim, index)
+      Signed.select(input, dim, index)
 
 def slice_shaped(+a: Nat, +slicing: Slicing, entries: List<&1, Entry>, pair: Core.Dynamic & Shape.Shape) -> Tape & Result<&2, &2, Error, Nat>:
   (input, +shape) = pair
@@ -1455,26 +1476,28 @@ def slice_found(+a: Nat, +slicing: Slicing, pair: Found()) -> Tape & Result<&2, 
     case Done{input}:
       slice_shaped(a, slicing, entries, Core.shape(input))
 
-# Records a slice of a copy of a's value (Slice.slice, narrow or select) as a
-# Slice node with a's shape, the slice's shape with the axis kept and its
-# plan. The value is checked first, so a refusal is the value's: an axis past
-# a's rank is AxisOutOfBounds (13), a step of 0 StepNotPositive (19), a
-# narrow past the extent or a select index at or past it OutOfRange (20), an
-# unknown id UnknownNode; the tape comes back unchanged.
+# Records a slice of a copy of a's value (Signed.slice, narrow or select) as
+# a Slice node with a's shape, the slice's shape with the axis kept and its
+# plan. The value is checked first, so a refusal is the value's: an axis
+# outside -rank..rank-1 is AxisOutOfBounds (13), a step of 0 StepNotPositive
+# (19), a narrow past the extent or with a start before -extent, or a select
+# index outside -extent..extent-1, OutOfRange (20), an unknown id
+# UnknownNode; the tape comes back unchanged.
 def sliced(tape: Tape, +a: Nat, +slicing: Slicing) -> Tape & Result<&2, &2, Error, Nat>:
   Tape{entries} = tape
   slice_found(a, slicing, value_counted(a, counted(entries)))
 
 # Records a[..., start:stop:step, ...] with the slice at axis `dim`.
-def slice(tape: Tape, +a: Nat, +dim: U32, +start: U32, +stop: U32, +step: U32) -> Tape & Result<&2, &2, Error, Nat>:
+def slice(tape: Tape, +a: Nat, +dim: Signed.Position, +start: Signed.Position, +stop: Signed.Position, +step: U32) ->
+  Tape & Result<&2, &2, Error, Nat>:
   sliced(tape, a, Sliced{dim, start, stop, step})
 
 # Records a.narrow(dim, start, length).
-def narrow(tape: Tape, +a: Nat, +dim: U32, +start: U32, +length: U32) -> Tape & Result<&2, &2, Error, Nat>:
+def narrow(tape: Tape, +a: Nat, +dim: Signed.Position, +start: Signed.Position, +length: U32) -> Tape & Result<&2, &2, Error, Nat>:
   sliced(tape, a, Narrowed{dim, start, length})
 
 # Records a.select(dim, index), which drops the axis.
-def select(tape: Tape, +a: Nat, +dim: U32, +index: U32) -> Tape & Result<&2, &2, Error, Nat>:
+def select(tape: Tape, +a: Nat, +dim: Signed.Position, +index: Signed.Position) -> Tape & Result<&2, &2, Error, Nat>:
   sliced(tape, a, Selected{dim, index})
 
 def relu_zeroed(+a: Nat, entries: List<&1, Entry>, +shape: Shape.Shape, input: Core.Dynamic,

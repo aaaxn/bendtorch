@@ -143,7 +143,7 @@ class SignedRegistrationTests(unittest.TestCase):
         laws = re.findall(
             r"^law (\w+):", (ROOT / "src/tensor/signed-LAWS.bend").read_text(), re.M
         )
-        self.assertEqual(len(laws), 36)
+        self.assertEqual(len(laws), 45)
         self.assertEqual(
             [name for name in required if name.startswith("signed_2d_LAWS.")],
             [f"signed_2d_LAWS.{name}" for name in laws],
@@ -152,7 +152,7 @@ class SignedRegistrationTests(unittest.TestCase):
     def test_controls_apply_once_and_name_a_proof(self):
         source = (ROOT / "src/tensor/signed.bend").read_text()
         proof = (ROOT / "src/tensor/signed-PROOF.bend").read_text()
-        self.assertEqual(len(SIGNED_CONTROLS), 18)
+        self.assertEqual(len(SIGNED_CONTROLS), 26)
         for original, mutated, location in SIGNED_CONTROLS.values():
             with self.subTest(location=location):
                 self.assertEqual(source.count(original), 1)

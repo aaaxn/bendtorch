@@ -4,6 +4,7 @@ import ./core.bend as Core
 import ./layout.bend as Layout
 import ./transforms.bend as Transforms
 import ./transpose-spec.bend as Transpose
+import ./slice.bend as Slice
 
 # PyTorch's signed axes, indices and reshape sizes, parsed into the unsigned
 # ones that the tensor operations check. A Position counts from either end, as
@@ -285,6 +286,75 @@ def read_dynamic(dynamic: Core.Dynamic, index: Position) -> Core.Dynamic & Resul
 def write_dynamic(dynamic: Core.Dynamic, index: Position, value: F32) -> Core.Dynamic & Result<&2, &2, Core.Error, Unit>:
   Core.Packed{+shape, tensor} = dynamic
   Core.write_dynamic_result(shape, write_flat(shape, tensor, index, value))
+
+# Whether a position lies before -limit: Last{k}, the position -1 - k, with
+# k at or past limit. No First does.
+def before(+limit: U32, position: Position) -> Bool:
+  match position:
+    case First{k}:
+      False{}
+    case Last{k}:
+      Bool.not(U32.is_lt(k, limit))
+
+# PyTorch's slice positions (aten::slice, get_slice_bounds) before its clamp
+# to the axis: a negative position d becomes d + limit, the wrap, and one
+# still below 0 becomes 0. First{k} stays k; Slice.bounds then clamps both
+# ends to the extent.
+def bound(+limit: U32, +position: Position) -> U32:
+  Bool.pick(U32, before(limit, position), 0, wrap(limit, position))
+
+# The extent of axis `axis`, 0 past the rank.
+def extent(dimensions: List<&2, U32>, +axis: U32) -> U32:
+  U32.from_nat(Slice.extent_at(dimensions, axis))
+
+# PyTorch's input[..., start:stop:step, ...] with the slice at a signed axis
+# `dim`, wrapped among the rank, and signed start and stop: the unsigned
+# slice of the bounds. A rank-0 input has no axis, so every dim is refused.
+def slice(input: Core.Dynamic, dim: Position, start: Position, stop: Position, +step: U32) ->
+  Core.Dynamic & Result<&2, &1, Slice.Error, Core.Dynamic>:
+  Core.Packed{+shape, tensor} = input
+  +axis = wrap(Shape.rank(shape), dim)
+  +n = extent(Shape.dimensions(shape), axis)
+  Slice.slice(Core.Packed{shape, tensor}, axis, bound(n, start), bound(n, stop), step)
+
+# PyTorch's input.select(dim, index) at a signed axis and a signed index,
+# wrapped among the extent: an index outside -extent..extent-1 stays at or
+# past the extent, so the unsigned select refuses it with OutOfRange after
+# its axis check.
+def select(input: Core.Dynamic, dim: Position, index: Position) -> Core.Dynamic & Result<&2, &1, Slice.Error, Core.Dynamic>:
+  Core.Packed{+shape, tensor} = input
+  +axis = wrap(Shape.rank(shape), dim)
+  Slice.select(Core.Packed{shape, tensor}, axis, wrap(extent(Shape.dimensions(shape), axis), index))
+
+# A narrow's start before -extent: the axis check first, as the unsigned
+# narrow does it, then OutOfRange.
+def narrow_before(input: Core.Dynamic, refused: Maybe<&2, Slice.Error>) -> Core.Dynamic & Result<&2, &1, Slice.Error, Core.Dynamic>:
+  match refused:
+    case Some{error}:
+      (input, Fail{error})
+    case None{}:
+      (input, Fail{Slice.OutOfRange{}})
+
+def narrow_started(+shape: Shape.Shape, tensor: Core.Tensor<shape>, +axis: U32, +start: U32, +length: U32, early: Bool) ->
+  Core.Dynamic & Result<&2, &1, Slice.Error, Core.Dynamic>:
+  match early:
+    case False{}:
+      Slice.narrow(Core.Packed{shape, tensor}, axis, start, length)
+    case True{}:
+      narrow_before(Core.Packed{shape, tensor}, Slice.refusal(Shape.dimensions(shape), axis, 1))
+
+# PyTorch's input.narrow(dim, start, length) at a signed axis with a signed
+# start. PyTorch takes a start in -extent..extent: Last{k} with k below the
+# extent is extent - 1 - k, and one before -extent is OutOfRange. A First
+# start past the extent is refused by the unsigned narrow, which checks
+# start + length against the extent, with the same code. A length is a
+# U32, so PyTorch's negative lengths cannot be written.
+def narrow(input: Core.Dynamic, dim: Position, +start: Position, +length: U32) ->
+  Core.Dynamic & Result<&2, &1, Slice.Error, Core.Dynamic>:
+  Core.Packed{+shape, tensor} = input
+  +axis = wrap(Shape.rank(shape), dim)
+  +n = extent(Shape.dimensions(shape), axis)
+  narrow_started(shape, tensor, axis, wrap(n, start), length, before(n, start))
 
 def error_code(error: Error) -> U32:
   match error:
