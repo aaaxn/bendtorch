@@ -32,8 +32,9 @@ without changing the laws, because they state the result and not the build.
 
 Before the parallel build, `broadcast_to` ran the checked one-cell-at-a-time
 elementwise loop (`Elementwise.allocated`) with the same operands: about
-1.5 us per output cell on one thread, against about 65 ns per cell for `add`
-with a broadcast operand. The output words are the same.
+600 ns per output cell on one thread at `1bb7271` (625 ms for `[1024]` to
+`[1024,1024]`), against about 65 ns per cell for `add` with a broadcast
+operand. The output words are the same.
 
 | input | target | result |
 | --- | --- | --- |
