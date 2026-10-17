@@ -8,8 +8,9 @@ import ./parallel.bend as Parallel
 # the row-major index `Values.permute_source_index(input, axes, i)` names.
 # That index decodes i into output coordinates, scatters them to the input
 # axes and flattens them again, building three lists per cell. `recipe`
-# works out once per build what does not depend on i, and `source` computes
-# the same index from it with a few divisions per axis and no list.
+# works out what does not depend on i, once per subtree below the forks (as
+# `Parallel.build` prepares it), so once per up to 2^15 cells, and `source`
+# computes the same index from it with a few divisions per axis and no list.
 # permute-build-proof.bend proves `source` equal to `permute_source_index`.
 
 type Request is Data:

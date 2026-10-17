@@ -183,8 +183,9 @@ def copy_pack(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<inpu
 
 # The sequential copy: one checked read and one checked write per output
 # cell, in index order. The laws about the copy loop state what it does, and
-# permute-build-proof.bend proves that `copy_allocated` returns the same
-# term on the output `Core.new` allocates; nothing runs it.
+# permute-build-proof.bend proves that `copy_allocated` meets the loop's
+# meaning (`LoopMeaning`) on every source. `permute_copy` no longer runs it;
+# the tensor gate's parallel probe runs it as the sequential reference.
 def loop_allocated(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>,
   source: Core.Tensor<input>, allocated: Result<&2, &1, Core.Error, Core.Tensor<Layout.output(input, axes, plan)>>) ->
   Core.Tensor<input> & Result<&2, &1, Error, Core.Dynamic>:

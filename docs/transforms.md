@@ -27,7 +27,8 @@ The copy runs every output cell at once, as `Parallel.build` with the cell
 function of `src/tensor/permute-build.bend`: output cell `i` reads the input
 at `Values.permute_source_index(input, axes, i)`, the index the checked copy
 loop below reads, computed from a recipe of strides worked out once per
-build instead of three coordinate lists per cell
+subtree below the forks (once per up to 2^15 cells) instead of three
+coordinate lists per cell
 (`permute-build-proof.bend` proves the two indexes equal). The input comes
 back as the First half of its clone and the build reads the Second half.
 On a `[1024,1024]` transpose this takes 95 ms on one thread and 38 ms on
@@ -41,7 +42,8 @@ requires the same words.
 
 The laws below about the loop (`copy_loop`, `natural_step`, `copy_step`,
 `copy_read`) state what the checked sequential copy does; `copy_allocated`
-no longer runs it. `permute_result_interpretation`,
+no longer runs it, and the parallel probe keeps it (`loop_allocated`) as its
+sequential reference. `permute_result_interpretation`,
 `permute_typed_success` and the other public laws are proved for the parallel
 copy: `permute-build-proof.bend` shows that it meets the loop's own meaning
 (`LoopMeaning`, the successful prefix of the whole output) on every source.
