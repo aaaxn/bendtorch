@@ -1,16 +1,16 @@
 [adds-zero]
 file = "src/autograd/broadcast.bend"
 before = '''
-      finish(Elementwise.allocated(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros},'''
+      finish(Elementwise.parallel_allocated(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros},'''
 after = '''
-      finish(Elementwise.allocated(Elementwise.Add{}, plan, input, Core.Packed{target, zeros},'''
+      finish(Elementwise.parallel_allocated(Elementwise.Add{}, plan, input, Core.Packed{target, zeros},'''
 
 [swapped-operands]
 file = "src/autograd/broadcast.bend"
 before = '''
-      finish(Elementwise.allocated(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros},'''
+      finish(Elementwise.parallel_allocated(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros},'''
 after = '''
-      finish(Elementwise.allocated(Elementwise.KeepLeft{}, plan, Core.Packed{target, zeros}, input,'''
+      finish(Elementwise.parallel_allocated(Elementwise.KeepLeft{}, plan, Core.Packed{target, zeros}, input,'''
 
 [returns-zero-owner]
 file = "src/autograd/broadcast.bend"

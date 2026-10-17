@@ -265,10 +265,11 @@ case's law true, and both checkers reject it in the law of the case it breaks.
 
   Each value consumer also states one word of the returned input. The last,
   `broadcast_then_reduce`, chains two laws: `broadcast_to_replayed` makes the
-  output of `[7]` to `[2]` a replayed tensor, `reduce_to_fiber` reduces it
-  back to `[1]`, and the cell is `F32.add(F32.add(0.0, 7.0), 7.0)`. BendTT
-  evaluates the broadcast history while it checks this consumer, and on a
-  `[2, 3]` grid it runs out of fuel, so the chain uses `[2]`.
+  output of `[7]` to `[2]` a replayed tensor whose words are the broadcast
+  cells, `reduce_to_fiber` reduces it back to `[1]`, and the cell is
+  `F32.add(F32.add(0.0, 7.0), 7.0)`. BendTT evaluates the cells while it
+  checks this consumer, and on a `[2, 3]` grid it runs out of fuel, so the
+  chain uses `[2]`.
 - `controls.bend`: five value witnesses, each paired with one wrong value.
 - `mutants.toml`: the before and after text of each mutation.
 
@@ -281,15 +282,17 @@ case's law true, and both checkers reject it in the law of the case it breaks.
 | False twin `chain_witness` | `F32.add(0.0, 7.0)`, one copy reduced | the witness | the witness |
 | Adds zero | `zeroed` runs `Add` instead of `KeepLeft` | `run_lift` | `run_lift` |
 | Swapped operands | `zeroed` passes the zero tensor on the left | `run_lift` | `run_lift` |
-| Returns zero owner | `finish` returns the zero tensor as the owner | `broadcast_to_pointwise` | `broadcast_to_pointwise` |
+| Returns zero owner | `finish` returns the zero tensor as the owner | `run_lift` | `run_lift` |
 
 The mutants change `src/autograd/broadcast.bend`. The erased
 `broadcast-PROOF.bend` would reject them too, so the source check runs
 `src/autograd/broadcast-pointwise-PROOF.bend`, the live proof, and the kernel
 artifact holds no erased `broadcast_to` proof. `run_lift` follows
-`broadcast_to` through the planner, the target check and both allocations into
-the loop, so a changed operation or operand order fails it. Another owner
-passes the walk and fails the `kept` field of the contract.
+`broadcast_to` through the planner, the target check and the zero allocation
+into the parallel build's replayed lemma, `allocated_replayed`, so a changed
+operation or operand order fails it. Another owner fails it too: the result
+then hands back the zero tensor where `broadcast_to_replayed` names the
+input.
 `broadcast_to/entry.bend` imports only `broadcast.bend`, which declares no
 template constant.
 

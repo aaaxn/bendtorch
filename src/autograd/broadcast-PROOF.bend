@@ -9,6 +9,7 @@ import ../tensor/layout.bend as Layout
 import ../tensor/elementwise.bend as Elementwise
 import ../tensor/elementwise-totality.bend as Totality
 import ../tensor/elementwise-PROOF.bend as ElementwiseProof
+import ../tensor/elementwise-parallel-proof.bend as ParallelProof
 import ../tensor/core-PROOF.bend as CoreProof
 import ../tensor/transform-PROOF.bend as TransformProof
 import ../tensor/projection-LAWS.bend as Projection
@@ -40,8 +41,8 @@ def zeroed_retains(input: Core.Dynamic, +target: Shape.Shape, +plan: Shape.Broad
     case Fail{error}:
       Laws.Retained{property => {==}}
     case Done{zeros}:
-      finish_retains(input, Core.Packed{target, zeros}, Elementwise.allocated(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros}, Core.new(Shape.output_shape(plan), 0.0)),
-        ElementwiseProof.allocated_retains(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros}, Core.new(Shape.output_shape(plan), 0.0)))
+      finish_retains(input, Core.Packed{target, zeros}, Elementwise.parallel_allocated(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros}, Core.new(Shape.output_shape(plan), 0.0)),
+        ElementwiseProof.parallel_allocated_retains(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros}, Core.new(Shape.output_shape(plan), 0.0)))
 
 def fitted_retains(input: Core.Dynamic, +target: Shape.Shape, +plan: Shape.BroadcastPlan, same: Bool) ->
   Laws.Retained<input, Broadcast.fitted(input, target, plan, same)>:
@@ -172,31 +173,34 @@ def finish_mapping(-input: Core.Dynamic, +target: Shape.Shape, -zeros: Core.Tens
 def zeroed_mapping(input: Core.Dynamic, +target: Shape.Shape, +plan: Shape.BroadcastPlan,
   result: Result<&2, &1, Core.Error, Core.Tensor<target>>,
   -same_dims: {Shape.dimensions(Shape.output_shape(plan)) == Shape.dimensions(target) : List<&2, U32>},
-  -right_dims: {Shape.dimensions(Shape.right_shape(plan)) == Shape.dimensions(target) : List<&2, U32>}) ->
+  +left_dims: {Totality.dimensions(input) == Shape.dimensions(Shape.left_shape(plan)) : List<&2, U32>},
+  +right_dims: {Shape.dimensions(Shape.right_shape(plan)) == Shape.dimensions(target) : List<&2, U32>}) ->
   WithModel<input, target, Done{plan}, Broadcast.zeroed(input, target, plan, result)>:
   match result:
     case Fail{error}:
       WithModel{Unit{}}
     case Done{zeros}:
-      finish_mapping(input, target, zeros, plan, Elementwise.allocated(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros}, Core.new(Shape.output_shape(plan), 0.0)),
-        ElementwiseProof.allocated_dimensions(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros}, Core.new(Shape.output_shape(plan), 0.0)),
-        CoreProof.successful_allocated_mapping(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros}),
+      finish_mapping(input, target, zeros, plan, Elementwise.parallel_allocated(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros}, Core.new(Shape.output_shape(plan), 0.0)),
+        ElementwiseProof.parallel_allocated_dimensions(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros}, Core.new(Shape.output_shape(plan), 0.0)),
+        ParallelProof.allocated_mapping(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros}, Core.new(Shape.output_shape(plan), 0.0),
+          left_dims, Equal.sym(List<&2, U32>, Shape.dimensions(Shape.right_shape(plan)), Shape.dimensions(target), right_dims)),
         same_dims, right_dims)
 
 def fitted_mapping(input: Core.Dynamic, +target: Shape.Shape, +plan: Shape.BroadcastPlan, same: Bool,
   -decided: {same == Layout.words_same(Shape.dimensions(Shape.output_shape(plan)), Shape.dimensions(target)) : Bool},
-  -right_dims: {Shape.dimensions(Shape.right_shape(plan)) == Shape.dimensions(target) : List<&2, U32>}) ->
+  +left_dims: {Totality.dimensions(input) == Shape.dimensions(Shape.left_shape(plan)) : List<&2, U32>},
+  +right_dims: {Shape.dimensions(Shape.right_shape(plan)) == Shape.dimensions(target) : List<&2, U32>}) ->
   WithModel<input, target, Done{plan}, Broadcast.fitted(input, target, plan, same)>:
   match same:
     case False{}:
       WithModel{Unit{}}
     case True{}:
       zeroed_mapping(input, target, plan, Core.new(target, 0.0),
-        TransformProof.words_equal(Shape.dimensions(Shape.output_shape(plan)), Shape.dimensions(target), decided), right_dims)
+        TransformProof.words_equal(Shape.dimensions(Shape.output_shape(plan)), Shape.dimensions(target), decided), left_dims, right_dims)
 
 def planned_mapping(+shape: Shape.Shape, tensor: Core.Tensor<shape>, +target: Shape.Shape,
   result: Result<&2, &2, Shape.Error, Shape.BroadcastPlan>,
-  -sources: {ShapeLaws.planned_dimensions(shape, target, result) == (Shape.dimensions(shape), Shape.dimensions(target)) : List<&2, U32> & List<&2, U32>}) ->
+  +sources: {ShapeLaws.planned_dimensions(shape, target, result) == (Shape.dimensions(shape), Shape.dimensions(target)) : List<&2, U32> & List<&2, U32>}) ->
   WithModel<Core.Packed{shape, tensor}, target, result, Broadcast.planned(Core.Packed{shape, tensor}, target, result)>:
   match result:
     case Fail{error}:
@@ -204,6 +208,9 @@ def planned_mapping(+shape: Shape.Shape, tensor: Core.Tensor<shape>, +target: Sh
     case Done{+plan}:
       fitted_mapping(Core.Packed{shape, tensor}, target, plan,
         Layout.words_same(Shape.dimensions(Shape.output_shape(plan)), Shape.dimensions(target)), {==},
+        Equal.sym(List<&2, U32>, Shape.dimensions(Shape.left_shape(plan)), Shape.dimensions(shape),
+          Equal.cong(List<&2, U32> & List<&2, U32>, List<&2, U32>, Pair.fst(List<&2, U32>, List<&2, U32>),
+            (Shape.dimensions(Shape.left_shape(plan)), Shape.dimensions(Shape.right_shape(plan))), (Shape.dimensions(shape), Shape.dimensions(target)), sources)),
         Equal.cong(List<&2, U32> & List<&2, U32>, List<&2, U32>, Pair.snd(List<&2, U32>, List<&2, U32>),
           (Shape.dimensions(Shape.left_shape(plan)), Shape.dimensions(Shape.right_shape(plan))), (Shape.dimensions(shape), Shape.dimensions(target)), sources))
 
@@ -238,9 +245,9 @@ def zeroed_success(input: Core.Dynamic, +target: Shape.Shape, +plan: Shape.Broad
           Equal.sym(Result<&2, &1, Core.Error, Core.Tensor<target>>, Done{tensor}, Fail{error}, same)))} :
           Allocation.TensorDone<target, Fail{error}> -> Empty}(done))}
     case Done{zeros}:
-      finish_success(Elementwise.allocated(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros}, Core.new(Shape.output_shape(plan), 0.0)),
-        ElementwiseProof.allocated_success(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros}, Core.new(Shape.output_shape(plan), 0.0),
-          ElementwiseProof.FittingSources{left_dims, right_dims}, AllocationProof.core_new_done(Shape.output_shape(plan), 0.0)))
+      finish_success(Elementwise.parallel_allocated(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros}, Core.new(Shape.output_shape(plan), 0.0)),
+        ElementwiseProof.parallel_allocated_success(Elementwise.KeepLeft{}, plan, input, Core.Packed{target, zeros}, Core.new(Shape.output_shape(plan), 0.0),
+          AllocationProof.core_new_done(Shape.output_shape(plan), 0.0)))
 
 def fitted_success(input: Core.Dynamic, +target: Shape.Shape, +plan: Shape.BroadcastPlan, same: Bool,
   -decided: {same == Layout.words_same(Shape.dimensions(Shape.output_shape(plan)), Shape.dimensions(target)) : Bool},

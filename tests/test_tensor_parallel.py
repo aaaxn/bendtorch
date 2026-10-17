@@ -2,6 +2,7 @@ import unittest
 
 from tools.common import GateError
 from tools.tensor_parallel import (
+    BROADCASTS,
     BUILDS,
     ELEMENTWISE,
     FORKED_PERMUTES,
@@ -133,6 +134,22 @@ class ParallelProbeTests(unittest.TestCase):
                 "reduce-65536-to-scalar-rounding": 0,
             },
         )
+
+    def test_broadcasts_split_by_output_cells(self):
+        self.assertEqual(
+            {name: expected_splits(name) for name in BROADCASTS},
+            {
+                "broadcast-256-to-256x256": 1,
+                "broadcast-300x1-to-300x400": 2,
+                "broadcast-scalar-to-64x1024": 1,
+                "broadcast-1x128x1-to-4x128x160": 2,
+                "broadcast-3x1x5-to-7x3x4x5": 0,
+            },
+        )
+
+    def test_check_lines_rejects_a_differing_broadcast_word(self):
+        with self.assertRaises(GateError):
+            check_lines(probe_output(**{"broadcast-300x1-to-300x400": (2, 1)}))
 
     def test_elementwise_builds_fork_with_padding(self):
         self.assertEqual(

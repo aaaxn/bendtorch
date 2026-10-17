@@ -105,8 +105,9 @@ output cell `i` holds
 
 `Broadcast.broadcast_to` in `src/autograd/broadcast.bend`, the materialized
 broadcast that autograd calls, does not call `Pointwise.run`. It runs the
-sequential elementwise loop `Elementwise.allocated` with `KeepLeft`, the input
-on the left and a `+0.0` tensor of the target on the right. The law
+parallel elementwise build `Elementwise.parallel_allocated` (below) with
+`KeepLeft`, the input on the left and a `+0.0` tensor of the target on the
+right. The law
 `broadcast_to_pointwise` in `src/autograd/broadcast-pointwise-LAWS.bend` states
 what it computes. It takes:
 
@@ -121,24 +122,30 @@ Its conclusion is a `BroadcastToContract`, with live fields `successful`,
 in-bounds output index `i` holds `input[left_map(plan, i)]`, the input's
 replayed word at its broadcast projection.
 
-`broadcast-pointwise-PROOF.bend` walks the loop with live code, without
-changing it. The zero tensor and the output come from `Core.new`, so they are
-replayed too. After `k` steps each input is the replayed tensor with its
-history plus `reads(k)` of its map, and the output is the replayed tensor over
-`+0.0` with the family history `Pointwise.writes(k)` of `Elementwise.scalar`
-with `left_map` and `right_map`. The loop's index check, `input_indices`, gives
-the two maps, through `Projection.input_indices_refines`. At the end
-`writes_value` gives cell `i` as `scalar(KeepLeft, input word, 0.0)`, which is
-the input word. A changed operation, swapped operands or another owner in
-`broadcast.bend` fails the walk or the contract.
+The law `broadcast_to_replayed` states the replayed form of the result, in
+the transport form of `binary_replayed` below: for every `P`, if `P` holds
+for every result that hands the input back with its words, next to an output
+of the plan's shape replayed over `+0.0` whose words are `cells` (word `k` is
+the input word at `left_map(plan, k)`), then `P` holds for the
+`broadcast_to` result. So a law about a replayed tensor applies to the
+output, and a consumer can chain `broadcast_to` into `reduce_to` through laws
+alone.
 
-The walk also gives the replayed form of the result. The law
-`broadcast_to_replayed` exports it as a transport, like `new_replayed`: for
-every `P`, if `P` holds for the input with the history `ops ++ reads` and the
-output over `+0.0` with the family history `writes`, for any length proofs,
-then `P` holds for the `broadcast_to` result. So a law about a replayed
-tensor applies to the output, and a consumer can chain `broadcast_to` into
-`reduce_to` through laws alone.
+`broadcast-pointwise-PROOF.bend` proves it with live code from
+`allocated_replayed`, the part of the `binary_replayed` proof below the
+planner. The zero tensor and the output come from `Core.new`, so they are
+replayed too, and the build's output words are the family cells of
+`KeepLeft` against the zero tensor, `scalar(KeepLeft, input word, 0.0)`,
+which is the input word (`cells_keep`). `broadcast_to_pointwise` follows:
+an output word is the word `cells` lists there, and the returned input has
+the input's words. A changed operation, swapped operands or another owner in
+`broadcast.bend` fails the proof.
+
+Before the parallel build, `broadcast_to` ran the sequential loop
+`Elementwise.allocated`, and `broadcast_to_replayed` stated that loop's exact
+histories: the input with `ops ++ reads` and the output with the family
+history `writes`. A result with those histories has the words the law now
+states, so every run the old law covered still satisfies the new one.
 
 ### `Elementwise.binary` exports its replayed result
 

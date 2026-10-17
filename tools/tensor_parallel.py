@@ -52,6 +52,14 @@ REDUCTIONS = {
     "reduce-256x130-to-256x1-rounding": ((256, 130), (256, 1)),
     "reduce-65536-to-scalar-rounding": ((65536,), ()),
 }
+# Each broadcast_to the probe runs, as (input dimensions, target dimensions).
+BROADCASTS = {
+    "broadcast-256-to-256x256": ((256,), (256, 256)),
+    "broadcast-300x1-to-300x400": ((300, 1), (300, 400)),
+    "broadcast-scalar-to-64x1024": ((), (64, 1024)),
+    "broadcast-1x128x1-to-4x128x160": ((1, 128, 1), (4, 128, 160)),
+    "broadcast-3x1x5-to-7x3x4x5": ((3, 1, 5), (7, 3, 4, 5)),
+}
 # Each permute the probe runs, by its output cells. The two above 2^15 cells
 # must fork, so the probe checks the forked build against the copy loop.
 PERMUTES = {
@@ -73,7 +81,7 @@ ELEMENTWISE = {
 }
 # Each `Reduction.sum` the probe runs, as the dimensions of its input.
 SUMS = {"sum-100000-rounding": (100000,)}
-BUILDS = (*PRODUCTS, *REDUCTIONS, *ELEMENTWISE, *SUMS, *PERMUTES)
+BUILDS = (*PRODUCTS, *REDUCTIONS, *ELEMENTWISE, *SUMS, *PERMUTES, *BROADCASTS)
 # The builds that read or write more than 2^15 words, the cells of one
 # subtree below the elementwise forks.
 LARGE = (
@@ -149,7 +157,15 @@ def words(name: str) -> int:
     return max(rows * inner, inner * columns, rows * columns)
 
 
+def elementwise_splits(cells: int) -> int:
+    """`Elementwise.splits`: depth - 15 levels, so a subtree below the forks
+    holds 2^15 cells."""
+    return max(depth(cells) - 15, 0)
+
+
 def expected_splits(name: str) -> int:
+    if name in BROADCASTS:
+        return elementwise_splits(math.prod(BROADCASTS[name][1]))
     if name in PERMUTES:
         return permute_splits(PERMUTES[name])
     if name in REDUCTIONS:
@@ -166,9 +182,9 @@ def expected_splits(name: str) -> int:
 def check_lines(stdout: str) -> dict[str, int]:
     """The splits each probe line reports, after checking that every line
     names a known build, forks as `expected_splits` says (`Matrix.product_splits`
-    for a product, `Reduce.splits` for a reduction, `Permute.splits` for a
-    permute) and matches its
-    sequential definition word for word."""
+    for a product, `Reduce.splits` for a reduction, `Elementwise.splits` for
+    a broadcast, `Permute.splits` for a permute) and matches its sequential
+    definition word for word."""
     splits = {}
     for line in stdout.splitlines():
         match = LINE.match(line)

@@ -160,10 +160,11 @@ def empty() -> EmptyCase<result(row_shape(), empty_shape(), three_values(), {==}
     Laws.broadcast_to_pointwise(row_shape(), empty_shape(), row_empty(), {==}, {==}, 0.0, writes(three_values()), {==}))
 
 # broadcast_to then reduce_to through laws alone: broadcast_to_replayed makes
-# the output a replayed tensor, so reduce_to_fiber applies to it. Reducing
-# [7] broadcast to [2] back to [1] adds the two copies from +0.0. BendTT
-# evaluates the broadcast history while it checks this consumer, and on a
-# [2, 3] grid it runs out of fuel, so the chain uses [2].
+# the output a replayed tensor whose words are the broadcast cells, so
+# reduce_to_fiber applies to it. Reducing [7] broadcast to [2] back to [1]
+# adds the two copies from +0.0. BendTT evaluates the cells while it checks
+# this consumer, and on a [2, 3] grid it runs out of fuel, so the chain uses
+# [2].
 def reduced_point(pair: Core.Dynamic & Result<&2, &1, Broadcast.Error, Core.Dynamic>, +target: Shape.Shape, +index: U32) -> Maybe<&2, F32>:
   (input, outcome) = pair
   match outcome:
@@ -178,13 +179,13 @@ def chained(+index: U32) -> Maybe<&2, F32>:
 def back_plan() -> Shape.BroadcastPlan:
   plan_of(Shape.broadcast_checked(one_shape(), Shape.output_shape(one_two())), {==})
 
-def broadcast_writes() -> List<&2, StorageLaws.Op>:
-  Laws.writes(one_two(), one_shape(), 0.0, writes([7.0]), two_shape(), Shape.logical_numel(Shape.dimensions(Shape.output_shape(one_two()))))
+def broadcast_cells() -> List<&2, F32>:
+  Laws.cells(one_two(), one_shape(), 0.0, writes([7.0]), Shape.logical_numel(Shape.dimensions(Shape.output_shape(one_two()))))
 
 def chain_total(+index: U32) -> Maybe<&2, F32>:
   +output = Shape.output_shape(one_two())
   +count = Shape.logical_numel(Shape.dimensions(output))
-  ReduceLaws.fiber(back_plan(), Contracts.words(output, 0.0, broadcast_writes(), count), index, count)
+  ReduceLaws.fiber(back_plan(), broadcast_cells(), index, count)
 
 def chain_reduced(+index: U32,
   inside: {Nat.is_lt(U32.to_nat(index), Shape.logical_numel(Shape.dimensions(one_shape()))) == True{} : Bool}) ->
@@ -193,15 +194,21 @@ def chain_reduced(+index: U32,
   +count = Shape.logical_numel(Shape.dimensions(output))
   Laws.broadcast_to_replayed(one_shape(), two_shape(), one_two(), {==}, {==}, 0.0, writes([7.0]), {==},
     pair => {reduced_point(pair, one_shape(), index) == chain_total(index) : Maybe<&2, F32>},
-    input_fits => output_fits =>
-      {\{ReduceFold.ReduceToContract: successful => dimensions => value => kept => value(index, inside)} :
-        ReduceFold.ReduceToContract<one_shape(), output,
-          cell => ReduceLaws.fiber(back_plan(), Contracts.words(output, 0.0, broadcast_writes(), count), cell, count),
-          other => Replayed.value(output, 0.0, broadcast_writes(), other),
-          Reduce.reduce_to(Core.Packed{output, Core.TTensor{Replayed.storage(output, 0.0, broadcast_writes()), output_fits}}, one_shape())> ->
-        {ReduceFold.output_point(Reduce.reduce_to(Core.Packed{output, Core.TTensor{Replayed.storage(output, 0.0, broadcast_writes()), output_fits}},
-          one_shape()), index) == chain_total(index) : Maybe<&2, F32>}}(
-        ReduceFold.reduce_to_fiber(one_shape(), output, back_plan(), {==}, {==}, 0.0, broadcast_writes(), output_fits)))
+    kept => kept_words => input_fits => output_ops => values => output_fits =>
+      Equal.trans(Maybe<&2, F32>,
+        ReduceFold.output_point(Reduce.reduce_to(Core.Packed{output, Core.TTensor{Replayed.storage(output, 0.0, output_ops), output_fits}},
+          one_shape()), index),
+        ReduceLaws.fiber(back_plan(), Contracts.words(output, 0.0, output_ops, count), index, count), chain_total(index),
+        {\{ReduceFold.ReduceToContract: successful => dimensions => value => kept => value(index, inside)} :
+          ReduceFold.ReduceToContract<one_shape(), output,
+            cell => ReduceLaws.fiber(back_plan(), Contracts.words(output, 0.0, output_ops, count), cell, count),
+            other => Replayed.value(output, 0.0, output_ops, other),
+            Reduce.reduce_to(Core.Packed{output, Core.TTensor{Replayed.storage(output, 0.0, output_ops), output_fits}}, one_shape())> ->
+          {ReduceFold.output_point(Reduce.reduce_to(Core.Packed{output, Core.TTensor{Replayed.storage(output, 0.0, output_ops), output_fits}},
+            one_shape()), index) == ReduceLaws.fiber(back_plan(), Contracts.words(output, 0.0, output_ops, count), index, count) : Maybe<&2, F32>}}(
+          ReduceFold.reduce_to_fiber(one_shape(), output, back_plan(), {==}, {==}, 0.0, output_ops, output_fits)),
+        Equal.cong(List<&2, F32>, Maybe<&2, F32>, words => ReduceLaws.fiber(back_plan(), words, index, count),
+          Contracts.words(output, 0.0, output_ops, count), broadcast_cells(), values)))
 
 def broadcast_then_reduce() -> {chained(0) == Some{F32.add(F32.add(0.0, 7.0), 7.0)} : Maybe<&2, F32>}:
   chain_reduced(0, {==})

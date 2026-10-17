@@ -18,15 +18,23 @@ result. `broadcast_to_dimensions(input, dims)` first builds `dims` with
    `[1]`, or `[2, 3]` to `[3]`. The planner accepts both pairs, but their
    broadcast is larger than the target.
 3. Allocate a zero tensor of the target shape and run the tensor elementwise
-   loop with the new `Elementwise.KeepLeft` operation (`scalar(KeepLeft, l, r)
-   = l`) against it. Each output word is the source word itself, with no
+   parallel build (`Elementwise.parallel_allocated`, the one `add` runs) with
+   the `Elementwise.KeepLeft` operation (`scalar(KeepLeft, l, r) = l`)
+   against it. Each output word is the source word itself, with no
    arithmetic, so NaN payloads, signed zeros and subnormals are copied bit for
-   bit.
+   bit, at every thread count and whatever split the build takes.
 
 Cost: two allocations of the target shape (the zero right operand and the
-output), plus one checked read of each operand and one write per output
-position. A later change can drop the zero operand without changing the laws,
-because they state the result and not the loop.
+output), plus one read of each operand per output position. An output above
+2^15 cells forks into halves of 2^15 cells built on their own threads, each
+with its own clone of both operands. A later change can drop the zero operand
+without changing the laws, because they state the result and not the build.
+
+Before the parallel build, `broadcast_to` ran the checked one-cell-at-a-time
+elementwise loop (`Elementwise.allocated`) with the same operands: about
+600 ns per output cell on one thread at `1bb7271` (625 ms for `[1024]` to
+`[1024,1024]`), against about 65 ns per cell for `add` with a broadcast
+operand. The output words are the same.
 
 | input | target | result |
 | --- | --- | --- |
@@ -83,20 +91,31 @@ the case where `broadcast_to` succeeds:
   `left_map(plan, i)`, its right-aligned broadcast projection, and the
   returned input keeps every word. The fields of its `BroadcastToContract`
   are live.
-- `broadcast_to_replayed`: the result is itself replayed. The returned input
-  is the input with the history `ops ++ reads`, and the output is the replayed
-  tensor over `+0.0` whose history `writes` is the pointwise family's history
-  of `KeepLeft` against the zero tensor. A law about a replayed tensor, such as
-  `reduce_to_fiber`, then applies to the output.
+- `broadcast_to_replayed`: the result is itself replayed, stated by value.
+  For every `P`, if `P` holds for every result that hands back the input
+  replayed with any history that keeps its words, next to an output of the
+  plan's shape replayed over `+0.0` with any history whose words are `cells`
+  (word `k` is the input word at `left_map(plan, k)`), then `P` holds for
+  `broadcast_to`. A law about a replayed tensor, such as `reduce_to_fiber`,
+  then applies to the output. This is the transport form `binary_replayed`
+  states for the elementwise build.
 
-`broadcast-pointwise-PROOF.bend` proves both by walking the sequential
-elementwise loop that `broadcast_to` runs, `Elementwise.allocated`, with live
-code and without changing it. Step `k` reads the input at `left_map(plan, k)`
-and the zero tensor at `right_map(plan, k)` and writes `scalar(KeepLeft, x, y)`
-at `k`, which is the pointwise family's step with the broadcast maps. So the
-output history is the family history `Pointwise.writes`, and each cell is
-`scalar(KeepLeft, input word, 0.0)`, the input word itself. The six laws above
-and `broadcast.bend` are unchanged.
+`broadcast-pointwise-PROOF.bend` proves `broadcast_to_replayed` from the
+build's own replayed lemma, `allocated_replayed` in
+`src/tensor/contracts/binary-proof.bend` (the part of `binary_replayed`
+below the planner): on two replayed inputs the build's output words are the
+pointwise family's cells, here `scalar(KeepLeft, input word, 0.0)`, the
+input word itself (`cells_keep`). `broadcast_to_pointwise` follows from it:
+an output word is the word `cells` lists there, and the returned input has
+the input's words.
+
+Until the build, `broadcast_to_replayed` stated the loop's exact storage
+history: the input with `ops ++ reads` and the output with the family
+history `writes`. The build hands back the input as the first half of a
+clone and cannot keep that history, so the law now states the words. Every
+result the old law described has those words, so a run the old law covered
+still satisfies it, and its one consumer, `broadcast_then_reduce`, proves
+the same value.
 
 The autograd gate also checks three proof controls. Each one changes the source
 in the gate's copy, and the proofs must then fail: `KeepLeft` returning

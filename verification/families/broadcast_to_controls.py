@@ -80,9 +80,9 @@ FAMILY = controls.Family(
             ("broadcast.zeroed",),
         ),
         "returns-zero-owner": Site(
-            "broadcast_to_pointwise",
-            "Core.read_dynamic_result(target,",
-            "broadcast_2d_pointwise_2d_PROOF.broadcast_to_pointwise",
+            "run_lift",
+            "Core.Packed{target, Core.TTensor{StorageLaws.replay(zeros_kept,",
+            "broadcast_2d_pointwise_2d_PROOF.run_lift",
             ("broadcast.finish",),
         ),
     },
