@@ -138,6 +138,11 @@ PROOF_CONTROLS = {
         "Transforms.elements_equal(shape, kept, equal))))",
         "restored(shape, vjp_sum(a, input, Core.Packed{shape, tensor}))",
     ),
+    "tensor-backward-sum-dims-wraps-among-rank": (
+        "src/autograd/tensor-backward.bend",
+        "Signed.wrap_all(SumDims.limit(Shape.dimensions(shape)), axes)",
+        "Signed.wrap_all(Shape.rank(shape), axes)",
+    ),
     "gradient-overwrites-instead-of-adding": (
         "src/autograd/gradient.bend",
         "F32.add(accumulated, value)",

@@ -46,6 +46,7 @@ OTHER_FAMILIES = {
     "cross_entropy_refused",
     "sum_dims_refused",
     "batched_refusals",
+    "sum_dims_negative_refused",
     "dangling_self",
     "dangling_newer",
     "dangling_missing",
@@ -148,7 +149,7 @@ class BoundTests(unittest.TestCase):
                 else:
                     kinds["bounded"] += 1
                     self.assertTrue(within(int(bound), bound), (identifier, text))
-        self.assertEqual(kinds, {"fixed": 7851, "bounded": 3527, "unbounded": 431})
+        self.assertEqual(kinds, {"fixed": 7998, "bounded": 3570, "unbounded": 431})
 
     def bounded_line(self, identifier: str, index: int) -> tuple[list[str], Bounded]:
         expected = bounded_reference(self.rows[identifier])

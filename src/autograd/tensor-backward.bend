@@ -7,6 +7,7 @@ import ../tensor/matmul.bend as Matrix
 import ../tensor/batched-matmul.bend as Batched
 import ../tensor/reduction.bend as Reduction
 import ../tensor/transforms.bend as Transforms
+import ../tensor/signed.bend as Signed
 import ./broadcast.bend as Broadcast
 import ./reduce.bend as Reduce
 import ./sum-to-size.bend as SumToSize
@@ -1332,12 +1333,14 @@ def dims_planned(+a: Nat, entries: List<&1, Entry>, input: Core.Dynamic, +shape:
     case Done{SumDims.Plan{+kept, +dropped}}:
       dims_summed(SumDims{a, shape, kept}, entries, SumDims.sum_planned(input, SumDims.Plan{kept, dropped}, keepdim))
 
-def dims_shaped(+a: Nat, +axes: List<&2, U32>, keepdim: Bool, entries: List<&1, Entry>, pair: Core.Dynamic & Shape.Shape) ->
+# The signed axes, each wrapped among the operand's axes (its rank, or 1 at
+# rank 0), as PyTorch wraps them, before the plan checks them.
+def dims_shaped(+a: Nat, +axes: List<&2, Signed.Position>, keepdim: Bool, entries: List<&1, Entry>, pair: Core.Dynamic & Shape.Shape) ->
   Tape & Result<&2, &2, Error, Nat>:
   (input, +shape) = pair
-  dims_planned(a, entries, input, shape, keepdim, SumDims.plan(shape, axes))
+  dims_planned(a, entries, input, shape, keepdim, SumDims.plan(shape, Signed.wrap_all(SumDims.limit(Shape.dimensions(shape)), axes)))
 
-def dims_found(+a: Nat, +axes: List<&2, U32>, keepdim: Bool, pair: Found()) -> Tape & Result<&2, &2, Error, Nat>:
+def dims_found(+a: Nat, +axes: List<&2, Signed.Position>, keepdim: Bool, pair: Found()) -> Tape & Result<&2, &2, Error, Nat>:
   (entries, input) = pair
   match input:
     case Fail{error}:
@@ -1347,10 +1350,12 @@ def dims_found(+a: Nat, +axes: List<&2, U32>, keepdim: Bool, pair: Found()) -> T
 
 # Records PyTorch's a.sum(dim=axes, keepdim=keepdim), SumDims.sum_dims of a
 # copy of a's value: the kept shape when keepdim is True, else the dropped
-# one. An empty axis list sums every axis. An axis past a's rank is refused
-# with AxisOutOfBounds (13), an axis listed twice with DuplicateAxis (14), an
-# unknown id with UnknownNode; the tape comes back unchanged.
-def sum_dims(tape: Tape, +a: Nat, +axes: List<&2, U32>, keepdim: Bool) -> Tape & Result<&2, &2, Error, Nat>:
+# one. The axes are PyTorch's signed ones: Last{0} is -1, a's last axis. An
+# empty axis list sums every axis. An axis outside -limit..limit-1, where
+# limit is max(rank, 1), so a rank-0 a takes -1 and 0, is refused with
+# AxisOutOfBounds (13), two axes that name one axis with DuplicateAxis (14),
+# an unknown id with UnknownNode; the tape comes back unchanged.
+def sum_dims(tape: Tape, +a: Nat, +axes: List<&2, Signed.Position>, keepdim: Bool) -> Tape & Result<&2, &2, Error, Nat>:
   Tape{entries} = tape
   dims_found(a, axes, keepdim, value_counted(a, counted(entries)))
 

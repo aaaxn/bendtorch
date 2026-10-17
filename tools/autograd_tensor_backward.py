@@ -32,6 +32,7 @@ from tools.autograd_broadcast import (
 )
 from tools.autograd_reduce import bits, f32, value
 from tools.common import ROOT, Evidence, GateError, bend, native
+from tools.tensor_signed import positions_source, wrap
 
 VALUE_COUNT_MISMATCH = 10
 MATMUL_RANK = 105
@@ -1861,6 +1862,46 @@ def sum_dims_scripts() -> list[dict]:
                 *reads(3),
             ],
         },
+        # Negative axes count from the last: -1 is the last axis.
+        program_case(
+            "sum_dims_negative_rows",
+            [grid, dims(0, [-1]), leaf([2], f(2.0, -0.5)), op("mul", 1, 2)],
+            3,
+        ),
+        program_case(
+            "sum_dims_negative_keepdim",
+            [cube, dims(0, [-2], True), leaf([4], f(0.5, -1.0, 2.0, 3.0))]
+            + [op("mul", 1, 2), op("sum", 3)],
+            4,
+        ),
+        program_case(
+            "sum_dims_negative_mixed",
+            [cube, dims(0, [-1, 0]), leaf([3], f(1.0, -2.0, 0.25)), op("mul", 1, 2)]
+            + [op("sum", 3)],
+            4,
+        ),
+        program_case(
+            "sum_dims_negative_rank_zero",
+            [scalar, dims(0, [-1]), dims(0, [-1], True), op("mul", 1, 2)],
+            3,
+        ),
+        {
+            "id": "sum_dims_negative_refused",
+            "steps": [
+                grid,
+                dims(0, [-3]),
+                dims(0, [-1, 1]),
+                dims(0, [0, -2]),
+                dims(0, [5, -3]),
+                dims(0, [-3, 0, 0]),
+                scalar,
+                dims(1, [-2]),
+                dims(1, [0, -1]),
+                dims(0, [-2]),
+                run(2),
+                *reads(3),
+            ],
+        },
     ]
 
 
@@ -2102,10 +2143,13 @@ def sum_to_size(tensor: tuple, target: list[int]) -> tuple:
 
 
 # The kept and dropped dimensions of a sum over `axes`, or the code of its
-# refusal: an axis at or past the rank (1 for a rank-0 input) first, then an
-# axis listed twice, as PyTorch checks them. No axes reduce every axis.
+# refusal: the signed axes wrapped among the rank (1 for a rank-0 input),
+# then an axis out of range first and an axis listed twice next, as PyTorch
+# checks them. No axes reduce every axis.
 def sum_dims_plan(shape: list[int], axes: list[int]) -> tuple[list, list] | int:
-    if any(axis >= max(len(shape), 1) for axis in axes):
+    limit = max(len(shape), 1)
+    axes = [wrap(axis, limit) for axis in axes]
+    if any(axis >= limit for axis in axes):
         return AXIS_OUT_OF_BOUNDS
     if len(set(axes)) != len(axes):
         return DUPLICATE_AXIS
@@ -2658,7 +2702,7 @@ def step_source(step: dict) -> str:
         return f"Harness.CrossEntropy{{{step['a']}n, {list_source(step['targets'])}}}"
     if name == "sum_dims":
         keepdim = "True{}" if step["keepdim"] else "False{}"
-        axes = list_source(step["dims"])
+        axes = positions_source(step["dims"])
         return f"Harness.SumDims{{{step['a']}n, {axes}, {keepdim}}}"
     fields = ", ".join(f"{identifier}n" for identifier in operands(step))
     title = "".join(part.capitalize() for part in name.split("_"))
@@ -2672,6 +2716,7 @@ def program(selected: list[dict], directory: Path, source_root: Path) -> str:
     for path, alias in (
         ("src/autograd/tensor-backward-harness.bend", "Harness"),
         ("src/autograd/tensor-backward.bend", "Backward"),
+        ("src/tensor/signed.bend", "Signed"),
     ):
         relative = os.path.relpath(source_root / path, directory)
         lines.append(f"import ./{relative} as {alias}")

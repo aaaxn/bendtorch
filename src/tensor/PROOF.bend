@@ -22,3 +22,4 @@ import ./from-values-contract-PROOF.bend as FromValuesContract
 import ./permute-values-contract-PROOF.bend as PermuteValuesContract
 import ./contracts/PROOF.bend as Contracts
 import ./contracts/binary-PROOF.bend as ContractsBinary
+import ./signed-PROOF.bend as Signed

@@ -500,3 +500,6 @@ def sum_dims_decided(+a: Nat, +shape: Shape.Shape, +input: Shape.Shape, +kept: S
 def Laws.tensor_sum_dims_vjp_pointwise(a, shape, input, kept, plan, planned, same, counted, saved, fill, ops, fits):
   sum_dims_decided(a, shape, input, kept, plan, planned, same, counted, saved, fill, ops, fits,
     Shape.bool_case(Nat.is_eq(Shape.elements(shape), Shape.elements(kept))))
+
+def Laws.tensor_sum_dims_wraps(a, axes, keepdim, entries, input, shape):
+  {==}

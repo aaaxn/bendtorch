@@ -6,6 +6,8 @@ import ../tensor/elementwise.bend as Elementwise
 import ../tensor/lifecycle.bend as Lifecycle
 import ../tensor/contracts/replayed.bend as Replayed
 import ../tensor/contracts/broadcast.bend as PointwiseBroadcast
+import ../tensor/signed.bend as Signed
+import ./sum-dims.bend as SumDims
 import ./gradient.bend as Gradient
 import ./tensor-backward.bend as Backward
 
@@ -393,3 +395,20 @@ law tensor_sum_dims_vjp_pointwise:
   for -fits: {Lifecycle.logical_length(Replayed.storage(kept, fill, ops)) == Shape.logical_numel(Shape.dimensions(shape)) : Nat}
   SoleContract<a, input, index => Replayed.value(kept, fill, ops, U32.from_nat(PointwiseBroadcast.left_map(plan, index))),
     Backward.vjp(Backward.SumDims{a, input, kept}, saved, Core.Packed{shape, Core.TTensor{Replayed.storage(kept, fill, ops), fits}})>
+
+# The tape's sum over axes takes PyTorch's signed axes: they are wrapped
+# among the operand's axes, its rank or 1 at rank 0 (SumDims.limit), before
+# the plan checks them. So an axis outside -limit..limit-1 is refused with
+# AxisOutOfBounds and two axes that wrap to one with DuplicateAxis
+# (sum-dims-LAWS.bend, signed-LAWS.bend signed_axes_bounded).
+law tensor_sum_dims_wraps:
+  for +a: Nat
+  for +axes: List<&2, Signed.Position>
+  for keepdim: Bool
+  for entries: List<&1, Backward.Entry>
+  for input: Core.Dynamic
+  for +shape: Shape.Shape
+  {Backward.dims_shaped(a, axes, keepdim, entries, (input, shape)) ==
+    Backward.dims_planned(a, entries, input, shape, keepdim,
+      SumDims.plan(shape, Signed.wrap_all(SumDims.limit(Shape.dimensions(shape)), axes))) :
+    Backward.Tape & Result<&2, &2, Backward.Error, Nat>}

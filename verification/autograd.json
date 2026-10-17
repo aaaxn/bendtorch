@@ -105,6 +105,7 @@
     "tensor_2d_backward_2d_LAWS.tensor_zero_grad_keeps_nodes",
     "tensor_2d_backward_2d_LAWS.tensor_sum_vjp_pointwise",
     "tensor_2d_backward_2d_LAWS.tensor_sum_dims_vjp_pointwise",
+    "tensor_2d_backward_2d_LAWS.tensor_sum_dims_wraps",
     "tensor_2d_vjp_2d_LAWS.tensor_product_replayed",
     "tensor_2d_vjp_2d_LAWS.tensor_add_vjp_values",
     "tensor_2d_vjp_2d_LAWS.tensor_sub_vjp_values",
