@@ -65,6 +65,9 @@ OTHER_FAMILIES = {
     "sgd_two_layers",
     "sgd_rounding",
     "sgd_not_leaf",
+    "batched_output_capacity",
+    "batched_left_gradient_capacity",
+    "batched_right_gradient_capacity",
 }
 
 

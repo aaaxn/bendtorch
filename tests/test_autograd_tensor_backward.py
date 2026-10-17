@@ -9,6 +9,7 @@ from pathlib import Path
 
 from tools.autograd import PROOF_CONTROLS, SUBGATES
 from tools.autograd_backward import DANGLING_OPERAND, NEGATIVE_ZERO, UNKNOWN_NODE
+from tools.autograd_broadcast import CAPACITY_EXCEEDED as CAPACITY
 from tools.autograd_broadcast import is_nan, word
 from tools.autograd_tensor_backward import (
     AXIS_OUT_OF_BOUNDS,
@@ -24,6 +25,7 @@ from tools.autograd_tensor_backward import (
     SGD_CONTROLS,
     TARGET_OUT_OF_RANGE,
     ZERO_GRAD,
+    capacity_scripts,
     cases,
     descend_word,
     forge,
@@ -55,7 +57,7 @@ from tools.autograd_tensor_bound import (
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "c4097bbec5e864ef84b27049692129c2a297037ddab6cec9ce050eb31087e998"
+FIXTURE_SHA256 = "be52af301f5d231d3a4f0624cee489ca93323a785051e04e167ff82b57ad5724"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
@@ -256,9 +258,34 @@ FUSED_UPDATE = {"sgd_two_layers", "sgd_rounding"}
 # torch.optim.SGD accepts a non-leaf that retains its gradient, as every
 # non-leaf of the replay does; the tape refuses it with NotLeaf.
 NON_LEAF = {"sgd_not_leaf"}
+# torch.matmul past the capacity of 2^20 elements, which PyTorch accepts: a
+# forward output (the product is refused, CapacityExceeded, 2, and the next
+# leaf takes its id), and an operand's gradient over the output's batch,
+# where the forward output is empty (the backward is refused, and every slot
+# read after it holds what it held, as PyTorch's do, since the backward adds
+# only zeros). For each script, the line index of every line that differs
+# and the pair (PyTorch's line, the reference's line).
+CAPACITY_REFUSALS = {
+    "batched_output_capacity": {
+        2: ("autograd:id:2", f"autograd:error:{CAPACITY}"),
+        3: ("autograd:id:3", "autograd:id:2"),
+    },
+    "batched_left_gradient_capacity": {
+        2083: ("autograd:backward", f"autograd:error:{CAPACITY}"),
+    },
+    "batched_right_gradient_capacity": {
+        2083: ("autograd:backward", f"autograd:error:{CAPACITY}"),
+    },
+}
 # The families that record_rule does not judge; each keeps its own check.
 OTHER_FAMILIES = (
-    REJECTIONS | set(STEP_REJECTIONS) | FORGED | NAN_PAYLOAD | FUSED_UPDATE | NON_LEAF
+    REJECTIONS
+    | set(STEP_REJECTIONS)
+    | FORGED
+    | NAN_PAYLOAD
+    | FUSED_UPDATE
+    | NON_LEAF
+    | set(CAPACITY_REFUSALS)
 )
 
 
@@ -455,6 +482,26 @@ class TensorBackwardReferenceTests(unittest.TestCase):
         self.assertEqual(
             reference(case(steps))[3:], ["autograd:error:6", "autograd:id:3"]
         )
+
+    def test_a_batched_gradient_past_the_capacity_refuses_the_backward(self):
+        rows = {row["id"]: row for row in capacity_scripts()}
+        for identifier in (
+            "batched_left_gradient_capacity",
+            "batched_right_gradient_capacity",
+        ):
+            with self.subTest(case=identifier):
+                lines = reference(rows[identifier])
+                first = lines.index("autograd:backward")
+                refused = lines.index(f"autograd:error:{CAPACITY}")
+                self.assertNotIn("autograd:backward", lines[first + 1 :])
+                # The reads after the refusal repeat the first three reads
+                # before it: the leaf's slot, the constant's None and the
+                # sum's seed, unchanged.
+                before = lines[first + 1 : refused]
+                after = lines[refused + 1 :]
+                self.assertEqual(after, before[: len(after)])
+        lines = reference(rows["batched_output_capacity"])
+        self.assertEqual(lines[2:4], [f"autograd:error:{CAPACITY}", "autograd:id:2"])
 
     def test_matmul_errors_are_typed(self):
         lines = reference(case([GRID, ROW, op("matmul", 0, 1), op("matmul", 0, 0)]))
@@ -660,6 +707,18 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                     for a, b in zip(seen, fused, strict=True):
                         self.assertTrue(same_row(a, b), (a, b))
                     continue
+                if identifier in CAPACITY_REFUSALS:
+                    self.assertEqual(
+                        {
+                            index: (a, b)
+                            for index, (a, b) in enumerate(
+                                zip(seen, expected, strict=True)
+                            )
+                            if a != b
+                        },
+                        CAPACITY_REFUSALS[identifier],
+                    )
+                    continue
                 if identifier in NON_LEAF:
                     self.assertEqual(
                         differ[0], ("autograd:step", f"autograd:error:{NOT_LEAF}")
@@ -681,6 +740,7 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
             | set(LOSS_ROUNDING)
             | FUSED_UPDATE
             | NON_LEAF
+            | set(CAPACITY_REFUSALS)
         )
         self.assertEqual(exact, len(cases()) - len(excluded))
         self.assertEqual(exact, 191)

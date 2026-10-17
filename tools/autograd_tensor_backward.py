@@ -1571,6 +1571,60 @@ def weighted(x: dict, w: dict, left: list[int], right: list[int], seed: int) -> 
     return [x, w, op("batched_matmul", 0, 1), weights, op("mul", 2, 3), op("sum", 4)]
 
 
+# torch.matmul refusals of capacity, with no input word past 2^20. The
+# forward output [1, 1025, 1025] of [1, 1025, 0] @ [1, 0, 1025] has more than
+# 2^20 elements: the product is refused and the next leaf takes its id. In
+# the other two the forward output [1025, 0] is empty, but one operand's
+# gradient over the output's batch, before it is summed to the operand's
+# shape, is [1025, 1025]: [1025] @ [1025, 1025, 0] for the left operand's,
+# [1025, 0, 1025] @ [1025] for the right one's. A first backward from a sum
+# of the leaf fills its slot; the backward through the product is refused
+# and leaves every slot as it was. The other operand is a constant, so
+# PyTorch's record of each slot read after the refusal is the same.
+def capacity_scripts() -> list[dict]:
+    ones = [ONE] * 1025
+    return [
+        {
+            "id": "batched_output_capacity",
+            "steps": [
+                leaf([1, 1025, 0], []),
+                leaf([1, 0, 1025], []),
+                op("batched_matmul", 0, 1),
+                leaf([], f(1.0)),
+                *reads(2),
+            ],
+        },
+        {
+            "id": "batched_left_gradient_capacity",
+            "steps": [
+                leaf([1025], ones),
+                constant([1025, 1025, 0], []),
+                op("sum", 0),
+                op("batched_matmul", 0, 1),
+                op("sum", 3),
+                run(2),
+                *reads(5),
+                run(4),
+                *reads(3),
+            ],
+        },
+        {
+            "id": "batched_right_gradient_capacity",
+            "steps": [
+                constant([1025, 0, 1025], []),
+                leaf([1025], ones),
+                op("sum", 1),
+                op("batched_matmul", 0, 1),
+                op("sum", 3),
+                run(2),
+                *reads(5),
+                run(4),
+                *reads(3),
+            ],
+        },
+    ]
+
+
 def batched() -> list[dict]:
     result = []
     for index, (left, right) in enumerate(BATCHED_SHAPES):
@@ -1684,6 +1738,7 @@ def batched() -> list[dict]:
                 *reads(6),
             ],
         },
+        *capacity_scripts(),
     ]
     state = 0x6C078965
     for index in range(8):
@@ -2156,13 +2211,21 @@ def batched_matmul(left: tuple, right: tuple) -> tuple | int:
 # The VJP of torch.matmul: g @ right^T and left^T @ g for each batch of the
 # output, the left operand's product with its row dropped when it is 1-D and
 # the right one's with its column dropped, each summed to its operand's shape.
-def batched_vjp(node: dict, gradient: tuple) -> list[tuple[int, tuple]]:
+# Each product is built over the output's batch before the sum, as
+# Batched.left_gradient and right_gradient build it, so one with more than
+# 2^20 elements is refused with CapacityExceeded, the left one first, even
+# when both operands and the forward output fit.
+def batched_vjp(node: dict, gradient: tuple) -> list[tuple[int, tuple]] | int:
     left, right = node["saved"]
     plan = batched_plan(left[0], right[0])
     if isinstance(plan, int):
         raise GateError(f"A recorded torch.matmul was refused with code {plan}")
     rows, columns, batch, _ = plan
     (m, k), n = rows[-2:], columns[-1]
+    left_dims = batch + ([k] if len(left[0]) == 1 else [m, k])
+    right_dims = batch + ([k] if len(right[0]) == 1 else [k, n])
+    if max(math.prod(left_dims), math.prod(right_dims)) > MAX_ELEMENTS:
+        return CAPACITY_EXCEEDED
     first: list = []
     second: list = []
     for flat in range(math.prod(batch)):
@@ -2171,8 +2234,6 @@ def batched_vjp(node: dict, gradient: tuple) -> list[tuple[int, tuple]]:
         g = list(gradient[1][flat * m * n : (flat + 1) * m * n])
         first += accepted(matmul(([m, n], g), transpose(([k, n], b))))[1]
         second += accepted(matmul(transpose(([m, k], a)), ([m, n], g)))[1]
-    left_dims = batch + ([k] if len(left[0]) == 1 else [m, k])
-    right_dims = batch + ([k] if len(right[0]) == 1 else [k, n])
     return [
         (node["a"], sum_to_size((left_dims, first), node["left"])),
         (node["b"], sum_to_size((right_dims, second), node["right"])),
@@ -2199,7 +2260,7 @@ def accepted(result: tuple | int) -> tuple:
     return result
 
 
-def vjp(node: dict, gradient: tuple) -> list[tuple[int, tuple]]:
+def vjp(node: dict, gradient: tuple) -> list[tuple[int, tuple]] | int:
     name = node["op"]
     if name in ("leaf", "constant"):
         return []
@@ -2289,7 +2350,10 @@ def accumulate(held: tuple | None, contribution: tuple | None) -> tuple | None:
     )
 
 
-def gradients(nodes: list[dict], output: int) -> list[tuple | None]:
+# The working gradients of a sweep from output, or the error code of the
+# first VJP that the tensor layer refuses: then the sweep delivers nothing,
+# and every slot stays as it was.
+def gradients(nodes: list[dict], output: int) -> list[tuple | None] | int:
     found: list[tuple | None] = [None] * len(nodes)
     shape = nodes[output]["shape"]
     found[output] = (shape, [ONE] * math.prod(shape))
@@ -2298,7 +2362,10 @@ def gradients(nodes: list[dict], output: int) -> list[tuple | None]:
         if gradient is None:
             continue
         frozen = nodes[position].get("frozen", ())
-        for target, contribution in vjp(nodes[position], gradient):
+        contributions = vjp(nodes[position], gradient)
+        if isinstance(contributions, int):
+            return contributions
+        for target, contribution in contributions:
             if target < position and target not in frozen:
                 found[target] = accumulate(found[target], contribution)
     return found
@@ -2446,6 +2513,9 @@ def reference(case: dict, trace: dict | None = None, update=descend_word) -> lis
                 lines.append(f"autograd:error:{DANGLING_OPERAND}")
             else:
                 found = gradients(nodes, output)
+                if isinstance(found, int):
+                    lines.append(f"autograd:error:{found}")
+                    continue
                 slots = [accumulate(a, b) for a, b in zip(slots, found, strict=True)]
                 lines.append("autograd:backward")
         elif name == "zero_grad":
