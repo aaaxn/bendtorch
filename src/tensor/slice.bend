@@ -25,8 +25,9 @@ import ./elementwise.bend as Elementwise
 # past it, and `select` an index at or past the extent, with OutOfRange (20).
 #
 # Every index is a U32, so none is negative: the signed positions of
-# PyTorch (-1 is the last element) are turned into these unsigned ones before
-# `bounds`, the one place a start and a stop are normalized.
+# PyTorch (-1 is the last element) are not supported here, and a caller must
+# normalize them itself. `bounds` is the one place a start and a stop are
+# clamped.
 #
 # Output cell (o, k, r) of the row-major view [outer, length, inner] around
 # the axis holds input cell (o, start + k * step, r) of [outer, extent,
