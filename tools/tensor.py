@@ -471,6 +471,11 @@ SIGNED_CONTROLS = {
         "      Done{filled(extents, 0)}",
         "indivisible_beyond",
     ),
+    "cap-always-beyond": (
+        "  bounded(product, Nat.is_le(product, bound))\n",
+        "  Beyond{}\n",
+        "times_scaled",
+    ),
 }
 
 

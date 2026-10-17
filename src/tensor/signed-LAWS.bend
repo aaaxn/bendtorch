@@ -247,13 +247,23 @@ law signed_inferred_zero_product:
   {Signed.inferred_dimensions(1n+count, extents) == Fail{Signed.TransformError{Transforms.LayoutError{Layout.ElementCountMismatch{}}}} :
     Result<&2, &2, Signed.Error, List<&2, U32>>}
 
-# The class of a product against a bound, in Signed.Product.
+# The class of a product against a bound, in Signed.Product, stated from
+# its definition and not through signed.bend's helpers: 0 is ZeroProduct, a
+# nonzero product at most the bound is Within{product}, and one past it is
+# Beyond.
+def classified(product: Nat, below: Bool) -> Signed.Product:
+  match below:
+    case True{}:
+      Signed.Within{product}
+    case False{}:
+      Signed.Beyond{}
+
 def classify(+bound: Nat, product: Nat) -> Signed.Product:
   match product:
     case 0n:
       Signed.ZeroProduct{}
-    case 1n+rest:
-      Signed.cap(bound, 1n+rest)
+    case 1n+(+rest):
+      classified(1n+rest, Nat.is_le(1n+rest, bound))
 
 # The inference never forms the exact sizes' product: capped classifies it
 # against the input's element count, ZeroProduct, Within{p} with p at most

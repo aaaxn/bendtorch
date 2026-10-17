@@ -305,6 +305,14 @@ def past_bound(+bound: Nat, +less: Nat, +rest: Nat, past: {Nat.is_lt(bound, 1n+l
   %NatProofs.mul_comm(1n+rest, 1n+less) : {Nat.is_le(_, bound) == False{} : Bool}
   not_le_add(1n+less, Nat.mul(rest, 1n+less), bound, lt_not_le(bound, 1n+less, past))
 
+# signed.bend's cap sorts a product as the laws' classified does.
+def bounded_classified(+product: Nat, +below: Bool) -> {Signed.bounded(product, below) == Laws.classified(product, below) : Signed.Product}:
+  match below:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+
 def times_scaled(+bound: Nat, +less: Nat, +rest: Nat, decision: Shape.BoolCase<Nat.is_lt(bound, 1n+less)>) ->
   {Signed.scaled(bound, 1n+less, 1n+rest, Nat.is_lt(bound, 1n+less)) == Laws.classify(bound, Nat.mul(1n+less, 1n+rest)) : Signed.Product}:
   match decision:
@@ -312,23 +320,23 @@ def times_scaled(+bound: Nat, +less: Nat, +rest: Nat, decision: Shape.BoolCase<N
       %equal : {Signed.scaled(bound, 1n+less, 1n+rest, _) == Laws.classify(bound, Nat.mul(1n+less, 1n+rest)) : Signed.Product}
       %Equal.sym(Bool, Nat.is_le(Nat.mul(1n+less, 1n+rest), bound), False{},
         past_bound(bound, less, rest, Equal.sym(Bool, True{}, Nat.is_lt(bound, 1n+less), equal))) :
-        {Signed.Beyond{} == Signed.bounded(Nat.mul(1n+less, 1n+rest), _) : Signed.Product}
+        {Signed.Beyond{} == Laws.classified(Nat.mul(1n+less, 1n+rest), _) : Signed.Product}
       {==}
     case Shape.BFalse{equal}:
       %equal : {Signed.scaled(bound, 1n+less, 1n+rest, _) == Laws.classify(bound, Nat.mul(1n+less, 1n+rest)) : Signed.Product}
-      {==}
+      bounded_classified(Nat.mul(1n+less, 1n+rest), Nat.is_le(Nat.mul(1n+less, 1n+rest), bound))
 
 def times_within(+bound: Nat, +less: Nat, +rest: Nat, decision: Shape.BoolCase<Nat.is_le(1n+rest, bound)>) ->
-  {Signed.times(bound, 1n+less, Signed.bounded(1n+rest, Nat.is_le(1n+rest, bound))) == Laws.classify(bound, Nat.mul(1n+less, 1n+rest)) : Signed.Product}:
+  {Signed.times(bound, 1n+less, Laws.classified(1n+rest, Nat.is_le(1n+rest, bound))) == Laws.classify(bound, Nat.mul(1n+less, 1n+rest)) : Signed.Product}:
   match decision:
     case Shape.BTrue{equal}:
-      %equal : {Signed.times(bound, 1n+less, Signed.bounded(1n+rest, _)) == Laws.classify(bound, Nat.mul(1n+less, 1n+rest)) : Signed.Product}
+      %equal : {Signed.times(bound, 1n+less, Laws.classified(1n+rest, _)) == Laws.classify(bound, Nat.mul(1n+less, 1n+rest)) : Signed.Product}
       times_scaled(bound, less, rest, Shape.bool_case(Nat.is_lt(bound, 1n+less)))
     case Shape.BFalse{+equal}:
-      %equal : {Signed.times(bound, 1n+less, Signed.bounded(1n+rest, _)) == Laws.classify(bound, Nat.mul(1n+less, 1n+rest)) : Signed.Product}
+      %equal : {Signed.times(bound, 1n+less, Laws.classified(1n+rest, _)) == Laws.classify(bound, Nat.mul(1n+less, 1n+rest)) : Signed.Product}
       %Equal.sym(Bool, Nat.is_le(Nat.mul(1n+less, 1n+rest), bound), False{},
         not_le_add(1n+rest, Nat.mul(less, 1n+rest), bound, Equal.sym(Bool, False{}, Nat.is_le(1n+rest, bound), equal))) :
-        {Signed.Beyond{} == Signed.bounded(Nat.mul(1n+less, 1n+rest), _) : Signed.Product}
+        {Signed.Beyond{} == Laws.classified(Nat.mul(1n+less, 1n+rest), _) : Signed.Product}
       {==}
 
 # times on a classified product classifies the product times the size.
@@ -350,7 +358,7 @@ def capped_classifies(+bound: Nat, +extents: List<&2, Signed.Extent>) ->
   {Signed.capped(bound, extents) == Laws.classify(bound, Signed.exact_product(extents)) : Signed.Product}:
   match extents:
     case Nil{}:
-      {==}
+      bounded_classified(1n, Nat.is_le(1n, bound))
     case Signed.Exact{+size} <> +tail:
       %Equal.sym(Signed.Product, Signed.capped(bound, tail), Laws.classify(bound, Signed.exact_product(tail)), capped_classifies(bound, tail)) :
         {Signed.times(bound, U32.to_nat(size), _) == Laws.classify(bound, Nat.mul(U32.to_nat(size), Signed.exact_product(tail))) : Signed.Product}
@@ -379,19 +387,19 @@ def within_value(product: Signed.Product) -> Nat:
     case Signed.Beyond{}:
       0n
 
-def within_decided(+bound: Nat, +r: Nat, +p: Nat, +within: {Signed.bounded(1n+r, Nat.is_le(1n+r, bound)) == Signed.Within{p} : Signed.Product},
+def within_decided(+bound: Nat, +r: Nat, +p: Nat, +within: {Laws.classified(1n+r, Nat.is_le(1n+r, bound)) == Signed.Within{p} : Signed.Product},
   decision: Shape.BoolCase<Nat.is_le(1n+r, bound)>) -> {Nat.is_le(p, bound) == True{} : Bool}:
   match decision:
     case Shape.BTrue{+equal}:
-      %Equal.cong(Signed.Product, Nat, within_value, Signed.bounded(1n+r, Nat.is_le(1n+r, bound)), Signed.Within{p}, within) :
+      %Equal.cong(Signed.Product, Nat, within_value, Laws.classified(1n+r, Nat.is_le(1n+r, bound)), Signed.Within{p}, within) :
         {Nat.is_le(_, bound) == True{} : Bool}
-      %equal : {Nat.is_le(within_value(Signed.bounded(1n+r, _)), bound) == True{} : Bool}
+      %equal : {Nat.is_le(within_value(Laws.classified(1n+r, _)), bound) == True{} : Bool}
       Equal.sym(Bool, True{}, Nat.is_le(1n+r, bound), equal)
     case Shape.BFalse{equal}:
       Empty.absurd({Nat.is_le(p, bound) == True{} : Bool},
-        Arith.clash(Equal.trans(Bool, is_within(Signed.bounded(1n+r, False{})), is_within(Signed.bounded(1n+r, Nat.is_le(1n+r, bound))), True{},
-          Equal.cong(Bool, Bool, x => is_within(Signed.bounded(1n+r, x)), False{}, Nat.is_le(1n+r, bound), equal),
-          Equal.cong(Signed.Product, Bool, is_within, Signed.bounded(1n+r, Nat.is_le(1n+r, bound)), Signed.Within{p}, within))))
+        Arith.clash(Equal.trans(Bool, is_within(Laws.classified(1n+r, False{})), is_within(Laws.classified(1n+r, Nat.is_le(1n+r, bound))), True{},
+          Equal.cong(Bool, Bool, x => is_within(Laws.classified(1n+r, x)), False{}, Nat.is_le(1n+r, bound), equal),
+          Equal.cong(Signed.Product, Bool, is_within, Laws.classified(1n+r, Nat.is_le(1n+r, bound)), Signed.Within{p}, within))))
 
 def classify_within(+bound: Nat, +product: Nat, +p: Nat, within: {Laws.classify(bound, product) == Signed.Within{p} : Signed.Product}) ->
   {Nat.is_le(p, bound) == True{} : Bool}:
@@ -428,16 +436,16 @@ def size_beyond(+count: Nat, +extents: List<&2, Signed.Extent>, +rest: Nat, +quo
 
 def size_decided(+count: Nat, +extents: List<&2, Signed.Extent>, +rest: Nat, +quotient: Nat,
   exact: {Nat.mul(quotient, 1n+rest) == count : Nat}, decision: Shape.BoolCase<Nat.is_le(1n+rest, count)>) ->
-  {Signed.inferred_one(count, extents, Signed.bounded(1n+rest, Nat.is_le(1n+rest, count))) ==
+  {Signed.inferred_one(count, extents, Laws.classified(1n+rest, Nat.is_le(1n+rest, count))) ==
     Done{Signed.filled(extents, U32.from_nat(quotient))} : Result<&2, &2, Signed.Error, List<&2, U32>>}:
   match decision:
     case Shape.BTrue{equal}:
-      %equal : {Signed.inferred_one(count, extents, Signed.bounded(1n+rest, _)) == Done{Signed.filled(extents, U32.from_nat(quotient))} : Result<&2, &2, Signed.Error, List<&2, U32>>}
+      %equal : {Signed.inferred_one(count, extents, Laws.classified(1n+rest, _)) == Done{Signed.filled(extents, U32.from_nat(quotient))} : Result<&2, &2, Signed.Error, List<&2, U32>>}
       %Equal.sym(Nat & Nat, Nat.divmod(count, 1n+rest), (quotient, 0n), divides(count, rest, quotient, exact)) :
         {Signed.divided(extents, _) == Done{Signed.filled(extents, U32.from_nat(quotient))} : Result<&2, &2, Signed.Error, List<&2, U32>>}
       {==}
     case Shape.BFalse{+equal}:
-      %equal : {Signed.inferred_one(count, extents, Signed.bounded(1n+rest, _)) == Done{Signed.filled(extents, U32.from_nat(quotient))} : Result<&2, &2, Signed.Error, List<&2, U32>>}
+      %equal : {Signed.inferred_one(count, extents, Laws.classified(1n+rest, _)) == Done{Signed.filled(extents, U32.from_nat(quotient))} : Result<&2, &2, Signed.Error, List<&2, U32>>}
       size_beyond(count, extents, rest, quotient, exact, Equal.sym(Bool, False{}, Nat.is_le(1n+rest, count), equal))
 
 def Laws.signed_inferred_size(count, extents, one, rest, product, quotient, exact):
@@ -517,15 +525,15 @@ def indivisible_beyond(+count: Nat, +extents: List<&2, Signed.Extent>, +rest: Na
 
 def indivisible_decided(+count: Nat, +extents: List<&2, Signed.Extent>, +rest: Nat, +quotient: Nat, +remainder: Nat,
   split: {Nat.divmod(count, 1n+rest) == (quotient, 1n+remainder) : Nat & Nat}, decision: Shape.BoolCase<Nat.is_le(1n+rest, count)>) ->
-  {Signed.inferred_one(count, extents, Signed.bounded(1n+rest, Nat.is_le(1n+rest, count))) == Fail{Signed.count_mismatch()} : Result<&2, &2, Signed.Error, List<&2, U32>>}:
+  {Signed.inferred_one(count, extents, Laws.classified(1n+rest, Nat.is_le(1n+rest, count))) == Fail{Signed.count_mismatch()} : Result<&2, &2, Signed.Error, List<&2, U32>>}:
   match decision:
     case Shape.BTrue{equal}:
-      %equal : {Signed.inferred_one(count, extents, Signed.bounded(1n+rest, _)) == Fail{Signed.count_mismatch()} : Result<&2, &2, Signed.Error, List<&2, U32>>}
+      %equal : {Signed.inferred_one(count, extents, Laws.classified(1n+rest, _)) == Fail{Signed.count_mismatch()} : Result<&2, &2, Signed.Error, List<&2, U32>>}
       %Equal.sym(Nat & Nat, Nat.divmod(count, 1n+rest), (quotient, 1n+remainder), split) :
         {Signed.divided(extents, _) == Fail{Signed.count_mismatch()} : Result<&2, &2, Signed.Error, List<&2, U32>>}
       {==}
     case Shape.BFalse{equal}:
-      %equal : {Signed.inferred_one(count, extents, Signed.bounded(1n+rest, _)) == Fail{Signed.count_mismatch()} : Result<&2, &2, Signed.Error, List<&2, U32>>}
+      %equal : {Signed.inferred_one(count, extents, Laws.classified(1n+rest, _)) == Fail{Signed.count_mismatch()} : Result<&2, &2, Signed.Error, List<&2, U32>>}
       indivisible_beyond(count, extents, rest, quotient, remainder, split)
 
 def Laws.signed_inferred_indivisible(count, extents, one, rest, product, quotient, remainder, split):

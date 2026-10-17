@@ -21,7 +21,7 @@ from tools.tensor_signed import (
 )
 
 FIXTURE = ROOT / "oracle/tensor/fixtures/signed-torch.json"
-FIXTURE_SHA256 = "156017b750ac1356fd1d0b0fb8a34e350701b4996236b883380c6ae91d8c7177"
+FIXTURE_SHA256 = "a36983335e31e6f4ed09bc84780633edbc5e1424642c8b75da18885dec3b873e"
 # The exception PyTorch raises for each refusal code: an axis, coordinate or
 # flat index out of range is IndexError; an axis count other than the rank
 # (12), a repeated axis (14), a size count mismatch (15), a second -1 (17)
@@ -40,6 +40,14 @@ KINDS = {
 # each axis in turn, so [0, -3, 5] on rank 3 meets -3, which wraps to the
 # repeated 0, before 5; the unsigned permute checks every range first.
 FIRST_ERROR = {"permute_range_after_repeat": (AXIS_OUT_OF_BOUNDS, "RuntimeError")}
+# bendtorch accepts, PyTorch refuses: an empty shape whose other sizes
+# multiply past PyTorch's int64 element count and strides. bendtorch's sizes
+# are exact naturals and it keeps no strides, so the shape [0, 2^32-1, 2^32-1]
+# holds 0 elements.
+PYTORCH_REFUSES = {
+    "reshape_empty_huge": "RuntimeError",
+    "reshape_empty_huge_exact": "RuntimeError",
+}
 
 
 class SignedReferenceTests(unittest.TestCase):
@@ -104,6 +112,14 @@ class SignedTorchTests(unittest.TestCase):
         for case in cases():
             with self.subTest(case=case["id"]):
                 expected, seen = reference(case), torch[case["id"]]
+                if case["id"] in PYTORCH_REFUSES:
+                    self.assertEqual(
+                        expected[0], "tensor:shape:[0, 4294967295, 4294967295]"
+                    )
+                    self.assertEqual(
+                        seen, [f"tensor:rejected:{PYTORCH_REFUSES[case['id']]}"]
+                    )
+                    continue
                 if not expected[0].startswith("tensor:error:"):
                     succeeded += 1
                     self.assertEqual(expected, seen)
@@ -116,6 +132,7 @@ class SignedTorchTests(unittest.TestCase):
                     kind = FIRST_ERROR[case["id"]][1]
                 self.assertEqual(seen, [f"tensor:rejected:{kind}"])
         self.assertEqual((succeeded, refused), (46, 39))
+        self.assertLessEqual(set(PYTORCH_REFUSES), set(torch))
 
 
 class SignedRegistrationTests(unittest.TestCase):
@@ -135,7 +152,7 @@ class SignedRegistrationTests(unittest.TestCase):
     def test_controls_apply_once_and_name_a_proof(self):
         source = (ROOT / "src/tensor/signed.bend").read_text()
         proof = (ROOT / "src/tensor/signed-PROOF.bend").read_text()
-        self.assertEqual(len(SIGNED_CONTROLS), 17)
+        self.assertEqual(len(SIGNED_CONTROLS), 18)
         for original, mutated, location in SIGNED_CONTROLS.values():
             with self.subTest(location=location):
                 self.assertEqual(source.count(original), 1)
