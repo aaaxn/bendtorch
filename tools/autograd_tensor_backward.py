@@ -2483,7 +2483,8 @@ def gather_scripts() -> list[dict]:
         # extent; a gather whose entry count is not the product of its
         # dimensions, at an axis past the rank, of another rank, wider than
         # the input at another axis, with an entry at the extent; an unknown
-        # id.
+        # id; a gather index past 2^20 elements (its product, 2^48, is never
+        # formed) and one past rank 4.
         {
             "id": "gather_refused",
             "steps": [
@@ -2498,14 +2499,18 @@ def gather_scripts() -> list[dict]:
                 gathered(0, 0, [1, 4], [0, 1, 3, 2]),
                 index_selected(5, 0, [0]),
                 gathered(0, 0, [1, 4], [0, 1, 2, 2]),
+                gathered(0, 0, [2**24, 2**24], []),
+                gathered(0, 0, [1, 1, 1, 1, 1], [0]),
                 run(1),
                 *reads(2),
             ],
         },
         # What PyTorch takes and bendtorch refuses: a gather index narrower
-        # than the input at another axis (IndexShapeMismatch), and an
-        # index_select and a gather of a rank-0 input, which PyTorch reads as
-        # one element along axis 0 (AxisOutOfBounds).
+        # than the input at another axis (IndexShapeMismatch), an index_select
+        # and a gather of a rank-0 input, which PyTorch reads as one element
+        # along axis 0 (AxisOutOfBounds), and two empty gather indexes, of
+        # another rank (IndexRankMismatch) and wider than the input at another
+        # axis (IndexShapeMismatch), which PyTorch takes unchecked.
         {
             "id": "gather_pytorch_accepts",
             "steps": [
@@ -2514,6 +2519,22 @@ def gather_scripts() -> list[dict]:
                 gathered(0, 1, [2, 4], [0, 1, 2, 3, 3, 2, 1, 0]),
                 index_selected(1, 0, [0]),
                 gathered(1, 0, [], [0]),
+                gathered(0, 1, [0], []),
+                gathered(0, 1, [4, 0], []),
+            ],
+        },
+        # Inputs and indexes with no element whose other extents multiply to
+        # 2^48, past the largest Nat Bend's runtime holds: no product of them
+        # is formed.
+        {
+            "id": "gather_empty_wide",
+            "steps": [
+                leaf([0, 2**24, 2**24], []),
+                gathered(0, 1, [0, 2**24, 2**24], []),
+                index_selected(0, 2, [5, 1]),
+                run(1),
+                run(2),
+                *reads(3),
             ],
         },
         # More than 2^15 cells, so both builds fork: x = a * b * c of
@@ -2874,7 +2895,8 @@ def slice_cells(shape: list[int], dim: int, indices: range) -> list[tuple]:
 
 # An index_select's or a gather's output shape and, for each output cell, the
 # input cell it copies, as flat indices; or the code of its refusal, in
-# order: a gather's entry count, the axis, a gather index's rank and its
+# order: a gather index whose dimensions no tensor has (past rank 4 or 2^20
+# elements), a gather's entry count, the axis, a gather index's rank and its
 # extents at the other axes, then an entry at or past the extent. Output cell
 # (o, k, r) of [outer, length, inner] reads input cell (o, j, r) of [outer,
 # extent, inner], with j entry k of an index_select's index, and the entry
@@ -2882,6 +2904,10 @@ def slice_cells(shape: list[int], dim: int, indices: range) -> list[tuple]:
 def gather_plan(shape: list[int], step: dict) -> tuple[list, list] | int:
     entries = step["index"]
     gather = step["op"] == "gather"
+    if gather and len(step["index_shape"]) > MAX_RANK:
+        return RANK_EXCEEDED
+    if gather and math.prod(step["index_shape"]) > MAX_ELEMENTS:
+        return CAPACITY_EXCEEDED
     if gather and len(entries) != math.prod(step["index_shape"]):
         return VALUE_COUNT_MISMATCH
     dim = wrap(step["dim"], len(shape))

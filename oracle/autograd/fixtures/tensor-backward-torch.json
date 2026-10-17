@@ -41647,6 +41647,8 @@
     "autograd:rejected:RuntimeError",
     "autograd:rejected:IndexError",
     "autograd:id:1",
+    "autograd:rejected:RuntimeError",
+    "autograd:rejected:RuntimeError",
     "autograd:backward",
     "autograd:value",
     "tensor:shape:[3, 4]",
@@ -41701,7 +41703,37 @@
     "autograd:id:1",
     "autograd:id:2",
     "autograd:id:3",
-    "autograd:id:4"
+    "autograd:id:4",
+    "autograd:id:5",
+    "autograd:id:6"
+   ]
+  },
+  {
+   "id": "gather_empty_wide",
+   "lines": [
+    "autograd:id:0",
+    "autograd:id:1",
+    "autograd:id:2",
+    "autograd:backward",
+    "autograd:backward",
+    "autograd:value",
+    "tensor:shape:[0, 16777216, 16777216]",
+    "tensor:count:0",
+    "autograd:grad",
+    "tensor:shape:[0, 16777216, 16777216]",
+    "tensor:count:0",
+    "autograd:value",
+    "tensor:shape:[0, 16777216, 16777216]",
+    "tensor:count:0",
+    "autograd:grad",
+    "tensor:shape:[0, 16777216, 16777216]",
+    "tensor:count:0",
+    "autograd:value",
+    "tensor:shape:[0, 16777216, 2]",
+    "tensor:count:0",
+    "autograd:grad",
+    "tensor:shape:[0, 16777216, 2]",
+    "tensor:count:0"
    ]
   },
   {
@@ -43422,6 +43454,6 @@
   "torch_version": "2.14.1+cpu"
  },
  "purpose": "PyTorch observations for every tensor backward request; the root test compares the gate reference with them",
- "requests": "db49096f4f9ae14cd41f5ec46d7935404386e1909ee952dda7678631ed010541",
+ "requests": "fc07c155fd96f9b8cef4b7a09abce95790720b362da00ed318f2d27481dd3594",
  "schema_version": 1
 }

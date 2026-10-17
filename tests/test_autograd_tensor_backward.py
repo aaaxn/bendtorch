@@ -10,7 +10,7 @@ from pathlib import Path
 from tools.autograd import PROOF_CONTROLS, SUBGATES
 from tools.autograd_backward import DANGLING_OPERAND, NEGATIVE_ZERO, UNKNOWN_NODE
 from tools.autograd_broadcast import CAPACITY_EXCEEDED as CAPACITY
-from tools.autograd_broadcast import is_nan, word
+from tools.autograd_broadcast import RANK_EXCEEDED, is_nan, word
 from tools.autograd_tensor_backward import (
     AXIS_OUT_OF_BOUNDS,
     CHAIN_CONTROLS,
@@ -62,7 +62,7 @@ from tools.autograd_tensor_bound import (
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "6e1bf9ccb1fcbcb2f4cf5ca3a9f2bd97e2321a9c2d4f7aa04567f6a9a273bd5d"
+FIXTURE_SHA256 = "203526284069f3032519a41e169edd2f70b314be7a4a47c39edd71612328f8ae"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
@@ -115,7 +115,9 @@ RUNTIME_ERROR_CODES = {6, MATMUL_RANK, MATMUL_INNER, 10}
 # at an axis past the rank (IndexError, 13), of another rank (RuntimeError,
 # IndexRankMismatch 21), wider than the input at another axis (RuntimeError,
 # IndexShapeMismatch 22), with an entry at the extent (RuntimeError, 20);
-# an unknown id (IndexError, 103).
+# an unknown id (IndexError, 103); an index past 2^20 elements and one past
+# rank 4 (RuntimeError from the replay's reshape and from the rank check,
+# CapacityExceeded 2 and RankExceeded 1, the index built as a tensor is).
 STEP_REJECTIONS = {
     "cross_entropy_refused": [
         ("IndexError", TARGET_OUT_OF_RANGE),
@@ -165,6 +167,8 @@ STEP_REJECTIONS = {
         ("RuntimeError", INDEX_SHAPE_MISMATCH),
         ("RuntimeError", OUT_OF_RANGE),
         ("IndexError", UNKNOWN_NODE),
+        ("RuntimeError", CAPACITY),
+        ("RuntimeError", RANK_EXCEEDED),
     ],
     "slice_negative_refused": [
         ("IndexError", AXIS_OUT_OF_BOUNDS),
@@ -337,13 +341,17 @@ NON_LEAF = {"sgd_not_leaf"}
 # only zeros). For each script, the line index of every line that differs
 # and the pair (PyTorch's line, the reference's line).
 # What PyTorch takes and the tape refuses, line by line: a gather index
-# narrower than the input at another axis (IndexShapeMismatch 22), and an
-# index_select and a gather of a rank-0 input (AxisOutOfBounds 13).
+# narrower than the input at another axis (IndexShapeMismatch 22), an
+# index_select and a gather of a rank-0 input (AxisOutOfBounds 13), and two
+# empty gather indexes, of another rank (IndexRankMismatch 21) and wider
+# than the input at another axis (22), which PyTorch does not check.
 INDEX_REFUSALS = {
     "gather_pytorch_accepts": {
         2: ("autograd:id:2", f"autograd:error:{INDEX_SHAPE_MISMATCH}"),
         3: ("autograd:id:3", f"autograd:error:{AXIS_OUT_OF_BOUNDS}"),
         4: ("autograd:id:4", f"autograd:error:{AXIS_OUT_OF_BOUNDS}"),
+        5: ("autograd:id:5", f"autograd:error:{INDEX_RANK_MISMATCH}"),
+        6: ("autograd:id:6", f"autograd:error:{INDEX_SHAPE_MISMATCH}"),
     },
 }
 CAPACITY_REFUSALS = {
@@ -826,7 +834,7 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
             | set(INDEX_REFUSALS)
         )
         self.assertEqual(exact, len(cases()) - len(excluded))
-        self.assertEqual(exact, 281)
+        self.assertEqual(exact, 282)
 
     # Planted wrong results on the reference's side, as a wrong Bend result
     # would be: a sum, a broadcast reduction, a sum over axes (reduce_to) and
