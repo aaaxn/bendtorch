@@ -373,8 +373,8 @@ def loss_controls(evidence: Evidence, source_root: Path) -> None:
     )
 
 
-# Mutants of the signed wrap and the reshape size inference, each applied to
-# a copy of src/tensor/signed.bend, and the definition of
+# Mutants of the signed wrap, the reshape size inference and signed slicing,
+# each applied to a copy of src/tensor/signed.bend, and the definition of
 # src/tensor/signed-PROOF.bend that rejects it: a law, or the lemma that
 # proves one.
 SIGNED_CONTROLS = {
@@ -475,6 +475,57 @@ SIGNED_CONTROLS = {
         "  bounded(product, Nat.is_le(product, bound))\n",
         "  Beyond{}\n",
         "times_scaled",
+    ),
+    # Signed slicing: a slice bound before -limit left at limit instead of
+    # 0, or no Last before -limit (both rejected where bound_inside rewrites
+    # the bound); every First before -limit; a slice whose start
+    # is wrapped as an index, or whose axis is wrapped among the element
+    # count; a select whose index is bounded like a slice position; a narrow
+    # that takes every start; a narrow start before -extent that skips the
+    # axis check.
+    "bound-outside-to-limit": (
+        "Bool.pick(U32, before(limit, position), 0, wrap(limit, position))",
+        "Bool.pick(U32, before(limit, position), limit, wrap(limit, position))",
+        "bound_inside",
+    ),
+    "before-takes-every-last": (
+        "    case Last{k}:\n      Bool.not(U32.is_lt(k, limit))",
+        "    case Last{k}:\n      False{}",
+        "bound_inside",
+    ),
+    "before-holds-every-first": (
+        "    case First{k}:\n      False{}\n    case Last{k}:\n      Bool.not(",
+        "    case First{k}:\n      True{}\n    case Last{k}:\n      Bool.not(",
+        "Laws.signed_bound_first",
+    ),
+    "slice-wraps-the-start": (
+        "bound(n, start), bound(n, stop), step)",
+        "wrap(n, start), bound(n, stop), step)",
+        "Laws.signed_slice_bounds",
+    ),
+    "slice-axis-among-the-count": (
+        "  +axis = wrap(Shape.rank(shape), dim)\n"
+        "  +n = extent(Shape.dimensions(shape), axis)\n  Slice.slice(",
+        "  +axis = wrap(Shape.count(shape), dim)\n"
+        "  +n = extent(Shape.dimensions(shape), axis)\n  Slice.slice(",
+        "Laws.signed_slice_bounds",
+    ),
+    "select-bounds-the-index": (
+        "axis, wrap(extent(Shape.dimensions(shape), axis), index))",
+        "axis, bound(extent(Shape.dimensions(shape), axis), index))",
+        "Laws.signed_select_wraps",
+    ),
+    "narrow-takes-every-start": (
+        "wrap(n, start), length, before(n, start))",
+        "wrap(n, start), length, False{})",
+        "Laws.signed_narrow_last_inside",
+    ),
+    "narrow-before-skips-the-axis": (
+        "    case Some{error}:\n      (input, Fail{error})\n    case None{}:\n"
+        "      (input, Fail{Slice.OutOfRange{}})",
+        "    case Some{error}:\n      (input, Fail{Slice.OutOfRange{}})\n"
+        "    case None{}:\n      (input, Fail{Slice.OutOfRange{}})",
+        "Laws.signed_narrow_before_axis",
     ),
 }
 

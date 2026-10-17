@@ -24,10 +24,11 @@ import ./elementwise.bend as Elementwise
 # empty axis. `narrow` refuses a start past the extent or a start + length
 # past it, and `select` an index at or past the extent, with OutOfRange (20).
 #
-# Every index is a U32, so none is negative: the signed positions of
-# PyTorch (-1 is the last element) are not supported here, and a caller must
-# normalize them itself. `bounds` is the one place a start and a stop are
-# clamped.
+# Every index here is a U32, so none is negative. PyTorch's signed axes and
+# positions (-1 is the last axis or element) are parsed in signed.bend
+# (Signed.slice, narrow and select), which calls these operations; the tape
+# records slices through those. `bounds` is the one place a start and a stop
+# are clamped to the extent.
 #
 # Output cell (o, k, r) of the row-major view [outer, length, inner] around
 # the axis holds input cell (o, start + k * step, r) of [outer, extent,
