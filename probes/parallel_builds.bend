@@ -135,6 +135,62 @@ def product(+name: String, +rounding: Bool, +rows: U32, +inner: U32, +columns: U
     matrix(rounding, rows, inner, 7n), matrix(rounding, inner, columns, 11n),
     matrix(rounding, rows, inner, 7n), matrix(rounding, inner, columns, 11n))
 
+# matmul_nt and matmul_tn, which build their cells with product_tree and run
+# eight cells of one row as one loop, next to Matrix.multiply over the
+# transposed copy of the operand they read in place. Each output has more
+# than 2^15 cells in a storage of 2^16, so it forks and pads, and a row of a
+# column count that is not a multiple of eight puts some eight-cell subtrees
+# across two rows, where the tree builds them cell by cell. Their inputs
+# round: adding each cell's terms in decreasing k changes 26537 of the
+# 33000 cells of the first and 25263 of the 33847 of the second.
+def nt_reference(c: Core.Dynamic, pair: Core.Dynamic & Result<&2, &1, Transforms.Error, Core.Dynamic>) -> Maybe<&1, Core.Dynamic>:
+  (kept, flipped) = pair
+  match flipped:
+    case Fail{error}:
+      None{}
+    case Done{t}:
+      sequential(c, t)
+
+def tn_reference(d: Core.Dynamic, pair: Core.Dynamic & Result<&2, &1, Transforms.Error, Core.Dynamic>) -> Maybe<&1, Core.Dynamic>:
+  (kept, flipped) = pair
+  match flipped:
+    case Fail{error}:
+      None{}
+    case Done{t}:
+      sequential(t, d)
+
+def nt_inputs(+name: String, +rows: U32, +inner: U32, +columns: U32, +depth: Nat,
+  a: Result<&2, &1, Core.Error, Core.Dynamic>, b: Result<&2, &1, Core.Error, Core.Dynamic>,
+  c: Result<&2, &1, Core.Error, Core.Dynamic>, d: Result<&2, &1, Core.Error, Core.Dynamic>) -> IO(Unit):
+  match a b c d:
+    case Done{a} Done{b} Done{c} Done{d}:
+      report(name, Matrix.product_splits(depth, U32.to_nat(inner)), Nat.mul(U32.to_nat(rows), U32.to_nat(columns)),
+        public(Matrix.matmul_nt(a, b)), nt_reference(c, Transforms.transpose_dynamic(d, 0, 1)))
+    case _ _ _ _:
+      IO.print(name ++ " inputs failed")
+
+def tn_inputs(+name: String, +rows: U32, +inner: U32, +columns: U32, +depth: Nat,
+  a: Result<&2, &1, Core.Error, Core.Dynamic>, b: Result<&2, &1, Core.Error, Core.Dynamic>,
+  c: Result<&2, &1, Core.Error, Core.Dynamic>, d: Result<&2, &1, Core.Error, Core.Dynamic>) -> IO(Unit):
+  match a b c d:
+    case Done{a} Done{b} Done{c} Done{d}:
+      report(name, Matrix.product_splits(depth, U32.to_nat(inner)), Nat.mul(U32.to_nat(rows), U32.to_nat(columns)),
+        public(Matrix.matmul_tn(a, b)), tn_reference(d, Transforms.transpose_dynamic(c, 0, 1)))
+    case _ _ _ _:
+      IO.print(name ++ " inputs failed")
+
+# x @ W^T for x of [rows, inner] and W of [columns, inner].
+def nt_product(+name: String, +rows: U32, +inner: U32, +columns: U32, +depth: Nat) -> IO(Unit):
+  nt_inputs(name, rows, inner, columns, depth,
+    matrix(True{}, rows, inner, 7n), matrix(True{}, columns, inner, 11n),
+    matrix(True{}, rows, inner, 7n), matrix(True{}, columns, inner, 11n))
+
+# g^T @ x for g of [inner, rows] and x of [inner, columns].
+def tn_product(+name: String, +rows: U32, +inner: U32, +columns: U32, +depth: Nat) -> IO(Unit):
+  tn_inputs(name, rows, inner, columns, depth,
+    matrix(True{}, inner, rows, 7n), matrix(True{}, inner, columns, 11n),
+    matrix(True{}, inner, rows, 7n), matrix(True{}, inner, columns, 11n))
+
 # The sequential definition of reduce_to: `ReduceFold.cell`, the masked fold
 # that `reduce_fold_fiber` states, one target cell at a time over every
 # contribution position.
@@ -259,6 +315,8 @@ def main() -> IO(Unit):
     product("matmul-96x40x80", False{}, 96, 40, 80, 13n)
     product("matmul-2x3x2", False{}, 2, 3, 2, 2n)
     product("matmul-64x48x64-rounding", True{}, 64, 48, 64, 12n)
+    nt_product("matmul_nt-200x40x165-rounding", 200, 40, 165, 16n)
+    tn_product("matmul_tn-181x24x187-rounding", 181, 24, 187, 16n)
     reduction("reduce-256x128-to-1x128-rounding", True{}, [256, 128], [1, 128], 128n, 7n)
     reduction("reduce-256x64-to-256x1-rounding", True{}, [256, 64], [256, 1], 256n, 8n)
     reduction("reduce-64x16x32-to-16x1-rounding", True{}, [64, 16, 32], [16, 1], 16n, 4n)
