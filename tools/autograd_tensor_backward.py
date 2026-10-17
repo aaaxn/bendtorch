@@ -45,12 +45,18 @@ UNARY = ("sum", "sum_dims", "relu", "cross_entropy")
 # torch.matmul with batching and 1-D promotion. It is not in BINARY, which
 # the generated scripts draw from, so their scripts stay as they were.
 PRODUCTS = ("batched_matmul",)
+# Basic slicing, each recorded as one Slice node. Not in UNARY either, for the
+# same reason.
+SLICES = ("slice", "narrow", "select")
 NOT_LOGITS = 107
 TARGET_OUT_OF_RANGE = 108
 NEGATIVE_INFINITY = 0xFF800000
 # The codes permute gives a bad axis, which sum over axes reuses.
 AXIS_OUT_OF_BOUNDS = 13
 DUPLICATE_AXIS = 14
+# A slice's refusals: a step of 0, and a narrow or select past the extent.
+STEP_NOT_POSITIVE = 19
+OUT_OF_RANGE = 20
 
 RUNTIME_CONTROLS = {
     "seed-newest-node": (
@@ -145,6 +151,22 @@ RUNTIME_CONTROLS = {
         "    case True{}:\n      Done{output}",
         "    case True{}:\n"
         "      transformed(Transforms.reshape_dynamic(output, dropped))",
+    ),
+    # Slicing: a narrow whose tape plan takes the length for the stop, a
+    # select whose tape plan scatters into the next index, and a scatter that
+    # fills the cells no output cell came from with 1.0 instead of +0.0.
+    "narrow-records-the-length-as-stop": (
+        "      Slice.plan(shape, dim, start, U32.add(start, length), 1)",
+        "      Slice.plan(shape, dim, start, length, 1)",
+    ),
+    "select-records-the-next-index": (
+        "      Slice.plan(shape, dim, index, U32.add(index, 1), 1)",
+        "      Slice.plan(shape, dim, U32.add(index, 1), U32.add(index, 2), 1)",
+    ),
+    "slice-scatter-fills-ones": (
+        "src/tensor/slice.bend",
+        "    case None{}:\n      (0.0, state)\n    case Some{+index}:\n      fetched",
+        "    case None{}:\n      (1.0, state)\n    case Some{+index}:\n      fetched",
     ),
     "merge-overwrites-slot": (
         "merged_entry(node, shape, value, saved, Gradient.accumulate(shape, slot, g), "
@@ -477,6 +499,25 @@ def entropy(a: int, targets: list[int]) -> dict:
     return {"op": "cross_entropy", "a": a, "targets": targets}
 
 
+def sliced(a: int, dim: int, start: int, stop: int, step: int = 1) -> dict:
+    return {
+        "op": "slice",
+        "a": a,
+        "dim": dim,
+        "start": start,
+        "stop": stop,
+        "step": step,
+    }
+
+
+def narrowed(a: int, dim: int, start: int, length: int) -> dict:
+    return {"op": "narrow", "a": a, "dim": dim, "start": start, "length": length}
+
+
+def selected(a: int, dim: int, index: int) -> dict:
+    return {"op": "select", "a": a, "dim": dim, "index": index}
+
+
 def run(output: int) -> dict:
     return {"op": "backward", "output": output}
 
@@ -502,7 +543,8 @@ def sgd(lr: int, params: list[int]) -> dict:
 
 def program_case(identifier: str, steps: list[dict], output: int) -> dict:
     count = sum(
-        step["op"] in ("leaf", "constant", *UNARY, *BINARY, *PRODUCTS) for step in steps
+        step["op"] in ("leaf", "constant", *UNARY, *BINARY, *PRODUCTS, *SLICES)
+        for step in steps
     )
     count += 2 * sum(step["op"] == "linear" for step in steps)
     return {"id": identifier, "steps": [*steps, run(output), *reads(count)]}
@@ -1952,6 +1994,249 @@ def dims_generated(count: int, seed: int) -> list[dict]:
     return result
 
 
+# Basic slicing: a[..., start:stop:step, ...], narrow and select, each a
+# copy whose backward scatters the gradient into +0.0 words. The words only
+# move, so every word must be PyTorch's, NaN payloads included where nothing
+# else touches them.
+def slice_scripts() -> list[dict]:
+    grid = leaf([2, 5], f(*[0.5 * k - 1.0 for k in range(10)]))
+    cube = leaf([2, 3, 4], f(*[0.25 * k - 3.0 for k in range(24)]))
+    line = leaf([4], f(1.0, -2.0, 0.5, 3.0))
+    scalar = leaf([], f(-2.5))
+    weights = leaf([2, 2], f(1.0, -0.5, 2.0, 0.25))
+    special = leaf(
+        [2, 3],
+        [INFINITY, NEGATIVE_ZERO, OTHER_NAN, word(2.0), NEGATIVE_INFINITY, QUIET_NAN],
+    )
+    largest = 4294967295
+    return [
+        program_case(
+            "slice_columns_step",
+            [grid, sliced(0, 1, 1, 5, 2), weights, op("mul", 1, 2), op("sum", 3)],
+            4,
+        ),
+        program_case(
+            "slice_rows",
+            [grid, sliced(0, 0, 1, 2), leaf([1, 5], f(1.0, 2.0, 3.0, 4.0, 5.0))]
+            + [op("mul", 1, 2), op("sum", 3)],
+            4,
+        ),
+        program_case("slice_seed_ones", [grid, sliced(0, 1, 1, 5, 2)], 1),
+        program_case(
+            "slice_stop_clamped",
+            [cube, sliced(0, 2, 1, largest, 2), op("mul", 1, 1), op("sum", 2)],
+            3,
+        ),
+        program_case(
+            "slice_start_past_the_extent",
+            [cube, sliced(0, 1, largest, largest), op("sum", 1)],
+            2,
+        ),
+        program_case(
+            "slice_stop_before_start",
+            [grid, sliced(0, 1, 4, 2), op("sum", 1), sliced(0, 1, 3, 3), op("sum", 3)]
+            + [op("add", 2, 4)],
+            5,
+        ),
+        program_case(
+            "slice_two_axes",
+            [cube, sliced(0, 1, 0, 3, 2), sliced(1, 2, 1, 4, 2), op("mul", 2, 2)]
+            + [op("sum", 3)],
+            4,
+        ),
+        program_case(
+            "slice_overlapping",
+            [line, sliced(0, 0, 0, 3), sliced(0, 0, 1, 4), op("mul", 1, 2)]
+            + [op("sum", 3)],
+            4,
+        ),
+        program_case(
+            "slice_step_past_the_extent",
+            [line, sliced(0, 0, 1, 4, 7), op("mul", 1, 1), op("sum", 2)],
+            3,
+        ),
+        program_case(
+            "narrow_inner",
+            [cube, narrowed(0, 2, 1, 2), op("mul", 1, 1), op("sum", 2)],
+            3,
+        ),
+        program_case(
+            "narrow_empty_at_the_end",
+            [grid, narrowed(0, 1, 5, 0), op("sum", 1)],
+            2,
+        ),
+        program_case(
+            "select_middle",
+            [cube, selected(0, 1, 2), leaf([4], f(1.0, -1.0, 2.0, 0.5))]
+            + [op("mul", 1, 2), op("sum", 3)],
+            4,
+        ),
+        program_case(
+            "select_to_rank_zero",
+            [line, selected(0, 0, 3), selected(0, 0, 1), op("mul", 1, 2)],
+            3,
+        ),
+        program_case(
+            "select_twice",
+            [cube, selected(0, 0, 1), selected(1, 1, 3), op("mul", 2, 2), op("sum", 3)],
+            4,
+        ),
+        program_case(
+            "slice_special_words",
+            [special, sliced(0, 1, 0, 3, 2), selected(0, 0, 1)],
+            2,
+        ),
+        program_case(
+            "slice_constant",
+            [constant([2, 5], grid["words"]), sliced(0, 1, 0, 4, 2), weights]
+            + [op("mul", 1, 2), op("sum", 3)],
+            4,
+        ),
+        program_case(
+            "slice_rank_four",
+            [
+                leaf([2, 1, 3, 2], f(*[k - 5.0 for k in range(12)])),
+                sliced(0, 2, 2, 3),
+                narrowed(1, 3, 1, 1),
+                op("mul", 2, 2),
+                op("sum", 3),
+            ],
+            4,
+        ),
+        # Inputs with no element whose other extents multiply past 2^48 - 1,
+        # the largest Nat Bend's runtime holds: slices, a narrow and a select
+        # at the axis of the zero and away from it, each seeded at once.
+        {
+            "id": "slice_empty_wide_outer",
+            "steps": [
+                leaf([2**24, 2**24, 0], []),
+                sliced(0, 2, 0, 0),
+                selected(0, 0, 1),
+                narrowed(0, 1, 2**24, 0),
+                run(1),
+                run(2),
+                run(3),
+                *reads(4),
+            ],
+        },
+        {
+            "id": "slice_empty_wide_inner",
+            "steps": [
+                leaf([0, 2**24, 2**24], []),
+                sliced(0, 0, 0, 0),
+                narrowed(0, 0, 0, 0),
+                selected(0, 2, 2**24 - 1),
+                run(1),
+                run(2),
+                run(3),
+                *reads(4),
+            ],
+        },
+        # A slice whose axis is 10^8 long: its length takes one division.
+        {
+            "id": "slice_long_axis",
+            "steps": [
+                leaf([0, 10**8], []),
+                sliced(0, 1, 0, largest),
+                sliced(0, 1, 1, largest, 3),
+                run(1),
+                run(2),
+                *reads(3),
+            ],
+        },
+        # Refusals: an unknown id, an axis past the rank, a zero step, a
+        # rank-0 input; a narrow past the extent, one whose start is the
+        # largest U32, one past the rank and one of a rank-0 input; a select
+        # at the extent, one past the rank and one of a rank-0 input.
+        {
+            "id": "slice_refused",
+            "steps": [
+                grid,
+                sliced(1, 0, 0, 1),
+                sliced(0, 2, 0, 1),
+                sliced(0, 1, 0, 5, 0),
+                scalar,
+                sliced(1, 0, 0, 1),
+                narrowed(0, 1, 3, 3),
+                narrowed(0, 1, largest, 2),
+                narrowed(0, 2, 0, 1),
+                narrowed(1, 0, 0, 1),
+                selected(0, 1, 5),
+                selected(0, 2, 0),
+                selected(1, 0, 0),
+                sliced(0, 1, 1, 4, 2),
+                run(2),
+                *reads(3),
+            ],
+        },
+        # More than 2^15 cells, so both builds fork: x = a * b * c of
+        # [3, 200, 100], built on the tape from 303 words, and its slice
+        # 1:200 along the middle axis. The gradients of a, b and c sum the
+        # products of the scattered ones; exact words keep every sum exact in
+        # any order.
+        {
+            "id": "slice_parallel",
+            "steps": [
+                leaf([3, 1, 1], f(1.0, -2.0, 0.5)),
+                leaf([1, 200, 1], counted_words(200, EXACT, 1)),
+                leaf([1, 1, 100], counted_words(100, EXACT, 4)),
+                op("mul", 0, 1),
+                op("mul", 3, 2),
+                sliced(4, 1, 1, 200),
+                op("sum", 5),
+                run(6),
+                *reads(3),
+                {"op": "read", "id": 6},
+            ],
+        },
+    ]
+
+
+# Slices, narrows and selects of exact words on random axes of random shapes
+# of rank 1 to 3, with starts, stops and steps past the extent, mixed with
+# mul and other slices.
+def slices_generated(count: int, seed: int) -> list[dict]:
+    state = seed
+
+    def draw(bound: int) -> int:
+        nonlocal state
+        state = (state * 1103515245 + 12345) & 0x7FFFFFFF
+        return (state >> 8) % bound
+
+    result = []
+    for index in range(count):
+        first = [1 + draw(4) for _ in range(1 + draw(3))]
+        shapes = [first]
+        steps = [leaf(first, counted_words(math.prod(first), EXACT, draw(10)))]
+        for _ in range(2 + draw(4)):
+            a = draw(len(shapes))
+            shape = shapes[a]
+            if not shape or draw(4) == 0:
+                steps.append(op("mul", a, a))
+                shapes.append(shape)
+                continue
+            dim = draw(len(shape))
+            kind = draw(3) if shape[dim] else 0
+            if kind == 0:
+                step = sliced(a, dim, draw(shape[dim] + 2), draw(shape[dim] + 3))
+                step["step"] = 1 + draw(3)
+            elif kind == 1:
+                start = draw(shape[dim] + 1)
+                step = narrowed(a, dim, start, draw(shape[dim] - start + 1))
+            else:
+                step = selected(a, dim, draw(shape[dim]))
+            plan = slice_plan(shape, step)
+            if isinstance(plan, int):
+                raise GateError("A generated slice was refused")
+            steps.append(step)
+            shapes.append(plan[2])
+        steps.append(op("sum", len(shapes) - 1))
+        total = len(shapes) + 1
+        steps += [run(total - 1), *reads(total)]
+        result.append({"id": f"slices_{index:02d}", "steps": steps})
+    return result
+
+
 def cases() -> list[dict]:
     result = (
         handwritten()
@@ -1963,6 +2248,8 @@ def cases() -> list[dict]:
         + sum_dims_scripts()
         + dims_generated(16, 0x6C078965)
         + batched()
+        + slice_scripts()
+        + slices_generated(16, 0x41C64E6D)
     )
     if len({case["id"] for case in result}) != len(result):
         raise GateError("Duplicate autograd tensor backward case identifier")
@@ -2178,6 +2465,62 @@ def broadcast_to(tensor: tuple, target: list[int]) -> tuple:
     )
 
 
+# A slice's indices along its axis, its shape with the axis kept and the
+# shape it returns, or the code of its refusal: an axis at or past the rank
+# (every axis of a rank-0 input) first, then a step of 0, or a narrow or select
+# past the extent. The start and stop are clamped to the axis as PyTorch
+# clamps them.
+def slice_plan(shape: list[int], step: dict) -> tuple[range, list, list] | int:
+    dim = step["dim"]
+    if dim >= len(shape):
+        return AXIS_OUT_OF_BOUNDS
+    extent = shape[dim]
+    if step["op"] == "slice":
+        start, stop, stride = step["start"], step["stop"], step["step"]
+        if stride == 0:
+            return STEP_NOT_POSITIVE
+    elif step["op"] == "narrow":
+        start, stop, stride = step["start"], step["start"] + step["length"], 1
+        if stop > extent:
+            return OUT_OF_RANGE
+    else:
+        start, stop, stride = step["index"], step["index"] + 1, 1
+        if start >= extent:
+            return OUT_OF_RANGE
+    low = min(start, extent)
+    indices = range(low, max(low, min(stop, extent)), stride)
+    kept = [*shape[:dim], len(indices), *shape[dim + 1 :]]
+    output = [*kept[:dim], *kept[dim + 1 :]] if step["op"] == "select" else kept
+    return indices, kept, output
+
+
+# Output cell (o, k, r) of [outer, len(indices), inner] and the input cell
+# (o, indices[k], r) of [outer, extent, inner] it copies, as flat indices. An
+# input with no element has none, whatever the other extents.
+def slice_cells(shape: list[int], dim: int, indices: range) -> list[tuple]:
+    if math.prod(shape) == 0:
+        return []
+    outer, extent = math.prod(shape[:dim]), shape[dim]
+    inner = math.prod(shape[dim + 1 :])
+    return [
+        ((o * len(indices) + k) * inner + r, (o * extent + i) * inner + r)
+        for o in range(outer)
+        for k, i in enumerate(indices)
+        for r in range(inner)
+    ]
+
+
+def slice_forward(tensor: tuple, step: dict) -> tuple | int:
+    plan = slice_plan(tensor[0], step)
+    if isinstance(plan, int):
+        return plan
+    indices, kept, output = plan
+    words = [0] * math.prod(kept)
+    for target, source in slice_cells(tensor[0], step["dim"], indices):
+        words[target] = tensor[1][source]
+    return (output, words)
+
+
 def total(words: list[int]) -> int:
     accumulator = 0
     for number in words:
@@ -2345,6 +2688,13 @@ def vjp(node: dict, gradient: tuple) -> list[tuple[int, tuple]] | int:
         ]
     if name == "sum":
         return [(node["a"], broadcast_to(gradient, node["left"]))]
+    if name in SLICES:
+        # slice_backward: the gradient words at the cells the slice read,
+        # +0.0 everywhere else.
+        words = [0] * math.prod(node["left"])
+        for target, source in slice_cells(node["left"], node["dim"], node["indices"]):
+            words[source] = gradient[1][target]
+        return [(node["a"], (node["left"], words))]
     if name == "sum_dims":
         unsqueezed = (node["kept"], gradient[1])
         return [(node["a"], broadcast_to(unsqueezed, node["left"]))]
@@ -2441,6 +2791,8 @@ def forward(name: str, values: list[tuple], step: dict) -> tuple | int:
         return entropy_forward(values[0], step["targets"])
     if name == "sum":
         return ([], [total(values[0][1])])
+    if name in SLICES:
+        return slice_forward(values[0], step)
     if name == "sum_dims":
         return sum_dims(values[0], step)
     if name == "relu":
@@ -2497,8 +2849,13 @@ def reference(case: dict, trace: dict | None = None, update=descend_word) -> lis
         if len(node["frozen"]) == len(ids):
             node["op"] = "constant"
         node["left"] = values[0][0]
-        if name not in UNARY:
+        if name not in UNARY and name not in SLICES:
             node |= {"b": step["b"], "right": values[1][0]}
+        if name in SLICES:
+            plan = slice_plan(values[0][0], step)
+            if isinstance(plan, int):
+                raise GateError(f"A recorded slice refuses its own input: {plan}")
+            node |= {"dim": step["dim"], "indices": plan[0]}
         if name in ("mul", "matmul", "matmul_nt", "relu", *PRODUCTS):
             node["saved"] = values
         if name == "sum_dims":
@@ -2523,7 +2880,7 @@ def reference(case: dict, trace: dict | None = None, update=descend_word) -> lis
                 lines.append(f"autograd:error:{VALUE_COUNT_MISMATCH}")
             else:
                 push({"op": name, "shape": shape, "value": (shape, list(words))})
-        elif name in BINARY or name in UNARY or name in PRODUCTS:
+        elif name in BINARY or name in UNARY or name in PRODUCTS or name in SLICES:
             record(name, step)
         elif name == "linear":
             # The product, then the bias added to it; only the sum's id is
@@ -2700,6 +3057,14 @@ def step_source(step: dict) -> str:
         return f"Harness.Linear{{{step['a']}n, {step['b']}n, {step['bias']}n}}"
     if name == "cross_entropy":
         return f"Harness.CrossEntropy{{{step['a']}n, {list_source(step['targets'])}}}"
+    if name == "slice":
+        fields = ", ".join(str(step[key]) for key in ("dim", "start", "stop", "step"))
+        return f"Harness.Slice{{{step['a']}n, {fields}}}"
+    if name == "narrow":
+        fields = ", ".join(str(step[key]) for key in ("dim", "start", "length"))
+        return f"Harness.Narrow{{{step['a']}n, {fields}}}"
+    if name == "select":
+        return f"Harness.Select{{{step['a']}n, {step['dim']}, {step['index']}}}"
     if name == "sum_dims":
         keepdim = "True{}" if step["keepdim"] else "False{}"
         axes = positions_source(step["dims"])

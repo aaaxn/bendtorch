@@ -13,6 +13,7 @@ from tools.tensor import (
     LOSS_CONTROLS,
     RELU_CONTROLS,
     RELU_WITNESSES,
+    SLICE_CONTROLS,
     certificate_controls,
     verify_lane,
 )
@@ -157,6 +158,18 @@ class GateAcceptanceTests(unittest.TestCase):
         proof = (ROOT / "src/tensor/batched-matmul-PROOF.bend").read_text()
         self.assertEqual(len(BATCHED_CONTROLS), 7)
         for original, mutated, location in BATCHED_CONTROLS.values():
+            self.assertEqual(source.count(original), 1)
+            self.assertNotEqual(original, mutated)
+            if location.startswith("Laws."):
+                self.assertIn(f"law {location.removeprefix('Laws.')}:\n", laws)
+            self.assertIn(f"def {location}(", proof)
+
+    def test_slice_controls_apply_once_and_name_a_slice_proof(self):
+        source = (ROOT / "src/tensor/slice.bend").read_text()
+        laws = (ROOT / "src/tensor/slice-LAWS.bend").read_text()
+        proof = (ROOT / "src/tensor/slice-PROOF.bend").read_text()
+        self.assertEqual(len(SLICE_CONTROLS), 28)
+        for original, mutated, location in SLICE_CONTROLS.values():
             self.assertEqual(source.count(original), 1)
             self.assertNotEqual(original, mutated)
             if location.startswith("Laws."):
