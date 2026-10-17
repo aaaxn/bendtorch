@@ -24,6 +24,9 @@ type Step is Data:
   Linear{x: Nat, w: Nat, bias: Nat}
   Sum{a: Nat}
   SumDims{a: Nat, axes: List<&2, Signed.Position>, keepdim: Bool}
+  Slice{a: Nat, dim: U32, start: U32, stop: U32, step: U32}
+  Narrow{a: Nat, dim: U32, start: U32, length: U32}
+  Select{a: Nat, dim: U32, index: U32}
   Relu{a: Nat}
   MseLoss{a: Nat, b: Nat}
   CrossEntropy{a: Nat, targets: List<&2, U32>}
@@ -194,6 +197,12 @@ def step(instruction: Step, tape: Backward.Tape, rec: Backward.Tape -> IO(Unit))
       recorded(rec, Backward.sum(tape, a))
     case SumDims{a, axes, keepdim}:
       recorded(rec, Backward.sum_dims(tape, a, axes, keepdim))
+    case Slice{a, dim, start, stop, step}:
+      recorded(rec, Backward.slice(tape, a, dim, start, stop, step))
+    case Narrow{a, dim, start, length}:
+      recorded(rec, Backward.narrow(tape, a, dim, start, length))
+    case Select{a, dim, index}:
+      recorded(rec, Backward.select(tape, a, dim, index))
     case Relu{a}:
       recorded(rec, Backward.relu(tape, a))
     case MseLoss{a, b}:

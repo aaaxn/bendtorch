@@ -594,6 +594,219 @@ def batched_controls(evidence: Evidence, source_root: Path) -> None:
     )
 
 
+# Mutants of basic slicing (src/tensor/slice.bend), each applied to a copy of
+# the source, and where the proof of src/tensor/slice-PROOF.bend fails: the
+# first law, or lemma of a law, whose proof no longer checks. Each mutant
+# makes at least one slice law false. The clamp mutants all fail at the
+# proof of the clamped case, which follows Nat.min and Nat.max: a start or
+# stop left unclamped falsifies slice_start_clamped or slice_stop_clamped, a
+# start one past slice_start_kept, a stop one short slice_stop_kept, a stop
+# before the start kept as it is slice_stop_empty. A length one short
+# falsifies slice_length_reaches, one that counts the whole span
+# slice_length_below; both fail at below_span, whose proof follows the
+# length's form. A plan that starts at 0 instead of the request's start
+# falsifies slice_plan_axis, a view of an empty input that loses the extent
+# too (sized_extent); a plan that takes every input as empty falsifies
+# slice_plan_view (its proof fails first at slice_plan_axis), and a zero
+# check that skips the first dimension slice_plan_empty_view (zero_head). A
+# doubled inner count falsifies slice_view_around (view_around), a resized
+# axis that keeps its extent slice_resized_around, a select that keeps the
+# axis select_dropped_around, an output one cell longer slice_planned
+# (planned_checked). A cell that reads without the start, or every index
+# instead of every step-th, falsifies slice_build_cells (source_at); a
+# backward that reads the input's row of the gradient slice_scatter_hit
+# (target_hit), one that fills the cells between steps slice_scatter_miss
+# (missed_k). A zero step or an axis at the rank accepted, a refusal renamed,
+# a narrow that checks only its start or slices one more, and a select that
+# accepts the extent or slices two falsify the law of that check.
+SLICE_CONTROLS = {
+    "slice-start-not-clamped": (
+        "  +low = Nat.min(start, extent)\n",
+        "  +low = start\n",
+        "Laws.slice_start_clamped",
+    ),
+    "slice-start-one-past": (
+        "  +low = Nat.min(start, extent)\n",
+        "  +low = Nat.min(Nat.add(start, 1n), extent)\n",
+        "Laws.slice_start_clamped",
+    ),
+    "slice-stop-not-clamped": (
+        "  Bounds{low, Nat.max(low, Nat.min(stop, extent))}",
+        "  Bounds{low, Nat.max(low, stop)}",
+        "Laws.slice_stop_clamped",
+    ),
+    "slice-stop-one-short": (
+        "  Bounds{low, Nat.max(low, Nat.min(stop, extent))}",
+        "  Bounds{low, Nat.max(low, Nat.min(Nat.sub(stop, 1n), extent))}",
+        "Laws.slice_stop_clamped",
+    ),
+    "slice-stop-before-the-start-kept": (
+        "  Bounds{low, Nat.max(low, Nat.min(stop, extent))}",
+        "  Bounds{low, Nat.min(stop, extent)}",
+        "Laws.slice_stop_clamped",
+    ),
+    "slice-length-drops-the-first": (
+        "      1n+Nat.div(rest, step)\n",
+        "      Nat.div(rest, step)\n",
+        "below_span",
+    ),
+    "slice-length-counts-the-span": (
+        "      1n+Nat.div(rest, step)\n",
+        "      1n+Nat.div(1n+rest, step)\n",
+        "below_span",
+    ),
+    "slice-plan-starts-at-zero": (
+        "holds_zero(dimensions)), U32.to_nat(start),",
+        "holds_zero(dimensions)), 0n,",
+        "Laws.slice_plan_axis",
+    ),
+    "slice-empty-view-loses-the-extent": (
+        "      View{0n, axis_extent(dimensions, dim), 0n}",
+        "      View{0n, 0n, 0n}",
+        "sized_extent",
+    ),
+    "slice-plan-skips-the-zero-check": (
+        "sized(dimensions, U32.to_nat(dim), holds_zero(dimensions))",
+        "sized(dimensions, U32.to_nat(dim), True{})",
+        "Laws.slice_plan_axis",
+    ),
+    "holds-zero-ignores-the-head": (
+        "      Bool.or(Nat.is_eq(U32.to_nat(extent), 0n), holds_zero(rest))",
+        "      holds_zero(rest)",
+        "zero_head",
+    ),
+    "slice-view-inner-doubled": (
+        "      View{outer, U32.to_nat(extent), Shape.logical_numel(rest)}",
+        "      View{outer, U32.to_nat(extent), Nat.mul(2n, Shape.logical_numel(rest))}",
+        "view_around",
+    ),
+    "slice-resized-keeps-the-extent": (
+        "    case head <> rest 0n:\n      extent <> rest\n",
+        "    case head <> rest 0n:\n      head <> rest\n",
+        "Laws.slice_resized_around",
+    ),
+    "select-dropped-keeps-the-axis": (
+        "    case head <> rest 0n:\n      rest\n",
+        "    case head <> rest 0n:\n      head <> rest\n",
+        "Laws.select_dropped_around",
+    ),
+    "slice-output-one-longer": (
+        "      +output = resized(dimensions, U32.to_nat(dim),"
+        " U32.from_nat(plan_length(plan)))",
+        "      +output = resized(dimensions, U32.to_nat(dim),"
+        " U32.from_nat(1n+plan_length(plan)))",
+        "planned_checked",
+    ),
+    "slice-reads-without-the-start": (
+        "Nat.add(start, Nat.mul(Nat.mod(row, length), step))",
+        "Nat.mul(Nat.mod(row, length), step)",
+        "source_at",
+    ),
+    "slice-reads-every-index": (
+        "Nat.add(start, Nat.mul(Nat.mod(row, length), step))",
+        "Nat.add(start, Nat.mod(row, length))",
+        "source_at",
+    ),
+    "slice-backward-reads-the-input-row": (
+        "Nat.add(Nat.mul(Nat.div(row, extent), length), k)",
+        "Nat.add(Nat.mul(Nat.div(row, extent), extent), k)",
+        "target_hit",
+    ),
+    "slice-backward-hits-between-steps": (
+        "Bool.and(Nat.is_lt(k, length), Nat.is_eq(Nat.add(start, Nat.mul(k,"
+        " step)), i))",
+        "Nat.is_lt(k, length)",
+        "missed_k",
+    ),
+    "slice-accepts-a-zero-step": (
+        "    case True{} False{}:\n      Some{StepNotPositive{}}\n",
+        "    case True{} False{}:\n      None{}\n",
+        "Laws.slice_step_refused",
+    ),
+    "slice-accepts-the-rank": (
+        "  refused(Nat.is_lt(U32.to_nat(dim), Shape.rank_dimensions(dimensions))",
+        "  refused(Nat.is_le(U32.to_nat(dim), Shape.rank_dimensions(dimensions))",
+        "Laws.slice_axis_refused",
+    ),
+    "slice-renames-a-refusal": (
+        "    case Fail{error}:\n      (Core.Packed{shape, tensor}, Fail{error})\n"
+        "    case Done{Planned{+plan, +output}}:",
+        "    case Fail{error}:\n      (Core.Packed{shape, tensor},"
+        " Fail{OutOfRange{}})\n"
+        "    case Done{Planned{+plan, +output}}:",
+        "Laws.slice_refused",
+    ),
+    "narrow-checks-only-the-start": (
+        "        Nat.is_le(Nat.add(U32.to_nat(start), U32.to_nat(length)), "
+        "extent_at(Shape.dimensions(shape), dim)))",
+        "        Nat.is_le(U32.to_nat(start),"
+        " extent_at(Shape.dimensions(shape), dim)))",
+        "Laws.narrow_out_of_range",
+    ),
+    "narrow-slices-one-more": (
+        "      slice(Core.Packed{shape, tensor}, dim, start, U32.add(start,"
+        " length), 1)",
+        "      slice(Core.Packed{shape, tensor}, dim, start, "
+        "U32.add(U32.add(start, length), 1), 1)",
+        "Laws.narrow_slices",
+    ),
+    "narrow-renames-the-axis-error": (
+        "    case Some{error}:\n      (Core.Packed{shape, tensor}, Fail{error})\n"
+        "    case None{}:\n      narrow_ranged",
+        "    case Some{error}:\n      (Core.Packed{shape, tensor},"
+        " Fail{OutOfRange{}})\n"
+        "    case None{}:\n      narrow_ranged",
+        "Laws.narrow_axis_refused",
+    ),
+    "select-accepts-the-extent": (
+        "      select_ranged(shape, tensor, dim, index, Nat.is_lt(U32.to_nat(index), "
+        "extent_at(Shape.dimensions(shape), dim)))",
+        "      select_ranged(shape, tensor, dim, index, Nat.is_le(U32.to_nat(index), "
+        "extent_at(Shape.dimensions(shape), dim)))",
+        "Laws.select_out_of_range",
+    ),
+    "select-slices-two": (
+        "slice(Core.Packed{shape, tensor}, dim, index, U32.add(index, 1), 1))",
+        "slice(Core.Packed{shape, tensor}, dim, index, U32.add(index, 2), 1))",
+        "Laws.select_slices",
+    ),
+    "select-renames-the-axis-error": (
+        "    case Some{error}:\n      (Core.Packed{shape, tensor}, Fail{error})\n"
+        "    case None{}:\n      select_ranged",
+        "    case Some{error}:\n      (Core.Packed{shape, tensor},"
+        " Fail{OutOfRange{}})\n"
+        "    case None{}:\n      select_ranged",
+        "Laws.select_axis_refused",
+    ),
+}
+
+
+def slice_controls(evidence: Evidence, source_root: Path) -> None:
+    def control(name: str, original: str, mutated: str, location: str) -> None:
+        copy = evidence.directory / "slice-controls" / name
+        shutil.copytree(source_root / "src", copy / "src")
+        target = copy / "src/tensor/slice.bend"
+        text = target.read_text()
+        if text.count(original) != 1:
+            raise GateError(f"{name}: control anchor is missing or ambiguous")
+        target.write_text(text.replace(original, mutated))
+        evidence.run(
+            f"slice-control-{name}",
+            bend(
+                evidence.tool_root, copy / "src/tensor/slice-PROOF.bend", "--check-only"
+            ),
+            expected_code=1,
+            contains=("SOME PROOFS FAIL", f"Location: {location}"),
+        )
+
+    parallel(
+        *(
+            partial(control, name, *control_text)
+            for name, control_text in SLICE_CONTROLS.items()
+        )
+    )
+
+
 def certificate_controls(evidence: Evidence, source_root: Path) -> None:
     imports = "import Base\n"
     for path, alias in (
@@ -946,6 +1159,7 @@ def run_gate(tool_root: Path, output: Path) -> None:
         loss_controls(evidence, output / "source")
         signed_controls(evidence, output / "source")
         batched_controls(evidence, output / "source")
+        slice_controls(evidence, output / "source")
 
     parallel(
         partial(
