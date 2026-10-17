@@ -49,6 +49,15 @@ observations of the inputs that `take` copies. The replayed laws
 inputs of `matmul-64x48x64-rounding`, which forks four levels, round in F32:
 adding its cells' terms in decreasing `k` changes 3245 of its 4096 words,
 where the other products, of multiples of `1/64`, add exactly in any order.
+It also runs a rounding `matmul_nt` of `[200, 40]` and `[165, 40]` and a
+rounding `matmul_tn` of `[24, 181]` and `[24, 187]` next to
+`Matrix.multiply` over the transposed copy of the operand they read in
+place. Both outputs have more than `2^15` cells in a storage of `2^16`, so
+they fork four levels and pad, and their column counts are not multiples of
+eight, so some eight-cell subtrees cross a row and fall back to single cells;
+the row blocks run everywhere else. Adding their cells' terms in decreasing
+`k` changes 26537 of 33000 and 25263 of 33847 words, and a row block that
+adds cell 4's right word to cell 3 changes 3950 and 4072 of them.
 The same probe runs the parallel `reduce_to` (see
 [reduce to shape](reduce-to.md#parallel-build)) on four rounding reductions
 next to `ReduceFold.cell`, the masked fold of `reduce_fold_fiber`, cell by
