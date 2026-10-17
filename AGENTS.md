@@ -110,7 +110,17 @@ command keeps one CPU busy, and the native gate cases finish in milliseconds,
 so more native threads would not speed a gate up. Pass the flags to override.
 The checks above are independent, so run them
 at the same time, each with its own evidence directory. Gate runs refuse to
-overwrite an output directory. There is no CI: run the
+overwrite an output directory.
+
+While you iterate, `tools.check`, the families and the contracts take
+`--cache DIR`, and `python -m tools.cache --cache DIR -- bun ... --verdict`
+runs one command the same way. They replay a Bend checker, `-o *.bendtt`
+export or BendTT kernel result when the checked file, every file it imports,
+the Bend commit, Bun, the kernel binary, the arguments and the `BEND*` and
+`LEAN*` environment are all unchanged (`tools/cache.py`). Keep DIR under
+`.evidence/`. Each replayed command is marked `"cached": true` in its
+record. The checks you report in a PR run without `--cache`: a cold run is
+the reference. There is no CI: run the
 checks above locally, with the pinned Bend2, before you open a PR. Run the
 PyTorch oracle recipes from `oracle/README.md` and `oracle/tensor/README.md` in
 their own environment, so PyTorch never enters the gate. Every PR description
