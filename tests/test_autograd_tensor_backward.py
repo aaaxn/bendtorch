@@ -59,7 +59,7 @@ from tools.autograd_tensor_bound import (
     mul_word,
     within,
 )
-from tools.common import ROOT, GateError
+from tools.common import CHECK_JOBS, ROOT, GateError, set_jobs
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
 FIXTURE_SHA256 = "6c88564b86f37b5ab271df7360527c6e0ee38200b388f38ac3b858484d85587e"
@@ -1076,10 +1076,15 @@ class GateRegistrationTests(unittest.TestCase):
 
 class TensorBackwardRuntimeTests(unittest.TestCase):
     def test_native_and_javascript_lanes(self):
-        with tempfile.TemporaryDirectory(
-            prefix="autograd-tensor-backward-"
-        ) as directory:
-            summary = run_gate(ROOT / ".tools", Path(directory) / "run")
+        # The gate's own default, so its 58 runtime controls run at once.
+        set_jobs(CHECK_JOBS)
+        try:
+            with tempfile.TemporaryDirectory(
+                prefix="autograd-tensor-backward-"
+            ) as directory:
+                summary = run_gate(ROOT / ".tools", Path(directory) / "run")
+        finally:
+            set_jobs(1)
         self.assertEqual(summary["native"], summary["javascript"])
         self.assertEqual(summary["native"]["cases"], len(cases()))
         self.assertEqual(
