@@ -1,18 +1,21 @@
 """Tape scripts large enough that every parallel build the tensor backward
-calls forks: elementwise ops above 2^15 cells, products, `torch.matmul` with
-a batch, the transpose of a matmul's backward, `reduce_to` and the row
-maximum of `cross_entropy`. The gate runs them natively at each thread count
-of the tensor probe, requires the same bytes at every count and every word
-the reference computes, and plants a bug in each build's fork to show that
-the scripts take the forked path.
+calls forks: elementwise ops above 2^15 cells, matmul, matmul_nt and
+matmul_tn, `torch.matmul` with a batch, the transpose of a matmul's
+backward, `reduce_to`, the row maximum of `cross_entropy`, and slicing with
+its scatter. The gate runs them natively at each thread count of the tensor
+probe, requires that the runtime reports a pool of that many workers, the
+same bytes at every count and every word the reference computes, and plants
+a bug in each build's fork to show that the scripts take the forked path.
 """
 
 import argparse
 import json
 import math
+import re
 import shutil
 from functools import partial
 from pathlib import Path
+from typing import NamedTuple
 
 from tools import common
 from tools.autograd_tensor_backward import parse, program, reference, same_row, verify
@@ -58,95 +61,182 @@ def leaf(shape: list[int], step: int) -> dict:
 
 
 # Each fork of a parallel build hands both halves a copy of its input state,
-# through the build's split function, which runs only when the build forks.
-# Each control makes one split write 2^20 into word 0 of the copies, so it
-# changes an output only where that build forked.
+# through the split function the build passes, which runs only when the build
+# forks. Builds share split functions (`Elementwise.split` serves six), so
+# each control gives one build a split of its own that writes 2^20 into word
+# 0 of the copies, at that build's calls and nowhere else: it changes an
+# output only where that build forked. Its unforked twin then passes 0n
+# splits at the same calls, so the poisoned split never runs and no output
+# may change; that is the gate seeing a build that stopped forking.
 WRONG_WORD = "1048576.0"
+
+
+class Control(NamedTuple):
+    path: str
+    poison: tuple[tuple[str, str], ...]
+    # Applied after `poison`.
+    unforked: tuple[tuple[str, str], ...]
+
+
+def pair_split(halves: str) -> str:
+    return (
+        "def wrong_split(inputs: Array<F32> & Array<F32>) -> "
+        "(Array<F32> & Array<F32>) & (Array<F32> & Array<F32>):\n"
+        "  (la, ra) = inputs\n"
+        f"  {halves}(Array.clone(F32, Array.set(F32, la, 0, {WRONG_WORD})), "
+        "Array.clone(F32, ra))\n\n"
+    )
+
+
+def unit_split(halves: str) -> str:
+    return (
+        "def wrong_split(state: Array<F32> & Unit) -> "
+        "(Array<F32> & Unit) & (Array<F32> & Unit):\n"
+        "  (array, none) = state\n"
+        f"  {halves}(Array.clone(F32, Array.set(F32, array, 0, {WRONG_WORD})))\n\n"
+    )
+
+
+def own_split(
+    path: str,
+    before: str,
+    definition: str,
+    calls: tuple[str, ...],
+    split: str,
+    unforked: tuple[tuple[str, str], ...] | None = None,
+) -> Control:
+    """`definition` goes before `before`, and each call names `wrong_split`
+    where `split` names its split. By default the unforked twin passes 0n
+    where each call passes `depth, splits`."""
+    wrong = split.replace(split.strip("~,("), "wrong_split")
+    poisoned = tuple(call.replace(split, wrong) for call in calls)
+    if unforked is None:
+        unforked = tuple(
+            (call, re.sub(r", depth, splits(\(depth\))?,", ", depth, 0n,", call))
+            for call in poisoned
+        )
+    return Control(
+        path,
+        ((before, definition + before), *zip(calls, poisoned, strict=True)),
+        unforked,
+    )
+
+
+def folds(head: str) -> tuple[str, ...]:
+    """A build's two calls, `Parallel.build` and `Parallel.balanced`, up to
+    their splits."""
+    return tuple(f"  Parallel.{fold}({head}" for fold in ("build", "balanced"))
+
+
 CONTROLS = {
-    # Elementwise ops, matmul, matmul_nt, matmul_tn, torch.matmul and slicing.
-    "elementwise-fork-copies-a-wrong-word": (
+    # add, sub, mul, relu and the other elementwise ops.
+    "elementwise-fork-copies-a-wrong-word": own_split(
         "src/tensor/elementwise.bend",
+        "def build(",
+        pair_split("halves"),
+        folds(
+            "~Request, ~Walk, ~Array<F32>, ~Array<F32>, ~walk, ~split, ~cell_at, "
+            "Request{operation, plan}, depth, splits,"
+        ),
+        "~split,",
+    ),
+    # matmul, the cell by cell product.
+    "matmul-fork-copies-a-wrong-word": own_split(
+        "src/tensor/matmul.bend",
+        "def build(",
+        pair_split("Elementwise.halves"),
+        folds(
+            "~Dims, ~Dims, ~Array<F32>, ~Array<F32>, ~dims, ~Elementwise.split, "
+            "~cell_at, Dims{inner, columns}, depth, splits,"
+        ),
+        "~Elementwise.split,",
+    ),
+    # matmul_nt and matmul_tn, whose product build forks through
+    # `Parallel.fork` itself, with the splits its one caller passes.
+    "product-fork-copies-a-wrong-word": own_split(
+        "src/tensor/matmul.bend",
+        "def product_build(",
+        pair_split("Elementwise.halves"),
         (
+            "      Parallel.fork(~Array<F32>, ~Array<F32>, "
+            "Elementwise.split((la, ra)),",
+            "      Parallel.fork_balanced(~Array<F32>, ~Array<F32>, lower, "
+            "Elementwise.split((la, ra)),",
+        ),
+        "Elementwise.split(",
+        tuple(
             (
-                "  halves(Array.clone(F32, la), Array.clone(F32, ra))",
-                f"  halves(Array.clone(F32, Array.set(F32, la, 0, {WRONG_WORD})), "
-                "Array.clone(F32, ra))",
-            ),
+                f"    {name}(depth, product_splits(depth, inner),",
+                f"    {name}(depth, 0n,",
+            )
+            for name in ("product_build", "product_build_balanced")
         ),
     ),
-    # reduce_to, so sum_to_size and sum over axes.
-    "reduce-fork-copies-a-wrong-word": (
-        "src/autograd/reduce.bend",
-        (
-            (
-                "  halves(Array.clone(F32, array))",
-                f"  halves(Array.clone(F32, Array.set(F32, array, 0, {WRONG_WORD})))",
-            ),
+    # torch.matmul with a batch.
+    "batched-matmul-fork-copies-a-wrong-word": own_split(
+        "src/tensor/batched-matmul.bend",
+        "def build(",
+        pair_split("Elementwise.halves"),
+        folds(
+            "~Layout, ~Layout, ~Array<F32>, ~Array<F32>, ~layout, ~Elementwise.split, "
+            "~cell_at, given, depth, splits,"
         ),
+        "~Elementwise.split,",
     ),
     # permute and transpose.
-    "permute-fork-copies-a-wrong-word": (
+    "permute-fork-copies-a-wrong-word": own_split(
         "src/tensor/permute-build.bend",
-        (
-            (
-                "  halves(Array.clone(F32, a), Array.clone(F32, b))",
-                f"  halves(Array.clone(F32, Array.set(F32, a, 0, {WRONG_WORD})), "
-                "Array.clone(F32, b))",
-            ),
+        "def build(",
+        pair_split("halves"),
+        folds(
+            "~Request, ~Recipe, ~Array<F32>, ~Array<F32>, ~recipe, ~split, ~cell, "
+            "request, depth, splits(depth),"
         ),
+        "~split,",
     ),
-    # slice, narrow and select, and slice_backward's scatter, borrow the
-    # elementwise split, so their control gives them a split of their own.
-    "slice-fork-copies-a-wrong-word": (
-        "src/tensor/slice.bend",
-        (
-            (
-                "def build(",
-                "def slice_split(inputs: Array<F32> & Array<F32>) -> "
-                "(Array<F32> & Array<F32>) & (Array<F32> & Array<F32>):\n"
-                "  (la, ra) = inputs\n"
-                "  Elementwise.halves(Array.clone(F32, "
-                f"Array.set(F32, la, 0, {WRONG_WORD})), Array.clone(F32, ra))\n\n"
-                "def build(",
-            ),
-            *(
-                (
-                    f"  Parallel.{fold}(~Plan, ~Plan, ~Array<F32>, ~Array<F32>, ~same, "
-                    f"~Elementwise.split, ~{cell},",
-                    f"  Parallel.{fold}(~Plan, ~Plan, ~Array<F32>, ~Array<F32>, ~same, "
-                    f"~slice_split, ~{cell},",
-                )
-                for fold in ("build", "balanced")
-                for cell in ("cell", "scatter_cell")
-            ),
+    # reduce_to, so sum_to_size and sum over axes.
+    "reduce-fork-copies-a-wrong-word": own_split(
+        "src/autograd/reduce.bend",
+        "def build(",
+        unit_split("halves"),
+        folds(
+            "~Fibers, ~Fibers, ~Array<F32>, ~Unit, ~fibers, ~split, ~cell_at, "
+            "Fibers{rows, extents}, depth, splits,"
         ),
+        "~split,",
     ),
-    # The row maximum of cross_entropy borrows reduce_to's split, so its
-    # control gives it a split of its own; the balance proof takes any split.
-    "row-max-fork-copies-a-wrong-word": (
+    # The row maximum of cross_entropy.
+    "row-max-fork-copies-a-wrong-word": own_split(
         "src/autograd/loss.bend",
-        (
-            (
-                "def max_build(",
-                "def max_split(state: Array<F32> & Unit) -> "
-                "(Array<F32> & Unit) & (Array<F32> & Unit):\n"
-                "  (array, none) = state\n"
-                "  Reduce.halves(Array.clone(F32, "
-                f"Array.set(F32, array, 0, {WRONG_WORD})))\n\ndef max_build(",
-            ),
-            (
-                "  Parallel.build(~Width, ~Width, ~Array<F32>, ~Unit, ~width, "
-                "~Reduce.split, ~max_cell,",
-                "  Parallel.build(~Width, ~Width, ~Array<F32>, ~Unit, ~width, "
-                "~max_split, ~max_cell,",
-            ),
-            (
-                "  Parallel.balanced(~Width, ~Width, ~Array<F32>, ~Unit, ~width, "
-                "~Reduce.split, ~max_cell,",
-                "  Parallel.balanced(~Width, ~Width, ~Array<F32>, ~Unit, ~width, "
-                "~max_split, ~max_cell,",
-            ),
+        "def max_build(",
+        unit_split("Reduce.halves"),
+        folds(
+            "~Width, ~Width, ~Array<F32>, ~Unit, ~width, ~Reduce.split, ~max_cell, "
+            "Width{columns}, depth, splits,"
         ),
+        "~Reduce.split,",
+    ),
+    # slice, narrow and select.
+    "slice-fork-copies-a-wrong-word": own_split(
+        "src/tensor/slice.bend",
+        "def build(",
+        pair_split("Elementwise.halves"),
+        folds(
+            "~Plan, ~Plan, ~Array<F32>, ~Array<F32>, ~same, ~Elementwise.split, "
+            "~cell, plan, depth, splits,"
+        ),
+        "~Elementwise.split,",
+    ),
+    # slice_backward's scatter.
+    "slice-backward-fork-copies-a-wrong-word": own_split(
+        "src/tensor/slice.bend",
+        "def scatter_build(",
+        pair_split("Elementwise.halves"),
+        folds(
+            "~Plan, ~Plan, ~Array<F32>, ~Array<F32>, ~same, ~Elementwise.split, "
+            "~scatter_cell, plan, depth, splits,"
+        ),
+        "~Elementwise.split,",
     ),
 }
 
@@ -176,22 +266,28 @@ def cases() -> list[dict]:
             ],
         },
         {
+            # linear records two entries: the product, 3, and the biased
+            # output, 4.
             "id": "parallel_linear",
-            "forks": ("elementwise-fork-copies-a-wrong-word",),
+            "forks": (
+                "elementwise-fork-copies-a-wrong-word",
+                "matmul-fork-copies-a-wrong-word",
+                "product-fork-copies-a-wrong-word",
+            ),
             "steps": [
                 leaf([130, 32], 7),
                 leaf([256, 32], 11),
                 leaf([256], 13),
                 {"op": "linear", "a": 0, "b": 1, "bias": 2},
-                {"op": "sum", "a": 3},
-                {"op": "backward", "output": 4},
-                *read(0, 1, 2, 3),
+                {"op": "sum", "a": 4},
+                {"op": "backward", "output": 5},
+                *read(0, 1, 2, 3, 4),
             ],
         },
         {
             "id": "parallel_matmul_transpose",
             "forks": (
-                "elementwise-fork-copies-a-wrong-word",
+                "matmul-fork-copies-a-wrong-word",
                 "permute-fork-copies-a-wrong-word",
             ),
             "steps": [
@@ -205,7 +301,7 @@ def cases() -> list[dict]:
         },
         {
             "id": "parallel_batched_matmul",
-            "forks": ("elementwise-fork-copies-a-wrong-word",),
+            "forks": ("batched-matmul-fork-copies-a-wrong-word",),
             "steps": [
                 leaf([8, 32, 48], 7),
                 leaf([48, 64], 11),
@@ -236,6 +332,7 @@ def cases() -> list[dict]:
             "forks": (
                 "elementwise-fork-copies-a-wrong-word",
                 "slice-fork-copies-a-wrong-word",
+                "slice-backward-fork-copies-a-wrong-word",
             ),
             "steps": [
                 leaf([512, 160], 7),
@@ -266,10 +363,36 @@ def cases() -> list[dict]:
     ]
 
 
+MAIN = "def main() -> IO(Unit):\n  do IO<Unit>:\n"
+# The runtime's worker pool, on stderr, apart from the bytes compared.
+POOL = (
+    "    pool : U32 <- IO.thread_count()\n"
+    '    IO.print_err("autograd:threads:" ++ U32.show(pool))\n'
+)
+
+
 def render(selected: list[dict], directory: Path, source_root: Path) -> str:
-    """The tensor backward corpus program, with `spread` after its imports."""
+    """The tensor backward corpus program, with `spread` after its imports,
+    and a main that first reports the worker pool."""
     imports, _, rest = program(selected, directory, source_root).partition("\n\n")
-    return f"{imports}\n\n{SPREAD}\n{rest}"
+    if rest.count(MAIN) != 1:
+        raise GateError("Autograd parallel program has no single main")
+    return f"{imports}\n\n{SPREAD}\n{rest.replace(MAIN, MAIN + POOL)}"
+
+
+def pool(threads: int, stderr: str) -> None:
+    """A GateError unless the run reported a pool of `threads` workers: a
+    thread count that never reached the runtime would otherwise pass, as
+    the output does not depend on it."""
+    reported = [
+        line.removeprefix("autograd:threads:")
+        for line in stderr.splitlines()
+        if line.startswith("autograd:threads:")
+    ]
+    if reported != [str(threads)]:
+        raise GateError(
+            f"Autograd parallel run at {threads} threads reported a pool of {reported}"
+        )
 
 
 def same_bytes(outputs: dict[int, str]) -> str:
@@ -324,16 +447,17 @@ def run_gate(tool_root: Path, output: Path) -> dict:
         contains="ALL PROOFS CHECK",
     )
     executable = build(evidence, "parallel", source)
-    first = same_bytes(
-        {
-            threads: evidence.run(
-                f"parallel-threads-{threads}",
-                common.native(executable, threads=threads),
-                timeout=1800,
-            ).stdout
-            for threads in THREAD_COUNTS
-        }
-    )
+    runs = {
+        threads: evidence.run(
+            f"parallel-threads-{threads}",
+            common.native(executable, threads=threads),
+            timeout=1800,
+        )
+        for threads in THREAD_COUNTS
+    }
+    for threads, result in runs.items():
+        pool(threads, result.stderr)
+    first = same_bytes({threads: result.stdout for threads, result in runs.items()})
     summary = verify(selected, parse(first, identifiers), "native", native=True)
     expected = {case["id"]: reference(case) for case in selected}
     rejected = parallel(
@@ -351,8 +475,42 @@ def control(
     evidence: Evidence, selected: list[dict], expected: dict[str, list[str]], name: str
 ) -> list[str]:
     """The scripts whose output the control changes, after checking that it
-    changes every script whose `forks` name it."""
-    path, edits = CONTROLS[name]
+    changes every script whose `forks` name it, and that its unforked twin
+    changes none."""
+    path, poison, unforked = CONTROLS[name]
+    changed = changes(evidence, selected, expected, name, path, poison)
+    fired(name, selected, changed)
+    still = changes(
+        evidence, selected, expected, f"{name}-unforked", path, poison + unforked
+    )
+    # Nothing forks the poisoned split now, so `fired` would fail on every
+    # script that forks the build: the gate seeing that build stop forking.
+    if still:
+        raise GateError(f"{name}: the control still changes {still} at 0n splits")
+    return changed
+
+
+def fired(name: str, selected: list[dict], changed: list[str]) -> None:
+    """A GateError unless the control changed every script that forks its
+    build."""
+    missed = [
+        case["id"]
+        for case in selected
+        if name in case["forks"] and case["id"] not in changed
+    ]
+    if missed:
+        raise GateError(f"{name}: the forked build never ran in {missed}")
+
+
+def changes(
+    evidence: Evidence,
+    selected: list[dict],
+    expected: dict[str, list[str]],
+    name: str,
+    path: str,
+    edits: tuple[tuple[str, str], ...],
+) -> list[str]:
+    """The scripts whose output a copy of the sources with `edits` changes."""
     copy = evidence.directory / "controls" / name
     shutil.copytree(ROOT / "src", copy / "src")
     mutate(copy / path, edits, name)
@@ -362,20 +520,12 @@ def control(
         f"{name}-native-run", common.native(build(evidence, name, source)), timeout=1800
     )
     observed = parse(result.stdout, [case["id"] for case in selected])
-    changed = [
+    return [
         row["id"]
         for row in observed
         if len(row["lines"]) != len(expected[row["id"]])
         or not all(map(same_row, row["lines"], expected[row["id"]]))
     ]
-    missed = [
-        case["id"]
-        for case in selected
-        if name in case["forks"] and case["id"] not in changed
-    ]
-    if missed:
-        raise GateError(f"{name}: the forked build never ran in {missed}")
-    return changed
 
 
 def main() -> None:
