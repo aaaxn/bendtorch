@@ -59,8 +59,8 @@ tape records. The [gradient slots](docs/gradient-slots.md) and
 
 Bend runs `a b = low(l1, r1) high(l2, r2)` as two parallel calls.
 `src/tensor/parallel.bend` uses that line to split the cells of a large
-output, such as a `matmul` product or an elementwise result, into balanced
-halves. Every cell gets the word that the one-thread build computes there, so
+output, such as a `matmul` product, an elementwise result, or a `reduce_to`
+gradient, into balanced halves. Every cell gets the word that the one-thread build computes there, so
 no output word depends on the number of threads. The
 [parallel build](docs/parallel-build.md) page explains the split and its
 proofs.
@@ -73,9 +73,10 @@ proofs.
 
 Each module keeps its rules in `src/<module>/LAWS.bend` and their proofs in
 `src/<module>/PROOF.bend`. `bend PROOF.bend --verdict` checks every law with
-the Bend checker, then rechecks the proofs with the BendTT kernel. A law
-quantifies over every input that meets its hypotheses, not over a list of
-examples.
+the Bend checker, then rechecks the proofs with the BendTT kernel. The
+general laws quantify over every input that meets their hypotheses, not over
+a list of examples. A few more, such as the `relu` and SGD learning-rate edge
+words, check fixed lists of edge cases.
 
 ### A one-word mistake fails the proof
 
@@ -119,8 +120,10 @@ The numbers are tested at three levels, which the
 3. A training run must stay within a tolerance of its PyTorch copy, fixed
    from PyTorch against itself before any Bend result is compared.
 
-The [oracle](oracle/README.md) and [tensor oracle](oracle/tensor/README.md)
-pages describe the PyTorch records and how to regenerate them.
+The [oracle](oracle/README.md), [tensor oracle](oracle/tensor/README.md) and
+[autograd oracle](oracle/autograd/README.md) pages describe the PyTorch
+records and how to regenerate them. The frozen tensor corpus was used during
+development, so it is regression evidence, not held-out evidence.
 
 ## It trains MNIST next to PyTorch
 
@@ -132,10 +135,11 @@ The experiment trains a 784-128-10 MLP for one epoch, from the same initial
 words and the same batches as PyTorch, with a new tape for every mini-batch.
 `oracle/mnist/compare.py` checks each step's loss against PyTorch's: within
 `1e-4` relative for the first 100 steps and `1e-2` after. It also checks that
-the test count lies within one binomial standard error of PyTorch's. The
-figure is seed 0, with PyTorch on its AVX512 kernels: the two runs agree on
-the loss word in 165 of 937 steps, differ by at most 1.4e-4 relative, and
-classify the same 9242 test rows right. [MNIST](docs/mnist.md) has every
+the test count lies within `ceil(sqrt(p (1 - p) n))` rows of PyTorch's, where
+`p` is PyTorch's accuracy on the `n` test rows. The figure is seed 0, with
+PyTorch on its AVX512 kernels: the two runs agree on the loss word in 165 of
+937 steps, differ by at most 1.4e-4 relative, and each classify 9242 test
+rows right. [MNIST](docs/mnist.md) has every
 seed, both PyTorch kernels, and the timings.
 
 ## How the code is laid out
@@ -150,9 +154,9 @@ Each module builds on the one below it.
 | --- | --- | --- |
 | `src/shape/` | Validated shapes, row-major flatten and unflatten, checked coordinates, broadcast plans | [shapes](docs/shapes.md) |
 | `src/storage/` | F32 storage with one owner and a bounds check before every access | [storage](docs/storage.md) |
-| `src/tensor/` | The tensor core, elementwise operations, `sum`, `matmul`, `reshape`, `permute_copy`, `transpose_copy`, and the proved contracts | [tensor core](docs/tensor-core.md), [elementwise](docs/elementwise.md), [sum and matmul](docs/sum-and-matmul.md), [transforms](docs/transforms.md), [contract families](docs/contract-families.md) |
+| `src/tensor/` | The tensor core, elementwise operations, `sum`, `matmul`, `reshape`, `permute_copy`, `transpose_copy`, and the proved contracts | [tensor core](docs/tensor-core.md), [construction and clone](docs/construction.md), [elementwise](docs/elementwise.md), [sum and matmul](docs/sum-and-matmul.md), [transforms](docs/transforms.md), [contract families](docs/contract-families.md) |
 | `src/autograd/` | `broadcast_to`, `reduce_to`, `sum_to_size`, `sum_dims`, gradient slots, scalar and tensor `backward`, the losses, SGD | [broadcast](docs/broadcast-to.md), [reduce to shape](docs/reduce-to.md), [sum over axes](docs/reduce-to.md#sum-over-axes), [sum to size](docs/sum-to-size.md), [scalar backward](docs/backward.md), [tensor backward](docs/tensor-backward.md) |
-| `experiments/` | The MNIST training run and three autograd prototypes | [MNIST](docs/mnist.md), [autograd design](docs/autograd-design.md) |
+| `experiments/` | The MNIST training run, the autograd prototypes, the benchmarks, and other experiments outside `src/` | [MNIST](docs/mnist.md), [autograd design](docs/autograd-design.md) |
 | `oracle/` | The PyTorch references, in their own uv project | [oracle](oracle/README.md) |
 | `tools/` | One gate per suite, run by `python -m tools.check` | [AGENTS.md](AGENTS.md#gates) |
 
