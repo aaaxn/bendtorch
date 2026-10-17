@@ -30,7 +30,14 @@ contract. `Batched.matmul` in `src/tensor/batched-matmul.bend`, PyTorch's
 `torch.matmul`, and the tape's
 `batched_matmul` accept them with PyTorch's shapes; they refuse a rank-0
 operand, as PyTorch does, and an output past 2^20 elements, which PyTorch
-accepts.
+accepts: `[1,1025,0]@[1,0,1025]`, two empty operands, has an output of
+`(1,1025,1025)`. The tape's backward also refuses a gradient past 2^20
+elements even when the forward output fits, because it builds each
+operand's gradient over the output's batch before it sums it to the
+operand's shape: `[1025]@[1025,1025,0]` has an empty `(1025,0)` output, but
+the left operand's gradient over the batch is `[1025,1025]`, so `backward`
+is refused with `CapacityExceeded` and leaves every gradient slot as it
+was, where PyTorch gives the `[1025]` operand its gradient.
 
 API forms with no corpus case, which PyTorch accepts and bendtorch does not
 offer:
@@ -109,7 +116,7 @@ record is compared under level 2 of the
 [numeric policy](../AGENTS.md#numeric-policy): fixed words bit for bit, the
 `mse_loss` words on their pins and within the rounding-error bound, the
 forward `sum` and `matmul` words within the bound with exact gradients, and
-the `cross_entropy` words, which no bound covers, on their pins. 191 of the 249 scripts agree line for line, the five `linear`
+the `cross_entropy` words, which no bound covers, on their pins. 191 of the 252 scripts agree line for line, the five `linear`
 scripts that PyTorch accepts among them, and every `relu` script but four:
 `relu_edges` and `relu_nan_gradient` (NaN payloads of `NaN * NaN` in the
 product after `relu`), `relu_13` (a one-term matmul) and
@@ -143,6 +150,7 @@ accepted. The differences:
 | `exp` in the `cross_entropy` backward | Correctly rounded in practice (binary64 `exp`, rounded) | A vectorized `exp`; about 1 gradient word in 10 differs by 1 or 2 ulp |
 | Forward `sum`, `sum_dims` and `matmul` | Ordered folds from `+0.0` (see above) | Another order, and `-0.0` from a one-term matmul (4 scripts, within the bound; the gradients agree) |
 | `batched_matmul` (`torch.matmul`) refusals: a rank-0 operand, unequal inner extents, batches that do not broadcast, an unknown id | 105, 106, 6, 103 | `RuntimeError`, `IndexError` (`batched_refusals`, 1 script) |
+| `batched_matmul` past 2^20 elements: a forward output, or an operand's gradient over the output's batch before it is summed | `CapacityExceeded` (2); a refused product leaves the tape unchanged, a refused backward every slot | Accepts (`batched_output_capacity`, `batched_left_gradient_capacity`, `batched_right_gradient_capacity`, 3 scripts) |
 | `batched_matmul` of NaN words | NaN | NaN with another payload (`batched_special_words`, 1 script) |
 | Forward `sum` of a `batched_matmul` product | Ordered fold from `+0.0` | Another order (`batched_rounding_01`, 1 script, within the bound; the gradients agree) |
 | `batched_matmul` gradients | A product of one term is folded from `+0.0`, so a `-0.0` product gives `+0.0`; a broadcast operand's gradient sums each batch's product in batch order | `-0.0`; the batch folded into one product. 3 scripts, 12 pinned words, each within the bound: 10 signed zeros, a gradient word 1 ulp and a forward `sum` 3 ulp apart |
