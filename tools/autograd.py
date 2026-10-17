@@ -94,6 +94,43 @@ PROOF_CONTROLS = {
         "Shape.dimensions(shape), Shape.dimensions(target)))",
         "  decided(shape, tensor, target, False{})",
     ),
+    "sum-dims-keepdim-drops-axes": (
+        "src/autograd/sum-dims.bend",
+        "    case True{}:\n      Done{output}",
+        "    case True{}:\n"
+        "      transformed(Transforms.reshape_dynamic(output, dropped))",
+    ),
+    "sum-dims-keeps-reduced-axes": (
+        "src/autograd/sum-dims.bend",
+        "    case False{}:\n"
+        "      transformed(Transforms.reshape_dynamic(output, dropped))",
+        "    case False{}:\n      Done{output}",
+    ),
+    "sum-dims-counts-axes-from-one": (
+        "src/autograd/sum-dims.bend",
+        "  kept_from(axes, dimensions, 0)",
+        "  kept_from(axes, dimensions, 1)",
+    ),
+    "sum-dims-marks-next-axis": (
+        "src/autograd/sum-dims.bend",
+        "Bool.pick(U32, reduces(axes, axis), 1, extent)",
+        "Bool.pick(U32, reduces(axes, U32.add(axis, 1)), 1, extent)",
+    ),
+    "sum-dims-drops-kept-axes": (
+        "src/autograd/sum-dims.bend",
+        "    case True{}:\n      rest\n    case False{}:\n      extent <> rest",
+        "    case True{}:\n      extent <> rest\n    case False{}:\n      rest",
+    ),
+    "sum-dims-empty-reduces-nothing": (
+        "src/autograd/sum-dims.bend",
+        "    case Nil{}:\n      True{}\n    case +head <> +tail:",
+        "    case Nil{}:\n      False{}\n    case +head <> +tail:",
+    ),
+    "sum-dims-rank-zero-has-no-axis": (
+        "src/autograd/sum-dims.bend",
+        "    case Nil{}:\n      1\n",
+        "    case Nil{}:\n      0\n",
+    ),
     "gradient-overwrites-instead-of-adding": (
         "src/autograd/gradient.bend",
         "F32.add(accumulated, value)",
@@ -275,6 +312,27 @@ ERROR_CONTROLS = {
         "Shape.IncompatibleBroadcast{}}}})",
         "src/autograd/PROOF.bend",
         "fitted_not_reducible",
+    ),
+    "sum-dims-out-of-bounds-as-duplicate": (
+        "src/autograd/sum-dims.bend",
+        "    case False{} unique:\n      Some{Layout.AxisOutOfBounds{}}",
+        "    case False{} unique:\n      Some{Layout.DuplicateAxis{}}",
+        "src/autograd/PROOF.bend",
+        "Laws.sum_dims_axis_out_of_bounds",
+    ),
+    "sum-dims-duplicate-as-out-of-bounds": (
+        "src/autograd/sum-dims.bend",
+        "    case True{} False{}:\n      Some{Layout.DuplicateAxis{}}",
+        "    case True{} False{}:\n      Some{Layout.AxisOutOfBounds{}}",
+        "src/autograd/PROOF.bend",
+        "Laws.sum_dims_duplicate_axis",
+    ),
+    "sum-dims-refusal-as-reduce-error": (
+        "src/autograd/sum-dims.bend",
+        "      Fail{TransformError{Transforms.LayoutError{error}}}",
+        "      Fail{ReduceError{Reduce.NotReducible{}}}",
+        "src/autograd/PROOF.bend",
+        "Laws.sum_dims_plan_refused",
     ),
     "matmul-inner-as-rank": (
         "src/tensor/matmul.bend",
