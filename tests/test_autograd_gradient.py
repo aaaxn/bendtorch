@@ -162,6 +162,7 @@ class GateRegistrationTests(unittest.TestCase):
                 "lifecycle",
                 "backward",
                 "tensor_backward",
+                "parallel",
             ],
         )
         required = json.loads((ROOT / "verification/autograd.json").read_text())[

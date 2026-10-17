@@ -7,6 +7,7 @@ from tools.autograd_backward import run_gate as backward
 from tools.autograd_broadcast import run_gate as broadcast
 from tools.autograd_gradient import run_gate as gradient
 from tools.autograd_lifecycle import run_gate as lifecycle
+from tools.autograd_parallel import run_gate as parallel_builds
 from tools.autograd_reduce import run_gate as reduce
 from tools.autograd_sum_to_size import run_gate as sum_to_size
 from tools.autograd_tensor_backward import CHAIN_CONTROLS, SGD_CONTROLS
@@ -31,6 +32,7 @@ SUBGATES = {
     "lifecycle": lifecycle,
     "backward": backward,
     "tensor_backward": tensor_backward,
+    "parallel": parallel_builds,
 }
 
 PROOF_CONTROLS = {
