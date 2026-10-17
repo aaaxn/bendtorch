@@ -56,7 +56,7 @@ bendtorch's native lane keeps the first.
 
 `tensor_backward.py` replays every script of the autograd tensor backward
 subgate on PyTorch tensors and writes `fixtures/tensor-backward-torch.json`.
-Each script records leaves (constants as tensors without `requires_grad`) and `+`, `-`, `*`, `@`, `linear(x, W)`
+Each script records leaves (constants as tensors without `requires_grad`) and `+`, `-`, `*`, `@`, `torch.matmul` (`batched_matmul`), `linear(x, W)`
 (`matmul_nt`), `linear(x, W) + b` (`linear`, two entries, as the tape records
 it; both are computed before either is recorded, so a refused `linear`
 records nothing), `torch.relu`, `mse_loss`, `cross_entropy` with class
@@ -70,9 +70,9 @@ gate's own format. `tests/test_autograd_tensor_backward.py` in the root suite
 compares the gate's Python reference with this file, under level 2 of the
 [numeric policy](../../AGENTS.md#numeric-policy) (`tools/autograd_tensor_bound.py`
 computes each word's rounding-error bound, checked on top of the listed
-words): 169 of 222 scripts agree line for
+words): 195 of 257 scripts agree line for
 line, and [the differences from PyTorch](../../docs/torch-differences.md#tensor-backward)
-explain the other 53.
+explain the other 62.
 
 ## Reproduce
 

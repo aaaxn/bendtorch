@@ -9,6 +9,7 @@ from unittest.mock import Mock
 
 from tools.common import ROOT, Evidence, GateError
 from tools.tensor import (
+    BATCHED_CONTROLS,
     LOSS_CONTROLS,
     RELU_CONTROLS,
     RELU_WITNESSES,
@@ -149,6 +150,18 @@ class GateAcceptanceTests(unittest.TestCase):
             self.assertEqual(source.count(original), 1)
             self.assertNotEqual(original, mutated)
             self.assertIn(f"law {location.removeprefix('Laws.')}:\n", laws)
+
+    def test_batched_controls_apply_once_and_name_a_batched_proof(self):
+        source = (ROOT / "src/tensor/batched-matmul.bend").read_text()
+        laws = (ROOT / "src/tensor/batched-matmul-LAWS.bend").read_text()
+        proof = (ROOT / "src/tensor/batched-matmul-PROOF.bend").read_text()
+        self.assertEqual(len(BATCHED_CONTROLS), 7)
+        for original, mutated, location in BATCHED_CONTROLS.values():
+            self.assertEqual(source.count(original), 1)
+            self.assertNotEqual(original, mutated)
+            if location.startswith("Laws."):
+                self.assertIn(f"law {location.removeprefix('Laws.')}:\n", laws)
+            self.assertIn(f"def {location}(", proof)
 
     def test_law_exports_name_every_law_and_each_template_law_once(self):
         text = (

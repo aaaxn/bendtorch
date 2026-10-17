@@ -20,6 +20,7 @@ type Step is Data:
   Mul{a: Nat, b: Nat}
   Matmul{a: Nat, b: Nat}
   MatmulNt{a: Nat, b: Nat}
+  BatchedMatmul{a: Nat, b: Nat}
   Linear{x: Nat, w: Nat, bias: Nat}
   Sum{a: Nat}
   SumDims{a: Nat, axes: List<&2, Signed.Position>, keepdim: Bool}
@@ -185,6 +186,8 @@ def step(instruction: Step, tape: Backward.Tape, rec: Backward.Tape -> IO(Unit))
       recorded(rec, Backward.matmul(tape, a, b))
     case MatmulNt{a, b}:
       recorded(rec, Backward.matmul_nt(tape, a, b))
+    case BatchedMatmul{a, b}:
+      recorded(rec, Backward.batched_matmul(tape, a, b))
     case Linear{x, w, bias}:
       recorded(rec, Backward.linear(tape, x, w, bias))
     case Sum{a}:

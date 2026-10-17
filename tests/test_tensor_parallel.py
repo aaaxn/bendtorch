@@ -71,8 +71,12 @@ class ParallelProbeTests(unittest.TestCase):
         self.assertIn(ROUNDING, PRODUCTS)
         self.assertEqual(expected_splits(ROUNDING), 4)
 
+    def test_batched_product_forks_six_levels(self):
+        self.assertEqual(expected_splits("batched-8x64x48x64-rounding"), 6)
+        self.assertIn("batched-8x64x48x64-rounding", ROUNDING_BUILDS)
+
     def test_rounding_reductions_fork(self):
-        self.assertEqual(len(ROUNDING_BUILDS), 6)
+        self.assertEqual(len(ROUNDING_BUILDS), 7)
         for name in ROUNDING_BUILDS:
             with self.subTest(name=name):
                 self.assertTrue(expected_splits(name))

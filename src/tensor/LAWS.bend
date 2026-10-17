@@ -9,6 +9,7 @@ import ./transpose-LAWS.bend as Transpose
 import ./transform-LAWS.bend as Transforms
 import ./reduction-LAWS.bend as Reduction
 import ./matmul-LAWS.bend as Matrix
+import ./batched-matmul-LAWS.bend as BatchedMatrix
 import ./parallel-LAWS.bend as Parallel
 import ./relu-LAWS.bend as Relu
 import ./loss-ops-LAWS.bend as LossOps
