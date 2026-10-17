@@ -415,9 +415,11 @@ def matmul(left: Core.Dynamic, right: Core.Dynamic) -> Result<&2, &1, Error, Cor
 # `[inner, outer]`, where it sits at k * outers + outer. `matmul` is the
 # product of a `Kept` left and a `Swapped` right operand, `matmul_nt` of two
 # `Kept` operands and `matmul_tn` of two `Swapped` ones. Cell (row, column)
-# adds the inner terms in increasing k from +0.0, as `natural_dot` does, and
-# the cells are built over the output with `Parallel.build`, as `matmul`
-# builds them.
+# adds the inner terms in increasing k from +0.0, as `natural_dot` does. The
+# cells are built by `product_build` below: it forks as `Parallel.build`
+# forks, and below the forks `product_tree` builds them as `Parallel.tree`
+# does, except that eight cells below the count and in one output row run
+# as one loop with eight accumulators (`row_run`).
 type Order is Data:
   Kept{}
   Swapped{}
