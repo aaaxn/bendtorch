@@ -466,8 +466,14 @@ def batched_controls(evidence: Evidence, source_root: Path) -> None:
 # proof of the clamped case, which follows Nat.min and Nat.max: a start or
 # stop left unclamped falsifies slice_start_clamped or slice_stop_clamped, a
 # start one past slice_start_kept, a stop one short slice_stop_kept, a stop
-# before the start kept as it is slice_stop_empty. Counting the stop itself
-# falsifies slice_length_below, too little fuel slice_length_reaches. A
+# before the start kept as it is slice_stop_empty. A length one short
+# falsifies slice_length_reaches, one that counts the whole span
+# slice_length_below; both fail at below_span, whose proof follows the
+# length's form. A plan that starts at 0 instead of the request's start
+# falsifies slice_plan_axis, a view of an empty input that loses the extent
+# too (sized_extent); a plan that takes every input as empty falsifies
+# slice_plan_view (its proof fails first at slice_plan_axis), and a zero
+# check that skips the first dimension slice_plan_empty_view (zero_head). A
 # doubled inner count falsifies slice_view_around (view_around), a resized
 # axis that keeps its extent slice_resized_around, a select that keeps the
 # axis select_dropped_around, an output one cell longer slice_planned
@@ -504,15 +510,35 @@ SLICE_CONTROLS = {
         "  Bounds{low, Nat.min(stop, extent)}",
         "Laws.slice_stop_clamped",
     ),
-    "slice-length-counts-the-stop": (
-        "  count(fuel(low, high), low, high, step, Nat.is_lt(low, high))",
-        "  count(fuel(low, high), low, high, step, Nat.is_le(low, high))",
-        "Laws.slice_length_below",
+    "slice-length-drops-the-first": (
+        "      1n+Nat.div(rest, step)\n",
+        "      Nat.div(rest, step)\n",
+        "below_span",
     ),
-    "slice-length-runs-out-of-fuel": (
-        "def fuel(+low: Nat, +high: Nat) -> Nat:\n  high\n",
-        "def fuel(+low: Nat, +high: Nat) -> Nat:\n  Nat.sub(high, Nat.add(low, 1n))\n",
-        "Laws.slice_length_reaches",
+    "slice-length-counts-the-span": (
+        "      1n+Nat.div(rest, step)\n",
+        "      1n+Nat.div(1n+rest, step)\n",
+        "below_span",
+    ),
+    "slice-plan-starts-at-zero": (
+        "holds_zero(dimensions)), U32.to_nat(start),",
+        "holds_zero(dimensions)), 0n,",
+        "Laws.slice_plan_axis",
+    ),
+    "slice-empty-view-loses-the-extent": (
+        "      View{0n, axis_extent(dimensions, dim), 0n}",
+        "      View{0n, 0n, 0n}",
+        "sized_extent",
+    ),
+    "slice-plan-skips-the-zero-check": (
+        "sized(dimensions, U32.to_nat(dim), holds_zero(dimensions))",
+        "sized(dimensions, U32.to_nat(dim), True{})",
+        "Laws.slice_plan_axis",
+    ),
+    "holds-zero-ignores-the-head": (
+        "      Bool.or(Nat.is_eq(U32.to_nat(extent), 0n), holds_zero(rest))",
+        "      holds_zero(rest)",
+        "zero_head",
     ),
     "slice-view-inner-doubled": (
         "      View{outer, U32.to_nat(extent), Shape.logical_numel(rest)}",

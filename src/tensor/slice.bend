@@ -51,27 +51,21 @@ def bounds(+extent: Nat, +start: Nat, +stop: Nat) -> Bounds:
   +low = Nat.min(start, extent)
   Bounds{low, Nat.max(low, Nat.min(stop, extent))}
 
-# How many of low, low + step, low + 2 step, ... lie below high, counted for
-# at most `fuel` of them.
-def count(fuel: Nat, +low: Nat, +high: Nat, +step: Nat, below: Bool) -> Nat:
-  match fuel below:
-    case 0n _:
+# How many of 0, step, 2 step, ... lie below `span`: none for an empty span,
+# else 1 + (span - 1) / step, a ceiling division that never forms a number
+# past span. It takes one division, not a step per index.
+def counted(+span: Nat, +step: Nat) -> Nat:
+  match span:
+    case 0n:
       0n
-    case 1n+rest False{}:
-      0n
-    case 1n+rest True{}:
-      1n+count(rest, Nat.add(low, step), high, step, Nat.is_lt(Nat.add(low, step), high))
-
-# How many indices `count` may visit: a step of at least 1 reaches stop'
-# from start' within stop' steps.
-def fuel(+low: Nat, +high: Nat) -> Nat:
-  high
+    case 1n+rest:
+      1n+Nat.div(rest, step)
 
 # The length of the sliced axis: the number of indices start', start' +
 # step, ... below stop'.
 def length(+clamped: Bounds, +step: Nat) -> Nat:
   Bounds{+low, +high} = clamped
-  count(fuel(low, high), low, high, step, Nat.is_lt(low, high))
+  counted(Nat.sub(high, low), step)
 
 # The row-major view of the input around the axis: the element count before
 # it, its extent and the element count after it.
@@ -89,6 +83,39 @@ def view_at(dimensions: List<&2, U32>, +dim: Nat, +outer: Nat) -> View:
 
 def view(dimensions: List<&2, U32>, +dim: Nat) -> View:
   view_at(dimensions, dim, 1n)
+
+# The extent of axis `dim`, 0 past the rank. It reads that one dimension and
+# forms no product.
+def axis_extent(dimensions: List<&2, U32>, +dim: Nat) -> Nat:
+  match dimensions dim:
+    case extent <> rest 0n:
+      U32.to_nat(extent)
+    case extent <> rest 1n+next:
+      axis_extent(rest, next)
+    case Nil{} _:
+      0n
+
+def extent_at(dimensions: List<&2, U32>, +dim: U32) -> Nat:
+  axis_extent(dimensions, U32.to_nat(dim))
+
+# Whether some dimension is 0, so the input has no element.
+def holds_zero(dimensions: List<&2, U32>) -> Bool:
+  match dimensions:
+    case Nil{}:
+      False{}
+    case extent <> rest:
+      Bool.or(Nat.is_eq(U32.to_nat(extent), 0n), holds_zero(rest))
+
+# The view a plan uses. An input with no element gets no cell in either
+# build, so its outer and inner counts are left at 0 rather than formed: the
+# product of the other extents can pass 2^48 - 1, the largest Nat the
+# runtime holds, as [2^24, 2^24, 0] at axis 2 does.
+def sized(+dimensions: List<&2, U32>, +dim: Nat, empty: Bool) -> View:
+  match empty:
+    case True{}:
+      View{0n, axis_extent(dimensions, dim), 0n}
+    case False{}:
+      view(dimensions, dim)
 
 # The input dimensions with the extent at the axis replaced.
 def resized(dimensions: List<&2, U32>, +dim: Nat, +extent: U32) -> List<&2, U32>:
@@ -123,8 +150,8 @@ def viewed(+given: View, +start: Nat, +stop: Nat, +step: Nat) -> Plan:
   View{+outer, +extent, +inner} = given
   planned_view(outer, extent, inner, bounds(extent, start, stop), step)
 
-def plan_of(dimensions: List<&2, U32>, +dim: U32, +start: U32, +stop: U32, +step: U32) -> Plan:
-  viewed(view(dimensions, U32.to_nat(dim)), U32.to_nat(start), U32.to_nat(stop), U32.to_nat(step))
+def plan_of(+dimensions: List<&2, U32>, +dim: U32, +start: U32, +stop: U32, +step: U32) -> Plan:
+  viewed(sized(dimensions, U32.to_nat(dim), holds_zero(dimensions)), U32.to_nat(start), U32.to_nat(stop), U32.to_nat(step))
 
 def plan_length(+plan: Plan) -> Nat:
   Plan{outer, extent, inner, start, step, length} = plan
@@ -357,14 +384,6 @@ def slice(input: Core.Dynamic, +dim: U32, +start: U32, +stop: U32, +step: U32) -
 def scatter(g: Core.Dynamic, +input: Shape.Shape, +plan: Plan) -> Core.Dynamic & Result<&2, &1, Error, Core.Dynamic>:
   Core.Packed{+shape, tensor} = g
   built(Backward{}, shape, input, plan, tensor, Core.new(input, 0.0))
-
-# The extent of axis `dim` of these dimensions, 0 past the rank.
-def view_extent(given: View) -> Nat:
-  View{outer, extent, inner} = given
-  extent
-
-def extent_at(dimensions: List<&2, U32>, +dim: U32) -> Nat:
-  view_extent(view(dimensions, U32.to_nat(dim)))
 
 def transformed(result: Result<&2, &1, Transforms.Error, Core.Dynamic>) -> Result<&2, &1, Error, Core.Dynamic>:
   match result:

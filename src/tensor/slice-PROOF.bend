@@ -17,6 +17,8 @@ import ./elementwise-parallel-proof.bend as Parallel
 import ./parallel-proof.bend as Generic
 import ./batched-matmul-PROOF.bend as BatchedProof
 import ../storage/array.bend as ArrayCore
+import ./elementwise-walk-proof.bend as Walk
+import ../autograd/reduce-fiber-proof.bend as Fiber
 
 # The clamp.
 
@@ -111,61 +113,117 @@ def add_zero_right(+number: Nat) -> {Nat.add(number, 0n) == number : Nat}:
     case 1n+p:
       Equal.cong(Nat, Nat, x => 1n+x, Nat.add(p, 0n), p, add_zero_right(p))
 
-def count_below(+fuel: Nat, +low: Nat, +high: Nat, +step: Nat, +k: Nat, below_high: Bool,
-  e: {below_high == Nat.is_lt(low, high) : Bool},
-  below: {Nat.is_lt(k, Slice.count(fuel, low, high, step, below_high)) == True{} : Bool}) ->
-  {Nat.is_lt(Nat.add(low, Nat.mul(k, step)), high) == True{} : Bool}:
-  match fuel k below_high:
-    case 0n _ _:
-      Empty.absurd({Nat.is_lt(Nat.add(low, Nat.mul(k, step)), high) == True{} : Bool}, Arith.lt_zero(k, below))
-    case 1n+rest _ False{}:
-      Empty.absurd({Nat.is_lt(Nat.add(low, Nat.mul(k, step)), high) == True{} : Bool}, Arith.lt_zero(k, below))
-    case 1n+rest 0n True{}:
-      %Equal.sym(Nat, Nat.add(low, 0n), low, add_zero_right(low)) : {Nat.is_lt(_, high) == True{} : Bool}
-      Equal.sym(Bool, True{}, Nat.is_lt(low, high), e)
-    case 1n+rest 1n+j True{}:
-      %Equal.sym(Nat, Nat.add(low, Nat.add(step, Nat.mul(j, step))), Nat.add(Nat.add(low, step), Nat.mul(j, step)),
-        Index.add_assoc(low, step, Nat.mul(j, step))) : {Nat.is_lt(_, high) == True{} : Bool}
-      count_below(rest, Nat.add(low, step), high, step, j, Nat.is_lt(Nat.add(low, step), high), {==}, below)
+# Nat facts the closed form of the length needs.
 
-def Laws.slice_length_below(start, stop, step, k, below):
-  count_below(Slice.fuel(start, stop), start, stop, step, k, Nat.is_lt(start, stop), {==}, below)
+def nat_clash(+x: Nat, e: {1n+x == 0n : Nat}) -> Empty:
+  Arith.clash(Equal.cong(Nat, Bool, v => Nat.is_eq(v, 0n), 1n+x, 0n, e))
 
-# 1 + rest <= step + rest for a positive step.
-def step_covers(+step: Nat, +rest: Nat, positive: {Nat.is_lt(0n, step) == True{} : Bool}) ->
-  {Nat.is_le(1n+rest, Nat.add(step, rest)) == True{} : Bool}:
+# stop - low = 1 + rest gives stop = low + (1 + rest).
+def sub_back(+stop: Nat, +low: Nat, +rest: Nat, e: {Nat.sub(stop, low) == 1n+rest : Nat}) -> {Nat.add(low, 1n+rest) == stop : Nat}:
+  match stop low:
+    case 0n _:
+      Empty.absurd({Nat.add(low, 1n+rest) == 0n : Nat}, nat_clash(rest, Equal.sym(Nat, 0n, 1n+rest, e)))
+    case 1n+ap 0n:
+      Equal.sym(Nat, 1n+ap, 1n+rest, e)
+    case 1n+ap 1n+lp:
+      Equal.cong(Nat, Nat, x => 1n+x, Nat.add(lp, 1n+rest), ap, sub_back(ap, lp, rest, e))
+
+# stop - low = 0 gives stop <= low.
+def sub_zero_le(+stop: Nat, +low: Nat, e: {Nat.sub(stop, low) == 0n : Nat}) -> {Nat.is_le(stop, low) == True{} : Bool}:
+  match stop low:
+    case 0n _:
+      Arith.le_zero(low)
+    case 1n+ap 0n:
+      Empty.absurd({Nat.is_le(1n+ap, 0n) == True{} : Bool}, nat_clash(ap, e))
+    case 1n+ap 1n+lp:
+      sub_zero_le(ap, lp, e)
+
+def lt_succ_le(+k: Nat, +q: Nat, h: {Nat.is_lt(k, 1n+q) == True{} : Bool}) -> {Nat.is_le(k, q) == True{} : Bool}:
+  match k q:
+    case 0n _:
+      Arith.le_zero(q)
+    case 1n+p 0n:
+      Empty.absurd({Nat.is_le(1n+p, 0n) == True{} : Bool}, Arith.lt_zero(p, h))
+    case 1n+p 1n+r:
+      lt_succ_le(p, r, h)
+
+def lt_le_succ(+r: Nat, +s: Nat, h: {Nat.is_lt(r, s) == True{} : Bool}) -> {Nat.is_le(1n+r, s) == True{} : Bool}:
+  match r s:
+    case 0n 0n:
+      Empty.absurd({Nat.is_le(1n, 0n) == True{} : Bool}, Arith.clash(h))
+    case 0n 1n+q:
+      Arith.le_zero(q)
+    case 1n+p 0n:
+      Empty.absurd({Nat.is_le(2n+p, 0n) == True{} : Bool}, Arith.clash(h))
+    case 1n+p 1n+q:
+      lt_le_succ(p, q, h)
+
+# k <= rest / step gives k * step <= rest; at step 0 the product is 0.
+def scaled_within(+k: Nat, +rest: Nat, +s: Nat, +k_le: {Nat.is_le(k, Nat.div(rest, 1n+s)) == True{} : Bool},
+  given: Fiber.Decomposed<rest, 1n+s>) -> {Nat.is_le(Nat.mul(k, 1n+s), rest) == True{} : Bool}:
+  Fiber.Decomposed{below, sum} = given
+  Fiber.le_trans(Nat.mul(k, 1n+s), Nat.mul(Nat.div(rest, 1n+s), 1n+s), rest,
+    Fiber.mul_le_mono(k, Nat.div(rest, 1n+s), 1n+s, k_le),
+    %sum : {Nat.is_le(Nat.mul(Nat.div(rest, 1n+s), 1n+s), _) == True{} : Bool}
+    Api.le_add_right(Nat.mul(Nat.div(rest, 1n+s), 1n+s), Nat.mod(rest, 1n+s)))
+
+def scaled_le(+k: Nat, +rest: Nat, +step: Nat, below: {Nat.is_lt(k, 1n+Nat.div(rest, step)) == True{} : Bool}) ->
+  {Nat.is_le(Nat.mul(k, step), rest) == True{} : Bool}:
   match step:
     case 0n:
-      Empty.absurd({Nat.is_le(1n+rest, Nat.add(0n, rest)) == True{} : Bool}, Arith.clash(positive))
+      %Equal.sym(Nat, Nat.mul(k, 0n), 0n, Nats.mul_zero_right(k)) : {Nat.is_le(_, rest) == True{} : Bool}
+      Arith.le_zero(rest)
     case 1n+s:
-      Api.le_add_left(s, rest)
+      scaled_within(k, rest, s, lt_succ_le(k, Nat.div(rest, 1n+s), below), Fiber.decompose(rest, 1n+s, {==}))
 
-# The fuel is enough while high <= low + fuel: each counted index moves low
-# by the step, at least 1, and spends 1 fuel.
-def count_reaches(+fuel: Nat, +low: Nat, +high: Nat, +step: Nat, below_high: Bool,
-  e: {below_high == Nat.is_lt(low, high) : Bool},
-  +positive: {Nat.is_lt(0n, step) == True{} : Bool},
-  enough: {Nat.is_le(high, Nat.add(low, fuel)) == True{} : Bool}) ->
-  {Nat.is_le(high, Nat.add(low, Nat.mul(Slice.count(fuel, low, high, step, below_high), step))) == True{} : Bool}:
-  match fuel below_high:
-    case 0n _:
-      enough
-    case 1n+rest False{}:
-      %Equal.sym(Nat, Nat.add(low, 0n), low, add_zero_right(low)) : {Nat.is_le(high, _) == True{} : Bool}
-      Arith.not_lt_le(low, high, Equal.sym(Bool, False{}, Nat.is_lt(low, high), e))
-    case 1n+rest True{}:
-      spent = Facts.le_trans(high, Nat.add(low, 1n+rest), Nat.add(Nat.add(low, step), rest), enough,
-        %Index.add_assoc(low, step, rest) :
-          {Nat.is_le(Nat.add(low, 1n+rest), _) == True{} : Bool}
-        Facts.le_add_cong(low, 1n+rest, Nat.add(step, rest), step_covers(step, rest, positive)))
-      %Equal.sym(Nat, Nat.add(low, Nat.add(step, Nat.mul(Slice.count(rest, Nat.add(low, step), high, step, Nat.is_lt(Nat.add(low, step), high)), step))),
-        Nat.add(Nat.add(low, step), Nat.mul(Slice.count(rest, Nat.add(low, step), high, step, Nat.is_lt(Nat.add(low, step), high)), step)),
-        Index.add_assoc(low, step, Nat.mul(Slice.count(rest, Nat.add(low, step), high, step, Nat.is_lt(Nat.add(low, step), high)), step))) :
-        {Nat.is_le(high, _) == True{} : Bool}
-      count_reaches(rest, Nat.add(low, step), high, step, Nat.is_lt(Nat.add(low, step), high), {==}, positive, spent)
+def below_span(+start: Nat, +stop: Nat, +step: Nat, +k: Nat, +span: Nat, e: {Nat.sub(stop, start) == span : Nat},
+  below: {Nat.is_lt(k, Slice.counted(span, step)) == True{} : Bool}) ->
+  {Nat.is_lt(Nat.add(start, Nat.mul(k, step)), stop) == True{} : Bool}:
+  match span:
+    case 0n:
+      Empty.absurd({Nat.is_lt(Nat.add(start, Nat.mul(k, step)), stop) == True{} : Bool}, Arith.lt_zero(k, below))
+    case 1n+rest:
+      %sub_back(stop, start, rest, e) : {Nat.is_lt(Nat.add(start, Nat.mul(k, step)), _) == True{} : Bool}
+      %Equal.sym(Nat, Nat.add(start, 1n+rest), 1n+Nat.add(start, rest), Arith.add_succ(start, rest)) :
+        {Nat.is_lt(Nat.add(start, Nat.mul(k, step)), _) == True{} : Bool}
+      Arith.lt_succ(Nat.add(start, Nat.mul(k, step)), Nat.add(start, rest),
+        Facts.le_add_cong(start, Nat.mul(k, step), rest, scaled_le(k, rest, step, below)))
+
+def Laws.slice_length_below(start, stop, step, k, below):
+  below_span(start, stop, step, k, Nat.sub(stop, start), {==}, below)
+
+# 1 + rest <= step + (rest / step) * step for a positive step: rest's
+# remainder is below the step.
+def covered(+rest: Nat, +s: Nat, given: Fiber.Decomposed<rest, 1n+s>) ->
+  {Nat.is_le(1n+rest, Nat.add(1n+s, Nat.mul(Nat.div(rest, 1n+s), 1n+s))) == True{} : Bool}:
+  Fiber.Decomposed{below, sum} = given
+  +q = Nat.mul(Nat.div(rest, 1n+s), 1n+s)
+  %sum : {Nat.is_le(1n+_, Nat.add(1n+s, q)) == True{} : Bool}
+  %Walk.add_comm(q, 1n+s) : {Nat.is_le(1n+Nat.add(q, Nat.mod(rest, 1n+s)), _) == True{} : Bool}
+  %Arith.add_succ(q, Nat.mod(rest, 1n+s)) : {Nat.is_le(_, Nat.add(q, 1n+s)) == True{} : Bool}
+  Facts.le_add_cong(q, 1n+Nat.mod(rest, 1n+s), 1n+s, lt_le_succ(Nat.mod(rest, 1n+s), 1n+s, below))
+
+def cover(+rest: Nat, +step: Nat, positive: {Nat.is_lt(0n, step) == True{} : Bool}) ->
+  {Nat.is_le(1n+rest, Nat.add(step, Nat.mul(Nat.div(rest, step), step))) == True{} : Bool}:
+  match step:
+    case 0n:
+      Empty.absurd({Nat.is_le(1n+rest, Nat.add(0n, Nat.mul(Nat.div(rest, 0n), 0n))) == True{} : Bool}, Arith.clash(positive))
+    case 1n+s:
+      covered(rest, s, Fiber.decompose(rest, 1n+s, {==}))
+
+def reaches_span(+start: Nat, +stop: Nat, +step: Nat, +span: Nat, e: {Nat.sub(stop, start) == span : Nat},
+  positive: {Nat.is_lt(0n, step) == True{} : Bool}) ->
+  {Nat.is_le(stop, Nat.add(start, Nat.mul(Slice.counted(span, step), step))) == True{} : Bool}:
+  match span:
+    case 0n:
+      %Equal.sym(Nat, Nat.add(start, 0n), start, add_zero_right(start)) : {Nat.is_le(stop, _) == True{} : Bool}
+      sub_zero_le(stop, start, e)
+    case 1n+rest:
+      %sub_back(stop, start, rest, e) : {Nat.is_le(_, Nat.add(start, Nat.mul(1n+Nat.div(rest, step), step))) == True{} : Bool}
+      Facts.le_add_cong(start, 1n+rest, Nat.add(step, Nat.mul(Nat.div(rest, step), step)), cover(rest, step, positive))
 
 def Laws.slice_length_reaches(start, stop, step, positive):
-  count_reaches(Slice.fuel(start, stop), start, stop, step, Nat.is_lt(start, stop), {==}, positive, Api.le_add_left(start, stop))
+  reaches_span(start, stop, step, Nat.sub(stop, start), {==}, positive)
 
 # The view, the output dimensions and select's dimensions.
 
@@ -209,6 +267,200 @@ def Laws.select_dropped_around(prefix, extent, suffix):
       Equal.cong(List<&2, U32>, List<&2, U32>, rest => head <> rest,
         Slice.dropped(List.append(&2, U32, tail, extent <> suffix), Shape.rank_dimensions(tail)),
         List.append(&2, U32, tail, suffix), Laws.select_dropped_around(tail, extent, suffix))
+
+# The plan from the request.
+
+def pick_succ(+c: Bool, +p: Nat, +q: Nat) -> {Bool.pick(Nat, c, 1n+p, 1n+q) == 1n+Bool.pick(Nat, c, p, q) : Nat}:
+  match c:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+
+def min_pick(+a: Nat, +b: Nat) -> {Nat.min(a, b) == Bool.pick(Nat, Nat.is_le(a, b), a, b) : Nat}:
+  match a b:
+    case 0n 0n:
+      {==}
+    case 0n 1n+q:
+      {==}
+    case 1n+p 0n:
+      {==}
+    case 1n+p 1n+q:
+      Equal.trans(Nat, 1n+Nat.min(p, q), 1n+Bool.pick(Nat, Nat.is_le(p, q), p, q), Bool.pick(Nat, Nat.is_le(p, q), 1n+p, 1n+q),
+        Equal.cong(Nat, Nat, x => 1n+x, Nat.min(p, q), Bool.pick(Nat, Nat.is_le(p, q), p, q), min_pick(p, q)),
+        Equal.sym(Nat, Bool.pick(Nat, Nat.is_le(p, q), 1n+p, 1n+q), 1n+Bool.pick(Nat, Nat.is_le(p, q), p, q), pick_succ(Nat.is_le(p, q), p, q)))
+
+def max_pick(+a: Nat, +b: Nat) -> {Nat.max(a, b) == Bool.pick(Nat, Nat.is_le(a, b), b, a) : Nat}:
+  match a b:
+    case 0n 0n:
+      {==}
+    case 0n 1n+q:
+      {==}
+    case 1n+p 0n:
+      {==}
+    case 1n+p 1n+q:
+      Equal.trans(Nat, 1n+Nat.max(p, q), 1n+Bool.pick(Nat, Nat.is_le(p, q), q, p), Bool.pick(Nat, Nat.is_le(p, q), 1n+q, 1n+p),
+        Equal.cong(Nat, Nat, x => 1n+x, Nat.max(p, q), Bool.pick(Nat, Nat.is_le(p, q), q, p), max_pick(p, q)),
+        Equal.sym(Nat, Bool.pick(Nat, Nat.is_le(p, q), 1n+q, 1n+p), 1n+Bool.pick(Nat, Nat.is_le(p, q), q, p), pick_succ(Nat.is_le(p, q), q, p)))
+
+def view_extent(+given: Slice.View) -> Nat:
+  Slice.View{outer, extent, inner} = given
+  extent
+
+def view_pair(+given: Slice.View) -> Nat & Nat:
+  Slice.View{outer, extent, inner} = given
+  (outer, inner)
+
+# The clamp of bounds is PyTorch's, written with min and max.
+def clamp_axis(+n: Nat, +s: Nat, +t: Nat, +p: Nat) ->
+  {(n, Nat.min(s, n), p, Slice.length(Slice.Bounds{Nat.min(s, n), Nat.max(Nat.min(s, n), Nat.min(t, n))}, p)) ==
+    Laws.axis_spec(n, s, t, p) : Nat & Nat & Nat & Nat}:
+  +cs = Bool.pick(Nat, Nat.is_le(s, n), s, n)
+  +ct = Bool.pick(Nat, Nat.is_le(t, n), t, n)
+  %Equal.sym(Nat, Nat.min(s, n), cs, min_pick(s, n)) :
+    {(n, _, p, Slice.length(Slice.Bounds{_, Nat.max(_, Nat.min(t, n))}, p)) == Laws.axis_spec(n, s, t, p) : Nat & Nat & Nat & Nat}
+  %Equal.sym(Nat, Nat.min(t, n), ct, min_pick(t, n)) :
+    {(n, cs, p, Slice.length(Slice.Bounds{cs, Nat.max(cs, _)}, p)) == Laws.axis_spec(n, s, t, p) : Nat & Nat & Nat & Nat}
+  %Equal.sym(Nat, Nat.max(cs, ct), Bool.pick(Nat, Nat.is_le(cs, ct), ct, cs), max_pick(cs, ct)) :
+    {(n, cs, p, Slice.length(Slice.Bounds{cs, _}, p)) == Laws.axis_spec(n, s, t, p) : Nat & Nat & Nat & Nat}
+  {==}
+
+def viewed_axis(+given: Slice.View, +s: Nat, +t: Nat, +p: Nat) ->
+  {Laws.axis_part(Slice.viewed(given, s, t, p)) == Laws.axis_spec(view_extent(given), s, t, p) : Nat & Nat & Nat & Nat}:
+  match given:
+    case Slice.View{+o, +n, +i}:
+      clamp_axis(n, s, t, p)
+
+def viewed_view(+given: Slice.View, +s: Nat, +t: Nat, +p: Nat) ->
+  {Laws.view_part(Slice.viewed(given, s, t, p)) == view_pair(given) : Nat & Nat}:
+  match given:
+    case Slice.View{+o, +n, +i}:
+      {==}
+
+def axis_extent_around(+prefix: List<&2, U32>, +extent: U32, +suffix: List<&2, U32>) ->
+  {Slice.axis_extent(List.append(&2, U32, prefix, extent <> suffix), Shape.rank_dimensions(prefix)) == U32.to_nat(extent) : Nat}:
+  match prefix:
+    case Nil{}:
+      {==}
+    case +head <> +tail:
+      axis_extent_around(tail, extent, suffix)
+
+def sized_extent(+prefix: List<&2, U32>, +extent: U32, +suffix: List<&2, U32>, +empty: Bool) ->
+  {view_extent(Slice.sized(List.append(&2, U32, prefix, extent <> suffix), Shape.rank_dimensions(prefix), empty)) == U32.to_nat(extent) : Nat}:
+  match empty:
+    case True{}:
+      axis_extent_around(prefix, extent, suffix)
+    case False{}:
+      Equal.cong(Slice.View, Nat, v => view_extent(v),
+        Slice.view(List.append(&2, U32, prefix, extent <> suffix), Shape.rank_dimensions(prefix)),
+        Slice.View{Shape.logical_numel(prefix), U32.to_nat(extent), Shape.logical_numel(suffix)},
+        Laws.slice_view_around(prefix, extent, suffix))
+
+def Laws.slice_plan_axis(prefix, extent, suffix, dim, at, start, stop, step):
+  +dims = List.append(&2, U32, prefix, extent <> suffix)
+  %Equal.sym(Nat, U32.to_nat(dim), Shape.rank_dimensions(prefix), at) :
+    {Laws.axis_part(Slice.viewed(Slice.sized(dims, _, Slice.holds_zero(dims)), U32.to_nat(start), U32.to_nat(stop), U32.to_nat(step))) ==
+      Laws.axis_spec(U32.to_nat(extent), U32.to_nat(start), U32.to_nat(stop), U32.to_nat(step)) : Nat & Nat & Nat & Nat}
+  Equal.trans(Nat & Nat & Nat & Nat,
+    Laws.axis_part(Slice.viewed(Slice.sized(dims, Shape.rank_dimensions(prefix), Slice.holds_zero(dims)),
+      U32.to_nat(start), U32.to_nat(stop), U32.to_nat(step))),
+    Laws.axis_spec(view_extent(Slice.sized(dims, Shape.rank_dimensions(prefix), Slice.holds_zero(dims))),
+      U32.to_nat(start), U32.to_nat(stop), U32.to_nat(step)),
+    Laws.axis_spec(U32.to_nat(extent), U32.to_nat(start), U32.to_nat(stop), U32.to_nat(step)),
+    viewed_axis(Slice.sized(dims, Shape.rank_dimensions(prefix), Slice.holds_zero(dims)), U32.to_nat(start), U32.to_nat(stop), U32.to_nat(step)),
+    Equal.cong(Nat, Nat & Nat & Nat & Nat, n => Laws.axis_spec(n, U32.to_nat(start), U32.to_nat(stop), U32.to_nat(step)),
+      view_extent(Slice.sized(dims, Shape.rank_dimensions(prefix), Slice.holds_zero(dims))), U32.to_nat(extent),
+      sized_extent(prefix, extent, suffix, Slice.holds_zero(dims))))
+
+# Some dimension 0 makes the element count 0.
+def zero_head(+extent: U32, +rest: List<&2, U32>, h: {Slice.holds_zero(extent <> rest) == True{} : Bool},
+  rec: @h: {Slice.holds_zero(rest) == True{} : Bool} -> {Shape.logical_numel(rest) == 0n : Nat},
+  decision: Shape.BoolCase<Nat.is_eq(U32.to_nat(extent), 0n)>) -> {Shape.logical_numel(extent <> rest) == 0n : Nat}:
+  match decision:
+    case Shape.BTrue{equal}:
+      %Equal.sym(Nat, U32.to_nat(extent), 0n, Arith.eq_true(U32.to_nat(extent), 0n, Equal.sym(Bool, True{}, Nat.is_eq(U32.to_nat(extent), 0n), equal))) :
+        {Nat.mul(_, Shape.logical_numel(rest)) == 0n : Nat}
+      {==}
+    case Shape.BFalse{equal}:
+      %Equal.sym(Nat, Shape.logical_numel(rest), 0n,
+        rec(Equal.trans(Bool, Slice.holds_zero(rest), Bool.or(Nat.is_eq(U32.to_nat(extent), 0n), Slice.holds_zero(rest)), True{},
+          Equal.cong(Bool, Bool, x => Bool.or(x, Slice.holds_zero(rest)), False{}, Nat.is_eq(U32.to_nat(extent), 0n), equal), h))) :
+        {Nat.mul(U32.to_nat(extent), _) == 0n : Nat}
+      Nats.mul_zero_right(U32.to_nat(extent))
+
+def zero_numel(+dimensions: List<&2, U32>, h: {Slice.holds_zero(dimensions) == True{} : Bool}) ->
+  {Shape.logical_numel(dimensions) == 0n : Nat}:
+  match dimensions:
+    case Nil{}:
+      Empty.absurd({Shape.logical_numel(Nil{}) == 0n : Nat}, Arith.clash(h))
+    case +extent <> +rest:
+      zero_head(extent, rest, h, hr => zero_numel(rest, hr), Shape.bool_case(Nat.is_eq(U32.to_nat(extent), 0n)))
+
+# A product a * b of 0 with a not 0 has b = 0.
+def add_zero_left_part(+b: Nat, +x: Nat, e: {Nat.add(b, x) == 0n : Nat}) -> {b == 0n : Nat}:
+  match b:
+    case 0n:
+      {==}
+    case 1n+q:
+      Empty.absurd({1n+q == 0n : Nat}, nat_clash(Nat.add(q, x), e))
+
+def mul_zero_factor(+a: Nat, +b: Nat, e: {Nat.mul(a, b) == 0n : Nat}, nonzero: {False{} == Nat.is_eq(a, 0n) : Bool}) -> {b == 0n : Nat}:
+  match a:
+    case 0n:
+      Empty.absurd({b == 0n : Nat}, Arith.clash(nonzero))
+    case 1n+p:
+      add_zero_left_part(b, Nat.mul(p, b), e)
+
+# An element count of 0 has some dimension 0.
+def zero_found(+extent: U32, +rest: List<&2, U32>, e: {Shape.logical_numel(extent <> rest) == 0n : Nat},
+  rec: @e: {Shape.logical_numel(rest) == 0n : Nat} -> {Slice.holds_zero(rest) == True{} : Bool},
+  decision: Shape.BoolCase<Nat.is_eq(U32.to_nat(extent), 0n)>) -> {Slice.holds_zero(extent <> rest) == True{} : Bool}:
+  match decision:
+    case Shape.BTrue{equal}:
+      %equal : {Bool.or(_, Slice.holds_zero(rest)) == True{} : Bool}
+      {==}
+    case Shape.BFalse{+equal}:
+      %equal : {Bool.or(_, Slice.holds_zero(rest)) == True{} : Bool}
+      rec(mul_zero_factor(U32.to_nat(extent), Shape.logical_numel(rest), e, equal))
+
+def holds_true(+dimensions: List<&2, U32>, e: {Shape.logical_numel(dimensions) == 0n : Nat}) -> {Slice.holds_zero(dimensions) == True{} : Bool}:
+  match dimensions:
+    case Nil{}:
+      Empty.absurd({Slice.holds_zero(Nil{}) == True{} : Bool}, nat_clash(0n, e))
+    case +extent <> +rest:
+      zero_found(extent, rest, e, er => holds_true(rest, er), Shape.bool_case(Nat.is_eq(U32.to_nat(extent), 0n)))
+
+def holds_false(+dimensions: List<&2, U32>, +nonempty: {Nat.is_lt(0n, Shape.logical_numel(dimensions)) == True{} : Bool},
+  decision: Shape.BoolCase<Slice.holds_zero(dimensions)>) -> {Slice.holds_zero(dimensions) == False{} : Bool}:
+  match decision:
+    case Shape.BFalse{equal}:
+      Equal.sym(Bool, False{}, Slice.holds_zero(dimensions), equal)
+    case Shape.BTrue{equal}:
+      Empty.absurd({Slice.holds_zero(dimensions) == False{} : Bool},
+        Arith.clash(Equal.trans(Bool, False{}, Nat.is_lt(0n, Shape.logical_numel(dimensions)), True{},
+          Equal.cong(Nat, Bool, v => Nat.is_lt(0n, v), 0n, Shape.logical_numel(dimensions),
+            Equal.sym(Nat, Shape.logical_numel(dimensions), 0n, zero_numel(dimensions, Equal.sym(Bool, True{}, Slice.holds_zero(dimensions), equal)))),
+          nonempty)))
+
+def Laws.slice_plan_view(prefix, extent, suffix, dim, at, start, stop, step, nonempty):
+  +dims = List.append(&2, U32, prefix, extent <> suffix)
+  %Equal.sym(Nat, U32.to_nat(dim), Shape.rank_dimensions(prefix), at) :
+    {Laws.view_part(Slice.viewed(Slice.sized(dims, _, Slice.holds_zero(dims)), U32.to_nat(start), U32.to_nat(stop), U32.to_nat(step))) ==
+      (Shape.logical_numel(prefix), Shape.logical_numel(suffix)) : Nat & Nat}
+  %Equal.sym(Bool, Slice.holds_zero(dims), False{}, holds_false(dims, nonempty, Shape.bool_case(Slice.holds_zero(dims)))) :
+    {Laws.view_part(Slice.viewed(Slice.sized(dims, Shape.rank_dimensions(prefix), _), U32.to_nat(start), U32.to_nat(stop), U32.to_nat(step))) ==
+      (Shape.logical_numel(prefix), Shape.logical_numel(suffix)) : Nat & Nat}
+  %Equal.sym(Slice.View, Slice.view(dims, Shape.rank_dimensions(prefix)),
+    Slice.View{Shape.logical_numel(prefix), U32.to_nat(extent), Shape.logical_numel(suffix)}, Laws.slice_view_around(prefix, extent, suffix)) :
+    {Laws.view_part(Slice.viewed(_, U32.to_nat(start), U32.to_nat(stop), U32.to_nat(step))) ==
+      (Shape.logical_numel(prefix), Shape.logical_numel(suffix)) : Nat & Nat}
+  {==}
+
+def Laws.slice_plan_empty_view(dimensions, dim, start, stop, step, empty):
+  %Equal.sym(Bool, Slice.holds_zero(dimensions), True{}, holds_true(dimensions, empty)) :
+    {Laws.view_part(Slice.viewed(Slice.sized(dimensions, U32.to_nat(dim), _), U32.to_nat(start), U32.to_nat(stop), U32.to_nat(step))) ==
+      (0n, 0n) : Nat & Nat}
+  {==}
 
 # The checks and the plan.
 

@@ -168,7 +168,7 @@ class GateAcceptanceTests(unittest.TestCase):
         source = (ROOT / "src/tensor/slice.bend").read_text()
         laws = (ROOT / "src/tensor/slice-LAWS.bend").read_text()
         proof = (ROOT / "src/tensor/slice-PROOF.bend").read_text()
-        self.assertEqual(len(SLICE_CONTROLS), 24)
+        self.assertEqual(len(SLICE_CONTROLS), 28)
         for original, mutated, location in SLICE_CONTROLS.values():
             self.assertEqual(source.count(original), 1)
             self.assertNotEqual(original, mutated)

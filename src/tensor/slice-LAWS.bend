@@ -111,6 +111,75 @@ law select_dropped_around:
   {Slice.dropped(List.append(&2, U32, prefix, extent <> suffix), Shape.rank_dimensions(prefix)) ==
     List.append(&2, U32, prefix, suffix) : List<&2, U32>}
 
+# What a plan holds along its axis (the extent, the clamped start, the step
+# and the length) and around it (the element counts before and after it).
+def axis_part(+plan: Slice.Plan) -> Nat & Nat & Nat & Nat:
+  Slice.Plan{outer, extent, inner, start, step, length} = plan
+  (extent, start, step, length)
+
+def view_part(+plan: Slice.Plan) -> Nat & Nat:
+  Slice.Plan{outer, extent, inner, start, step, length} = plan
+  (outer, inner)
+
+# PyTorch's clamp of a slice position to an axis of extent n: the position
+# if it is at most n, else n.
+def clamp(+position: Nat, +extent: Nat) -> Nat:
+  Bool.pick(Nat, Nat.is_le(position, extent), position, extent)
+
+# The stop after the clamp: the clamped stop, or the clamped start where the
+# clamped stop falls before it, so the axis is empty.
+def clamped_stop(+start: Nat, +stop: Nat, +extent: Nat) -> Nat:
+  Bool.pick(Nat, Nat.is_le(clamp(start, extent), clamp(stop, extent)), clamp(stop, extent), clamp(start, extent))
+
+# What a request start:stop:step plans along an axis of extent n: the
+# extent, the clamped start, the step, and the length of the clamped range.
+def axis_spec(+extent: Nat, +start: Nat, +stop: Nat, +step: Nat) -> Nat & Nat & Nat & Nat:
+  (extent, clamp(start, extent), step,
+    Slice.length(Slice.Bounds{clamp(start, extent), clamped_stop(start, stop, extent)}, step))
+
+# The plan of a request at axis `dim` of prefix ++ [extent] ++ suffix, with
+# `dim` the rank of the prefix, holds the request's own start, stop and step,
+# clamped to that extent, whatever the other extents, an empty input's
+# included.
+law slice_plan_axis:
+  for +prefix: List<&2, U32>
+  for +extent: U32
+  for +suffix: List<&2, U32>
+  for +dim: U32
+  for at: {U32.to_nat(dim) == Shape.rank_dimensions(prefix) : Nat}
+  for +start: U32
+  for +stop: U32
+  for +step: U32
+  {axis_part(Slice.plan_of(List.append(&2, U32, prefix, extent <> suffix), dim, start, stop, step)) ==
+    axis_spec(U32.to_nat(extent), U32.to_nat(start), U32.to_nat(stop), U32.to_nat(step)) : Nat & Nat & Nat & Nat}
+
+# For an input with an element, the plan's view is the element counts of the
+# prefix and of the suffix, the row-major view around the axis.
+law slice_plan_view:
+  for +prefix: List<&2, U32>
+  for +extent: U32
+  for +suffix: List<&2, U32>
+  for +dim: U32
+  for at: {U32.to_nat(dim) == Shape.rank_dimensions(prefix) : Nat}
+  for +start: U32
+  for +stop: U32
+  for +step: U32
+  for nonempty: {Nat.is_lt(0n, Shape.logical_numel(List.append(&2, U32, prefix, extent <> suffix))) == True{} : Bool}
+  {view_part(Slice.plan_of(List.append(&2, U32, prefix, extent <> suffix), dim, start, stop, step)) ==
+    (Shape.logical_numel(prefix), Shape.logical_numel(suffix)) : Nat & Nat}
+
+# An input with no element gets a plan with no view: neither build has a
+# cell then, so the plan forms no product of the other extents, which can
+# pass the largest Nat the runtime holds although no element exists.
+law slice_plan_empty_view:
+  for +dimensions: List<&2, U32>
+  for +dim: U32
+  for +start: U32
+  for +stop: U32
+  for +step: U32
+  for empty: {Shape.logical_numel(dimensions) == 0n : Nat}
+  {view_part(Slice.plan_of(dimensions, dim, start, stop, step)) == (0n, 0n) : Nat & Nat}
+
 # PyTorch's checks, in its order. An axis at or past the rank (every axis
 # of a rank-0 input) is refused first, then a step of 0.
 law slice_axis_refused:
