@@ -72,7 +72,7 @@ compares the gate's Python reference with this file, under level 2 of the
 computes each word's rounding-error bound, checked on top of the listed
 words): 255 of 319 scripts agree line for
 line, and [the differences from PyTorch](../../docs/torch-differences.md#tensor-backward)
-explain the other 63.
+explain the other 64.
 
 ## Reproduce
 
