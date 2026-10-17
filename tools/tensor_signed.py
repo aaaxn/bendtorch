@@ -83,6 +83,10 @@ def cases() -> list[dict]:
         ("empty_large_ambiguous", EMPTY, [-1, 0, LARGE, LARGE]),
         ("empty_large_ambiguous_middle", EMPTY, [-1, LARGE, 0, LARGE]),
         ("past_count", GRID, [-1, 7]),
+        # Empty shapes whose other sizes multiply past 2^63: bendtorch takes
+        # them, PyTorch refuses them (docs/torch-differences.md).
+        ("empty_huge", EMPTY, [-1, MAX_U32, MAX_U32]),
+        ("empty_huge_exact", EMPTY, [0, MAX_U32, MAX_U32]),
         ("scalar_all", SCALAR, [-1]),
         ("scalar_column", SCALAR, [-1, 1]),
         ("scalar_rank0", SCALAR, []),

@@ -2,7 +2,8 @@
 
 bendtorch implements a bounded subset of PyTorch's tensor API. This page lists
 where a request that PyTorch accepts is rejected by bendtorch, where both
-reject but report a different first error, and where results agree with
+reject but report a different first error, where bendtorch accepts a request
+that PyTorch rejects, and where results agree with
 PyTorch only within a numerical envelope. Each row was observed with the
 isolated oracle environment (PyTorch `2.14.1+cpu`, one thread,
 `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1`), not inferred.
@@ -66,6 +67,20 @@ wraps to the repeated `0`, before `5`, and raises `RuntimeError` for the
 repeat. bendtorch wraps every axis, then checks every range before any repeat,
 as the unsigned `permute_copy` does for `[0, 0, 5]`, and reports
 `AxisOutOfBounds` (13).
+
+## Requests bendtorch accepts and PyTorch rejects
+
+An empty shape whose other sizes multiply past PyTorch's 64-bit element
+count or strides is accepted by bendtorch and refused by PyTorch.
+`torch.empty(0).reshape([-1, 4294967295, 4294967295])` raises `RuntimeError`
+("shape is invalid for input of size 0"), and so does `[0, 4294967295,
+4294967295]` ("Stride calculation overflowed"); bendtorch gives the shape
+`[0, 4294967295, 4294967295]` on both lanes for both. Its sizes are exact
+naturals and it keeps no strides, so the shape holds 0 elements, as
+`signed_inferred_size` states. The two requests are
+`reshape_empty_huge` and `reshape_empty_huge_exact` of
+`oracle/tensor/fixtures/signed-torch.json`. `[-1, 2^31, 2^31]` of an empty
+tensor, whose other sizes multiply to 2^62, is accepted by both.
 
 ## Reduction order: parity with PyTorch is envelope-only
 
