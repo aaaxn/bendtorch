@@ -123,7 +123,7 @@ record is compared under level 2 of the
 [numeric policy](../AGENTS.md#numeric-policy): fixed words bit for bit, the
 `mse_loss` words on their pins and within the rounding-error bound, the
 forward `sum` and `matmul` words within the bound with exact gradients, and
-the `cross_entropy` words, which no bound covers, on their pins. 225 of the 287 scripts agree line for line, the 34 slicing scripts that PyTorch accepts among them, the five `linear`
+the `cross_entropy` words, which no bound covers, on their pins. 228 of the 290 scripts agree line for line, the 37 slicing scripts that PyTorch accepts among them, the five `linear`
 scripts that PyTorch accepts among them, and every `relu` script but four:
 `relu_edges` and `relu_nan_gradient` (NaN payloads of `NaN * NaN` in the
 product after `relu`), `relu_13` (a one-term matmul) and
