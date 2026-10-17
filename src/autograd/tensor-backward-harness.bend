@@ -4,6 +4,7 @@ import ../shape/core.bend as Shape
 import ../tensor/core.bend as Core
 import ../tensor/harness.bend as Tensor
 import ../tensor/signed.bend as Signed
+import ../tensor/gather.bend as Gather
 import ./gradient.bend as Gradient
 import ./tensor-backward.bend as Backward
 import ./sgd.bend as Sgd
@@ -27,6 +28,8 @@ type Step is Data:
   Slice{a: Nat, dim: Signed.Position, start: Signed.Position, stop: Signed.Position, step: U32}
   Narrow{a: Nat, dim: Signed.Position, start: Signed.Position, length: U32}
   Select{a: Nat, dim: Signed.Position, index: Signed.Position}
+  IndexSelect{a: Nat, dim: Signed.Position, entries: List<&2, U32>}
+  Gather{a: Nat, dim: Signed.Position, dimensions: List<&2, U32>, entries: List<&2, U32>}
   Relu{a: Nat}
   MseLoss{a: Nat, b: Nat}
   CrossEntropy{a: Nat, targets: List<&2, U32>}
@@ -203,6 +206,10 @@ def step(instruction: Step, tape: Backward.Tape, rec: Backward.Tape -> IO(Unit))
       recorded(rec, Backward.narrow(tape, a, dim, start, length))
     case Select{a, dim, index}:
       recorded(rec, Backward.select(tape, a, dim, index))
+    case IndexSelect{a, dim, entries}:
+      recorded(rec, Backward.index_select(tape, a, dim, entries))
+    case Gather{a, dim, dimensions, entries}:
+      recorded(rec, Backward.gather(tape, a, dim, Gather.Index{dimensions, entries}))
     case Relu{a}:
       recorded(rec, Backward.relu(tape, a))
     case MseLoss{a, b}:

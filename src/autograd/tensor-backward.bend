@@ -9,6 +9,7 @@ import ../tensor/reduction.bend as Reduction
 import ../tensor/transforms.bend as Transforms
 import ../tensor/signed.bend as Signed
 import ../tensor/slice.bend as Slice
+import ../tensor/gather.bend as Gather
 import ./broadcast.bend as Broadcast
 import ./reduce.bend as Reduce
 import ./sum-to-size.bend as SumToSize
@@ -76,6 +77,7 @@ type Error is Data:
   GradientError{error: Gradient.Error}
   LossError{error: Loss.Error}
   SliceError{error: Slice.Error}
+  GatherError{error: Gather.Error}
 
 type Node is Data:
   Leaf{}
@@ -91,6 +93,7 @@ type Node is Data:
   CrossEntropy{a: Nat, input: Shape.Shape}
   BatchedMatmul{a: Nat, b: Nat, left: Shape.Shape, right: Shape.Shape}
   Slice{a: Nat, input: Shape.Shape, kept: Shape.Shape, plan: Slice.Plan}
+  Gathered{a: Nat, input: Shape.Shape, plan: Gather.Plan, entries: List<&2, U32>}
   Constant{}
   Frozen{id: Nat, node: Node}
 
@@ -652,6 +655,21 @@ def vjp_slice(+a: Nat, +input: Shape.Shape, +kept: Shape.Shape, +plan: Slice.Pla
   Core.Packed{+shape, tensor} = g
   slice_unsqueezed(a, input, kept, plan, shape, tensor, Shape.bool_case(Nat.is_eq(Shape.elements(shape), Shape.elements(kept))))
 
+def gather_sent(+a: Nat, +input: Shape.Shape, pair: Core.Dynamic & Result<&2, &1, Gather.Error, Core.Dynamic>) -> Pass:
+  (g, result) = pair
+  match result:
+    case Fail{error}:
+      Pass{Unsaved{}, g, Fail{GatherError{error}}}
+    case Done{scattered}:
+      Pass{Unsaved{}, g, Done{[Contribution{a, input, scattered}]}}
+
+# d(an index_select or a gather of a)/da: g, of the output's shape, added
+# into +0.0 words of a's shape at the entries (PyTorch's index_add and
+# scatter_add): each input cell gets the sum of the gradient words of the
+# output cells that read it, in output order.
+def vjp_gather(+a: Nat, +input: Shape.Shape, +plan: Gather.Plan, +entries: List<&2, U32>, g: Core.Dynamic) -> Pass:
+  gather_sent(a, input, Gather.scatter(g, input, plan, entries))
+
 # The vector-Jacobian product of one node with gradient g: the contribution
 # each operand receives, in operand order, already reduced to its shape. A
 # constant sends nothing, and Frozen{id, node} sends node's contributions
@@ -684,6 +702,8 @@ def vjp(node: Node, saved: Saved, g: Core.Dynamic) -> Pass:
       vjp_batched(a, b, left, right, saved, g)
     case Slice{+a, +input, +kept, +plan}:
       vjp_slice(a, input, kept, plan, g)
+    case Gathered{+a, +input, +plan, +entries}:
+      vjp_gather(a, input, plan, entries, g)
     case Constant{}:
       Pass{saved, g, Done{Nil{}}}
     case Frozen{+id, inner}:
@@ -827,6 +847,8 @@ def operands_below(node: Node, +bound: Nat) -> Bool:
     case BatchedMatmul{a, b, left, right}:
       Bool.and(Nat.is_lt(a, bound), Nat.is_lt(b, bound))
     case Slice{a, input, kept, plan}:
+      Nat.is_lt(a, bound)
+    case Gathered{a, input, plan, entries}:
       Nat.is_lt(a, bound)
     case Constant{}:
       True{}
@@ -1075,6 +1097,8 @@ def operand_ids(node: Node) -> List<&2, Nat>:
     case BatchedMatmul{a, b, left, right}:
       [a, b]
     case Slice{a, input, kept, plan}:
+      [a]
+    case Gathered{a, input, plan, entries}:
       [a]
     case Constant{}:
       []
@@ -1500,6 +1524,88 @@ def narrow(tape: Tape, +a: Nat, +dim: Signed.Position, +start: Signed.Position, 
 def select(tape: Tape, +a: Nat, +dim: Signed.Position, +index: Signed.Position) -> Tape & Result<&2, &2, Error, Nat>:
   sliced(tape, a, Selected{dim, index})
 
+def gather_kept(node: Node, entries: List<&1, Entry>, result: Result<&2, &1, Gather.Error, Core.Dynamic>) ->
+  Tape & Result<&2, &2, Error, Nat>:
+  match result:
+    case Fail{error}:
+      (Tape{entries}, Fail{GatherError{error}})
+    case Done{output}:
+      push(node, output, Unsaved{}, entries)
+
+# Which of the two an indexing step is: PyTorch's a.index_select(dim, index)
+# with a vector of entries, and a.gather(dim, index) with an index tensor.
+type Indexing is Data:
+  IndexSelected{dim: Signed.Position, entries: List<&2, U32>}
+  GatheredBy{dim: Signed.Position, index: Gather.Index}
+
+def indexing_plan(+shape: Shape.Shape, +indexing: Indexing) -> Result<&2, &2, Gather.Error, Gather.Planned>:
+  match indexing:
+    case IndexSelected{+dim, +entries}:
+      Gather.select_plan(shape, dim, entries)
+    case GatheredBy{+dim, +index}:
+      Gather.gather_plan(shape, dim, index)
+
+def indexing_value(input: Core.Dynamic, +indexing: Indexing) -> Core.Dynamic & Result<&2, &1, Gather.Error, Core.Dynamic>:
+  match indexing:
+    case IndexSelected{+dim, +entries}:
+      Gather.index_select(input, dim, entries)
+    case GatheredBy{+dim, +index}:
+      Gather.gather(input, dim, index)
+
+def indexing_entries(+indexing: Indexing) -> List<&2, U32>:
+  match indexing:
+    case IndexSelected{dim, entries}:
+      entries
+    case GatheredBy{dim, Gather.Index{dimensions, entries}}:
+      entries
+
+def gather_planned(+a: Nat, +shape: Shape.Shape, +indexing: Indexing, entries: List<&1, Entry>,
+  result: Result<&2, &1, Gather.Error, Core.Dynamic>, planned: Result<&2, &2, Gather.Error, Gather.Planned>) ->
+  Tape & Result<&2, &2, Error, Nat>:
+  match planned:
+    case Fail{error}:
+      (Tape{entries}, Fail{GatherError{error}})
+    case Done{Gather.Planned{+plan, +output}}:
+      gather_kept(Gathered{a, shape, plan, indexing_entries(indexing)}, entries, result)
+
+def gather_taken(+a: Nat, +shape: Shape.Shape, +indexing: Indexing, entries: List<&1, Entry>,
+  pair: Core.Dynamic & Result<&2, &1, Gather.Error, Core.Dynamic>) -> Tape & Result<&2, &2, Error, Nat>:
+  (input, result) = pair
+  gather_planned(a, shape, indexing, entries, result, indexing_plan(shape, indexing))
+
+def gather_shaped(+a: Nat, +indexing: Indexing, entries: List<&1, Entry>, pair: Core.Dynamic & Shape.Shape) ->
+  Tape & Result<&2, &2, Error, Nat>:
+  (input, +shape) = pair
+  gather_taken(a, shape, indexing, entries, indexing_value(input, indexing))
+
+def gather_found(+a: Nat, +indexing: Indexing, pair: Found()) -> Tape & Result<&2, &2, Error, Nat>:
+  (entries, input) = pair
+  match input:
+    case Fail{error}:
+      (Tape{entries}, Fail{UnknownNode{}})
+    case Done{input}:
+      gather_shaped(a, indexing, entries, Core.shape(input))
+
+# Records an index_select or a gather of a copy of a's value as a Gathered
+# node with a's shape, the plan and the entries. The value is checked first,
+# so a refusal is the value's: an axis outside -rank..rank-1 is
+# AxisOutOfBounds (13), an entry at or past the extent OutOfRange (20), a
+# gather index of another rank IndexRankMismatch (21), with another extent at
+# another axis IndexShapeMismatch (22), whose entry count is not the product
+# of its dimensions ValueCountMismatch (10), an unknown id UnknownNode; the
+# tape comes back unchanged.
+def indexed(tape: Tape, +a: Nat, +indexing: Indexing) -> Tape & Result<&2, &2, Error, Nat>:
+  Tape{entries} = tape
+  gather_found(a, indexing, value_counted(a, counted(entries)))
+
+# Records a.index_select(dim, index).
+def index_select(tape: Tape, +a: Nat, +dim: Signed.Position, +entries: List<&2, U32>) -> Tape & Result<&2, &2, Error, Nat>:
+  indexed(tape, a, IndexSelected{dim, entries})
+
+# Records a.gather(dim, index).
+def gather(tape: Tape, +a: Nat, +dim: Signed.Position, +index: Gather.Index) -> Tape & Result<&2, &2, Error, Nat>:
+  indexed(tape, a, GatheredBy{dim, index})
+
 def relu_zeroed(+a: Nat, entries: List<&1, Entry>, +shape: Shape.Shape, input: Core.Dynamic,
   zero: Result<&2, &1, Core.Error, Core.Tensor<Reduction.scalar_shape()>>) -> Tape & Result<&2, &2, Error, Nat>:
   match zero:
@@ -1588,3 +1694,5 @@ def error_code(error: Error) -> U32:
       Loss.error_code(error)
     case SliceError{error}:
       Slice.error_code(error)
+    case GatherError{error}:
+      Gather.error_code(error)
