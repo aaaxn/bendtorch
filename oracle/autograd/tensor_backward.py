@@ -23,7 +23,17 @@ OUTPUT = AUTOGRAD_DIR / "fixtures/tensor-backward-torch.json"
 Json = dict[str, Any]
 
 
-BACKED = ("add", "sub", "mul", "matmul", "matmul_nt", "sum", "relu", "mse_loss")
+BACKED = (
+    "add",
+    "sub",
+    "mul",
+    "matmul",
+    "matmul_nt",
+    "batched_matmul",
+    "sum",
+    "relu",
+    "mse_loss",
+)
 
 
 def snapshot(value: torch.Tensor) -> list[str]:
@@ -51,6 +61,8 @@ def operation(name: str, operands: list[torch.Tensor]) -> torch.Tensor:
         return operands[0] * operands[1]
     if name == "matmul":
         return operands[0] @ operands[1]
+    if name == "batched_matmul":
+        return torch.matmul(operands[0], operands[1])
     if name == "matmul_nt":
         return torch.nn.functional.linear(operands[0], operands[1])
     if name == "relu":

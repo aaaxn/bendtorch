@@ -9,6 +9,7 @@ from pathlib import Path
 
 from tools.autograd import PROOF_CONTROLS, SUBGATES
 from tools.autograd_backward import DANGLING_OPERAND, NEGATIVE_ZERO, UNKNOWN_NODE
+from tools.autograd_broadcast import CAPACITY_EXCEEDED as CAPACITY
 from tools.autograd_broadcast import is_nan, word
 from tools.autograd_tensor_backward import (
     AXIS_OUT_OF_BOUNDS,
@@ -24,6 +25,7 @@ from tools.autograd_tensor_backward import (
     SGD_CONTROLS,
     TARGET_OUT_OF_RANGE,
     ZERO_GRAD,
+    capacity_scripts,
     cases,
     descend_word,
     forge,
@@ -55,7 +57,7 @@ from tools.autograd_tensor_bound import (
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "73d2afb3659072093a221f42d8eb615bc5d360ec861a3508cc6c96e0b1e61f92"
+FIXTURE_SHA256 = "be52af301f5d231d3a4f0624cee489ca93323a785051e04e167ff82b57ad5724"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
@@ -76,6 +78,7 @@ REJECTIONS = {
     "mse_refused",
     "sgd_unknown_param",
     "sgd_rate_negative",
+    "batched_refusals",
 }
 RUNTIME_ERROR_CODES = {6, MATMUL_RANK, MATMUL_INNER, 10}
 # Refusals step by step, as PyTorch's kind and the tape's code. Those of
@@ -119,6 +122,7 @@ NAN_PAYLOAD = {
     "cross_entropy_two_class_scaled",
     "sgd_edges",
     "sgd_rate_nan",
+    "batched_special_words",
 }
 # The forward value differs, not the backward: rounding_09 sums six words in
 # ascending order where PyTorch's vectorized sum takes another order, and
@@ -127,10 +131,48 @@ NAN_PAYLOAD = {
 # relu_13 has the same inner-dimension-1 matmul, whose products 0.5 * -1e-45
 # and 0.5 * -0.0 are -0.0. sum_dims_rounding sums rows of 20 rounding words
 # over axis 1, which PyTorch adds in a vectorized order: 4 of its row sums
-# differ, its column sums agree. Every gradient must agree word for word, and every
-# value word that differs must lie within its rounding-error bound (AGENTS.md,
-# numeric policy, level 2; tools/autograd_tensor_bound.py).
-FORWARD_ORDER = {"rounding_09", "rounding_14", "relu_13", "sum_dims_rounding"}
+# differ, its column sums agree. batched_rounding_01 sums the words of a
+# torch.matmul in order, where PyTorch's sum takes another. Every gradient
+# must agree word for word, and every value word that differs must lie
+# within its rounding-error bound (AGENTS.md, numeric policy, level 2;
+# tools/autograd_tensor_bound.py).
+FORWARD_ORDER = {
+    "rounding_09",
+    "rounding_14",
+    "relu_13",
+    "sum_dims_rounding",
+    "batched_rounding_01",
+}
+# torch.matmul words in the last bits, each pinned as (PyTorch's word, the
+# reference's word) at its line, every other line exact, and each pinned
+# word within its rounding-error bound. A product with one term (inner
+# extent 1, as g @ right^T has for a 1-D right operand, or a [3, 4] @ [4, 1]
+# matmul) whose only product is -0.0: the ordered dot adds it to +0.0 and
+# gives +0.0, PyTorch keeps -0.0 (batched_rounding_00, batched_rounding_02).
+# In batched_rounding_04 the right operand [5, 3] is broadcast over the
+# batch [3, 1]: its gradient sums the batch's x^T @ g in batch order, where
+# PyTorch folds the batch into one product (1 ulp), and the forward sum
+# adds in order, where PyTorch's sum takes another (3 ulp).
+PRODUCT_ORDER = {
+    "batched_rounding_00": {
+        44: (0x80000000, 0x00000000),
+        47: (0x80000000, 0x00000000),
+        59: (0x80000000, 0x00000000),
+        62: (0x80000000, 0x00000000),
+        64: (0x80000000, 0x00000000),
+        66: (0x80000000, 0x00000000),
+    },
+    "batched_rounding_02": {
+        26: (0x80000000, 0x00000000),
+        28: (0x80000000, 0x00000000),
+        30: (0x80000000, 0x00000000),
+        34: (0x80000000, 0x00000000),
+    },
+    "batched_rounding_04": {
+        133: (0x4C3EBC1D, 0x4C3EBC1E),
+        322: (0xDA5529AF, 0xDA5529B2),
+    },
+}
 # mse_loss words in the last bits: PyTorch sums the squares, and the
 # broadcast target's gradient, in a cascade where the tape adds left to right.
 # For each script, the line index of every word that differs and the pair
@@ -216,9 +258,34 @@ FUSED_UPDATE = {"sgd_two_layers", "sgd_rounding"}
 # torch.optim.SGD accepts a non-leaf that retains its gradient, as every
 # non-leaf of the replay does; the tape refuses it with NotLeaf.
 NON_LEAF = {"sgd_not_leaf"}
+# torch.matmul past the capacity of 2^20 elements, which PyTorch accepts: a
+# forward output (the product is refused, CapacityExceeded, 2, and the next
+# leaf takes its id), and an operand's gradient over the output's batch,
+# where the forward output is empty (the backward is refused, and every slot
+# read after it holds what it held, as PyTorch's do, since the backward adds
+# only zeros). For each script, the line index of every line that differs
+# and the pair (PyTorch's line, the reference's line).
+CAPACITY_REFUSALS = {
+    "batched_output_capacity": {
+        2: ("autograd:id:2", f"autograd:error:{CAPACITY}"),
+        3: ("autograd:id:3", "autograd:id:2"),
+    },
+    "batched_left_gradient_capacity": {
+        2083: ("autograd:backward", f"autograd:error:{CAPACITY}"),
+    },
+    "batched_right_gradient_capacity": {
+        2083: ("autograd:backward", f"autograd:error:{CAPACITY}"),
+    },
+}
 # The families that record_rule does not judge; each keeps its own check.
 OTHER_FAMILIES = (
-    REJECTIONS | set(STEP_REJECTIONS) | FORGED | NAN_PAYLOAD | FUSED_UPDATE | NON_LEAF
+    REJECTIONS
+    | set(STEP_REJECTIONS)
+    | FORGED
+    | NAN_PAYLOAD
+    | FUSED_UPDATE
+    | NON_LEAF
+    | set(CAPACITY_REFUSALS)
 )
 
 
@@ -416,6 +483,26 @@ class TensorBackwardReferenceTests(unittest.TestCase):
             reference(case(steps))[3:], ["autograd:error:6", "autograd:id:3"]
         )
 
+    def test_a_batched_gradient_past_the_capacity_refuses_the_backward(self):
+        rows = {row["id"]: row for row in capacity_scripts()}
+        for identifier in (
+            "batched_left_gradient_capacity",
+            "batched_right_gradient_capacity",
+        ):
+            with self.subTest(case=identifier):
+                lines = reference(rows[identifier])
+                first = lines.index("autograd:backward")
+                refused = lines.index(f"autograd:error:{CAPACITY}")
+                self.assertNotIn("autograd:backward", lines[first + 1 :])
+                # The reads after the refusal repeat the first three reads
+                # before it: the leaf's slot, the constant's None and the
+                # sum's seed, unchanged.
+                before = lines[first + 1 : refused]
+                after = lines[refused + 1 :]
+                self.assertEqual(after, before[: len(after)])
+        lines = reference(rows["batched_output_capacity"])
+        self.assertEqual(lines[2:4], [f"autograd:error:{CAPACITY}", "autograd:id:2"])
+
     def test_matmul_errors_are_typed(self):
         lines = reference(case([GRID, ROW, op("matmul", 0, 1), op("matmul", 0, 0)]))
         self.assertEqual(
@@ -488,13 +575,17 @@ def record_rule(row: dict, seen: list[str], expected: list[str] | None = None) -
         if not bounded:
             raise GateError(f"{identifier}: no forward word differs")
         return "forward_order"
-    if identifier in MSE_ROUNDING:
-        if word_pairs(seen, expected) != MSE_ROUNDING[identifier]:
-            raise GateError(f"{identifier}: not the pinned words")
-        bounded, _ = compare(identifier, seen, expected)
-        if bounded != len(MSE_ROUNDING[identifier]):
-            raise GateError(f"{identifier}: a pinned word is not bounded")
-        return "mse_rounding"
+    for family, pinned in (
+        ("mse_rounding", MSE_ROUNDING),
+        ("product_order", PRODUCT_ORDER),
+    ):
+        if identifier in pinned:
+            if word_pairs(seen, expected) != pinned[identifier]:
+                raise GateError(f"{identifier}: not the pinned words")
+            bounded, _ = compare(identifier, seen, expected)
+            if bounded != len(pinned[identifier]):
+                raise GateError(f"{identifier}: a pinned word is not bounded")
+            return family
     if identifier in LOSS_ROUNDING:
         if word_pairs(seen, expected) != LOSS_ROUNDING[identifier]:
             raise GateError(f"{identifier}: not the pinned words")
@@ -616,6 +707,18 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                     for a, b in zip(seen, fused, strict=True):
                         self.assertTrue(same_row(a, b), (a, b))
                     continue
+                if identifier in CAPACITY_REFUSALS:
+                    self.assertEqual(
+                        {
+                            index: (a, b)
+                            for index, (a, b) in enumerate(
+                                zip(seen, expected, strict=True)
+                            )
+                            if a != b
+                        },
+                        CAPACITY_REFUSALS[identifier],
+                    )
+                    continue
                 if identifier in NON_LEAF:
                     self.assertEqual(
                         differ[0], ("autograd:step", f"autograd:error:{NOT_LEAF}")
@@ -633,12 +736,14 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
             | NAN_PAYLOAD
             | FORWARD_ORDER
             | set(MSE_ROUNDING)
+            | set(PRODUCT_ORDER)
             | set(LOSS_ROUNDING)
             | FUSED_UPDATE
             | NON_LEAF
+            | set(CAPACITY_REFUSALS)
         )
         self.assertEqual(exact, len(cases()) - len(excluded))
-        self.assertEqual(exact, 165)
+        self.assertEqual(exact, 191)
 
     # Planted wrong results on the reference's side, as a wrong Bend result
     # would be: a sum, a broadcast reduction, a sum over axes (reduce_to) and
@@ -662,9 +767,9 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                 identifier, seen[identifier], bounded_reference(rows[identifier]), pins
             )
         planted = {
-            "total": (dropping_total, 95, {"loss_07"}, (79, 13, 2)),
-            "sum_to_size": (dropping_sum_to_size, 69, set(), (67, 2, 0)),
-            "matmul": (dropping_matmul, 32, set(), (30, 2, 0)),
+            "total": (dropping_total, 114, {"loss_07"}, (98, 13, 2)),
+            "sum_to_size": (dropping_sum_to_size, 84, set(), (82, 2, 0)),
+            "matmul": (dropping_matmul, 58, set(), (56, 2, 0)),
             "reduce_to": (dropping_reduce_to, 18, set(), (18, 0, 0)),
         }
         for name, (function, changed, missed, reasons) in planted.items():
@@ -855,7 +960,7 @@ class GateRegistrationTests(unittest.TestCase):
             self.assertIn("quiet(2143289344)", mutated)
 
     def test_runtime_controls_apply_once(self):
-        self.assertEqual(len(RUNTIME_CONTROLS), 47)
+        self.assertEqual(len(RUNTIME_CONTROLS), 50)
         for control in RUNTIME_CONTROLS.values():
             path, original, mutated = (
                 control

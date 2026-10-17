@@ -59,6 +59,8 @@ def targets(node: Backward.Node) -> List<&2, Nat>:
       [a, b]
     case Backward.CrossEntropy{a, input}:
       [a]
+    case Backward.BatchedMatmul{a, b, left, right}:
+      [a, b]
     case Backward.Constant{}:
       []
     case Backward.Frozen{id, inner}:

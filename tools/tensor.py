@@ -372,6 +372,93 @@ def loss_controls(evidence: Evidence, source_root: Path) -> None:
     )
 
 
+# Mutants of torch.matmul (src/tensor/batched-matmul.bend), each applied to
+# a copy of the source, and where the proof of
+# src/tensor/batched-matmul-PROOF.bend fails: the law, or the lemma of the
+# law, that is false for the mutant. A rank-2 pair sent to the plan breaks
+# batched_matmul_matrices, a rank-0 left operand read as a vector breaks
+# batched_matmul_left_scalar, a plan that skips the inner check breaks the
+# refusal of a dot of unequal lengths (dot_compatible), and a cell that
+# folds from -0.0 breaks the fold of batched_build_cells (from_run). Three
+# break the geometry stated from PyTorch's definition: a stretched batch
+# axis read at the output's own index instead of 0 breaks
+# batched_build_logical_cells (stretch_spec, the shape module's broadcast
+# index), an axis of extent 1 that keeps its own extent instead of the
+# other one's breaks batched_plan_geometry (axis_left), and a 1-D left
+# operand whose row the output keeps breaks it too (matrix_part).
+LEFT_OPERAND = (
+    "def left_operand(dims: List<&2, U32>) -> "
+    "Result<&2, &2, Matrix.Error, Operand>:\n  match dims:\n"
+)
+BATCHED_CONTROLS = {
+    "batched-routes-matrices-to-plan": (
+        "    case True{}:\n"
+        "      Matrix.matmul(Core.Packed{left, a}, Core.Packed{right, b})\n",
+        "    case True{}:\n      planned(left, right, a, b, plan_dims(dims, other))\n",
+        "Laws.batched_matmul_matrices",
+    ),
+    "batched-accepts-rank-zero-left": (
+        LEFT_OPERAND,
+        LEFT_OPERAND
+        + "    case Nil{}:\n      Done{Operand{Batch{0n, 1, 1}, 1, 1, True{}}}\n",
+        "Laws.batched_matmul_left_scalar",
+    ),
+    "batched-skips-inner-check": (
+        "    case False{}:\n      Fail{Matrix.InnerDimensionMismatch{}}\n",
+        "    case False{}:\n      shaped(left, right)\n",
+        "dot_compatible",
+    ),
+    "batched-dot-starts-from-negative-zero": (
+        "      Matrix.product_run(rest, ls, rs, lp, rp, 0.0, ",
+        "      Matrix.product_run(rest, ls, rs, lp, rp, F32.neg(0.0), ",
+        "from_run",
+    ),
+    "batched-stretched-axis-reads-own-index": (
+        "    case True{}:\n      0n\n    case False{}:\n      index\n",
+        "    case True{}:\n      index\n    case False{}:\n      index\n",
+        "stretch_spec",
+    ),
+    "batched-axis-keeps-the-stretched-extent": (
+        "    case False{} True{} _:\n      Done{r}\n",
+        "    case False{} True{} _:\n      Done{l}\n",
+        "axis_left",
+    ),
+    "batched-keeps-the-promoted-row": (
+        "    case True{}:\n      column_dims(columns, right_vector)\n",
+        "    case True{}:\n      rows <> column_dims(columns, right_vector)\n",
+        "matrix_part",
+    ),
+}
+
+
+def batched_controls(evidence: Evidence, source_root: Path) -> None:
+    def control(name: str, original: str, mutated: str, location: str) -> None:
+        copy = evidence.directory / "batched-controls" / name
+        shutil.copytree(source_root / "src", copy / "src")
+        target = copy / "src/tensor/batched-matmul.bend"
+        text = target.read_text()
+        if text.count(original) != 1:
+            raise GateError(f"{name}: control anchor is missing or ambiguous")
+        target.write_text(text.replace(original, mutated))
+        evidence.run(
+            f"batched-control-{name}",
+            bend(
+                evidence.tool_root,
+                copy / "src/tensor/batched-matmul-PROOF.bend",
+                "--check-only",
+            ),
+            expected_code=1,
+            contains=("SOME PROOFS FAIL", f"Location: {location}"),
+        )
+
+    parallel(
+        *(
+            partial(control, name, *control_text)
+            for name, control_text in BATCHED_CONTROLS.items()
+        )
+    )
+
+
 def certificate_controls(evidence: Evidence, source_root: Path) -> None:
     imports = "import Base\n"
     for path, alias in (
@@ -719,6 +806,7 @@ def run_gate(tool_root: Path, output: Path) -> None:
         certificate_controls(evidence, output / "runtime/source")
         relu_controls(evidence, output / "source")
         loss_controls(evidence, output / "source")
+        batched_controls(evidence, output / "source")
 
     parallel(
         partial(

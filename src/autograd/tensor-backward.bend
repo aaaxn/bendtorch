@@ -4,6 +4,7 @@ import ../tensor/core.bend as Core
 import ../tensor/elementwise.bend as Elementwise
 import ../tensor/layout.bend as Layout
 import ../tensor/matmul.bend as Matrix
+import ../tensor/batched-matmul.bend as Batched
 import ../tensor/reduction.bend as Reduction
 import ../tensor/transforms.bend as Transforms
 import ./broadcast.bend as Broadcast
@@ -40,7 +41,10 @@ import ./loss.bend as Loss
 #   with the saved differences d = left - right and e = right - left;
 #   CrossEntropy: two contributions to the logits, one_hot * -(g / N) and
 #   -(exp(lp) * (-(g / N) + 0.0)) with the saved log_softmax lp, whose sum is
-#   PyTorch's one_hot gradient minus exp(lp) times its row sum.
+#   PyTorch's one_hot gradient minus exp(lp) times its row sum;
+#   BatchedMatmul (torch.matmul of operands that are not both rank 2): g @
+#   right^T and left^T @ g over the output's batch, each operand read in
+#   place at its own batch, 1-D operands as a row or a column.
 # Each is reduced to its operand's shape before it is delivered.
 #
 # A constant is a leaf that takes no gradient, PyTorch's tensor with
@@ -79,6 +83,7 @@ type Node is Data:
   Relu{a: Nat, input: Shape.Shape}
   MseLoss{a: Nat, b: Nat, left: Shape.Shape, right: Shape.Shape}
   CrossEntropy{a: Nat, input: Shape.Shape}
+  BatchedMatmul{a: Nat, b: Nat, left: Shape.Shape, right: Shape.Shape}
   Constant{}
   Frozen{id: Nat, node: Node}
 
@@ -108,6 +113,7 @@ type Binary is Data:
   Product{}
   ProductNT{}
   SquaredError{}
+  BatchedProduct{}
 
 def empty() -> Tape:
   Tape{Nil{}}
@@ -547,6 +553,73 @@ def nt_frozen(+id: Nat, +a: Nat, +b: Nat, +left: Shape.Shape, +right: Shape.Shap
     case False{}:
       unsent(id, vjp_matmul_nt(a, b, left, right, saved, g))
 
+# A contribution for operand target from a product over the output's batch:
+# the product reduced to the operand's shape, as a broadcast operand of an
+# elementwise operation is.
+def batched_reduced(+target: Nat, +shape: Shape.Shape,
+  result: Result<&2, &1, Core.Error, Core.Dynamic & Core.Dynamic & Core.Dynamic>) -> Result<&2, &1, Error, Contribution>:
+  match result:
+    case Fail{error}:
+      Fail{TensorError{error}}
+    case Done{triple}:
+      (first, second, product) = triple
+      contribution_of(reduced(target, shape, product))
+
+def batched_fourth(first: Result<&2, &1, Error, Contribution>, y: Core.Dynamic, g: Core.Dynamic,
+  pair: Core.Dynamic & Result<&2, &1, Error, Contribution>) -> Pass:
+  (x, second) = pair
+  Pass{Operands{x, y}, g, both(first, second)}
+
+# left^T @ g for the right operand, from copies of g and of the saved left
+# operand.
+def batched_right(+b: Nat, +right: Shape.Shape, +plan: Batched.Plan, copy: Core.Dynamic, pair: Core.Dynamic & Core.Dynamic) ->
+  Core.Dynamic & Result<&2, &1, Error, Contribution>:
+  (x, left_copy) = pair
+  (x, batched_reduced(b, right, Batched.right_gradient(plan, left_copy, copy)))
+
+def batched_third(+b: Nat, +right: Shape.Shape, +plan: Batched.Plan, first: Result<&2, &1, Error, Contribution>, y: Core.Dynamic,
+  x: Core.Dynamic, pair: Core.Dynamic & Core.Dynamic) -> Pass:
+  (g, copy) = pair
+  batched_fourth(first, y, g, batched_right(b, right, plan, copy, Core.clone_dynamic(x)))
+
+def batched_second(+b: Nat, +right: Shape.Shape, +plan: Batched.Plan, x: Core.Dynamic, g: Core.Dynamic,
+  pair: Core.Dynamic & Result<&2, &1, Error, Contribution>) -> Pass:
+  (y, first) = pair
+  batched_third(b, right, plan, first, y, x, Core.clone_dynamic(g))
+
+# g @ right^T for the left operand, from copies of g and of the saved right
+# operand, so a failure loses neither.
+def batched_left(+a: Nat, +left: Shape.Shape, +plan: Batched.Plan, copy: Core.Dynamic, pair: Core.Dynamic & Core.Dynamic) ->
+  Core.Dynamic & Result<&2, &1, Error, Contribution>:
+  (y, right_copy) = pair
+  (y, batched_reduced(a, left, Batched.left_gradient(plan, copy, right_copy)))
+
+def batched_first(+a: Nat, +b: Nat, +left: Shape.Shape, +right: Shape.Shape, +plan: Batched.Plan, x: Core.Dynamic, y: Core.Dynamic,
+  pair: Core.Dynamic & Core.Dynamic) -> Pass:
+  (g, copy) = pair
+  batched_second(b, right, plan, x, g, batched_left(a, left, plan, copy, Core.clone_dynamic(y)))
+
+def batched_planned(+a: Nat, +b: Nat, +left: Shape.Shape, +right: Shape.Shape, x: Core.Dynamic, y: Core.Dynamic, g: Core.Dynamic,
+  result: Result<&2, &2, Matrix.Error, Batched.Plan>) -> Pass:
+  match result:
+    case Fail{error}:
+      Pass{Operands{x, y}, g, Fail{MatrixError{error}}}
+    case Done{+plan}:
+      batched_first(a, b, left, right, plan, x, y, Core.clone_dynamic(g))
+
+# d(a@b)/da and d(a@b)/db of torch.matmul: g @ b^T and a^T @ g over the
+# output's batch (Batched.left_gradient and Batched.right_gradient), each
+# then summed to its operand's shape with sum_to_size, which sums the batch
+# dimensions the operand was broadcast along and keeps a product that
+# already has the operand's shape. A 1-D operand's product already drops its
+# row or column.
+def vjp_batched(+a: Nat, +b: Nat, +left: Shape.Shape, +right: Shape.Shape, saved: Saved, g: Core.Dynamic) -> Pass:
+  match saved:
+    case Unsaved{}:
+      Pass{Unsaved{}, g, Fail{TensorError{Core.StorageLengthMismatch{}}}}
+    case Operands{x, y}:
+      batched_planned(a, b, left, right, x, y, g, Batched.plan(left, right))
+
 # The vector-Jacobian product of one node with gradient g: the contribution
 # each operand receives, in operand order, already reduced to its shape. A
 # constant sends nothing, and Frozen{id, node} sends node's contributions
@@ -575,6 +648,8 @@ def vjp(node: Node, saved: Saved, g: Core.Dynamic) -> Pass:
       vjp_mse(a, b, left, right, saved, g)
     case CrossEntropy{+a, +input}:
       vjp_cross_entropy(a, input, saved, g)
+    case BatchedMatmul{+a, +b, +left, +right}:
+      vjp_batched(a, b, left, right, saved, g)
     case Constant{}:
       Pass{saved, g, Done{Nil{}}}
     case Frozen{+id, inner}:
@@ -715,6 +790,8 @@ def operands_below(node: Node, +bound: Nat) -> Bool:
       Bool.and(Nat.is_lt(a, bound), Nat.is_lt(b, bound))
     case CrossEntropy{a, input}:
       Nat.is_lt(a, bound)
+    case BatchedMatmul{a, b, left, right}:
+      Bool.and(Nat.is_lt(a, bound), Nat.is_lt(b, bound))
     case Constant{}:
       True{}
     case Frozen{id, inner}:
@@ -959,6 +1036,8 @@ def operand_ids(node: Node) -> List<&2, Nat>:
       [a, b]
     case CrossEntropy{a, input}:
       [a]
+    case BatchedMatmul{a, b, left, right}:
+      [a, b]
     case Constant{}:
       []
     case Frozen{id, inner}:
@@ -1070,6 +1149,16 @@ def loss_kept(node: Node, entries: List<&1, Entry>, pair: Core.Dynamic & Result<
   (input, result) = pair
   loss_recorded(node, entries, result)
 
+# torch.matmul on the tape: two rank-2 operands record `Matmul`, the
+# product `matmul` records, and every other pair records `BatchedMatmul`.
+def batched_record(+a: Nat, +b: Nat, +left_shape: Shape.Shape, +right_shape: Shape.Shape, entries: List<&1, Entry>,
+  left: Core.Dynamic, right: Core.Dynamic, matrices: Bool) -> Tape & Result<&2, &2, Error, Nat>:
+  match matrices:
+    case True{}:
+      multiplied_record(Matmul{a, b, left_shape, right_shape}, entries, Matrix.matmul(left, right))
+    case False{}:
+      multiplied_record(BatchedMatmul{a, b, left_shape, right_shape}, entries, Batched.matmul(left, right))
+
 def operated(kind: Binary, +a: Nat, +b: Nat, +left_shape: Shape.Shape, +right_shape: Shape.Shape, entries: List<&1, Entry>,
   left: Core.Dynamic, right: Core.Dynamic) -> Tape & Result<&2, &2, Error, Nat>:
   match kind:
@@ -1085,6 +1174,9 @@ def operated(kind: Binary, +a: Nat, +b: Nat, +left_shape: Shape.Shape, +right_sh
       multiplied_record(MatmulNT{a, b, left_shape, right_shape}, entries, Matrix.matmul_nt(left, right))
     case SquaredError{}:
       loss_dropped(MseLoss{a, b, left_shape, right_shape}, entries, Loss.mse_loss(left, right))
+    case BatchedProduct{}:
+      batched_record(a, b, left_shape, right_shape, entries, left, right,
+        Batched.both_matrices(left_shape, right_shape))
 
 def computed(kind: Binary, +a: Nat, +b: Nat, entries: List<&1, Entry>, left: Core.Dynamic & Shape.Shape,
   right: Core.Dynamic & Shape.Shape) -> Tape & Result<&2, &2, Error, Nat>:
@@ -1127,6 +1219,14 @@ def mul(tape: Tape, +a: Nat, +b: Nat) -> Tape & Result<&2, &2, Error, Nat>:
 
 def matmul(tape: Tape, +a: Nat, +b: Nat) -> Tape & Result<&2, &2, Error, Nat>:
   binary(tape, Product{}, a, b)
+
+# Records torch.matmul(a, b): batched products and 1-D promotion
+# (Batched.matmul). Two rank-2 operands record exactly what `matmul` records.
+# A rank-0 operand is refused with RankMismatch (105), unequal inner extents
+# with InnerDimensionMismatch (106), batch dimensions that do not broadcast
+# with IncompatibleBroadcast (6); the tape comes back unchanged.
+def batched_matmul(tape: Tape, +a: Nat, +b: Nat) -> Tape & Result<&2, &2, Error, Nat>:
+  binary(tape, BatchedProduct{}, a, b)
 
 # Records a @ b^T, with b read in place: PyTorch's linear(a, b) without a
 # bias.

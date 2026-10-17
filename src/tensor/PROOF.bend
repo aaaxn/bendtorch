@@ -10,6 +10,7 @@ import ./transpose-PROOF.bend as Transpose
 import ./transform-PROOF.bend as Transforms
 import ./reduction-PROOF.bend as Reduction
 import ./matmul-PROOF.bend as Matrix
+import ./batched-matmul-PROOF.bend as BatchedMatrix
 import ./parallel-PROOF.bend as Parallel
 import ./relu-PROOF.bend as Relu
 import ./loss-ops-PROOF.bend as LossOps

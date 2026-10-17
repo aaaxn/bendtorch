@@ -2,6 +2,7 @@ import Base
 import ../src/shape/core.bend as Shape
 import ../src/tensor/core.bend as Core
 import ../src/tensor/matmul.bend as Matrix
+import ../src/tensor/batched-matmul.bend as Batched
 import ../src/autograd/broadcast.bend as Broadcast
 import ../src/tensor/layout.bend as Layout
 import ../src/tensor/transforms.bend as Transforms
@@ -138,6 +139,29 @@ def product(+name: String, +rounding: Bool, +rows: U32, +inner: U32, +columns: U
   product_inputs(name, rows, inner, columns, depth,
     matrix(rounding, rows, inner, 7n), matrix(rounding, inner, columns, 11n),
     matrix(rounding, rows, inner, 7n), matrix(rounding, inner, columns, 11n))
+
+# torch.matmul of a batch [batch, rows, inner] and a matrix [inner, columns],
+# next to Matrix.multiply of the same words as [batch * rows, inner] @
+# [inner, columns]: each batch's cell adds the same terms in the same order
+# as the cell of its row of the stacked product. Its inputs round, and it
+# forks as `Matrix.splits` says.
+def batch_tensor(+rounding: Bool, +batch: U32, +rows: U32, +columns: U32, +step: Nat) -> Result<&2, &1, Core.Error, Core.Dynamic>:
+  Core.construct([batch, rows, columns],
+    reversed(words(Nat.mul(U32.to_nat(batch), Nat.mul(U32.to_nat(rows), U32.to_nat(columns))), rounding, 0n, step, Nil{}), Nil{}))
+
+def batched_inputs(+name: String, +cells: Nat, +inner: U32, +depth: Nat,
+  a: Result<&2, &1, Core.Error, Core.Dynamic>, b: Result<&2, &1, Core.Error, Core.Dynamic>,
+  c: Result<&2, &1, Core.Error, Core.Dynamic>, d: Result<&2, &1, Core.Error, Core.Dynamic>) -> IO(Unit):
+  match a b c d:
+    case Done{a} Done{b} Done{c} Done{d}:
+      report(name, Matrix.splits(depth, U32.to_nat(inner)), cells, public(Batched.matmul(a, b)), sequential(c, d))
+    case _ _ _ _:
+      IO.print(name ++ " inputs failed")
+
+def batched_product(+name: String, +batch: U32, +rows: U32, +inner: U32, +columns: U32, +depth: Nat) -> IO(Unit):
+  batched_inputs(name, Nat.mul(U32.to_nat(batch), Nat.mul(U32.to_nat(rows), U32.to_nat(columns))), inner, depth,
+    batch_tensor(True{}, batch, rows, inner, 7n), matrix(True{}, inner, columns, 11n),
+    matrix(True{}, U32.mul(batch, rows), inner, 7n), matrix(True{}, inner, columns, 11n))
 
 # matmul_nt and matmul_tn, which build their cells with product_tree and run
 # eight cells of one row as one loop, next to Matrix.multiply over the
@@ -476,6 +500,7 @@ def main() -> IO(Unit):
     product("matmul-64x48x64-rounding", True{}, 64, 48, 64, 12n)
     nt_product("matmul_nt-200x40x165-rounding", 200, 40, 165, 16n)
     tn_product("matmul_tn-181x24x187-rounding", 181, 24, 187, 16n)
+    batched_product("batched-8x64x48x64-rounding", 8, 64, 48, 64, 15n)
     reduction("reduce-256x128-to-1x128-rounding", True{}, [256, 128], [1, 128], 128n, 7n)
     reduction("reduce-256x64-to-256x1-rounding", True{}, [256, 64], [256, 1], 256n, 8n)
     reduction("reduce-64x16x32-to-16x1-rounding", True{}, [64, 16, 32], [16, 1], 16n, 4n)

@@ -156,7 +156,7 @@ Each module builds on the one below it.
 | --- | --- | --- |
 | `src/shape/` | Validated shapes, row-major flatten and unflatten, checked coordinates, broadcast plans | `src/shape/LAWS.bend` |
 | `src/storage/` | F32 storage with one owner and a bounds check before every access | `src/storage/LAWS.bend` |
-| `src/tensor/` | The tensor core, elementwise operations, `sum`, `matmul`, `reshape`, `permute_copy`, `transpose_copy`, and the proved contracts | `src/tensor/LAWS.bend` |
+| `src/tensor/` | The tensor core, elementwise operations, `sum`, `matmul`, `torch.matmul` (`Batched.matmul`), `reshape`, `permute_copy`, `transpose_copy`, and the proved contracts | `src/tensor/LAWS.bend` |
 | `src/autograd/` | `broadcast_to`, `reduce_to`, `sum_to_size`, `sum_dims`, gradient slots, scalar and tensor `backward`, the losses, SGD | `src/autograd/LAWS.bend` |
 | `experiments/` | The MNIST training run, the autograd prototypes, the benchmarks, and other experiments outside `src/` | [MNIST](docs/mnist.md), [autograd design](experiments/autograd-prototypes/DESIGN.md) |
 | `oracle/` | The PyTorch references, in their own uv project | [oracle](oracle/README.md) |
@@ -254,13 +254,16 @@ the root environment.
   negative axes or indices, no `-1` in `reshape`, no slicing, and no advanced
   indexing.
 - `sum` reduces the whole tensor. On the tape, `sum_dims` sums the listed
-  axes, with or without `keepdim`. `matmul` takes two rank-2 tensors. It does
-  not promote 1-D inputs and does not batch.
+  axes, with or without `keepdim`. `matmul` takes two rank-2 tensors.
+  `Batched.matmul`, PyTorch's `torch.matmul`, promotes 1-D inputs and
+  batches, with at most two batch dimensions, and refuses an output, or a
+  gradient over the output's batch, past 2^20 elements.
 - `sum`, `sum_dims`, `matmul`, `reduce_to` and a reducing `sum_to_size` add
   in a fixed order. PyTorch adds in another order, so on longer inputs the
   two agree within the rounding bound, not word for word.
 - Tensor `backward` records only `add`, `sub`, `mul`, `matmul`, `matmul_nt`,
-  `sum`, `sum_dims`, `relu`, `mse_loss` and `cross_entropy`.
+  `batched_matmul` (`torch.matmul`), `sum`, `sum_dims`, `relu`, `mse_loss`
+  and `cross_entropy`.
 - CPU only.
 
 The [differences from PyTorch](docs/torch-differences.md) page lists each

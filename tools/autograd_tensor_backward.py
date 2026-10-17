@@ -41,6 +41,9 @@ INVALID_LEARNING_RATE = 110
 INFINITY = 0x7F800000
 BINARY = ("add", "sub", "mul", "matmul", "matmul_nt", "mse_loss")
 UNARY = ("sum", "sum_dims", "relu", "cross_entropy")
+# torch.matmul with batching and 1-D promotion. It is not in BINARY, which
+# the generated scripts draw from, so their scripts stay as they were.
+PRODUCTS = ("batched_matmul",)
 NOT_LOGITS = 107
 TARGET_OUT_OF_RANGE = 108
 NEGATIVE_INFINITY = 0xFF800000
@@ -100,6 +103,27 @@ RUNTIME_CONTROLS = {
         "src/autograd/reduce.bend",
         "      strided(fuel, right, base, digit, single_offset(",
         "      strided(fuel, left, base, digit, single_offset(",
+    ),
+    # torch.matmul: a stretched batch axis read at the cell's own index
+    # instead of 0, a gradient delivered over the output's batch without
+    # summing it to its operand's shape, and left^T @ g reading g by rows.
+    "batched-stretched-axis-reads-own-index": (
+        "src/tensor/batched-matmul.bend",
+        "    case True{}:\n      0n\n    case False{}:\n      index\n",
+        "    case True{}:\n      index\n    case False{}:\n      index\n",
+    ),
+    "batched-vjp-skips-batch-sum": (
+        "      (first, second, product) = triple\n"
+        "      contribution_of(reduced(target, shape, product))\n",
+        "      (first, second, product) = triple\n"
+        "      Done{Contribution{target, shape, product}}\n",
+    ),
+    "batched-right-gradient-reads-g-by-rows": (
+        "src/tensor/batched-matmul.bend",
+        "  Layout{Matrix.Swapped{}, Matrix.Swapped{}, rows, inner, columns, "
+        "l1, l2, o1, o2, o2}",
+        "  Layout{Matrix.Swapped{}, Matrix.Kept{}, rows, inner, columns, "
+        "l1, l2, o1, o2, o2}",
     ),
     # A sum over axes: g of the dropped shape broadcast without the reduced
     # axes put back, the axis after each listed one summed, and keepdim
@@ -476,7 +500,9 @@ def sgd(lr: int, params: list[int]) -> dict:
 
 
 def program_case(identifier: str, steps: list[dict], output: int) -> dict:
-    count = sum(step["op"] in ("leaf", "constant", *UNARY, *BINARY) for step in steps)
+    count = sum(
+        step["op"] in ("leaf", "constant", *UNARY, *BINARY, *PRODUCTS) for step in steps
+    )
     count += 2 * sum(step["op"] == "linear" for step in steps)
     return {"id": identifier, "steps": [*steps, run(output), *reads(count)]}
 
@@ -1510,6 +1536,230 @@ def loss_generated(count: int, seed: int) -> list[dict]:
     return result
 
 
+# torch.matmul scripts: 1-D promotion, batches, broadcast batches, the
+# rank-2 pair that records `matmul`, refusals, empty batches and products,
+# constants, special words, and generated products over rounding words.
+BATCHED_SHAPES = (
+    ([3], [3]),
+    ([2, 3], [3]),
+    ([3], [3, 2]),
+    ([2, 2, 3], [2, 3, 2]),
+    ([2, 3], [4, 3, 2]),
+    ([4, 2, 3], [3, 2]),
+    ([2, 1, 2, 3], [3, 3, 2]),
+    ([3, 1, 2], [2, 1, 2, 3]),
+    ([3], [2, 3, 2]),
+    ([2, 2, 3], [3]),
+    ([1, 3], [2, 3, 1]),
+    ([2, 3], [3, 2]),
+)
+
+
+def counted_words(count: int, pool: tuple[int, ...], start: int) -> list[int]:
+    return [pool[(start + 3 * index) % len(pool)] for index in range(count)]
+
+
+# x @ w, times a weight of the product's shape, summed: the product's
+# gradient is the weight, a different word in each cell, so a VJP that reads
+# g in the wrong order gives other words.
+def weighted(x: dict, w: dict, left: list[int], right: list[int], seed: int) -> list:
+    plan = batched_plan(left, right)
+    if isinstance(plan, int):
+        raise GateError(f"A batched script refuses its own product: {plan}")
+    shape = plan[3]
+    weights = leaf(shape, counted_words(math.prod(shape), EXACT, 7 * seed + 3))
+    return [x, w, op("batched_matmul", 0, 1), weights, op("mul", 2, 3), op("sum", 4)]
+
+
+# torch.matmul refusals of capacity, with no input word past 2^20. The
+# forward output [1, 1025, 1025] of [1, 1025, 0] @ [1, 0, 1025] has more than
+# 2^20 elements: the product is refused and the next leaf takes its id. In
+# the other two the forward output [1025, 0] is empty, but one operand's
+# gradient over the output's batch, before it is summed to the operand's
+# shape, is [1025, 1025]: [1025] @ [1025, 1025, 0] for the left operand's,
+# [1025, 0, 1025] @ [1025] for the right one's. A first backward from a sum
+# of the leaf fills its slot; the backward through the product is refused
+# and leaves every slot as it was. The other operand is a constant, so
+# PyTorch's record of each slot read after the refusal is the same.
+def capacity_scripts() -> list[dict]:
+    ones = [ONE] * 1025
+    return [
+        {
+            "id": "batched_output_capacity",
+            "steps": [
+                leaf([1, 1025, 0], []),
+                leaf([1, 0, 1025], []),
+                op("batched_matmul", 0, 1),
+                leaf([], f(1.0)),
+                *reads(2),
+            ],
+        },
+        {
+            "id": "batched_left_gradient_capacity",
+            "steps": [
+                leaf([1025], ones),
+                constant([1025, 1025, 0], []),
+                op("sum", 0),
+                op("batched_matmul", 0, 1),
+                op("sum", 3),
+                run(2),
+                *reads(5),
+                run(4),
+                *reads(3),
+            ],
+        },
+        {
+            "id": "batched_right_gradient_capacity",
+            "steps": [
+                constant([1025, 0, 1025], []),
+                leaf([1025], ones),
+                op("sum", 1),
+                op("batched_matmul", 0, 1),
+                op("sum", 3),
+                run(2),
+                *reads(5),
+                run(4),
+                *reads(3),
+            ],
+        },
+    ]
+
+
+def batched() -> list[dict]:
+    result = []
+    for index, (left, right) in enumerate(BATCHED_SHAPES):
+        x = leaf(left, counted_words(math.prod(left), EXACT, index))
+        w = leaf(right, counted_words(math.prod(right), EXACT, 5 * index + 1))
+        name = "x".join(map(str, left)) + "_by_" + "x".join(map(str, right))
+        result.append(
+            program_case(f"batched_{name}", weighted(x, w, left, right, index), 5)
+        )
+    stack = leaf([2, 2, 2], f(1.0, -2.0, 0.5, 3.0, 2.5, -1.0, 0.0, 1.5))
+    vector = leaf([3], f(0.5, -1.0, 2.0))
+    special = leaf(
+        [2, 1, 3], [INFINITY, NEGATIVE_ZERO, QUIET_NAN, word(2.0), 0, NEGATIVE_INFINITY]
+    )
+    weights = leaf([3, 2], f(1.0, -0.5, NEGATIVE_ZERO, 2.0, 0.0, -3.0))
+    result += [
+        program_case(
+            "batched_dot_seed",
+            [vector, leaf([3], f(4.0, 0.25, -1.0)), op("batched_matmul", 0, 1)],
+            2,
+        ),
+        program_case("batched_self_dot", [vector, op("batched_matmul", 0, 0)], 1),
+        program_case(
+            "batched_self_stack", [stack, op("batched_matmul", 0, 0), op("sum", 1)], 2
+        ),
+        program_case(
+            "batched_seed",
+            [stack, leaf([2, 1], f(3.0, -0.5)), op("batched_matmul", 0, 1)],
+            2,
+        ),
+        program_case(
+            "batched_special_words",
+            [special, weights, op("batched_matmul", 0, 1), op("sum", 2)],
+            3,
+        ),
+        program_case(
+            "batched_constant_left",
+            [
+                constant([2, 2, 3], counted_words(12, EXACT, 2)),
+                leaf([3, 2], f(1.0, 2.0, -1.0, 0.5, 3.0, -2.0)),
+                op("batched_matmul", 0, 1),
+                op("sum", 2),
+            ],
+            3,
+        ),
+        program_case(
+            "batched_constant_right",
+            [
+                leaf([3], f(1.0, -2.0, 0.5)),
+                constant([2, 3, 2], counted_words(12, EXACT, 7)),
+                op("batched_matmul", 0, 1),
+                op("sum", 2),
+            ],
+            3,
+        ),
+        program_case(
+            "batched_layer_relu",
+            [
+                leaf([2, 2, 3], counted_words(12, EXACT, 4)),
+                leaf([3, 4], counted_words(12, EXACT, 9)),
+                leaf([4], f(0.25, -0.5, 1.0, -2.0)),
+                op("batched_matmul", 0, 1),
+                op("add", 3, 2),
+                op("relu", 4),
+                leaf([4], f(1.0, -1.0, 0.5, 2.0)),
+                op("batched_matmul", 5, 6),
+                op("sum", 7),
+            ],
+            8,
+        ),
+        program_case(
+            "batched_empty_batch",
+            [
+                leaf([0, 2, 3], []),
+                leaf([3, 2], f(1.0, 2.0, -1.0, 0.5, 3.0, -2.0)),
+                op("batched_matmul", 0, 1),
+                op("sum", 2),
+            ],
+            3,
+        ),
+        program_case(
+            "batched_zero_inner",
+            [
+                leaf([2, 3, 0], []),
+                leaf([0, 4], []),
+                op("batched_matmul", 0, 1),
+                op("sum", 2),
+            ],
+            3,
+        ),
+        program_case(
+            "batched_empty_vector",
+            [leaf([0, 3], []), vector, op("batched_matmul", 0, 1), op("sum", 2)],
+            3,
+        ),
+        {
+            "id": "batched_refusals",
+            "steps": [
+                leaf([], f(2.0)),
+                vector,
+                leaf([2], f(1.0, 2.0)),
+                leaf([2, 1, 3], counted_words(6, EXACT, 1)),
+                leaf([3, 3, 2], counted_words(18, EXACT, 2)),
+                op("batched_matmul", 0, 1),
+                op("batched_matmul", 1, 0),
+                op("batched_matmul", 1, 2),
+                op("batched_matmul", 3, 4),
+                op("batched_matmul", 3, 9),
+                op("batched_matmul", 3, 1),
+                run(5),
+                *reads(6),
+            ],
+        },
+        *capacity_scripts(),
+    ]
+    state = 0x6C078965
+    for index in range(8):
+        state = (state * 1103515245 + 12345) & 0x7FFFFFFF
+        batch = [[], [2], [3, 1], [1, 2]][state % 4]
+        other = [[], [1], [2], [3, 2]][(state >> 4) % 4]
+        if broadcast(batch, other) is None:
+            other = []
+        m, k, n = 1 + (state >> 8) % 3, 2 + (state >> 10) % 4, 1 + (state >> 12) % 3
+        left = [k] if (state >> 14) % 5 == 0 else [*batch, m, k]
+        right = [k] if (state >> 16) % 5 == 0 and len(left) > 1 else [*other, k, n]
+        x = leaf(left, counted_words(math.prod(left), ROUNDING, state >> 18))
+        w = leaf(right, counted_words(math.prod(right), ROUNDING, state >> 20))
+        result.append(
+            program_case(
+                f"batched_rounding_{index:02d}", weighted(x, w, left, right, index), 5
+            )
+        )
+    return result
+
+
 # Sums over axes, PyTorch's sum(dim, keepdim): one axis, several in any
 # order, none (every axis), keepdim on and off, rank 0, an axis of extent 1
 # that holds -0.0, empty inputs, and the refusals. A product with a weight
@@ -1671,6 +1921,7 @@ def cases() -> list[dict]:
         + loss_generated(16, 0x3C6EF372)
         + sum_dims_scripts()
         + dims_generated(16, 0x6C078965)
+        + batched()
     )
     if len({case["id"] for case in result}) != len(result):
         raise GateError("Duplicate autograd tensor backward case identifier")
@@ -1909,6 +2160,86 @@ def matmul(left: tuple, right: tuple) -> tuple | int:
     return ([rows, columns], words)
 
 
+# torch.matmul's plan: a 1-D left operand is the row [1, k] and a 1-D right
+# one the column [k, 1], the output dropping that row or column; the
+# dimensions before the last two are batch dimensions, which broadcast. The
+# checks come in the order Batched.plan makes them: each operand's rank (1 to
+# 4), the inner extents, the batch dimensions, the output's capacity. Two
+# rank-2 operands are `matmul` itself.
+def batched_plan(left: list[int], right: list[int]) -> tuple | int:
+    if not 1 <= len(left) <= MAX_RANK or not 1 <= len(right) <= MAX_RANK:
+        return MATMUL_RANK
+    rows = [1, *left] if len(left) == 1 else left
+    columns = [*right, 1] if len(right) == 1 else right
+    if rows[-1] != columns[-2]:
+        return MATMUL_INNER
+    batch = broadcast(rows[:-2], columns[:-2])
+    if batch is None:
+        return INCOMPATIBLE_BROADCAST
+    output = batch + rows[-2:-1] * (len(left) > 1) + columns[-1:] * (len(right) > 1)
+    if math.prod(output) > MAX_ELEMENTS:
+        return CAPACITY_EXCEEDED
+    return rows, columns, batch, output
+
+
+# The words of the matrix that batch `flat` of the output reads from an
+# operand whose batch dimensions are `own`: a stretched axis reads index 0.
+def batch_matrix(
+    words: list, own: list[int], batch: list[int], flat: int, size: int
+) -> list:
+    start = source_index(own, batch, flat) * size
+    return list(words[start : start + size])
+
+
+# torch.matmul: each batch is `matmul` of its two matrices, in batch order.
+def batched_matmul(left: tuple, right: tuple) -> tuple | int:
+    if len(left[0]) == 2 and len(right[0]) == 2:
+        return matmul(left, right)
+    plan = batched_plan(left[0], right[0])
+    if isinstance(plan, int):
+        return plan
+    rows, columns, batch, output = plan
+    (m, k), n = rows[-2:], columns[-1]
+    words = []
+    for flat in range(math.prod(batch)):
+        a = batch_matrix(left[1], rows[:-2], batch, flat, m * k)
+        b = batch_matrix(right[1], columns[:-2], batch, flat, k * n)
+        words += accepted(matmul(([m, k], a), ([k, n], b)))[1]
+    return (output, words)
+
+
+# The VJP of torch.matmul: g @ right^T and left^T @ g for each batch of the
+# output, the left operand's product with its row dropped when it is 1-D and
+# the right one's with its column dropped, each summed to its operand's shape.
+# Each product is built over the output's batch before the sum, as
+# Batched.left_gradient and right_gradient build it, so one with more than
+# 2^20 elements is refused with CapacityExceeded, the left one first, even
+# when both operands and the forward output fit.
+def batched_vjp(node: dict, gradient: tuple) -> list[tuple[int, tuple]] | int:
+    left, right = node["saved"]
+    plan = batched_plan(left[0], right[0])
+    if isinstance(plan, int):
+        raise GateError(f"A recorded torch.matmul was refused with code {plan}")
+    rows, columns, batch, _ = plan
+    (m, k), n = rows[-2:], columns[-1]
+    left_dims = batch + ([k] if len(left[0]) == 1 else [m, k])
+    right_dims = batch + ([k] if len(right[0]) == 1 else [k, n])
+    if max(math.prod(left_dims), math.prod(right_dims)) > MAX_ELEMENTS:
+        return CAPACITY_EXCEEDED
+    first: list = []
+    second: list = []
+    for flat in range(math.prod(batch)):
+        a = batch_matrix(left[1], rows[:-2], batch, flat, m * k)
+        b = batch_matrix(right[1], columns[:-2], batch, flat, k * n)
+        g = list(gradient[1][flat * m * n : (flat + 1) * m * n])
+        first += accepted(matmul(([m, n], g), transpose(([k, n], b))))[1]
+        second += accepted(matmul(transpose(([m, k], a)), ([m, n], g)))[1]
+    return [
+        (node["a"], sum_to_size((left_dims, first), node["left"])),
+        (node["b"], sum_to_size((right_dims, second), node["right"])),
+    ]
+
+
 def transpose(tensor: tuple) -> tuple:
     (rows, columns), words = tensor
     return (
@@ -1929,7 +2260,7 @@ def accepted(result: tuple | int) -> tuple:
     return result
 
 
-def vjp(node: dict, gradient: tuple) -> list[tuple[int, tuple]]:
+def vjp(node: dict, gradient: tuple) -> list[tuple[int, tuple]] | int:
     name = node["op"]
     if name in ("leaf", "constant"):
         return []
@@ -1994,6 +2325,8 @@ def vjp(node: dict, gradient: tuple) -> list[tuple[int, tuple]]:
             (node["a"], sum_to_size(first, node["left"])),
             (node["b"], sum_to_size(second, node["right"])),
         ]
+    if name == "batched_matmul":
+        return batched_vjp(node, gradient)
     left, right = node["saved"]
     if name == "matmul_nt":
         return [
@@ -2017,7 +2350,10 @@ def accumulate(held: tuple | None, contribution: tuple | None) -> tuple | None:
     )
 
 
-def gradients(nodes: list[dict], output: int) -> list[tuple | None]:
+# The working gradients of a sweep from output, or the error code of the
+# first VJP that the tensor layer refuses: then the sweep delivers nothing,
+# and every slot stays as it was.
+def gradients(nodes: list[dict], output: int) -> list[tuple | None] | int:
     found: list[tuple | None] = [None] * len(nodes)
     shape = nodes[output]["shape"]
     found[output] = (shape, [ONE] * math.prod(shape))
@@ -2026,7 +2362,10 @@ def gradients(nodes: list[dict], output: int) -> list[tuple | None]:
         if gradient is None:
             continue
         frozen = nodes[position].get("frozen", ())
-        for target, contribution in vjp(nodes[position], gradient):
+        contributions = vjp(nodes[position], gradient)
+        if isinstance(contributions, int):
+            return contributions
+        for target, contribution in contributions:
             if target < position and target not in frozen:
                 found[target] = accumulate(found[target], contribution)
     return found
@@ -2064,6 +2403,8 @@ def forward(name: str, values: list[tuple], step: dict) -> tuple | int:
         return (values[0][0], [relu_word(number) for number in values[0][1]])
     if name == "matmul":
         return matmul(*values)
+    if name == "batched_matmul":
+        return batched_matmul(*values)
     if name == "matmul_nt":
         left, right = values
         if len(left[0]) != 2 or len(right[0]) != 2:
@@ -2114,7 +2455,7 @@ def reference(case: dict, trace: dict | None = None, update=descend_word) -> lis
         node["left"] = values[0][0]
         if name not in UNARY:
             node |= {"b": step["b"], "right": values[1][0]}
-        if name in ("mul", "matmul", "matmul_nt", "relu"):
+        if name in ("mul", "matmul", "matmul_nt", "relu", *PRODUCTS):
             node["saved"] = values
         if name == "sum_dims":
             plan = sum_dims_plan(values[0][0], step["dims"])
@@ -2138,7 +2479,7 @@ def reference(case: dict, trace: dict | None = None, update=descend_word) -> lis
                 lines.append(f"autograd:error:{VALUE_COUNT_MISMATCH}")
             else:
                 push({"op": name, "shape": shape, "value": (shape, list(words))})
-        elif name in BINARY or name in UNARY:
+        elif name in BINARY or name in UNARY or name in PRODUCTS:
             record(name, step)
         elif name == "linear":
             # The product, then the bias added to it; only the sum's id is
@@ -2172,6 +2513,9 @@ def reference(case: dict, trace: dict | None = None, update=descend_word) -> lis
                 lines.append(f"autograd:error:{DANGLING_OPERAND}")
             else:
                 found = gradients(nodes, output)
+                if isinstance(found, int):
+                    lines.append(f"autograd:error:{found}")
+                    continue
                 slots = [accumulate(a, b) for a, b in zip(slots, found, strict=True)]
                 lines.append("autograd:backward")
         elif name == "zero_grad":
