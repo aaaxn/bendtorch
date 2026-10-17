@@ -379,7 +379,13 @@ def loss_controls(evidence: Evidence, source_root: Path) -> None:
 # batched_matmul_matrices, a rank-0 left operand read as a vector breaks
 # batched_matmul_left_scalar, a plan that skips the inner check breaks the
 # refusal of a dot of unequal lengths (dot_compatible), and a cell that
-# folds from -0.0 breaks the fold of batched_build_cells (from_run).
+# folds from -0.0 breaks the fold of batched_build_cells (from_run). Three
+# break the geometry stated from PyTorch's definition: a stretched batch
+# axis read at the output's own index instead of 0 breaks
+# batched_build_logical_cells (stretch_spec, the shape module's broadcast
+# index), an axis of extent 1 that keeps its own extent instead of the
+# other one's breaks batched_plan_geometry (axis_left), and a 1-D left
+# operand whose row the output keeps breaks it too (matrix_part).
 LEFT_OPERAND = (
     "def left_operand(dims: List<&2, U32>) -> "
     "Result<&2, &2, Matrix.Error, Operand>:\n  match dims:\n"
@@ -406,6 +412,21 @@ BATCHED_CONTROLS = {
         "      Matrix.product_run(rest, ls, rs, lp, rp, 0.0, ",
         "      Matrix.product_run(rest, ls, rs, lp, rp, F32.neg(0.0), ",
         "from_run",
+    ),
+    "batched-stretched-axis-reads-own-index": (
+        "    case True{}:\n      0n\n    case False{}:\n      index\n",
+        "    case True{}:\n      index\n    case False{}:\n      index\n",
+        "stretch_spec",
+    ),
+    "batched-axis-keeps-the-stretched-extent": (
+        "    case False{} True{} _:\n      Done{r}\n",
+        "    case False{} True{} _:\n      Done{l}\n",
+        "axis_left",
+    ),
+    "batched-keeps-the-promoted-row": (
+        "    case True{}:\n      column_dims(columns, right_vector)\n",
+        "    case True{}:\n      rows <> column_dims(columns, right_vector)\n",
+        "matrix_part",
     ),
 }
 

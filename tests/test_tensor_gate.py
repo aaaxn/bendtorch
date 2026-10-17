@@ -155,7 +155,7 @@ class GateAcceptanceTests(unittest.TestCase):
         source = (ROOT / "src/tensor/batched-matmul.bend").read_text()
         laws = (ROOT / "src/tensor/batched-matmul-LAWS.bend").read_text()
         proof = (ROOT / "src/tensor/batched-matmul-PROOF.bend").read_text()
-        self.assertEqual(len(BATCHED_CONTROLS), 4)
+        self.assertEqual(len(BATCHED_CONTROLS), 7)
         for original, mutated, location in BATCHED_CONTROLS.values():
             self.assertEqual(source.count(original), 1)
             self.assertNotEqual(original, mutated)
