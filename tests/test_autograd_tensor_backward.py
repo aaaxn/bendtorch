@@ -15,6 +15,8 @@ from tools.autograd_tensor_backward import (
     AXIS_OUT_OF_BOUNDS,
     CHAIN_CONTROLS,
     DUPLICATE_AXIS,
+    INDEX_RANK_MISMATCH,
+    INDEX_SHAPE_MISMATCH,
     INVALID_LEARNING_RATE,
     MATMUL_INNER,
     MATMUL_RANK,
@@ -26,6 +28,7 @@ from tools.autograd_tensor_backward import (
     SGD_CONTROLS,
     STEP_NOT_POSITIVE,
     TARGET_OUT_OF_RANGE,
+    VALUE_COUNT_MISMATCH,
     ZERO_GRAD,
     capacity_scripts,
     cases,
@@ -59,7 +62,7 @@ from tools.autograd_tensor_bound import (
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "9a8acf6d8a69380deae448952f943a88e76044e14a974904affee2fe97a0c5af"
+FIXTURE_SHA256 = "6e1bf9ccb1fcbcb2f4cf5ca3a9f2bd97e2321a9c2d4f7aa04567f6a9a273bd5d"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
@@ -104,7 +107,15 @@ RUNTIME_ERROR_CODES = {6, MATMUL_RANK, MATMUL_INNER, 10}
 # -extent with and without a length (IndexError, 20), one at -extent whose
 # length passes the extent (RuntimeError, 20), and one at an axis before
 # -rank (IndexError, 13); a select index before -extent (IndexError, 20), at
-# an axis before -rank and of a rank-0 input (IndexError, 13).
+# an axis before -rank and of a rank-0 input (IndexError, 13). Those of
+# gather_refused: an index_select at an axis past the rank and before -rank
+# (IndexError, 13) and with an entry at the extent (RuntimeError,
+# OutOfRange 20); a gather whose entry count is not the product of its
+# dimensions (RuntimeError from the replay's reshape, ValueCountMismatch 10),
+# at an axis past the rank (IndexError, 13), of another rank (RuntimeError,
+# IndexRankMismatch 21), wider than the input at another axis (RuntimeError,
+# IndexShapeMismatch 22), with an entry at the extent (RuntimeError, 20);
+# an unknown id (IndexError, 103).
 STEP_REJECTIONS = {
     "cross_entropy_refused": [
         ("IndexError", TARGET_OUT_OF_RANGE),
@@ -143,6 +154,17 @@ STEP_REJECTIONS = {
         ("IndexError", OUT_OF_RANGE),
         ("IndexError", AXIS_OUT_OF_BOUNDS),
         ("IndexError", AXIS_OUT_OF_BOUNDS),
+    ],
+    "gather_refused": [
+        ("IndexError", AXIS_OUT_OF_BOUNDS),
+        ("IndexError", AXIS_OUT_OF_BOUNDS),
+        ("RuntimeError", OUT_OF_RANGE),
+        ("RuntimeError", VALUE_COUNT_MISMATCH),
+        ("IndexError", AXIS_OUT_OF_BOUNDS),
+        ("RuntimeError", INDEX_RANK_MISMATCH),
+        ("RuntimeError", INDEX_SHAPE_MISMATCH),
+        ("RuntimeError", OUT_OF_RANGE),
+        ("IndexError", UNKNOWN_NODE),
     ],
     "slice_negative_refused": [
         ("IndexError", AXIS_OUT_OF_BOUNDS),
@@ -314,6 +336,16 @@ NON_LEAF = {"sgd_not_leaf"}
 # read after it holds what it held, as PyTorch's do, since the backward adds
 # only zeros). For each script, the line index of every line that differs
 # and the pair (PyTorch's line, the reference's line).
+# What PyTorch takes and the tape refuses, line by line: a gather index
+# narrower than the input at another axis (IndexShapeMismatch 22), and an
+# index_select and a gather of a rank-0 input (AxisOutOfBounds 13).
+INDEX_REFUSALS = {
+    "gather_pytorch_accepts": {
+        2: ("autograd:id:2", f"autograd:error:{INDEX_SHAPE_MISMATCH}"),
+        3: ("autograd:id:3", f"autograd:error:{AXIS_OUT_OF_BOUNDS}"),
+        4: ("autograd:id:4", f"autograd:error:{AXIS_OUT_OF_BOUNDS}"),
+    },
+}
 CAPACITY_REFUSALS = {
     "batched_output_capacity": {
         2: ("autograd:id:2", f"autograd:error:{CAPACITY}"),
@@ -335,6 +367,7 @@ OTHER_FAMILIES = (
     | FUSED_UPDATE
     | NON_LEAF
     | set(CAPACITY_REFUSALS)
+    | set(INDEX_REFUSALS)
 )
 
 
@@ -756,7 +789,7 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                     for a, b in zip(seen, fused, strict=True):
                         self.assertTrue(same_row(a, b), (a, b))
                     continue
-                if identifier in CAPACITY_REFUSALS:
+                if identifier in CAPACITY_REFUSALS | INDEX_REFUSALS:
                     self.assertEqual(
                         {
                             index: (a, b)
@@ -765,7 +798,7 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                             )
                             if a != b
                         },
-                        CAPACITY_REFUSALS[identifier],
+                        (CAPACITY_REFUSALS | INDEX_REFUSALS)[identifier],
                     )
                     continue
                 if identifier in NON_LEAF:
@@ -790,9 +823,10 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
             | FUSED_UPDATE
             | NON_LEAF
             | set(CAPACITY_REFUSALS)
+            | set(INDEX_REFUSALS)
         )
         self.assertEqual(exact, len(cases()) - len(excluded))
-        self.assertEqual(exact, 255)
+        self.assertEqual(exact, 281)
 
     # Planted wrong results on the reference's side, as a wrong Bend result
     # would be: a sum, a broadcast reduction, a sum over axes (reduce_to) and
@@ -801,8 +835,9 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
     # rejects each changed script but loss_07, whose omitted square adds about
     # 9e-5 to a loss of 144 (6 ulp), inside that word's 15-ulp bound; its old
     # pins reject it under the whole rule. slice_parallel's omitted term is one
-    # of the 59700 terms of its sum, inside that sum's bound; its exact record
-    # rejects it under the whole rule. A word with no bound (the
+    # of the 59700 terms of its sum, inside that sum's bound, and
+    # index_select_parallel's one of its 45000; their exact records reject
+    # them under the whole rule. A word with no bound (the
     # cross_entropy words, built on exp and log) is rejected by its pin, or
     # because it differs with no pin, never by a bound.
     def test_a_dropped_term_is_rejected(self):
@@ -818,8 +853,13 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
                 identifier, seen[identifier], bounded_reference(rows[identifier]), pins
             )
         planted = {
-            "total": (dropping_total, 138, {"loss_07", "slice_parallel"}, (121, 13, 2)),
-            "sum_to_size": (dropping_sum_to_size, 87, set(), (85, 2, 0)),
+            "total": (
+                dropping_total,
+                152,
+                {"loss_07", "slice_parallel", "index_select_parallel"},
+                (134, 13, 2),
+            ),
+            "sum_to_size": (dropping_sum_to_size, 88, set(), (86, 2, 0)),
             "matmul": (dropping_matmul, 58, set(), (56, 2, 0)),
             "reduce_to": (dropping_reduce_to, 21, set(), (21, 0, 0)),
         }
@@ -1011,7 +1051,7 @@ class GateRegistrationTests(unittest.TestCase):
             self.assertIn("quiet(2143289344)", mutated)
 
     def test_runtime_controls_apply_once(self):
-        self.assertEqual(len(RUNTIME_CONTROLS), 54)
+        self.assertEqual(len(RUNTIME_CONTROLS), 56)
         for control in RUNTIME_CONTROLS.values():
             path, original, mutated = (
                 control
