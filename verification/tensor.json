@@ -132,6 +132,8 @@
     "batched_2d_matmul_2d_LAWS.batched_matmul_dot_inner_error",
     "batched_2d_matmul_2d_LAWS.batched_build_cells",
     "batched_2d_matmul_2d_LAWS.batched_build_balanced",
+    "batched_2d_matmul_2d_LAWS.batched_build_logical_cells",
+    "batched_2d_matmul_2d_LAWS.batched_plan_geometry",
     "parallel_2d_LAWS.parallel_build_balanced.qvvvvvvv",
     "parallel_2d_LAWS.parallel_build_cells.qvvvvvvv",
     "parallel_2d_LAWS.parallel_build_sequential.qvvvvvvv",
