@@ -49,7 +49,12 @@ moves each parameter to `p - lr * g`.
 
 The laws in `src/autograd/` state what each recorded operation sends back,
 and the [differences from PyTorch](docs/torch-differences.md#tensor-backward)
-page lists the words that differ from PyTorch's.
+page describes where the results differ from PyTorch's. For `mse_loss` and
+`cross_entropy`, the laws state every cell of the gradient sent back, but no
+law states the loss value the tape records, the row maximum or the one-hot
+rows; the runtime lanes check those against the Python reference. `F32.exp`
+and `F32.log` are opaque to the checker, so a law says which of them runs, not
+how close it is to the exact value.
 
 ## Large outputs build in parallel halves
 
@@ -254,7 +259,8 @@ the root environment.
 - `sum`, `sum_dims`, `matmul`, `reduce_to` and a reducing `sum_to_size` add
   in a fixed order. PyTorch adds in another order, so on longer inputs the
   two agree within the rounding bound, not word for word.
-- Tensor `backward` records only the operations its page lists.
+- Tensor `backward` records only `add`, `sub`, `mul`, `matmul`, `matmul_nt`,
+  `sum`, `sum_dims`, `relu`, `mse_loss` and `cross_entropy`.
 - CPU only.
 
 The [differences from PyTorch](docs/torch-differences.md) page lists each
