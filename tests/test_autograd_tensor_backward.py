@@ -59,7 +59,7 @@ from tools.autograd_tensor_bound import (
 from tools.common import ROOT, GateError
 
 FIXTURE = ROOT / "oracle/autograd/fixtures/tensor-backward-torch.json"
-FIXTURE_SHA256 = "8b2f5c0fb924c442853c59a9336f4112c5383bf55923d0f5352a589751b2130a"
+FIXTURE_SHA256 = "88216baeda7c65df91f75bb69bc25a1f100e457a2428c0c3cf3fd288a1e3a012"
 # The tape answers UnknownNode where the replay indexes past its Python list
 # (IndexError), and the tensor layer's error codes where PyTorch raises
 # RuntimeError: shapes that do not broadcast (6), a matmul rank (105) or inner
@@ -764,7 +764,7 @@ class TensorBackwardTorchOracleTests(unittest.TestCase):
             | set(CAPACITY_REFUSALS)
         )
         self.assertEqual(exact, len(cases()) - len(excluded))
-        self.assertEqual(exact, 225)
+        self.assertEqual(exact, 228)
 
     # Planted wrong results on the reference's side, as a wrong Bend result
     # would be: a sum, a broadcast reduction, a sum over axes (reduce_to) and

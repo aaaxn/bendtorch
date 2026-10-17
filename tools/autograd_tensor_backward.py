@@ -2062,6 +2062,47 @@ def slice_scripts() -> list[dict]:
             ],
             4,
         ),
+        # Inputs with no element whose other extents multiply past 2^48 - 1,
+        # the largest Nat Bend's runtime holds: slices, a narrow and a select
+        # at the axis of the zero and away from it, each seeded at once.
+        {
+            "id": "slice_empty_wide_outer",
+            "steps": [
+                leaf([2**24, 2**24, 0], []),
+                sliced(0, 2, 0, 0),
+                selected(0, 0, 1),
+                narrowed(0, 1, 2**24, 0),
+                run(1),
+                run(2),
+                run(3),
+                *reads(4),
+            ],
+        },
+        {
+            "id": "slice_empty_wide_inner",
+            "steps": [
+                leaf([0, 2**24, 2**24], []),
+                sliced(0, 0, 0, 0),
+                narrowed(0, 0, 0, 0),
+                selected(0, 2, 2**24 - 1),
+                run(1),
+                run(2),
+                run(3),
+                *reads(4),
+            ],
+        },
+        # A slice whose axis is 10^8 long: its length takes one division.
+        {
+            "id": "slice_long_axis",
+            "steps": [
+                leaf([0, 10**8], []),
+                sliced(0, 1, 0, largest),
+                sliced(0, 1, 1, largest, 3),
+                run(1),
+                run(2),
+                *reads(3),
+            ],
+        },
         # Refusals: an unknown id, an axis past the rank, a zero step, a
         # rank-0 input; a narrow past the extent, one whose start is the
         # largest U32, one past the rank and one of a rank-0 input; a select
@@ -2385,7 +2426,7 @@ def broadcast_to(tensor: tuple, target: list[int]) -> tuple:
 # (every axis of a rank-0 input) first, then a step of 0, or a narrow or select
 # past the extent. The start and stop are clamped to the axis as PyTorch
 # clamps them.
-def slice_plan(shape: list[int], step: dict) -> tuple[list, list, list] | int:
+def slice_plan(shape: list[int], step: dict) -> tuple[range, list, list] | int:
     dim = step["dim"]
     if dim >= len(shape):
         return AXIS_OUT_OF_BOUNDS
@@ -2403,15 +2444,18 @@ def slice_plan(shape: list[int], step: dict) -> tuple[list, list, list] | int:
         if start >= extent:
             return OUT_OF_RANGE
     low = min(start, extent)
-    indices = list(range(low, max(low, min(stop, extent)), stride))
+    indices = range(low, max(low, min(stop, extent)), stride)
     kept = [*shape[:dim], len(indices), *shape[dim + 1 :]]
     output = [*kept[:dim], *kept[dim + 1 :]] if step["op"] == "select" else kept
     return indices, kept, output
 
 
 # Output cell (o, k, r) of [outer, len(indices), inner] and the input cell
-# (o, indices[k], r) of [outer, extent, inner] it copies, as flat indices.
-def slice_cells(shape: list[int], dim: int, indices: list[int]) -> list[tuple]:
+# (o, indices[k], r) of [outer, extent, inner] it copies, as flat indices. An
+# input with no element has none, whatever the other extents.
+def slice_cells(shape: list[int], dim: int, indices: range) -> list[tuple]:
+    if math.prod(shape) == 0:
+        return []
     outer, extent = math.prod(shape[:dim]), shape[dim]
     inner = math.prod(shape[dim + 1 :])
     return [
