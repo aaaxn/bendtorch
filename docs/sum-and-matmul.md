@@ -58,6 +58,18 @@ contiguous fibers and fork one and two levels; `[256, 128]` to `[1, 128]` and
 them on one thread and they check the fiber walk alone. Walking each reduced
 axis's digits in decreasing order changes 251, 62, 121 and 15 of their 256,
 64, 128 and 16 words.
+Three more reductions read more than `2^15` contribution words:
+`[130, 256]` to `[1, 256]` (strided, the strided loop of `Reduce.fiber_fast`),
+`[256, 130]` to `[256, 1]` (contiguous, two fork levels) and `[65536]` to `[]`.
+The probe also runs six elementwise builds of more than `2^15` output cells,
+which fork two levels and leave padding cells past the count, next to the
+checked loop `Elementwise.allocated` runs. They cover six of the nine pairs
+of input slots the build tells apart (own slot, slot 0 for a rank-0 operand,
+or the broadcast walk): own and own, own and slot 0, slot 0 and own, own and
+walked, walked and own, walked and walked. It runs
+`Reduction.sum` of `[100000]` rounding words next to
+`Reduction.natural_sum_loop`, the checked loop its laws state; added in
+reverse order, those words give another sum.
 ## Products that read an operand in place
 
 `Matrix.product(lo, ro, left, right)` is a rank-2 product whose operands are
