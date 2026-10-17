@@ -33,6 +33,13 @@ before = '''
 after = '''
         fiber(rest, others, first_span(rest, others), inner, Nat.add(base, Nat.mul(left, digit)), first_digit(rest, inner),'''
 
+[reduce-to-strided-walks-target-stride]
+file = "src/autograd/reduce.bend"
+before = '''
+      strided(fuel, right, base, digit, single_offset(rest, others, Nat.mod(target, left), 0n), accumulator, array)'''
+after = '''
+      strided(fuel, left, base, digit, single_offset(rest, others, Nat.mod(target, left), 0n), accumulator, array)'''
+
 [reduce-to-skips-last-digit]
 file = "src/autograd/reduce.bend"
 before = '''

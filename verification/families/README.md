@@ -218,6 +218,7 @@ declarations.
 | Reads target offset | `source` reads the word at the target offset | `fiber_total` | `fiber_total` |
 | Target count | `cell` folds over the target's element count | `reduce_fold_fiber` | `reduce_fold_fiber` |
 | `reduce_to` walks target stride | `fiber` moves the offset by the left stride, not the right one | `fiber_run` | `fiber_run` |
+| `reduce_to` strided loop walks target stride | `fiber_fast`'s strided loop steps by the left stride, not the right one | `fast_fiber` | `fast_fiber` |
 | `reduce_to` skips last digit | `span` walks `extent - 1` digits of a reduced axis | `fiber_cons` | `fiber_cons` |
 | `reduce_to` starts at -0.0 | `fiber_of` starts each cell at `F32.neg(0.0)` | `run_of` | `run_of` |
 | `reduce_to` swapped add | `leaf_add` adds `F32.add(word, accumulator)` | `leaf_run` | `leaf_run` |
@@ -225,12 +226,14 @@ declarations.
 | `sum_to_size` reduced clones | `decided` clones when the dimensions differ | `sum_to_size_fiber` | `sum_to_size_fiber` |
 
 The first four mutants change `src/autograd/reduce-fold.bend`, and the proofs
-in `src/autograd/reduce-fold-PROOF.bend` reject them. The four `reduce_to`
-mutants change the parallel build in `src/autograd/reduce.bend`. The source
-check runs `src/autograd/reduce-to-fold-PROOF.bend`, the live proof of
+in `src/autograd/reduce-fold-PROOF.bend` reject them. The five `reduce_to`
+mutants change the parallel build in `src/autograd/reduce.bend`: the first
+changes `fiber`, the walk the proofs follow, and the second the strided loop
+of `fiber_fast`, which the build runs for a column, row or single-axis sum.
+The source check runs `src/autograd/reduce-to-fold-PROOF.bend`, the live proof of
 `reduce_to_fiber`, instead of `src/autograd/PROOF.bend`. It imports the build
 proofs, so both checkers reject each mutant in the first build proof it
-breaks: `fiber_run`, `run_of` and `leaf_run` in
+breaks: `fiber_run`, `fast_fiber`, `run_of` and `leaf_run` in
 `src/autograd/reduce-parallel-proof.bend`, which the live proof imports
 before its own, and `fiber_cons`, the fiber-walk step of
 `src/autograd/reduce-fiber-proof.bend`, for a skipped digit.
