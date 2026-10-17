@@ -381,13 +381,15 @@ law.
 
 ### `permute_copy` and `transpose_copy` through the index-map copy
 
-`Transforms.copy_loop` in `src/tensor/transforms.bend` writes output index
-`i` from the source index `permute_source(input, axes, i)`, for `i` in
-increasing order. `src/tensor/index-map.bend` treats that as the pointwise
-family with a scalar function that keeps its first operand and the same map
-on both operands, and `permute-values.bend` walks the copy loop with live
-code, without changing it. The walk takes any replayed source, with any fill
-and history.
+`permute_copy` builds output cell `i` from the source word at
+`permute_source(input, axes, i)`, every cell at once: the cells are
+`Parallel.build` with the cell function of `src/tensor/permute-build.bend`.
+`src/tensor/index-map.bend` states the copy as the pointwise family with a
+scalar function that keeps its first operand and the same map on both
+operands, and `permute-values.bend` proves, with live code, that the build's
+output is that family's write history replayed on the storage `Core.new`
+allocates, whatever the split. The source comes back as the First half of its
+clone. The proof takes any replayed source, with any fill and history.
 
 Two laws in `src/tensor/permute-values-contract-LAWS.bend` export it in the
 transport form:
@@ -401,7 +403,7 @@ transport form:
 - `transpose_replayed`: with both axes in range, `transpose_dynamic(a, b)` is
   that permute by `swapped_axes(input, a, b)`.
 
-`permute_contract` and `transpose_contract` are the same walk on a
+`permute_contract` and `transpose_contract` are the same proof on a
 `Core.from_values` source, stated as observations; their statements did not
 change.
 

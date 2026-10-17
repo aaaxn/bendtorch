@@ -1,13 +1,21 @@
 [permute-forward-map]
-file = "src/tensor/transforms.bend"
+file = "src/tensor/permute-build.bend"
 before = '''
-    case Done{mapping}:
-      copy_read(input, axes, plan, i, rec, target,
-        Core.read_flat(input, source, Layout.source_index(input, axes, plan, i, mapping)))'''
+  Recipe{picks(Shape.rank_dimensions(dims), Shape.naturals(axes), Shape.naturals(Axis.order(U32, dims, Shape.naturals(axes))), 0n),
+    strides(Shape.naturals(dims))}'''
 after = '''
-    case Done{mapping}:
-      copy_read(input, axes, plan, Layout.source_index(input, axes, plan, i, mapping), rec, target,
-        Core.read_flat(input, source, i))'''
+  +out = Axis.order(U32, dims, Shape.naturals(axes))
+  Recipe{picks(Shape.rank_dimensions(out), Axis.inverse_axes(Shape.rank_dimensions(dims), Shape.naturals(axes)), Shape.naturals(dims), 0n),
+    strides(Shape.naturals(out))}'''
+
+[permute-identity-map]
+file = "src/tensor/permute-build.bend"
+before = '''
+def at(+recipe: Recipe, +position: Nat) -> U32:
+  U32.from_nat(source(recipe, position))'''
+after = '''
+def at(+recipe: Recipe, +position: Nat) -> U32:
+  U32.from_nat(position)'''
 
 [transpose-swap-ignored]
 file = "src/tensor/transforms.bend"

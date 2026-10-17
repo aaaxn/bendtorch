@@ -19,6 +19,7 @@ class Witness(NamedTuple):
 class Site(NamedTuple):
     definition: str
     mark: str
+    module: str = "permute_2d_values"
 
 
 EXPERIMENT = "verification/contracts/permute-values"
@@ -79,9 +80,18 @@ PROOF = "src/tensor/permute-values.bend"
 # metadata only; each WI mutant still passes them.
 OTHER = "src/tensor/transform-contract-PROOF.bend"
 SITES = {
+    # out[map(i)] = input[i]: the recipe of the inverse map, which decodes
+    # against the input's dimensions and flattens against the output's.
     "permute-forward-map": Site(
-        "read_step",
-        "Transforms.copy_read(input, axes, plan, U32.from_nat(cursor),",
+        "source_index",
+        "Axis.indices(",
+        "permute_2d_build_2d_proof",
+    ),
+    # out[i] = input[i]: the cell reads the input at its own index.
+    "permute-identity-map": Site(
+        "source_word",
+        "{U32.from_nat(index) == ",
+        "permute_2d_build_2d_proof",
     ),
     "transpose-swap-ignored": Site(
         "transpose_route",
@@ -167,7 +177,7 @@ def kernel_reason(output: str, label: str) -> str:
         ):
             raise GateError(f"{label}: kernel rejection is not the value statement")
     elif label in SITES:
-        qualified = f"{SRC}permute_2d_values.{SITES[label].definition}"
+        qualified = f"{SRC}{SITES[label].module}.{SITES[label].definition}"
         if location != qualified or not expected or expected == observed:
             raise GateError(f"{label}: kernel rejection is not at {qualified}")
     else:

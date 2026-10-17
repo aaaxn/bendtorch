@@ -52,6 +52,14 @@ REDUCTIONS = {
     "reduce-256x130-to-256x1-rounding": ((256, 130), (256, 1)),
     "reduce-65536-to-scalar-rounding": ((65536,), ()),
 }
+# Each permute the probe runs, by its output cells. The two above 2^15 cells
+# must fork, so the probe checks the forked build against the copy loop.
+PERMUTES = {
+    "transpose-256x257": 65792,
+    "permute-16x64x40-201": 40960,
+    "permute-3x5x7-120": 105,
+}
+FORKED_PERMUTES = ("transpose-256x257", "permute-16x64x40-201")
 # Each elementwise operation the probe runs, as (left dimensions, right
 # dimensions): each input read at its own slot, at slot 0 (a rank-0 operand)
 # or by the broadcast walk, next to the checked loop that walks no slot.
@@ -65,7 +73,7 @@ ELEMENTWISE = {
 }
 # Each `Reduction.sum` the probe runs, as the dimensions of its input.
 SUMS = {"sum-100000-rounding": (100000,)}
-BUILDS = (*PRODUCTS, *REDUCTIONS, *ELEMENTWISE, *SUMS)
+BUILDS = (*PRODUCTS, *REDUCTIONS, *ELEMENTWISE, *SUMS, *PERMUTES)
 # The builds that read or write more than 2^15 words, the cells of one
 # subtree below the elementwise forks.
 LARGE = (
@@ -116,6 +124,11 @@ def reduce_splits(dims: tuple[int, ...], target: tuple[int, ...]) -> int:
     return matmul_splits(depth(cells), contribution // cells)
 
 
+def permute_splits(cells: int) -> int:
+    """`Permute.splits`: a subtree below the forks holds 2^15 cells."""
+    return max(depth(cells) - 15, 0)
+
+
 def broadcast(left: tuple[int, ...], right: tuple[int, ...]) -> tuple[int, ...]:
     """The output dimensions of two broadcast inputs, right-aligned."""
     rank = max(len(left), len(right))
@@ -137,6 +150,8 @@ def words(name: str) -> int:
 
 
 def expected_splits(name: str) -> int:
+    if name in PERMUTES:
+        return permute_splits(PERMUTES[name])
     if name in REDUCTIONS:
         return reduce_splits(*REDUCTIONS[name])
     if name in ELEMENTWISE:
@@ -151,7 +166,8 @@ def expected_splits(name: str) -> int:
 def check_lines(stdout: str) -> dict[str, int]:
     """The splits each probe line reports, after checking that every line
     names a known build, forks as `expected_splits` says (`Matrix.product_splits`
-    for a product, `Reduce.splits` for a reduction) and matches its
+    for a product, `Reduce.splits` for a reduction, `Permute.splits` for a
+    permute) and matches its
     sequential definition word for word."""
     splits = {}
     for line in stdout.splitlines():
@@ -174,7 +190,7 @@ def check_lines(stdout: str) -> dict[str, int]:
         raise GateError(f"Parallel probe omitted builds: {set(BUILDS) - set(splits)}")
     if not any(splits.values()):
         raise GateError("No parallel probe build forks")
-    for name in (*ROUNDING_BUILDS, *ELEMENTWISE):
+    for name in (*ROUNDING_BUILDS, *ELEMENTWISE, *FORKED_PERMUTES):
         if not splits[name]:
             raise GateError(f"{name} does not fork")
     return splits
