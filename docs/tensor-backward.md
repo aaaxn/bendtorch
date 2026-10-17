@@ -680,7 +680,7 @@ for bit. The bound holds under the policy's conditions (round to nearest,
 gradual underflow, no intermediate overflow in any order); a word where
 another order could overflow gets no bound. The bound reads 183 scripts:
 the 165 that agree line for line and the bounded and pinned rows of the
-table. Their reference lines hold 6591 fixed words, 2284 words with a bound
+table. Their reference lines hold 6576 fixed words, 2282 words with a bound
 and 431 words with none, built on `exp` or `log`.
 
 165 of the 217 scripts agree with PyTorch line for line: every id, shape, value,
@@ -705,7 +705,7 @@ gradient PyTorch can represent in them agrees:
 | `mse_empty`, `cross_entropy_infinities`, `cross_entropy_nan`, `cross_entropy_empty`, `cross_entropy_empty_wide`, `cross_entropy_one_class_scaled`, `cross_entropy_two_class_scaled` | NaN losses and gradients | NaN with another payload |
 | `loss_03`, `loss_05`, `loss_07`, `loss_09`, `loss_11`, `loss_15` (`mse_loss`) | 16 pinned words, each also within the bound: 8 loss words 1 to 3 ulp, 5 gradient words of a broadcast target and 3 gradients of a scale (a loss word) 1 or 2 ulp from PyTorch's, where the bound allows 10 to 58 ulp | PyTorch's cascade sums ([losses](losses.md#against-pytorch)) |
 | `rounding_09` | gradients exact; the forward `sum` of six words adds them in ascending order, 127 ulp from PyTorch's word, within the bound, which cancellation makes 4964 ulp | PyTorch's vectorized sum gives another word |
-| `sum_dims_rounding` | gradients exact; 4 of the 4 row sums of 20 rounding words over axis 1 differ from PyTorch's, within the bound (up to 453 of a sum near 2e8, where cancellation of `1e8` and `-1e8` makes one row 22.0 in PyTorch and 21.003 here, exact 22.002); the 20 column sums agree word for word | PyTorch adds a contiguous row in a vectorized order, and the columns row by row |
+| `sum_dims_rounding` | gradients exact; the 4 row sums of 20 rounding words over axis 1 differ from PyTorch's, each within its bound (about 340 to 566, wide because `1e8` and `-1e8` cancel: one row is 21.0 in PyTorch and 21.101 here, exactly 22.002); the 20 column sums agree word for word | PyTorch adds a contiguous row in a vectorized order, and the columns row by row |
 | `sum_dims_refused` | `UnknownNode` (103) for the unknown id, `AxisOutOfBounds` (13) for an axis past the rank, a list with an axis past the rank and a repeat, the word of `-1` and axis 1 of a rank-0 input, `DuplicateAxis` (14) for a repeated axis | `IndexError` for the unknown id and each axis out of range, `RuntimeError` for each repeat |
 | `rounding_14`, `relu_13` | gradients exact; within the bound, a matmul with inner dimension 1 whose product is `-0.0`, or rounds to it, gives `+0.0`, because the ordered dot starts from `+0.0` (8 words of `relu_13`, 2 of `rounding_14`) | `-0.0` |
 | `cross_entropy`, `cross_entropy_scaled`, `loss_02`, `loss_06`, `loss_08`, `loss_10`, `loss_12`, `loss_14` (`cross_entropy`) | pinned, no bound: 1 loss word 1 ulp and 16 gradient words of the logits up to 2 ulp from PyTorch's | PyTorch's vectorized `exp` and cascade sums ([losses](losses.md#against-pytorch)) |
