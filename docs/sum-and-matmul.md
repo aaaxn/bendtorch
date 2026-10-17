@@ -146,6 +146,60 @@ chain per cell and takes 9 ms with eight, and the bench's MNIST step went from
 right reads, one per term and cell; reading eight packed words at once
 would take a copy of the right operand laid out by eight columns.
 
+## torch.matmul
+
+`Batched.matmul(left, right)` (`src/tensor/batched-matmul.bend`) is
+PyTorch's `torch.matmul`. Two rank-2 operands are `Matrix.matmul` itself, the
+same call (`batched_matmul_matrices`), so their words, errors and laws are
+those above and do not change. `Matrix.matmul` keeps its rank-2 contract:
+`matmul_left_rank_error` and `matmul_right_rank_error` still refuse every
+other rank. Every other pair of ranks 1 to 4 is planned as `torch.matmul`
+plans it:
+
+- A 1-D left operand `[k]` is the row `[1, k]` and a 1-D right operand `[k]`
+  the column `[k, 1]`; the output drops that row or column, so `[k] @ [k]` is
+  a rank-0 dot product, `[m, k] @ [k]` has shape `[m]` and `[k] @ [k, n]`
+  shape `[n]`.
+- The dimensions before the last two are batch dimensions. They broadcast
+  as elementwise operations do, right-aligned, an extent of 1 stretching:
+  `[2, 1, 2, 3] @ [3, 3, 2]` has shape `[2, 3, 2, 2]`. At most two batch
+  dimensions fit, since a shape has rank 4 at most.
+- `Batched.plan` checks the left operand's rank, then the right one's
+  (`RankMismatch` for rank 0, as PyTorch refuses it), the inner extents
+  (`InnerDimensionMismatch`), the batch dimensions
+  (`ShapeError{IncompatibleBroadcast}`) and the output's capacity
+  (`ShapeError{CapacityExceeded}`).
+
+Output cell `(b, row, column)` adds `left[b, row, k] * right[b, k, column]`
+for `k = 0, 1, ..., inner - 1` from `+0.0`, each operand read in place at
+its own batch (a stretched axis at index 0), never copied: the terms and the
+order of `matmul`'s cell `(row, column)` on the two matrices of batch `b`.
+The cells are built by `Parallel.build`, split by work as `Matrix.splits`
+says (up to six levels), each cell one `Matrix.product_run` from the offsets
+`Batched.left_start` and `Batched.right_start` with each operand's stride.
+`batched_build_cells` states, for any two balanced input arrays and any
+split, that every cell below the count holds the fold, from `+0.0` in
+increasing `k`, of the factor pairs read at those offsets, and every cell at
+or past it `+0.0`; `batched_build_balanced` that the build is a balanced
+tree. `batched_matmul_left_scalar`, `batched_matmul_right_scalar` and
+`batched_matmul_dot_inner_error` state the refusals of a rank-0 operand and
+of a dot product of unequal lengths. The tensor gate checks four mutants
+against these proofs.
+
+The same build, with other read orders, gives both gradients of the tape's
+`BatchedMatmul` ([tensor backward](tensor-backward.md)): `g @ right^T`
+(`Batched.left_gradient`, `g` and `right` read by rows) and `left^T @ g`
+(`Batched.right_gradient`, both read by columns), each over the output's
+batch, then summed to its operand's shape with `sum_to_size`.
+
+The parallel probe runs `[8, 64, 48] @ [48, 64]` with rounding words, which
+forks six levels, next to `Matrix.multiply` of the same words as
+`[512, 48] @ [48, 64]`, at 1, 8 and 24 threads: every word equal, the same
+hash at every count. On the 64-core machine, 100 such products took 3.3 to
+4.6 ms each on one thread and 1.6 to 2.0 ms on eight, against 2.2 to 2.5 ms
+and 1.1 to 1.2 ms for the stacked rank-2 `matmul`, whose rows of eight cells
+run as one loop; a batched cell runs alone.
+
 ## The sum loop
 
 `Reduction.sum` adds the words straight from the tensor's storage array

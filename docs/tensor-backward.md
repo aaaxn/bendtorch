@@ -18,20 +18,20 @@ A `Tape` is a list of `Entry{node, shape, value, saved, grad}`, newest first.
 the operand ids and the operand shapes. `MatmulNT` is `left @ right^T` with `right` read in place,
 PyTorch's `linear(left, right)` without a bias. `value` is the forward value,
 `saved` holds the operand values a product needs for its VJP
-(`Operands{left, right}` for `Mul`, `Matmul` and `MatmulNT`, `Operands{x, zero}`
+(`Operands{left, right}` for `Mul`, `Matmul`, `MatmulNT` and `BatchedMatmul`, `Operands{x, zero}`
 for `Relu`, its input and the rank-0 `+0.0` of its forward, `Operands{e, d}`
 for `MseLoss`, the differences `b - a` and `a - b`, `Operands{lp, onehot}`
 for `CrossEntropy`, its `log_softmax` and the one-hot rows of its targets,
 `Unsaved` for the rest), and `grad` is the entry's gradient slot.
 
 `TensorBackward.leaf(tape, value)` returns the new tape and the id.
-`add`, `sub`, `mul`, `matmul`, `matmul_nt` and `mse_loss` take two ids, `sum`
+`add`, `sub`, `mul`, `matmul`, `matmul_nt`, `batched_matmul` and `mse_loss` take two ids, `sum`
 and `relu` one, and `cross_entropy` one id and a `List<U32>` of class
 indices; each
 returns the new tape and `Done{id}`. A recording reads copies of its operands'
 values through the same lookup as `TensorBackward.value`, runs the tensor
 operation (`Elementwise.add`, `sub` or `mul` with broadcasting,
-`Matrix.matmul`, `Matrix.matmul_nt`, `Reduction.sum_dynamic`, or for `relu`
+`Matrix.matmul`, `Matrix.matmul_nt`, `Batched.matmul`, `Reduction.sum_dynamic`, or for `relu`
 `Elementwise.binary(ReluLeft, x, +0.0)` against a rank-0 `+0.0`, or
 `Loss.mse_loss` and `Loss.cross_entropy`, see [losses](losses.md)) and pushes
 the result. `linear(tape, x, w, b)` is a layer in PyTorch's layout, `W` of
@@ -40,6 +40,13 @@ the bias `b` of `[out]`, and returns the sum's id; the product is the entry
 before it. All three ids are checked against the tape the call receives, so a
 bias id equal to the number of entries is unknown, not the product that would
 take that id. If the bias does not broadcast, the product is dropped again.
+`batched_matmul(tape, a, b)` is PyTorch's `torch.matmul`
+([sum and matmul](sum-and-matmul.md#torchmatmul)): two rank-2 operands
+record the `Matmul` node that `matmul` records, and every other pair of ranks
+1 to 4 records `BatchedMatmul{a, b, left, right}`, with 1-D promotion and
+broadcast batch dimensions. A rank-0 operand is refused with
+`RankMismatch` (105), as PyTorch refuses it, and batch dimensions that do not
+broadcast with `IncompatibleBroadcast` (6).
 An id the tape does not hold
 gives `Fail{UnknownNode}` (103); an operation the tensor layer refuses gives
 its error: `IncompatibleBroadcast` (6), a matmul rank mismatch (105) or inner
@@ -96,6 +103,7 @@ The sweep:
   | `Sum` | `broadcast_to(g, input)` | |
   | `Matmul` | `g @ right^T` | `left^T @ g` |
   | `MatmulNT` | `g @ right` | `g^T @ left`, `Matrix.matmul_tn`, `g` read in place |
+  | `BatchedMatmul` | `sum_to_size(g @ right^T, left)`: `Batched.left_gradient`, one product per batch of the output, each operand read in place at its own batch | `sum_to_size(left^T @ g, right)`: `Batched.right_gradient` |
   | `Relu` | `sum_to_size(relu_backward(x, g), x)`: `g`'s word where the saved input `x` is above zero or NaN, `+0.0` where it is at most zero | |
   | `MseLoss` | `sum_to_size((2 / N * d) * g, left)`, `d = a - b` saved | `sum_to_size((2 / N * e) * g, right)`, `e = b - a` saved |
   | `CrossEntropy` | two contributions to `a`: `-(g / N)` at each target and `+0.0` elsewhere, then `-(exp(lp) * r)` with `r = sum(gout)`, `-(g / N)` for one column and `-(g / N) + 0.0` for more; the slot adds them, PyTorch's `gout - exp(lp) * sum(gout)` | |
@@ -123,7 +131,12 @@ The sweep:
   `sum_to_size`
   copies `g` when no axis is reduced, so `-0.0` stays `-0.0`, and otherwise
   folds each fiber in ascending flat order from `+0.0`. `@` is the ordered
-  matmul of the tensor layer.
+  matmul of the tensor layer. For `BatchedMatmul`, each product has the
+  output's batch dimensions, then the operand's own matrix dimensions (a 1-D
+  operand's row or column dropped), so `sum_to_size` sums the batch
+  dimensions the operand was broadcast along, in ascending flat order, and
+  keeps the product when there are none. Its cells add their terms as
+  `matmul` does, in increasing k from `+0.0`.
 - Each contribution is accumulated into its operand's working slot with
   `Gradient.accumulate`: the first moves in unchanged, each later one is added
   position by position, the held total first. So a node used several times
@@ -499,7 +512,7 @@ each of the nine as a runtime control too.
 
 ## Runtime lanes
 
-`tools/autograd_tensor_backward.py` runs 188 scripts on native Bend CPU
+`tools/autograd_tensor_backward.py` runs 220 scripts on native Bend CPU
 (`--threads N --gpu off`, N from `tools.check --threads`, default 8, or the CPU count if lower) and on the generated JavaScript. Each script records
 leaves and operations, runs `backward` on chosen outputs, sometimes calls
 `zero_grad` or an SGD `step`, and reads the value and gradient of every node, word by word. The
@@ -567,6 +580,21 @@ can build tapes with dangling operands.
   random targets, or `mse_loss` against a target of the same, a broadcast or
   a rank-0 shape, on `[1..6, 1..12]` words that round, sometimes scaled after
   the loss.
+- 32 `batched_matmul` (torch.matmul) scripts. Twelve multiply operands of
+  ranks 1 to 4, times a weight of the product's shape so that each product's
+  gradient is a different word in each cell, then sum: a dot product, matrix
+  times vector, vector times matrix, the same batch on both sides, a batch on
+  one side only, batches stretched on both sides (`[2, 1, 2, 3] @ [3, 3, 2]`
+  and `[3, 1, 2] @ [2, 1, 2, 3]`), a vector times a batch and a batch times a
+  vector, a `[1, 3] @ [2, 3, 1]` and the rank-2 pair, which records `Matmul`.
+  Eleven more: a seeded dot product, `v @ v`, `x @ x` on a batch, a seeded
+  batch times a matrix, infinities, NaN and both zeros, a constant on each
+  side, a batched layer `x @ W + b`, `relu`, times a vector, empty batches,
+  an empty inner extent and an empty matrix times a vector, and refusals (a
+  rank-0 operand on each side, unequal inner extents, batches that do not
+  broadcast, an unknown id). Eight more are generated (fixed seed) over
+  batches `[]`, `[2]`, `[3, 1]` and `[1, 2]` and words that round, cancel and
+  overflow.
 
 Both lanes must print exactly the lines of a Python reference that applies the
 same rules in the same order and rounds to F32 after each operation. A NaN
@@ -582,7 +610,7 @@ as `0x7FC00000`, without its sign or payload, so it keeps the NaN allowance,
 and only the native lane and the laws check the NaN words `relu` keeps and
 passes.
 
-The subgate also builds forty-four runtime controls from a mutated copy of the
+The subgate also builds forty-seven runtime controls from a mutated copy of the
 sources and requires the JavaScript lane to reject each one: a seed at the
 newest node, a `Mul` VJP with swapped operands, a `Sub` VJP without the sign,
 a `Matmul` VJP without the transpose, a merge that overwrites the slot, a
@@ -603,8 +631,11 @@ row sum of one-class logits, the nine SGD mutants of the [SGD](#sgd) section,
 the four broken sweeps of the [chain rule](#chain-rule), a `zero_grad`
 that keeps the slot, a constant recorded as a leaf, a recording on constants
 only that records a frozen node, a frozen node that keeps its contribution
-to the constant, and a skipped `g @ W` that computes and sends both
-products. Two more controls run on the native lane only, since
+to the constant, a skipped `g @ W` that computes and sends both
+products, a torch.matmul that reads a stretched batch axis at the cell's
+own batch instead of 0, a `BatchedMatmul` VJP that delivers its products
+without summing them to the operand's shape, and a `BatchedMatmul` VJP whose
+`left^T @ g` reads `g` by rows. Two more controls run on the native lane only, since
 the JavaScript lane cannot tell NaNs apart: a `relu` and a `relu` gradient
 that replace each NaN word, of `x` or of `g`, with `0x7FC00000`. The
 reference accepts both, and the exact `relu` words reject each.
@@ -622,14 +653,16 @@ The comparison is level 2 of the [numeric policy](../AGENTS.md#numeric-policy).
 Each row of the table below keeps the check it had before the rounding-error
 bound, and the bound is an extra check on the words that row lets differ:
 
-- The 138 scripts that agree line for line must still do so.
+- The 164 scripts that agree line for line must still do so.
 - The six `mse_loss` scripts must differ in exactly their 16 pinned words
   (`MSE_ROUNDING`, PyTorch's word and the reference's), and each of those
   words, on both sides, must now also lie within its bound.
-- `rounding_09`, `rounding_14` and `relu_13` must still give every gradient
+- `rounding_09`, `rounding_14`, `relu_13` and `batched_rounding_01` must still give every gradient
   word for word. Their forward value words may differ, as before, but each
   one that differs must now lie within its bound; before, any value word
   passed.
+- The three `batched_rounding` scripts of `PRODUCT_ORDER` must differ in
+  exactly their 12 pinned words, each within its bound.
 - The eight `cross_entropy` scripts must differ in exactly their 17 pinned
   words (`LOSS_ROUNDING`), and a pin is now refused on a word that has a
   bound. These words are built on `exp` and `log` and have no bound.
@@ -642,12 +675,12 @@ replay prints the reference's lines. A word is fixed when only operations
 with one rounding build it from the leaves; it must be PyTorch's word, bit
 for bit. The bound holds under the policy's conditions (round to nearest,
 gradual underflow, no intermediate overflow in any order); a word where
-another order could overflow gets no bound. The bound reads 155 scripts:
-the 138 that agree line for line and the bounded and pinned rows of the
-table. Their reference lines hold 5709 fixed words, 1968 words with a bound
+another order could overflow gets no bound. The bound reads 185 scripts:
+the 164 that agree line for line and the bounded and pinned rows of the
+table. Their reference lines hold 6984 fixed words, 3213 words with a bound
 and 431 words with none, built on `exp` or `log`.
 
-138 of the 188 scripts agree with PyTorch line for line: every id, shape, value,
+164 of the 220 scripts agree with PyTorch line for line: every id, shape, value,
 gradient word and `None`, including the arrival-order and fold-order scripts,
 `-0.0`, infinities and subnormals, and every `relu` script but four, with
 PyTorch's `-0.0`, NaN and zero-gradient words. Those four are listed below:
@@ -655,20 +688,22 @@ PyTorch's `-0.0`, NaN and zero-gradient words. Those four are listed below:
 forward product after `relu`), `relu_13` (a one-term matmul, no `relu`
 involved) and `relu_unknown_operand` (an intentional refusal), 16 of the
 39 loss scripts, and five SGD scripts: the empty slot, no gradients, the
-empty list with the duplicate id, the signed-zero rates and `+inf`. The
-other 50 differ as listed; outside the loss scripts every
+empty list with the duplicate id, the signed-zero rates and `+inf`, and 26
+of the 32 `batched_matmul` scripts. The other 56 differ as listed; outside the loss scripts every
 gradient PyTorch can represent in them agrees:
 
 | Scripts | bendtorch | PyTorch |
 | --- | --- | --- |
 | `unknown_operands`, `unknown_output`, `unknown_output_empty`, `linear_bias_next`, `linear_bias_unknown`, `relu_unknown_operand`, `sgd_unknown_param` | `UnknownNode` (103) for each unknown id | `IndexError` from the Python list that the replay uses as a tape |
-| `incompatible_shapes`, `invalid_leaf`, `linear_inner_mismatch`, `linear_bias_mismatch`, `matmul_nt_rank` | the tensor layer's error code (6, 105, 106, 10) | `RuntimeError` |
+| `incompatible_shapes`, `invalid_leaf`, `linear_inner_mismatch`, `linear_bias_mismatch`, `matmul_nt_rank`, `batched_refusals` | the tensor layer's error code (6, 105, 106, 10) | `RuntimeError` (`batched_refusals` also has an unknown id: 103 against `IndexError`) |
 | `mse_refused`, `cross_entropy_refused` | 6, 107, 108 and 103 | `RuntimeError`, `IndexError` (a target out of range, an unknown id) and `ValueError` (a target count other than the rows) |
 | `dangling_self`, `dangling_newer`, `dangling_missing` | `DanglingOperand` (104) | not representable |
-| `specials`, `relu_edges`, `relu_nan_gradient`, `sgd_edges`, `sgd_rate_nan` | the value of `NaN * NaN`, and of a step with a NaN parameter, gradient or rate, is NaN | NaN with another sign or payload |
+| `specials`, `relu_edges`, `relu_nan_gradient`, `sgd_edges`, `sgd_rate_nan`, `batched_special_words` | the value of `NaN * NaN`, and of a step with a NaN parameter, gradient or rate, is NaN | NaN with another sign or payload |
 | `mse_empty`, `cross_entropy_infinities`, `cross_entropy_nan`, `cross_entropy_empty`, `cross_entropy_empty_wide`, `cross_entropy_one_class_scaled`, `cross_entropy_two_class_scaled` | NaN losses and gradients | NaN with another payload |
 | `loss_03`, `loss_05`, `loss_07`, `loss_09`, `loss_11`, `loss_15` (`mse_loss`) | 16 pinned words, each also within the bound: 8 loss words 1 to 3 ulp, 5 gradient words of a broadcast target and 3 gradients of a scale (a loss word) 1 or 2 ulp from PyTorch's, where the bound allows 10 to 58 ulp | PyTorch's cascade sums ([losses](losses.md#against-pytorch)) |
 | `rounding_09` | gradients exact; the forward `sum` of six words adds them in ascending order, 127 ulp from PyTorch's word, within the bound, which cancellation makes 4964 ulp | PyTorch's vectorized sum gives another word |
+| `batched_rounding_01` | gradients exact; the forward `sum` of a torch.matmul's words adds them in order, within the bound | PyTorch's vectorized sum gives another word |
+| `batched_rounding_00`, `batched_rounding_02`, `batched_rounding_04` | 12 pinned words, each within the bound: 10 gradient words of a product with one term (`g @ right^T` for a 1-D right operand, and a `[3, 4] @ [4, 1]` matmul) whose only product is `-0.0`, which the ordered dot turns into `+0.0`; in `batched_rounding_04` the gradient of a `[5, 3]` operand broadcast over the batch `[3, 1]`, summed in batch order (1 ulp), and the forward `sum` (3 ulp) | `-0.0`; PyTorch folds the batch into one product and sums in another order |
 | `rounding_14`, `relu_13` | gradients exact; within the bound, a matmul with inner dimension 1 whose product is `-0.0`, or rounds to it, gives `+0.0`, because the ordered dot starts from `+0.0` (8 words of `relu_13`, 2 of `rounding_14`) | `-0.0` |
 | `cross_entropy`, `cross_entropy_scaled`, `loss_02`, `loss_06`, `loss_08`, `loss_10`, `loss_12`, `loss_14` (`cross_entropy`) | pinned, no bound: 1 loss word 1 ulp and 16 gradient words of the logits up to 2 ulp from PyTorch's | PyTorch's vectorized `exp` and cascade sums ([losses](losses.md#against-pytorch)) |
 | `sgd_rate_negative` | `InvalidLearningRate` (110) for each rate below zero | `ValueError` ("Invalid learning rate") |
@@ -683,15 +718,15 @@ bound for them would have to assume one.
 
 `tests/test_autograd_tensor_backward.py` shows the record rejects wrong
 results. Every clean script passes first. A planted sum that leaves out its
-last term, on the reference's side as a wrong Bend result would, changes 88
-scripts. The bound comparison, with the `cross_entropy` pins, rejects 87 of
-them: 72 with a word outside its bound, 13 with a word that has no bound
+last term, on the reference's side as a wrong Bend result would, changes 107
+scripts. The bound comparison, with the `cross_entropy` pins, rejects 106 of
+them: 91 with a word outside its bound, 13 with a word that has no bound
 and no pin (scripts whose words are built on `cross_entropy`) and 2 with a
 word off its pin. In `loss_07` the omitted
 square adds about 9e-5 to a loss of 144, 6 ulp, inside that word's 15-ulp
 bound, so the bound alone accepts it; its pins reject it, and the whole rule
-rejects all 88. A planted reduction and a planted matmul that leave out
-their last term change 65 and 32 scripts, and both the bound and the whole
+rejects all 107. A planted reduction and a planted matmul that leave out
+their last term change 80 and 58 scripts, and both the bound and the whole
 rule reject every one. The `cross_entropy` words are rejected by their pins
 or for differing with no pin, never by a bound. Four words that the rule
 before the bound rejected lie within their bound, and the bound alone accepts

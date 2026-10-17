@@ -25,6 +25,13 @@ restrictions of the bounded API, not bugs:
 | `matmul_batched_unsupported` | `MatmulRankMismatch` | batched: `[1,2,3]@[1,3,2]` has shape `(1,2,2)`, and `[4,2,3]@[3,5]` broadcasts to `(4,2,5)` |
 | `dtype_float64`, `dtype_float16`, `dtype_bfloat16`, `dtype_int32`, `dtype_int64`, `dtype_bool`, `dtype_complex64` | `UnsupportedDtype` | accepts the dtype |
 
+These three corpus requests call `Matrix.matmul`, which keeps its rank-2
+contract. `Batched.matmul`, PyTorch's `torch.matmul`
+([sum and matmul](sum-and-matmul.md#torchmatmul)), and the tape's
+`batched_matmul` accept them with PyTorch's shapes; they refuse a rank-0
+operand, as PyTorch does, and an output past 2^20 elements, which PyTorch
+accepts.
+
 API forms with no corpus case, which PyTorch accepts and bendtorch does not
 offer:
 
@@ -101,7 +108,7 @@ record is compared under level 2 of the
 [numeric policy](../AGENTS.md#numeric-policy): fixed words bit for bit, the
 `mse_loss` words on their pins and within the rounding-error bound, the
 forward `sum` and `matmul` words within the bound with exact gradients, and
-the `cross_entropy` words, which no bound covers, on their pins. 138 of the 188 scripts agree line for line, the five `linear`
+the `cross_entropy` words, which no bound covers, on their pins. 164 of the 220 scripts agree line for line, the five `linear`
 scripts that PyTorch accepts among them, and every `relu` script but four:
 `relu_edges` and `relu_nan_gradient` (NaN payloads of `NaN * NaN` in the
 product after `relu`), `relu_13` (a one-term matmul) and
