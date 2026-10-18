@@ -2,7 +2,7 @@
 
 ## Version numbers
 
-BendHub names a package version with four numbers, `bendtorch@A.B.C.D`. The
+BendHub names a package version with four numbers, `bendtorch-core@A.B.C.D`. The
 repository uses the same four numbers, so the tag `vA.B.C.D`, the
 `CHANGELOG.md` heading and the import line all name one version.
 
@@ -20,7 +20,7 @@ removed in a later one (`AGENTS.md` applies the same rule to every PR).
 
 ## What the package ships
 
-`bend bendtorch.bend --publish bendtorch@A.B.C.D` uploads `bendtorch.bend`
+`bend bendtorch.bend --publish bendtorch-core@A.B.C.D` uploads `bendtorch.bend`
 with every file it imports: the modules of `src/`, the root `LAWS.bend` and
 `PROOF.bend` with every module's laws and proofs, and the root `LICENSE`.
 `tools/`, `tests/`, `verification/`, `oracle/`, `examples/`, `dev/`, `probes/`
@@ -30,8 +30,8 @@ prints the shipped files and fails if the entry pulls in anything else.
 A program imports the module it needs, by name or by hash:
 
 ```python
-import bendtorch@0.1.0.0/src/tensor/core.bend as Core
-import bendtorch@0.1.0.0/src/autograd/tensor-backward.bend as Backward
+import bendtorch-core@0.1.0.0/src/tensor/core.bend as Core
+import bendtorch-core@0.1.0.0/src/autograd/tensor-backward.bend as Backward
 ```
 
 An import is local to the file that makes it, so importing `bendtorch.bend`
@@ -48,7 +48,7 @@ does not give access to the modules it imports. `bend bendtorch.bend
    `unreleased` with the date.
 3. After that PR merges, tag the merge commit `vA.B.C.D` and make a GitHub
    release with its `CHANGELOG.md` notes.
-4. `bend login`, then `bend bendtorch.bend --publish bendtorch@A.B.C.D`. The
-   first publish registers the name `bendtorch`. This step cannot be undone.
+4. `bend login`, then `bend bendtorch.bend --publish bendtorch-core@A.B.C.D`. The
+   first publish registers the name `bendtorch-core`. This step cannot be undone.
 5. Record the printed `0x` hash in the release notes, and import the version
    from an empty directory to check it.
