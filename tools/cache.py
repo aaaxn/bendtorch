@@ -121,8 +121,12 @@ def binary(name: str, cwd: Path, env: dict[str, str]) -> list | None:
     found = executable(name, cwd, env)
     if found is None:
         return None
+    for variable in ("LD_PRELOAD", "LD_LIBRARY_PATH"):
+        entries = re.split(r"[:\s]+", env.get(variable, "").strip())
+        if any(entry and not os.path.isabs(entry) for entry in entries):
+            return None  # the loader would read it from the working directory
     listed = subprocess.run(
-        ["ldd", found], env=env, capture_output=True, text=True, check=False
+        ["ldd", found], cwd=cwd, env=env, capture_output=True, text=True, check=False
     )
     if listed.returncode != 0:
         return None
@@ -181,9 +185,11 @@ def runtime(bend2: Path, cwd: Path, env: dict[str, str]) -> dict | None:
     }
 
 
-def sources(entry: Path) -> dict[str, str] | None:
+def sources(entry: Path, library: tuple[str, ...]) -> dict[str, str] | None:
     """Each file `entry` may import, transitively, by real path, with its
-    sha256 or "missing"; None if one is not pinnable."""
+    sha256 or "missing"; None if one is not pinnable, such as a file under
+    one of the `library` prefixes, which Bend names, or fetches, as a
+    library file."""
     found: dict[str, str] = {}
     todo = [str(entry)]
     if entry.name == "PROOF.bend":
@@ -193,6 +199,8 @@ def sources(entry: Path) -> dict[str, str] | None:
         path = todo.pop()
         if path in found:
             continue
+        if path.startswith(library):
+            return None
         try:
             data = Path(path).read_bytes()
         except FileNotFoundError:
@@ -214,11 +222,11 @@ def sources(entry: Path) -> dict[str, str] | None:
                 continue  # Bend rejects it, from the bytes the key holds
             if "@" in target or re.match(r"0x[0-9a-f]+/", target):
                 return None  # a hub or named import
-            todo.append(
-                os.path.realpath(
-                    os.path.normpath(os.path.join(Path(path).parent, target))
-                )
-            )
+            # Bend resolves the path by its text, then reads the file it names.
+            lexical = os.path.normpath(os.path.join(Path(path).parent, target))
+            if lexical.startswith(library):
+                return None
+            todo.append(os.path.realpath(lexical))
     return found
 
 
@@ -248,9 +256,11 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
         arguments = ["-o", "<target>"]
     else:
         return None
-    given = os.path.normpath(os.path.join(cwd, command[2]))
+    given = os.path.join(cwd, command[2])
     if os.path.realpath(given) != given:
-        return None  # Bend reads the name it was given and the file it reaches
+        # Bend reads the name it was given (`absent/../x.bend` does not
+        # exist) and the file it reaches; take only a plain real path.
+        return None
     entry = Path(given)
     if not env.get("BEND_NO_TELEMETRY"):
         return None  # Bend would read and print its update notice
@@ -263,13 +273,13 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
     if bun is None or not os.path.isfile(main):
         return None
     bend2 = Path(main).parent
-    files = sources(entry)
     reads = runtime(bend2, cwd, env)
-    if files is None or reads is None:
+    if reads is None:
         return None
-    library = reads["library"][1]
-    if library is not None and any(path.startswith(f"{library}/") for path in files):
-        return None  # Bend names a library file by its place in the library
+    library = tuple(f"{path}/" for path in reads["library"] if path is not None)
+    files = sources(entry, library)
+    if files is None:
+        return None
     material = {
         "format": FORMAT,
         "bun": bun,
@@ -287,8 +297,10 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
             return None  # Bend would build or find its own kernel
         material["kernel"] = kernel
     if mode[0] == "-o":
-        target = os.path.normpath(os.path.join(cwd, mode[1]))
+        target = os.path.join(cwd, mode[1])
         real = os.path.realpath(target)
+        if os.path.normpath(target) != target:
+            return None  # Bend writes the name it was given
         if real in files or real.startswith(f"{bend2}/") or os.path.isdir(target):
             return None  # Bend refuses an input (Base too); let Bend say so
         material["target"] = os.path.relpath(target, entry.parent)

@@ -250,6 +250,27 @@ class CacheTests(unittest.TestCase):
         link.symlink_to(self.src / "law.bend")
         self.assertIsNone(key(bend(TOOLS, link, "--check-only"), self.root, self.env))
 
+    def test_a_path_bend_would_read_otherwise_is_not_cached(self):
+        # Bend opens `absent/../law.bend` as given, and it does not exist.
+        dotted = f"{self.src}/absent/../law.bend"
+        self.assertIsNone(key(bend(TOOLS, dotted, "--check-only"), self.root, self.env))
+        target = f"{self.root}/absent/../out.bendtt"
+        law = self.src / "law.bend"
+        self.assertIsNone(key(bend(TOOLS, law, "-o", target), self.root, self.env))
+        # A relative loader path is read from the working directory.
+        relative = {**self.env, "LD_LIBRARY_PATH": "lib"}
+        self.assertIsNone(key(bend(TOOLS, law, "--check-only"), self.root, relative))
+        # An import under Bend's library, even one not made yet, is a hub file.
+        library = {**self.env, "BEND_LIB": str(self.root / "hub")}
+        hub = self.src / "hub.bend"
+        hub.write_text("import Base\nimport ../hub/x.bend as X\n")
+        self.assertIsNone(key(bend(TOOLS, hub, "--check-only"), self.root, library))
+        self.assertIsNotNone(key(bend(TOOLS, law, "--check-only"), self.root, library))
+        # Named under the library, even if the link leads out of it.
+        (self.root / "hub").mkdir()
+        (self.root / "hub/x.bend").symlink_to(self.src / "lib.bend")
+        self.assertIsNone(key(bend(TOOLS, hub, "--check-only"), self.root, library))
+
     def test_an_export_onto_base_is_left_to_bend(self):
         # Bend loads base.bend for `import Base` and refuses to write it.
         target = self.root / "out.bendtt"
