@@ -1,4 +1,6 @@
 import gzip
+import hashlib
+import hmac
 import json
 import os
 import subprocess
@@ -26,7 +28,8 @@ class CacheTests(unittest.TestCase):
         self.src.mkdir()
         (self.src / "lib.bend").write_text(LIB)
         (self.src / "law.bend").write_text(LAW)
-        self.cache = Cache(self.root / "cache")
+        self.secret = self.root / "secret"
+        self.cache = Cache(self.root / "cache", self.secret)
         self.env = environment(TOOLS)
 
     def run_bend(self, *args, env=None):
@@ -86,39 +89,36 @@ class CacheTests(unittest.TestCase):
         self.assertFalse(self.run_bend(law, "--verdict", env=other)[1])
         self.assertTrue(self.run_bend(law, "--verdict", env=other)[1])
 
-    def test_the_bend_commit_and_its_clean_tree_are_in_the_key(self):
+    def test_bend_bun_and_their_configuration_are_in_the_key(self):
         fake = self.root / "bend"
         (fake / "bend2").mkdir(parents=True)
         (fake / "bend2/main.ts").write_text("// one\n")
-        git = ["git", "-C", str(fake), "-c", "user.name=t", "-c", "user.email=t@t"]
-        subprocess.run([*git, "init", "-q"], check=True)
-        subprocess.run([*git, "add", "."], check=True)
-        subprocess.run([*git, "commit", "-qm", "one"], check=True)
         command = ["bun", fake / "bend2/main.ts", self.src / "law.bend", "--check-only"]
         first = key(command, self.root, self.env)
-        assert first is not None
-        (fake / "bend2/main.ts").write_text("// two\n")
-        # A fresh process sees the dirty checkout and does not cache.
-        probe = (
-            "import sys; from pathlib import Path; from tools.cache import key; "
-            "import os; print(key(sys.argv[1:], Path('.'), dict(os.environ)))"
+        (fake / "bend2/safe.ts").write_text("// a new file\n")
+        second = key(command, self.root, self.env)
+        (fake / "package.json").write_text("{}\n")
+        third = key(command, self.root, self.env)
+        # Bun loads .env from its working directory.
+        (self.root / ".env").write_text("BENDTT=/elsewhere\n")
+        fourth = key(command, self.root, self.env)
+        self.assertEqual(
+            len({json.dumps(k) for k in (first, second, third, fourth)}), 4
         )
-        python = [str(ROOT / ".venv/bin/python"), "-c", probe, *map(str, command)]
-        out = subprocess.run(
-            python, cwd=ROOT, env=self.env, capture_output=True, text=True, check=True
-        )
-        self.assertEqual(out.stdout.strip(), "None")
-        subprocess.run([*git, "commit", "-qam", "two"], check=True)
-        out = subprocess.run(
-            python, cwd=ROOT, env=self.env, capture_output=True, text=True, check=True
-        )
-        self.assertNotEqual(out.stdout.strip(), "None")
-        self.assertNotIn(first["bend"], out.stdout)
+        other = {**self.env, "HOME": str(self.root)}
+        self.assertNotEqual(key(command, self.root, other), fourth)
+        # Bun reads variables of its own, such as NODE_OPTIONS.
+        bun_options = {**self.env, "NODE_OPTIONS": "--stack-size=1"}
+        self.assertNotEqual(key(command, self.root, bun_options), fourth)
+        # A variable that only names the session is not in the key.
+        inert = {**self.env, "SSH_CONNECTION": "1.2.3.4 5 6.7.8.9 22"}
+        self.assertEqual(key(command, self.root, inert), fourth)
 
-    def test_the_kernel_binary_is_in_the_key(self):
+    def test_the_kernel_that_runs_is_in_the_key(self):
         law = self.src / "law.bend"
         self.run_bend(law, "--verdict")
-        fake = self.root / "bendtt"
+        fake = self.root / "bin/bendtt"
+        fake.parent.mkdir()
         fake.write_bytes((TOOLS / "kernel/bendtt").read_bytes() + b"\0")
         fake.chmod(0o755)
         result, replayed = self.run_bend(
@@ -126,6 +126,23 @@ class CacheTests(unittest.TestCase):
         )
         self.assertFalse(replayed)
         self.assertEqual(result.returncode, 0)
+        # Replaced at the same path, in the same process: a new key.
+        fake.write_text("#!/bin/sh\necho 'SOME PROOFS FAIL'; exit 1\n")
+        result, replayed = self.run_bend(
+            law, "--verdict", env={**self.env, "BENDTT": str(fake)}
+        )
+        self.assertFalse(replayed)
+        self.assertEqual(result.returncode, 1)
+        # A bare name is found on PATH, as the run finds it.
+        artifact = self.root / "x.bendtt"
+        artifact.write_text("x")
+        command = ["bendtt", str(artifact)]
+        on_path = {**self.env, "PATH": f"{fake.parent}:{self.env['PATH']}"}
+        material = key(command, self.root, on_path)
+        assert material is not None
+        self.assertEqual(
+            material["kernel"], hashlib.sha256(fake.read_bytes()).hexdigest()
+        )
 
     def test_an_export_and_its_kernel_check_replay(self):
         law = self.src / "law.bend"
@@ -160,6 +177,72 @@ class CacheTests(unittest.TestCase):
         self.assertTrue(self.run_bend(law, "--verdict")[1])
         entry.write_bytes(b"not gzip")
         self.assertFalse(self.run_bend(law, "--verdict")[1])
+
+    def test_a_false_law_resealed_without_the_secret_is_run_again(self):
+        law = self.src / "law.bend"
+        law.write_text(LAW.replace("== 2n", "== 3n"))
+        self.run_bend(law, "--verdict")
+        (entry,) = self.entries()
+        stored = json.loads(gzip.decompress(entry.read_bytes()))
+        stored["exit_code"] = 0
+        stored["stdout"], stored["stderr"] = "ALL PROOFS CHECK\n", ""
+        for secret in (b"", b"x" * 32):
+            body = json.dumps(
+                {k: v for k, v in stored.items() if k != "seal"}, sort_keys=True
+            ).encode()
+            stored["seal"] = hmac.new(secret, body, hashlib.sha256).hexdigest()
+            entry.write_bytes(gzip.compress(json.dumps(stored).encode()))
+            result, replayed = self.run_bend(law, "--verdict")
+            self.assertFalse(replayed)
+            self.assertEqual(result.returncode, 1)
+
+    def test_another_checkouts_cache_is_not_trusted(self):
+        law = self.src / "law.bend"
+        self.run_bend(law, "--verdict")
+        other = Cache(self.root / "cache", self.root / "other-secret")
+        result, replayed = other.run(
+            bend(TOOLS, law, "--verdict"), cwd=self.root, env=self.env, timeout=300
+        )
+        self.assertFalse(replayed)
+        self.assertEqual(len(other.rejected), 1)
+
+    def test_a_proof_beside_unimported_laws_is_keyed_on_them(self):
+        proof = self.src / "PROOF.bend"
+        proof.write_text(LAW)
+        self.assertEqual(self.run_bend(proof, "--check-only")[0].returncode, 0)
+        (self.src / "LAWS.bend").write_text("import Base\n")
+        result, replayed = self.run_bend(proof, "--check-only")
+        self.assertFalse(replayed)
+        self.assertEqual(result.returncode, 1)
+
+    def test_a_file_reached_through_a_symlink_is_not_cached(self):
+        link = self.root / "PROOF.bend"
+        link.symlink_to(self.src / "law.bend")
+        self.assertIsNone(key(bend(TOOLS, link, "--check-only"), self.root, self.env))
+
+    def test_an_export_onto_an_input_is_left_to_bend(self):
+        law = self.src / "law.bend"
+        target = self.root / "out.bendtt"
+        target.symlink_to(self.src / "lib.bend")
+        self.assertIsNone(key(bend(TOOLS, law, "-o", target), self.root, self.env))
+        result, _ = self.run_bend(law, "-o", target)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual((self.src / "lib.bend").read_text(), LIB)
+
+    def test_an_input_changed_during_the_run_is_not_stored(self):
+        artifact = self.root / "x.bendtt"
+        artifact.write_text("before")
+        script = self.root / "bin/bendtt"
+        script.parent.mkdir()
+        script.write_text(
+            f"#!/bin/sh\necho after > {artifact}\necho 'ALL PROOFS CHECK'\n"
+        )
+        script.chmod(0o755)
+        result, _ = self.cache.run(
+            [str(script), str(artifact)], cwd=self.root, env=self.env, timeout=60
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(self.entries(), [])
 
     def test_a_forged_pass_for_a_false_law_is_not_replayed(self):
         # An entry moved under another key, with a valid digest of its own,

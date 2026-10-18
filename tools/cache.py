@@ -7,29 +7,40 @@ before they run it. The key holds everything that decides the result:
 
 - the bytes of the checked file and of every file it imports, transitively,
   with each one's path relative to the checked file (Bend names an import
-  after that path);
-- the Bend checkout's commit, which must be clean, and the Bun binary;
-- the BendTT binary, for `--verdict` and direct kernel runs;
+  after that path), and for a `PROOF.bend` its sibling `LAWS.bend`;
+- every file of the `bend2` directory that runs, the Bun binary, and the
+  files Bun reads as configuration (`.env*` and `bunfig.toml` in the working
+  directory, `package.json`, `tsconfig.json`, `jsconfig.json` and
+  `bunfig.toml` beside `bend2` and above it, and the user's `.bunfig.toml`);
+- the BendTT binary that runs, for `--verdict` and direct kernel runs,
+  found as the command would find it;
 - the arguments, with the `-o` target relative to the checked file;
-- every `BEND*` and `LEAN*` environment variable but `BENDTT`, which the
-  kernel's digest replaces.
+- the environment, but for the variables in `INERT`.
 
-A command whose inputs the key cannot pin runs as usual: a hub or named
-import, or a foreign (`import "x.c"`) definition anywhere in its files. An
-entry, a gzipped JSON file, stores the key, the exit code, stdout, stderr
-and the `-o` file, and a digest of all of them; an entry whose key or
-digest does not match is reported, run again and replaced, never
-replayed. Only exit codes 0 and 1 are stored (and for `-o`, only 0), so a
-crash or a signal is never replayed.
+Every digest is computed for every command, so a file replaced during a
+run is seen. A command the key cannot pin runs as usual: a hub or named
+import, a foreign (`import "x.c"`) definition, a checked file reached
+through a symlink, or an `-o` target that is one of its inputs. After a
+command runs, its key is computed again and the result is stored only if
+nothing changed meanwhile.
 
-The cache trusts DIR: a writer who can recompute the digest can make a
-command pass. A run without `--cache` runs every command, and stays the
-reference for the gates a merge needs.
+An entry, a gzipped JSON file, stores the key, the exit code, stdout,
+stderr and the `-o` file's bytes, sealed with an HMAC under a secret kept in
+the repository's git directory, outside the cache. An entry whose key or
+seal does not match, such as one edited by hand or copied from another
+checkout, is reported, run again and replaced, never replayed. Only exit
+codes 0 and 1 are stored (and for `-o`, only 0), so a crash or a signal is
+never replayed.
+
+Whoever can read the secret can forge an entry. A run without `--cache` runs
+every command, and stays the reference for the gates a merge needs.
 """
 
 import argparse
+import base64
 import gzip
 import hashlib
+import hmac
 import json
 import os
 import re
@@ -40,60 +51,90 @@ import threading
 import zlib
 from pathlib import Path
 
-FORMAT = 1
+FORMAT = 2
 # A loose superset of Bend's import lines: any line that starts with
 # `import`, anywhere in the file, not only in the header Bend reads. A
 # line Bend would not read only adds a file, or its absence, to the key.
 IMPORT = re.compile(r"^[\s\ufeff]*import[\s\ufeff]+([^\s\ufeff]+)")
-
-_tools: dict[str, str] = {}
-_bends: dict[Path, str | None] = {}
-_lock = threading.Lock()
+# Variables that name the session, not anything Bun, Bend or BendTT reads.
+INERT = frozenset(
+    {
+        "_",
+        "PWD",
+        "OLDPWD",
+        "SHLVL",
+        "SSH_CLIENT",
+        "SSH_CONNECTION",
+        "SSH_TTY",
+        "SSH_AUTH_SOCK",
+        "MAIL",
+        "LS_COLORS",
+        "DISPLAY",
+        "XDG_SESSION_ID",
+        "XDG_SESSION_TYPE",
+        "XDG_SESSION_CLASS",
+        "MOTD_SHOWN",
+        "TMUX",
+        "TMUX_PANE",
+        "STY",
+        "WINDOW",
+    }
+)
+CONFIGS = ("package.json", "tsconfig.json", "jsconfig.json", "bunfig.toml")
 
 
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def tool_digest(path: str) -> str:
-    """The digest of a binary that does not change during a run."""
-    with _lock:
-        if path not in _tools:
-            _tools[path] = sha256(Path(path).read_bytes())
-        return _tools[path]
+def file_digest(path: str | Path) -> str:
+    try:
+        with open(path, "rb") as stream:
+            return hashlib.file_digest(stream, "sha256").hexdigest()
+    except FileNotFoundError:
+        return "missing"
 
 
-def bend_commit(root: Path) -> str | None:
-    """The Bend checkout's commit, or None if it has local changes."""
-    with _lock:
-        if root not in _bends:
-            env = {**os.environ, "GIT_OPTIONAL_LOCKS": "0"}
-            git = ["git", "-C", str(root)]
-            try:
-                commit = subprocess.check_output(
-                    [*git, "rev-parse", "HEAD"], text=True, env=env
-                ).strip()
-                dirty = subprocess.check_output(
-                    [*git, "status", "--porcelain"], text=True, env=env
-                )
-            except (OSError, subprocess.CalledProcessError):
-                commit, dirty = "", "?"
-            _bends[root] = None if dirty or not commit else commit
-        return _bends[root]
+def executable(name: str, cwd: Path, env: dict[str, str]) -> str | None:
+    """The file `name` runs, found as subprocess and Bun's spawn find it."""
+    if "/" in name:
+        found = os.path.join(cwd, name)
+    else:
+        found = shutil.which(name, path=env.get("PATH", os.defpath))
+    return os.path.realpath(found) if found and os.path.isfile(found) else None
 
 
-def sources(entry: Path) -> list[list[str]] | None:
-    """Each file `entry` may import, transitively, as [path relative to
-    entry's directory, sha256 or "missing"]; None if one is not pinnable."""
-    top = entry.parent
-    found: dict[Path, str] = {}
-    todo = [entry]
+def runtime(bend2: Path, cwd: Path, env: dict[str, str]) -> list[list[str]]:
+    """The files Bun and Bend read besides the program's own: bend2 itself
+    and the configuration files Bun looks for."""
+    files = [
+        path
+        for path in sorted(bend2.rglob("*"))
+        if path.is_file() and "node_modules" not in path.parts
+    ]
+    for directory in bend2.parents:
+        files += [directory / name for name in CONFIGS]
+    files += [cwd / "bunfig.toml", *sorted(cwd.glob(".env*"))]
+    home = Path(env.get("HOME", "~")).expanduser()
+    config = Path(env.get("XDG_CONFIG_HOME") or home / ".config")
+    files += [home / ".bunfig.toml", config / ".bunfig.toml"]
+    return [[str(path), file_digest(path)] for path in files]
+
+
+def sources(entry: Path) -> dict[str, str] | None:
+    """Each file `entry` may import, transitively, by real path, with its
+    sha256 or "missing"; None if one is not pinnable."""
+    found: dict[str, str] = {}
+    todo = [str(entry)]
+    if entry.name == "PROOF.bend":
+        # Bend refuses a PROOF.bend whose sibling LAWS.bend it does not import.
+        todo.append(str(entry.parent / "LAWS.bend"))
     while todo:
         path = todo.pop()
         if path in found:
             continue
         try:
-            data = path.read_bytes()
+            data = Path(path).read_bytes()
         except FileNotFoundError:
             found[path] = "missing"
             continue
@@ -113,27 +154,29 @@ def sources(entry: Path) -> list[list[str]] | None:
                 continue  # Bend rejects it, from the bytes the key holds
             if "@" in target or re.match(r"0x[0-9a-f]+/", target):
                 return None  # a hub or named import
-            todo.append(Path(os.path.realpath(os.path.normpath(path.parent / target))))
-    return sorted([os.path.relpath(path, top), value] for path, value in found.items())
+            todo.append(
+                os.path.realpath(
+                    os.path.normpath(os.path.join(Path(path).parent, target))
+                )
+            )
+    return found
 
 
 def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
     """What decides `argv`'s result, or None if it is not cached."""
     command = [str(part) for part in argv]
     variables = {
-        name: value
-        for name, value in sorted(env.items())
-        if name.startswith(("BEND", "LEAN")) and name != "BENDTT"
+        name: value for name, value in sorted(env.items()) if name not in INERT
     }
     if len(command) == 2 and Path(command[0]).name == "bendtt":
-        kernel = cwd / command[0]
-        artifact = cwd / command[1]
-        if not artifact.is_file():
+        kernel = executable(command[0], cwd, env)
+        artifact = os.path.join(cwd, command[1])
+        if kernel is None or not os.path.isfile(artifact):
             return None
         return {
             "format": FORMAT,
-            "kernel": tool_digest(str(kernel)),
-            "input": sha256(artifact.read_bytes()),
+            "kernel": file_digest(kernel),
+            "input": file_digest(artifact),
             "env": variables,
         }
     if len(command) < 4 or not command[1].endswith("bend2/main.ts"):
@@ -145,45 +188,79 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
         arguments = ["-o", "<target>"]
     else:
         return None
-    bun = shutil.which(command[0], path=env.get("PATH"))
-    entry = Path(os.path.realpath(cwd / command[2]))
-    commit = bend_commit(Path(command[1]).resolve().parents[1])
+    given = os.path.normpath(os.path.join(cwd, command[2]))
+    if os.path.realpath(given) != given:
+        return None  # Bend reads the name it was given and the file it reaches
+    entry = Path(given)
+    bun = executable(command[0], cwd, env)
+    main = os.path.realpath(os.path.join(cwd, command[1]))
     files = sources(entry)
-    if bun is None or commit is None or files is None:
+    if bun is None or files is None or not os.path.isfile(main):
         return None
     material = {
         "format": FORMAT,
-        "bun": tool_digest(bun),
-        "bend": commit,
+        "bun": file_digest(bun),
+        "runtime": runtime(Path(main).parent, cwd, env),
         "arguments": arguments,
-        "sources": files,
+        "sources": sorted(
+            [os.path.relpath(path, entry.parent), value]
+            for path, value in files.items()
+        ),
         "env": variables,
     }
     if mode == ["--verdict"]:
-        kernel = env.get("BENDTT")
-        if not kernel:
-            return None  # Bend would build its own kernel
-        material["kernel"] = tool_digest(kernel)
-    if mode[0] == "-o":
-        material["target"] = os.path.relpath(
-            os.path.normpath(cwd / mode[1]), entry.parent
+        kernel = (
+            executable(env.get("BENDTT", ""), cwd, env) if env.get("BENDTT") else None
         )
+        if kernel is None:
+            return None  # Bend would build or find its own kernel
+        material["kernel"] = file_digest(kernel)
+    if mode[0] == "-o":
+        target = os.path.normpath(os.path.join(cwd, mode[1]))
+        if os.path.realpath(target) in files or os.path.isdir(target):
+            return None  # Bend refuses it; let Bend say so
+        material["target"] = os.path.relpath(target, entry.parent)
     return material
 
 
-def seal(entry: dict) -> str:
-    body = {name: value for name, value in entry.items() if name != "sha256"}
-    return sha256(json.dumps(body, sort_keys=True).encode())
+def repository_secret() -> Path:
+    """The secret beside this checkout's git objects, shared by its worktrees."""
+    root = Path(__file__).resolve().parents[1]
+    common = subprocess.check_output(
+        ["git", "-C", str(root), "rev-parse", "--git-common-dir"], text=True
+    ).strip()
+    return (root / common).resolve() / "bendtorch-cache.key"
+
+
+def secret(path: Path) -> bytes:
+    """32 random bytes at `path`, made once with mode 0600."""
+    try:
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        pass
+    else:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(os.urandom(32))
+    data = path.read_bytes()
+    if len(data) != 32:
+        raise RuntimeError(f"cache secret {path} is not 32 bytes")
+    return data
 
 
 class Cache:
-    def __init__(self, directory: Path):
+    def __init__(self, directory: Path, secret_file: Path | None = None):
         self.directory = directory.resolve()
         self.directory.mkdir(parents=True, exist_ok=True)
+        self.secret = secret(secret_file or repository_secret())
         self.replayed = 0
         self.ran = 0
         self.rejected: list[str] = []
         self.lock = threading.Lock()
+
+    def seal(self, entry: dict) -> str:
+        body = {name: value for name, value in entry.items() if name != "seal"}
+        text = json.dumps(body, sort_keys=True).encode()
+        return hmac.new(self.secret, text, hashlib.sha256).hexdigest()
 
     def run(
         self, command: list, *, cwd: Path, env: dict[str, str], timeout: int
@@ -194,11 +271,11 @@ class Cache:
             return run(command, cwd=cwd, env=env, timeout=timeout), False
         name = sha256(json.dumps(material, sort_keys=True).encode())
         path = self.directory / name[:2] / f"{name}.json.gz"
-        target = cwd / str(command[4]) if "target" in material else None
+        target = Path(cwd, str(command[4])) if "target" in material else None
         stored = self.load(path, material)
         if stored is not None and (target is None) == (stored["artifact"] is None):
             if target is not None:
-                target.write_text(stored["artifact"])
+                target.write_bytes(base64.b64decode(stored["artifact"]))
             with self.lock:
                 self.replayed += 1
             result = subprocess.CompletedProcess(
@@ -208,28 +285,39 @@ class Cache:
         result = run(command, cwd=cwd, env=env, timeout=timeout)
         with self.lock:
             self.ran += 1
-        if result.returncode == 0 or (result.returncode == 1 and target is None):
-            artifact = None if target is None else target.read_text()
-            entry = {
-                "key": material,
-                "exit_code": result.returncode,
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-                "artifact": artifact,
-            }
-            entry["sha256"] = seal(entry)
-            path.parent.mkdir(exist_ok=True)
-            temporary = path.with_suffix(f".{os.getpid()}.{threading.get_ident()}")
-            temporary.write_bytes(gzip.compress(json.dumps(entry).encode(), 1))
-            os.replace(temporary, path)
+        storable = result.returncode == 0 or (result.returncode == 1 and target is None)
+        if storable:
+            artifact = None
+            if target is not None:
+                artifact = base64.b64encode(target.read_bytes()).decode()
+            # A file that changed while the command ran may not be the one
+            # it read: store nothing then.
+            if key(command, cwd, env) == material:
+                self.store(path, material, result, artifact)
         return result, False
+
+    def store(self, path: Path, material: dict, result, artifact: str | None) -> None:
+        entry = {
+            "key": material,
+            "exit_code": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "artifact": artifact,
+        }
+        entry["seal"] = self.seal(entry)
+        path.parent.mkdir(exist_ok=True)
+        temporary = path.with_suffix(f".{os.getpid()}.{threading.get_ident()}")
+        temporary.write_bytes(gzip.compress(json.dumps(entry).encode(), 1))
+        os.replace(temporary, path)
 
     def load(self, path: Path, material: dict) -> dict | None:
         if not path.exists():
             return None
         try:
             stored = json.loads(gzip.decompress(path.read_bytes()))
-            if stored["key"] == material and stored["sha256"] == seal(stored):
+            if stored["key"] == material and hmac.compare_digest(
+                stored["seal"], self.seal(stored)
+            ):
                 return stored
         except (OSError, EOFError, zlib.error, ValueError, KeyError, TypeError):
             pass
@@ -279,9 +367,8 @@ def main() -> None:
     )
     sys.stdout.write(result.stdout)
     sys.stderr.write(result.stderr)
-    print(
-        f"cache: {'replayed' if replayed else 'ran'} {cache.directory}", file=sys.stderr
-    )
+    state = "replayed" if replayed else "ran"
+    print(f"cache: {state} {cache.directory}", file=sys.stderr)
     sys.exit(result.returncode)
 
 
