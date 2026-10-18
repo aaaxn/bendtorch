@@ -4,7 +4,7 @@ Versions have four numbers, as BendHub requires; [VERSIONING](docs/VERSIONING.md
 says what each one means and how a release is made. Each version lists what a
 program importing the package can see change.
 
-## 0.1.0.0 (unreleased)
+## 0.1.0.0 (2026-10-18)
 
 The first release. Bend2 pin `32d23b43` (Bend 2.0.37), BendTT on Lean 4.34.0.
 
