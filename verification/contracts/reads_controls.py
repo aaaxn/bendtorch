@@ -18,7 +18,7 @@ class Witness(NamedTuple):
 EXPERIMENT = "verification/contracts/reads"
 CORE = "_2e_._2f_.._2f_.._2f_src_2f_tensor_2f_core."
 SRC = "_2e_._2f_.._2f_.._2f_src_2f_tensor_2f_"
-CONTRACT = f"{SRC}read_2d_write_2d_contract_2d_LAWS."
+CONTRACT = f"{SRC}read_write_contract_LAWS."
 LAWS = tuple(
     f"{CONTRACT}{name}"
     for name in (
@@ -31,7 +31,7 @@ LAWS = tuple(
     )
 )
 LIVE_RECORDS = tuple(
-    f"{SRC}read_2d_write_2d_records.{name}.arms"
+    f"{SRC}read_write_records.{name}.arms"
     for name in (
         "ReadContract",
         "ReadInside",
@@ -181,9 +181,9 @@ def kernel_reason(output: str, label: str) -> str:
         ):
             raise GateError(f"{label}: kernel rejection is not the value statement")
     elif label in ("wrong-index", "missing-write", "corrupted-neighbour"):
-        pick = f"{SRC}write_2d_contract.written_pick"
+        pick = f"{SRC}write_contract.written_pick"
         if (
-            location != f"{SRC}write_2d_contract.write_value_done"
+            location != f"{SRC}write_contract.write_value_done"
             or pick not in expected
             or pick not in observed
             or f"{SRC}observation.written_value_pair" not in observed
@@ -192,8 +192,8 @@ def kernel_reason(output: str, label: str) -> str:
             raise GateError(f"{label}: kernel rejection is not the written value")
     elif label == "write-unjustified-failure":
         if (
-            location != f"{SRC}write_2d_contract.write_inside"
-            or f"{SRC}read_2d_write_2d_records.WriteContract" not in expected + observed
+            location != f"{SRC}write_contract.write_inside"
+            or f"{SRC}read_write_records.WriteContract" not in expected + observed
         ):
             raise GateError(f"{label}: kernel rejection is not the success code")
     elif label == "read-unjustified-failure":

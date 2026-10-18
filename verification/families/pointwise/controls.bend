@@ -8,7 +8,7 @@ import ../../../src/tensor/contracts/PROOF.bend as ContractsProof
 import ../../../src/tensor/contracts/replayed.bend as Replayed
 import ../../../src/tensor/contracts/broadcast.bend as Broadcast
 import ../../../src/tensor/contracts/pointwise.bend as Pointwise
-import ../../../src/tensor/contracts/pointwise-records.bend as Records
+import ../../../src/tensor/contracts/pointwise_records.bend as Records
 import ./consumers.bend as Cases
 
 def expected_sub() -> Maybe<&2, F32>:

@@ -3,12 +3,12 @@ import ../../../src/shape/core.bend as Shape
 import ../../../src/tensor/lifecycle.bend as Lifecycle
 import ../../../src/tensor/reduction.bend as Reduction
 import ../../../src/tensor/matmul.bend as Matrix
-import ../../../src/tensor/dot-fold.bend as DotFold
+import ../../../src/tensor/dot_fold.bend as DotFold
 import ../../../src/tensor/contracts/LAWS.bend as Contracts
 import ../../../src/tensor/contracts/PROOF.bend as ContractsProof
 import ../../../src/tensor/contracts/replayed.bend as Replayed
 import ../../../src/tensor/contracts/fold.bend as Fold
-import ../../../src/tensor/contracts/fold-records.bend as Records
+import ../../../src/tensor/contracts/fold_records.bend as Records
 import ./consumers.bend as Cases
 
 def expected_sum() -> Maybe<&2, F32>:

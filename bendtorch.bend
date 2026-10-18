@@ -1,4 +1,4 @@
-# bendtorch: a PyTorch-like tensor library in Bend (F32 tensors, matmul, autograd tape, losses, SGD), with its laws and proofs; import one module, e.g. bendtorch@0.1.0.0/src/tensor/core.bend.
+# bendtorch: a PyTorch-like tensor library in Bend (F32 tensors, matmul, autograd tape, losses, SGD), with its laws and proofs; import one module, e.g. bendtorch-core@0.1.0.0/src/tensor/core.bend.
 # Source, docs and license: https://github.com/aaaxn/bendtorch
 #
 # This file is the package entry. `bend bendtorch.bend --publish` ships it with
@@ -19,7 +19,7 @@ import ./src/tensor/core.bend as Core
 import ./src/tensor/elementwise.bend as Elementwise
 import ./src/tensor/reduction.bend as Reduction
 import ./src/tensor/matmul.bend as Matmul
-import ./src/tensor/batched-matmul.bend as Batched
+import ./src/tensor/batched_matmul.bend as Batched
 import ./src/tensor/transforms.bend as Transforms
 import ./src/tensor/layout.bend as Layout
 import ./src/tensor/signed.bend as Signed
@@ -30,11 +30,11 @@ import ./src/tensor/gather.bend as Gather
 # backward pass, the losses, SGD
 import ./src/autograd/broadcast.bend as Broadcast
 import ./src/autograd/reduce.bend as Reduce
-import ./src/autograd/sum-to-size.bend as SumToSize
-import ./src/autograd/sum-dims.bend as SumDims
+import ./src/autograd/sum_to_size.bend as SumToSize
+import ./src/autograd/sum_dims.bend as SumDims
 import ./src/autograd/gradient.bend as Gradient
 import ./src/autograd/backward.bend as ScalarBackward
-import ./src/autograd/tensor-backward.bend as Backward
+import ./src/autograd/tensor_backward.bend as Backward
 import ./src/autograd/loss.bend as Loss
 import ./src/autograd/sgd.bend as Sgd
 

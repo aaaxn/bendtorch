@@ -342,7 +342,7 @@ def program(selected: list[dict], directory: Path, source_root: Path) -> str:
         raise GateError("Refusing to generate an empty signed corpus")
     lines = ["import Base"]
     for path, alias in (
-        ("src/tensor/signed-harness.bend", "Harness"),
+        ("src/tensor/signed_harness.bend", "Harness"),
         ("src/tensor/harness.bend", "Tensors"),
         ("src/tensor/core.bend", "Core"),
         ("src/tensor/signed.bend", "Signed"),

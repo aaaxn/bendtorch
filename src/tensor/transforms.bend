@@ -3,8 +3,8 @@ import ../shape/core.bend as Shape
 import ./core.bend as Core
 import ./lifecycle.bend as Lifecycle
 import ./layout.bend as Layout
-import ./transpose-spec.bend as Transpose
-import ./permute-build.bend as Build
+import ./transpose_spec.bend as Transpose
+import ./permute_build.bend as Build
 import ../storage/main.bend as Storage
 import ../storage/model.bend as Model
 import ../storage/certificates.bend as Certificates
@@ -183,7 +183,7 @@ def copy_pack(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<inpu
 
 # The sequential copy: one checked read and one checked write per output
 # cell, in index order. The laws about the copy loop state what it does, and
-# permute-build-proof.bend proves that `copy_allocated` meets the loop's
+# permute_build_proof.bend proves that `copy_allocated` meets the loop's
 # meaning (`LoopMeaning`) on every source. `permute_copy` no longer runs it;
 # the tensor gate's parallel probe runs it as the sequential reference.
 def loop_allocated(+input: Shape.Shape, +axes: List<&2, U32>, +plan: Layout.Plan<input, axes>,

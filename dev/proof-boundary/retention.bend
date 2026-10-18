@@ -7,9 +7,9 @@ import ../../src/storage/api.bend as Api
 import ../../src/storage/arith.bend as Arith
 import ../../src/tensor/core.bend as Core
 import ../../src/tensor/lifecycle.bend as Lifecycle
-import ../../src/tensor/allocation-spec.bend as Allocation
-import ../../src/tensor/allocation-PROOF.bend as AllocationProof
-import ../../src/tensor/word-conversion.bend as Conversion
+import ../../src/tensor/allocation_spec.bend as Allocation
+import ../../src/tensor/allocation_PROOF.bend as AllocationProof
+import ../../src/tensor/word_conversion.bend as Conversion
 import ./observations.bend as Observation
 import ./generic-read.bend as Reading
 import ./generic-metadata.bend as Metadata

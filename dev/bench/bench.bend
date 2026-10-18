@@ -6,8 +6,8 @@ import ../../src/tensor/matmul.bend as Matrix
 import ../../src/tensor/transforms.bend as Transforms
 import ../../src/autograd/broadcast.bend as Broadcast
 import ../../src/autograd/reduce.bend as Reduce
-import ../../src/autograd/sum-to-size.bend as SumToSize
-import ../../src/autograd/tensor-backward.bend as Backward
+import ../../src/autograd/sum_to_size.bend as SumToSize
+import ../../src/autograd/tensor_backward.bend as Backward
 import ../../src/autograd/sgd.bend as Sgd
 import ../../examples/mnist/train.bend as Mnist
 

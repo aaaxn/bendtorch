@@ -80,68 +80,68 @@ PROOF_CONTROLS = {
         "      fitted(Core.Packed{shape, tensor}, target, plan, True{})",
     ),
     "sum-to-size-identity-folds": (
-        "src/autograd/sum-to-size.bend",
+        "src/autograd/sum_to_size.bend",
         "    case True{}:\n      cloned(shape, Core.clone(shape, tensor))",
         "    case True{}:\n      Reduce.reduce_to(Core.Packed{shape, tensor}, target)",
     ),
     "sum-to-size-skips-dimension-check": (
-        "src/autograd/sum-to-size.bend",
+        "src/autograd/sum_to_size.bend",
         "  decided(shape, tensor, target, Layout.words_same("
         "Shape.dimensions(shape), Shape.dimensions(target)))",
         "  decided(shape, tensor, target, True{})",
     ),
     "sum-to-size-always-folds": (
-        "src/autograd/sum-to-size.bend",
+        "src/autograd/sum_to_size.bend",
         "  decided(shape, tensor, target, Layout.words_same("
         "Shape.dimensions(shape), Shape.dimensions(target)))",
         "  decided(shape, tensor, target, False{})",
     ),
     "sum-dims-keepdim-drops-axes": (
-        "src/autograd/sum-dims.bend",
+        "src/autograd/sum_dims.bend",
         "    case True{}:\n      Done{output}",
         "    case True{}:\n"
         "      transformed(Transforms.reshape_dynamic(output, dropped))",
     ),
     "sum-dims-keeps-reduced-axes": (
-        "src/autograd/sum-dims.bend",
+        "src/autograd/sum_dims.bend",
         "    case False{}:\n"
         "      transformed(Transforms.reshape_dynamic(output, dropped))",
         "    case False{}:\n      Done{output}",
     ),
     "sum-dims-counts-axes-from-one": (
-        "src/autograd/sum-dims.bend",
+        "src/autograd/sum_dims.bend",
         "  kept_from(axes, dimensions, 0)",
         "  kept_from(axes, dimensions, 1)",
     ),
     "sum-dims-marks-next-axis": (
-        "src/autograd/sum-dims.bend",
+        "src/autograd/sum_dims.bend",
         "Bool.pick(U32, reduces(axes, axis), 1, extent)",
         "Bool.pick(U32, reduces(axes, U32.add(axis, 1)), 1, extent)",
     ),
     "sum-dims-drops-kept-axes": (
-        "src/autograd/sum-dims.bend",
+        "src/autograd/sum_dims.bend",
         "    case True{}:\n      rest\n    case False{}:\n      extent <> rest",
         "    case True{}:\n      extent <> rest\n    case False{}:\n      rest",
     ),
     "sum-dims-empty-reduces-nothing": (
-        "src/autograd/sum-dims.bend",
+        "src/autograd/sum_dims.bend",
         "    case Nil{}:\n      True{}\n    case +head <> +tail:",
         "    case Nil{}:\n      False{}\n    case +head <> +tail:",
     ),
     "sum-dims-rank-zero-has-no-axis": (
-        "src/autograd/sum-dims.bend",
+        "src/autograd/sum_dims.bend",
         "    case Nil{}:\n      1\n",
         "    case Nil{}:\n      0\n",
     ),
     "tensor-backward-sum-dims-vjp-skips-unsqueeze": (
-        "src/autograd/tensor-backward.bend",
+        "src/autograd/tensor_backward.bend",
         "restored(shape, vjp_sum(a, input, "
         "Transforms.reshape_equal(shape, kept, tensor, "
         "Transforms.elements_equal(shape, kept, equal))))",
         "restored(shape, vjp_sum(a, input, Core.Packed{shape, tensor}))",
     ),
     "tensor-backward-sum-dims-wraps-among-rank": (
-        "src/autograd/tensor-backward.bend",
+        "src/autograd/tensor_backward.bend",
         "Signed.wrap_all(SumDims.limit(Shape.dimensions(shape)), axes)",
         "Signed.wrap_all(Shape.rank(shape), axes)",
     ),
@@ -239,51 +239,51 @@ PROOF_CONTROLS = {
         "    case NegateLeft{}:\n      left",
     ),
     "tensor-backward-seeds-newest-node": (
-        "src/autograd/tensor-backward.bend",
+        "src/autograd/tensor_backward.bend",
         "ran(pass(entries, count, output, at_head(count, output)))",
         "ran(pass(entries, count, output, True{}))",
     ),
     "tensor-backward-seeds-zeros": (
-        "src/autograd/tensor-backward.bend",
+        "src/autograd/tensor_backward.bend",
         "seeded(node, shape, value, saved, slot, rest, below, Core.new(shape, 1.0))",
         "seeded(node, shape, value, saved, slot, rest, below, Core.new(shape, 0.0))",
     ),
     "tensor-backward-head-aliases": (
-        "src/autograd/tensor-backward.bend",
+        "src/autograd/tensor_backward.bend",
         "    case 1n+below:\n      Nat.is_eq(below, id)",
         "    case 1n+below:\n      Nat.is_le(below, id)",
     ),
     "tensor-backward-bump-overwrites": (
-        "src/autograd/tensor-backward.bend",
+        "src/autograd/tensor_backward.bend",
         "      placed(rest, Gradient.accumulate(shape, slot, gradient))",
         "      placed(rest, Gradient.Accumulated{Gradient.Held{gradient}})",
     ),
     "tensor-backward-merge-overwrites-slot": (
-        "src/autograd/tensor-backward.bend",
+        "src/autograd/tensor_backward.bend",
         "merged_entry(node, shape, value, saved, Gradient.accumulate(shape, slot, g), "
         "merge(rest, more))",
         "merged_entry(node, shape, value, saved, "
         "Gradient.Accumulated{Gradient.Held{g}}, merge(rest, more))",
     ),
     "tensor-backward-unreached-skips-older": (
-        "src/autograd/tensor-backward.bend",
+        "src/autograd/tensor_backward.bend",
         "finished(Entry{node, shape, value, saved, slot}, Gradient.Unset{}, "
         "rec(Done{pending}))",
         "finished(Entry{node, shape, value, saved, slot}, Gradient.Unset{}, "
         "rec(Done{Nil{}}))",
     ),
     "tensor-backward-sum-vjp-wrong-target": (
-        "src/autograd/tensor-backward.bend",
+        "src/autograd/tensor_backward.bend",
         "Done{[Contribution{a, input, expanded}]}",
         "Done{[Contribution{0n, input, expanded}]}",
     ),
     "tensor-backward-wiring-check-bypassed": (
-        "src/autograd/tensor-backward.bend",
+        "src/autograd/tensor_backward.bend",
         "      Bool.and(operands_below(node, below), wired(rest, below))",
         "      wired(rest, below)",
     ),
     "tensor-backward-zero-grad-keeps-slot": (
-        "src/autograd/tensor-backward.bend",
+        "src/autograd/tensor_backward.bend",
         "Entry{node, shape, value, saved, Gradient.reset(slot)} <> cleared(rest)",
         "Entry{node, shape, value, saved, slot} <> cleared(rest)",
     ),
@@ -328,21 +328,21 @@ ERROR_CONTROLS = {
         "fitted_not_reducible",
     ),
     "sum-dims-out-of-bounds-as-duplicate": (
-        "src/autograd/sum-dims.bend",
+        "src/autograd/sum_dims.bend",
         "    case False{} unique:\n      Some{Layout.AxisOutOfBounds{}}",
         "    case False{} unique:\n      Some{Layout.DuplicateAxis{}}",
         "src/autograd/PROOF.bend",
         "Laws.sum_dims_axis_out_of_bounds",
     ),
     "sum-dims-duplicate-as-out-of-bounds": (
-        "src/autograd/sum-dims.bend",
+        "src/autograd/sum_dims.bend",
         "    case True{} False{}:\n      Some{Layout.DuplicateAxis{}}",
         "    case True{} False{}:\n      Some{Layout.AxisOutOfBounds{}}",
         "src/autograd/PROOF.bend",
         "Laws.sum_dims_duplicate_axis",
     ),
     "sum-dims-refusal-as-reduce-error": (
-        "src/autograd/sum-dims.bend",
+        "src/autograd/sum_dims.bend",
         "      Fail{TransformError{Transforms.LayoutError{error}}}",
         "      Fail{ReduceError{Reduce.NotReducible{}}}",
         "src/autograd/PROOF.bend",
@@ -411,14 +411,14 @@ ERROR_CONTROLS = {
         "Laws.backward_dangling",
     ),
     "tensor-backward-unknown-as-dangling": (
-        "src/autograd/tensor-backward.bend",
+        "src/autograd/tensor_backward.bend",
         "      (Tape{entries}, Fail{UnknownNode{}})\n    case True{} False{}:",
         "      (Tape{entries}, Fail{DanglingOperand{}})\n    case True{} False{}:",
         "src/autograd/PROOF.bend",
         "Laws.tensor_backward_unknown",
     ),
     "tensor-backward-dangling-as-unknown": (
-        "src/autograd/tensor-backward.bend",
+        "src/autograd/tensor_backward.bend",
         "      (Tape{entries}, Fail{DanglingOperand{}})",
         "      (Tape{entries}, Fail{UnknownNode{}})",
         "src/autograd/PROOF.bend",
@@ -482,7 +482,7 @@ def proof_controls(evidence: Evidence, source: Path) -> None:
                 path,
                 original,
                 mutated,
-                "src/autograd/tensor-chain-PROOF.bend",
+                "src/autograd/tensor_chain_PROOF.bend",
                 ("SOME PROOFS FAIL", location),
             )
             for name, (path, original, mutated, location) in CHAIN_CONTROLS.items()

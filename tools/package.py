@@ -10,7 +10,11 @@ network, and exits 1 when the package would be wrong:
 - the root LICENSE has no `SPDX-License-Identifier:` line in its first five
   lines, so BendHub would show only "see LICENSE";
 - the version in the entry's first line differs from the newest version in
-  `CHANGELOG.md`.
+  `CHANGELOG.md`;
+- a shipped path breaks BendHub's path rule, which only the hub enforces:
+  every segment `[A-Za-z_][A-Za-z0-9_]*`, the file ending in `.bend`, `.c` or
+  `.js` or named `LICENSE`, the path under 256 characters. A hyphen in a file
+  name is the usual cause.
 
 It prints one shipped path per line, then the file count and size. It does
 not check the code: `bend bendtorch.bend --verdict` does.
@@ -28,8 +32,20 @@ SHIPPED_ROOTS = ("bendtorch.bend", "LAWS.bend", "PROOF.bend")
 # blank and `#` lines, each line trimmed; the first other line ends them.
 IMPORT = re.compile(r"^import\s+(\S+)(?:\s+as\s+([A-Za-z_]\w*))?\s*(?:#.*)?$")
 SPDX = re.compile(r"^\s*SPDX-License-Identifier:\s*\S")
-ENTRY_VERSION = re.compile(r"bendtorch@(\d+\.\d+\.\d+\.\d+)/")
+ENTRY_VERSION = re.compile(r"bendtorch-core@(\d+\.\d+\.\d+\.\d+)/")
 CHANGELOG_VERSION = re.compile(r"^## \[?(\d+\.\d+\.\d+\.\d+)\]?", re.MULTILINE)
+# The path rule BendHub answers with when it refuses a publish.
+HUB_SEGMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+HUB_FILE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\.(?:bend|c|js)|LICENSE")
+
+
+def hub_path_ok(path: str) -> bool:
+    *dirs, name = path.split("/")
+    return (
+        len(path) < 256
+        and all(HUB_SEGMENT.fullmatch(d) for d in dirs)
+        and HUB_FILE.fullmatch(name) is not None
+    )
 
 
 class PackageError(Exception):
@@ -104,6 +120,19 @@ def check(root: Path, entry: str = ENTRY) -> list[str]:
     for d in sorted(licensed_dirs - {"."}):
         if (root / d / "LICENSE").exists():
             shipped.append(f"{d}/LICENSE")
+    bad = [f for f in shipped if not hub_path_ok(f)]
+    if bad:
+        raise PackageError(
+            f"BendHub refuses {len(bad)} path(s), e.g. {bad[0]}: segments must be"
+            " [A-Za-z_][A-Za-z0-9_]*, ending in .bend, .c or .js or naming LICENSE"
+        )
+    folded: dict[str, str] = {}
+    for f in shipped:
+        other = folded.setdefault(f.lower(), f)
+        if other != f:
+            raise PackageError(
+                f"BendHub refuses paths differing only by case: {other}, {f}"
+            )
     return sorted(shipped)
 
 

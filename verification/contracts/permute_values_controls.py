@@ -19,17 +19,17 @@ class Witness(NamedTuple):
 class Site(NamedTuple):
     definition: str
     mark: str
-    module: str = "permute_2d_values"
+    module: str = "permute_values"
 
 
 EXPERIMENT = "verification/contracts/permute-values"
 SRC = reads.SRC
 CORE = reads.CORE
-CONTRACT = f"{SRC}permute_2d_values_2d_contract_2d_LAWS."
+CONTRACT = f"{SRC}permute_values_contract_LAWS."
 LAWS = (f"{CONTRACT}permute_contract", f"{CONTRACT}transpose_contract")
 LIVE_RECORDS = (
-    f"{SRC}permute_2d_values_2d_records.PermuteContract.arms",
-    f"{SRC}permute_2d_values_2d_records.TransposeContract.arms",
+    f"{SRC}permute_values_records.PermuteContract.arms",
+    f"{SRC}permute_values_records.TransposeContract.arms",
     "consumers.Case.arms",
 )
 CONSUMERS = tuple(
@@ -52,19 +52,19 @@ WITNESSES = {
     "cube_rotate_witness": Witness(
         "expected_rotated",
         "Some{5.0}",
-        "transform_2d_observation.applied_value",
+        "transform_observation.applied_value",
         "observation.listed",
     ),
     "grid_transpose_witness": Witness(
         "expected_transposed",
         "Some{4.0}",
-        "transform_2d_observation.applied_value",
+        "transform_observation.applied_value",
         "observation.listed",
     ),
     "grid_kept_witness": Witness(
         "expected_kept",
         "Some{3.0}",
-        "transform_2d_observation.kept_value",
+        "transform_observation.kept_value",
         "List.get",
     ),
 }
@@ -75,23 +75,23 @@ VALUES = {
     "wrong_value": reads.EIGHT,
 }
 MUTANTS = mutants.load(Path(__file__).resolve().parent / "permute-values/mutants.toml")
-PROOF = "src/tensor/permute-values.bend"
+PROOF = "src/tensor/permute_values.bend"
 # The released permute and transpose contracts, which state failures and
 # metadata only; each WI mutant still passes them.
-OTHER = "src/tensor/transform-contract-PROOF.bend"
+OTHER = "src/tensor/transform_contract_PROOF.bend"
 SITES = {
     # out[map(i)] = input[i]: the recipe of the inverse map, which decodes
     # against the input's dimensions and flattens against the output's.
     "permute-forward-map": Site(
         "source_index",
         "Axis.indices(",
-        "permute_2d_build_2d_proof",
+        "permute_build_proof",
     ),
     # out[i] = input[i]: the cell reads the input at its own index.
     "permute-identity-map": Site(
         "source_word",
         "{U32.from_nat(index) == ",
-        "permute_2d_build_2d_proof",
+        "permute_build_proof",
     ),
     "transpose-swap-ignored": Site(
         "transpose_route",

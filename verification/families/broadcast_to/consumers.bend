@@ -4,19 +4,19 @@ import ../../../src/storage/arith.bend as Arith
 import ../../../src/storage/LAWS.bend as StorageLaws
 import ../../../src/tensor/core.bend as Core
 import ../../../src/tensor/lifecycle.bend as Lifecycle
-import ../../../src/tensor/from-values-contract.bend as FromValues
+import ../../../src/tensor/from_values_contract.bend as FromValues
 import ../../../src/tensor/contracts/LAWS.bend as Contracts
 import ../../../src/tensor/contracts/replayed.bend as Replayed
 import ../../../src/tensor/contracts/broadcast.bend as PointwiseBroadcast
 import ../../../src/autograd/broadcast.bend as Broadcast
-import ../../../src/autograd/broadcast-pointwise-LAWS.bend as Laws
+import ../../../src/autograd/broadcast_pointwise_LAWS.bend as Laws
 import ../../../src/autograd/reduce.bend as Reduce
-import ../../../src/autograd/reduce-LAWS.bend as ReduceLaws
-import ../../../src/autograd/reduce-fold-LAWS.bend as ReduceFold
-import ../../../src/autograd/reduce-PROOF.bend as ReduceProof
-import ../../../src/autograd/reduce-fold-PROOF.bend as FoldProof
-import ../../../src/autograd/reduce-to-fold-PROOF.bend as ReduceToProof
-import ../../../src/autograd/broadcast-pointwise-PROOF.bend as Proof
+import ../../../src/autograd/reduce_LAWS.bend as ReduceLaws
+import ../../../src/autograd/reduce_fold_LAWS.bend as ReduceFold
+import ../../../src/autograd/reduce_PROOF.bend as ReduceProof
+import ../../../src/autograd/reduce_fold_PROOF.bend as FoldProof
+import ../../../src/autograd/reduce_to_fold_PROOF.bend as ReduceToProof
+import ../../../src/autograd/broadcast_pointwise_PROOF.bend as Proof
 
 def scalar_shape() -> Shape.Shape:
   Shape.SShape{[], 1n, {==}, Unit{}, Unit{}}

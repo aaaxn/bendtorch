@@ -1,8 +1,8 @@
 import Base
 import ../../src/shape/core.bend as Shape
 import ../../src/tensor/core.bend as Core
-import ../../src/tensor/allocation-spec.bend as Allocation
-import ../../src/tensor/allocation-PROOF.bend as AllocationProof
+import ../../src/tensor/allocation_spec.bend as Allocation
+import ../../src/tensor/allocation_PROOF.bend as AllocationProof
 
 def status_is_length(-shape: Shape.Shape, result: Result<&2, &1, Core.Error, Core.Tensor<shape>>) ->
   {Result.is_done(&2, &1, Core.Error, Core.Tensor<shape>, result) ==

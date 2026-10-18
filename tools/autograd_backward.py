@@ -513,7 +513,7 @@ def program(selected: list[dict], directory: Path, source_root: Path) -> str:
         raise GateError("Refusing to generate an empty autograd backward corpus")
     lines = ["import Base"]
     for path, alias in (
-        ("src/autograd/backward-harness.bend", "Harness"),
+        ("src/autograd/backward_harness.bend", "Harness"),
         ("src/autograd/backward.bend", "Backward"),
     ):
         relative = os.path.relpath(source_root / path, directory)

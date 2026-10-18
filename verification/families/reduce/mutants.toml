@@ -1,26 +1,26 @@
 [lands-on-source]
-file = "src/autograd/reduce-fold.bend"
+file = "src/autograd/reduce_fold.bend"
 before = '''
   Nat.is_eq(target_offset(plan, position), U32.to_nat(index))'''
 after = '''
   Nat.is_eq(contribution_offset(plan, position), U32.to_nat(index))'''
 
 [inverted-mask]
-file = "src/autograd/reduce-fold.bend"
+file = "src/autograd/reduce_fold.bend"
 before = '''
   Nat.is_eq(target_offset(plan, position), U32.to_nat(index))'''
 after = '''
   Bool.not(Nat.is_eq(target_offset(plan, position), U32.to_nat(index)))'''
 
 [reads-target-offset]
-file = "src/autograd/reduce-fold.bend"
+file = "src/autograd/reduce_fold.bend"
 before = '''
   contribution_offset(plan, position)'''
 after = '''
   target_offset(plan, position)'''
 
 [target-count]
-file = "src/autograd/reduce-fold.bend"
+file = "src/autograd/reduce_fold.bend"
 before = '''
 Cell{plan, index}, Shape.elements(Shape.right_shape(plan)), input)'''
 after = '''
@@ -64,7 +64,7 @@ after = '''
   (F32.add(word, accumulator), kept)'''
 
 [sum-to-size-identity-folds]
-file = "src/autograd/sum-to-size.bend"
+file = "src/autograd/sum_to_size.bend"
 before = '''
     case True{}:
       cloned(shape, Core.clone(shape, tensor))'''
@@ -73,7 +73,7 @@ after = '''
       Reduce.reduce_to(Core.Packed{shape, tensor}, target)'''
 
 [sum-to-size-reduced-clones]
-file = "src/autograd/sum-to-size.bend"
+file = "src/autograd/sum_to_size.bend"
 before = '''
     case False{}:
       Reduce.reduce_to(Core.Packed{shape, tensor}, target)'''

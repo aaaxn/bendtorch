@@ -63,9 +63,9 @@ FAMILY = controls.Family(
         ),
     },
     live_records=(
-        f"{SRC}fold_2d_records.FoldContract.arms",
-        f"{SRC}fold_2d_records.PairFoldContract.arms",
-        f"{SRC}fold_2d_records.MatmulContract.arms",
+        f"{SRC}fold_records.FoldContract.arms",
+        f"{SRC}fold_records.PairFoldContract.arms",
+        f"{SRC}fold_records.MatmulContract.arms",
         "consumers.SumCase.arms",
         "consumers.DotCase.arms",
         "consumers.MatmulCase.arms",
@@ -128,44 +128,44 @@ FAMILY = controls.Family(
         "negative-zero-start": Site(
             "contract",
             "F32.neg(0.0)",
-            "contracts_2f_fold_2d_proof.contract.qvvvvv",
+            "contracts_2f_fold_proof.contract.qvvvvv",
             ("contracts_2f_fold.run.qvvvvv", "contracts_2f_fold.run.qvvvvv_1"),
         ),
         "swapped-accumulator": Site(
             "step_lift",
             "step_lift~keep(plan, cursor), StorageLaws.expected(",
-            "contracts_2f_fold_2d_proof.step_lift.qvvvvv",
+            "contracts_2f_fold_proof.step_lift.qvvvvv",
             ("contracts_2f_fold.step.qvv", "contracts_2f_fold.step.qvv_1"),
         ),
         "dropped-word": Site(
             "step_lift",
             "after}}, Fold.total(",
-            "contracts_2f_fold_2d_proof.step_lift.qvvvvv",
+            "contracts_2f_fold_proof.step_lift.qvvvvv",
             ("contracts_2f_fold.step.qvv", "contracts_2f_fold.step.qvv_1"),
         ),
         "ignored-mask": Site(
             "step_lift",
             "operation, True{}, input =>",
-            "contracts_2f_fold_2d_proof.step_lift.qvvvvv",
+            "contracts_2f_fold_proof.step_lift.qvvvvv",
             ("contracts_2f_fold.loop.qvvvvv", "contracts_2f_fold.loop.qvvvvv_1"),
         ),
         "cursor-off-by-one": Site(
             "contract",
             "plan, 1n, Core.Packed{",
-            "contracts_2f_fold_2d_proof.contract.qvvvvv",
+            "contracts_2f_fold_proof.contract.qvvvvv",
             ("contracts_2f_fold.run.qvvvvv", "contracts_2f_fold.run.qvvvvv_1"),
         ),
         "pair-swapped-operands": Site(
             "pair_step_lift",
             "right_ops, cursor), "
             "StorageLaws.expected(List.append(&2, StorageLaws.Op, right_ops",
-            "contracts_2f_fold_2d_proof.pair_step_lift.qvvvvv",
+            "contracts_2f_fold_proof.pair_step_lift.qvvvvv",
             ("contracts_2f_fold.pair_right.qvv", "contracts_2f_fold.pair_right.qvv_1"),
         ),
         "pair-wrong-map": Site(
             "pair_step_lift",
             "left_fits, U32.from_nat(pair_step_lift~ib(plan, cursor))",
-            "contracts_2f_fold_2d_proof.pair_step_lift.qvvvvv",
+            "contracts_2f_fold_proof.pair_step_lift.qvvvvv",
             (
                 "contracts_2f_fold.pair_loop.qvvvvv",
                 "contracts_2f_fold.pair_loop.qvvvvv_1",
@@ -174,7 +174,7 @@ FAMILY = controls.Family(
         "pair-negative-zero-start": Site(
             "pair_contract",
             "F32.neg(0.0)",
-            "contracts_2f_fold_2d_proof.pair_contract.qvvvvv",
+            "contracts_2f_fold_proof.pair_contract.qvvvvv",
             (
                 "contracts_2f_fold.pair_run.qvvvvv",
                 "contracts_2f_fold.pair_run.qvvvvv_1",
@@ -183,7 +183,7 @@ FAMILY = controls.Family(
         "pair-cursor-off-by-one": Site(
             "pair_contract",
             "plan, 1n, Core.Packed{left,",
-            "contracts_2f_fold_2d_proof.pair_contract.qvvvvv",
+            "contracts_2f_fold_proof.pair_contract.qvvvvv",
             (
                 "contracts_2f_fold.pair_run.qvvvvv",
                 "contracts_2f_fold.pair_run.qvvvvv_1",
@@ -213,37 +213,37 @@ FAMILY = controls.Family(
         "sum-swapped-add": Site(
             "total_words",
             "{F32.add(StorageLaws.expected(",
-            "contracts_2f_sum_2d_proof.total_words",
+            "contracts_2f_sum_proof.total_words",
             ("contracts_2f_sum.add",),
         ),
         "dot-untransposed-right": Site(
             "total_factors",
             "Nat.mul(column, inner)",
-            "contracts_2f_dot_2d_proof.total_factors",
+            "contracts_2f_dot_proof.total_factors",
             ("contracts_2f_dot.right_index",),
         ),
         "matmul-reversed-order": Site(
             "dot_eq",
             "Nat.add(Nat.mul(Nat.add(cursor, rest), columns), column)",
-            "contracts_2f_matmul_2d_parallel_2d_proof.dot_eq",
+            "contracts_2f_matmul_parallel_proof.dot_eq",
             ("matmul.cell_dot",),
         ),
         "matmul-swapped-strides": Site(
             "dot_eq",
             "Matrix.product_run(rest, columns, 1n,",
-            "contracts_2f_matmul_2d_parallel_2d_proof.dot_eq",
+            "contracts_2f_matmul_parallel_proof.dot_eq",
             ("matmul.cell_dot",),
         ),
         "matmul-negative-zero-start": Site(
             "cell_inside_eq",
             "F32.neg(0.0)",
-            "contracts_2f_matmul_2d_parallel_2d_proof.cell_inside_eq",
+            "contracts_2f_matmul_parallel_proof.cell_inside_eq",
             ("matmul.dot_of",),
         ),
         "matmul-transposed-right": Site(
             "run_last",
             "Nat.mul(column, columns)",
-            "contracts_2f_matmul_2d_parallel_2d_proof.run_last",
+            "contracts_2f_matmul_parallel_proof.run_last",
             ("matmul.right_index",),
         ),
         "nt-reads-weight-untransposed": Site(
@@ -261,19 +261,19 @@ FAMILY = controls.Family(
         "product-kept-reads-swapped": Site(
             "read_below",
             "Nat.add(Nat.mul(k, inner), outer)",
-            "contracts_2f_product_2d_parallel_2d_proof.read_below",
+            "contracts_2f_product_parallel_proof.read_below",
             ("matmul.read_offset",),
         ),
         "product-row-crossed-terms": Site(
             "row_last",
             "columns, c3, cursor",
-            "contracts_2f_product_2d_parallel_2d_proof.row_last",
+            "contracts_2f_product_parallel_proof.row_last",
             ("matmul.eight_terms",),
         ),
         "product-row-unchecked": Site(
             "row_block_tree",
             "Nat.divmod(7n+base,",
-            "contracts_2f_product_2d_parallel_2d_proof.row_block_tree",
+            "contracts_2f_product_parallel_proof.row_block_tree",
             ("matmul.one_row",),
         ),
     },

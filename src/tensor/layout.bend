@@ -1,6 +1,6 @@
 import Base
 import ../shape/core.bend as Shape
-import ./axis-spec.bend as Axis
+import ./axis_spec.bend as Axis
 
 type Error is Data:
   ShapeError{error: Shape.Error}

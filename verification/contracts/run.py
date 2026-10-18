@@ -38,10 +38,10 @@ CONSUMERS = (
     "consumers.huge_leading",
     "consumers.huge_trailing",
 )
-CONTRACT = "_2e_._2f_.._2f_.._2f_src_2f_tensor_2f_construction_2d_contract_2d_"
+CONTRACT = "_2e_._2f_.._2f_.._2f_src_2f_tensor_2f_construction_contract_"
 LAWS = (f"{CONTRACT}LAWS.new_metadata", f"{CONTRACT}LAWS.new_reads")
 LIVE_RECORDS = (
-    "_2e_._2f_.._2f_.._2f_src_2f_tensor_2f_construction_2d_metadata.NewMetadata.arms",
+    "_2e_._2f_.._2f_.._2f_src_2f_tensor_2f_construction_metadata.NewMetadata.arms",
     f"{CONTRACT}LAWS.NewReads.arms",
     "consumers.Case.arms",
     "consumers.EmptyCase.arms",
@@ -97,7 +97,7 @@ def mutation_copy(snapshot: Path, target: Path) -> None:
     core.write_text(
         text.replace(old, "new_result(shape, Storage.new(Shape.count(shape), 0.0))")
     )
-    proof = target / "src/tensor/allocation-PROOF.bend"
+    proof = target / "src/tensor/allocation_PROOF.bend"
     text = proof.read_text()
     start = text.index("def core_new(+shape:")
     end = text.index("\ndef core_new_done", start)
@@ -185,7 +185,7 @@ def kernel_value_reason(output: str, label: str) -> str:
     elif label == "unjustified-failure":
         claim = "== (.Some, ((_2e_._2f_.._2f_.._2f_src_2f_shape_2f_core.logical_numel"
         if (
-            not location.endswith("allocation_2d_PROOF.new_result_length")
+            not location.endswith("allocation_PROOF.new_result_length")
             or "core.new_result +x0) (.Done, (x1, ())))" not in expected
             or "core.attach +x0) x1)" not in observed
             or claim not in expected
@@ -254,9 +254,9 @@ def read_write(snapshot, output, bend, kernel, run, parallel, reasons) -> None:
             "import Base\nimport ../../../src/tensor/core.bend as Core\n"
         )
     target = {
-        label: "src/tensor/read-contract.bend"
+        label: "src/tensor/read_contract.bend"
         if label == "read-unjustified-failure"
-        else "src/tensor/write-contract.bend"
+        else "src/tensor/write_contract.bend"
         for label in reads.MUTANTS
     }
     texts = parallel(
@@ -393,8 +393,8 @@ def clone_metadata(snapshot, output, bend, kernel, run, parallel, reasons) -> No
         copies[label] = output / f"clone-{label}"
         clones.mutant_copy(snapshot, copies[label], label)
     other = {
-        "src/tensor/clone-contract.bend": "src/tensor/metadata-contract.bend",
-        "src/tensor/metadata-contract.bend": "src/tensor/clone-contract.bend",
+        "src/tensor/clone_contract.bend": "src/tensor/metadata_contract.bend",
+        "src/tensor/metadata_contract.bend": "src/tensor/clone_contract.bend",
     }
     unaffected = [label for label in clones.MUTANTS if label != "count-off-by-one"]
     texts = parallel(
@@ -924,7 +924,7 @@ def construction(snapshot, output, bend, kernel, run, parallel, reasons) -> None
     mutation_copy(snapshot, wrong_fill)
     failing = output / "unjustified-failure"
     failure_copy(snapshot, failing)
-    contract = "src/tensor/construction-contract-PROOF.bend"
+    contract = "src/tensor/construction_contract_PROOF.bend"
     texts = parallel(
         [
             (
@@ -1018,7 +1018,7 @@ def construction(snapshot, output, bend, kernel, run, parallel, reasons) -> None
         )
     zero = declarations[declarations["wrong_fill_value"][1].strip()][1].strip()
     wrong = text
-    for suffix in ("_2f_core.new", "_2f_allocation_2d_PROOF.core_new"):
+    for suffix in ("_2f_core.new", "_2f_allocation_PROOF.core_new"):
         names = [name for name in declarations if name.endswith(suffix)]
         if len(names) != 1:
             raise GateError(f"Wrong-fill export target is ambiguous: {suffix}")

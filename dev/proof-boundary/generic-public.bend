@@ -1,7 +1,7 @@
 import Base
 import ../../src/shape/core.bend as Shape
 import ../../src/tensor/core.bend as Core
-import ../../src/tensor/allocation-spec.bend as Allocation
+import ../../src/tensor/allocation_spec.bend as Allocation
 import ./observations.bend as Observation
 import ./generic-read.bend as Reading
 import ./generic-metadata.bend as Metadata

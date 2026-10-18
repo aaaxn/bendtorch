@@ -995,7 +995,7 @@ class GateRegistrationTests(unittest.TestCase):
             with self.subTest(control=name):
                 self.assertEqual((ROOT / path).read_text().count(original), 1)
                 self.assertNotEqual(original, mutated)
-                self.assertIn(law.replace("Laws.", "sgd_2d_LAWS."), required)
+                self.assertIn(law.replace("Laws.", "sgd_LAWS."), required)
                 self.assertEqual(RUNTIME_CONTROLS[name], (path, original, mutated))
         self.assertIn("zero-grad-keeps-slot", RUNTIME_CONTROLS)
 
@@ -1004,13 +1004,13 @@ class GateRegistrationTests(unittest.TestCase):
             "required_exports"
         ]
         self.assertEqual(
-            [name for name in required if name.startswith("tensor_2d_chain_2d_LAWS.")],
+            [name for name in required if name.startswith("tensor_chain_LAWS.")],
             [
-                "tensor_2d_chain_2d_LAWS.tensor_sweep_chain_rule",
-                "tensor_2d_chain_2d_LAWS.tensor_backward_chain_rule",
+                "tensor_chain_LAWS.tensor_sweep_chain_rule",
+                "tensor_chain_LAWS.tensor_backward_chain_rule",
             ],
         )
-        proof = (ROOT / "src/autograd/tensor-chain-PROOF.bend").read_text()
+        proof = (ROOT / "src/autograd/tensor_chain_PROOF.bend").read_text()
         self.assertEqual(len(CHAIN_CONTROLS), 4)
         for name, (path, original, mutated, location) in CHAIN_CONTROLS.items():
             with self.subTest(control=name):
@@ -1025,24 +1025,24 @@ class GateRegistrationTests(unittest.TestCase):
             "required_exports"
         ]
         self.assertEqual(
-            sum(name.startswith("tensor_2d_backward_2d_LAWS.") for name in required),
+            sum(name.startswith("tensor_backward_LAWS.") for name in required),
             21,
         )
         self.assertEqual(
-            [name for name in required if name.startswith("tensor_2d_vjp_2d_LAWS.")],
+            [name for name in required if name.startswith("tensor_vjp_LAWS.")],
             [
-                "tensor_2d_vjp_2d_LAWS.tensor_product_replayed",
-                "tensor_2d_vjp_2d_LAWS.tensor_add_vjp_values",
-                "tensor_2d_vjp_2d_LAWS.tensor_sub_vjp_values",
-                "tensor_2d_vjp_2d_LAWS.tensor_mul_vjp_values",
-                "tensor_2d_vjp_2d_LAWS.tensor_matmul_vjp_values",
-                "tensor_2d_vjp_2d_LAWS.tensor_matmul_nt_vjp_values",
-                "tensor_2d_vjp_2d_LAWS.tensor_matmul_nt_frozen_vjp_values",
-                "tensor_2d_vjp_2d_LAWS.nt_reads_transpose",
-                "tensor_2d_vjp_2d_LAWS.tn_reads_transpose",
-                "tensor_2d_vjp_2d_LAWS.tensor_relu_vjp_values",
-                "tensor_2d_vjp_2d_LAWS.tensor_mse_vjp_values",
-                "tensor_2d_vjp_2d_LAWS.tensor_cross_entropy_vjp_values",
+                "tensor_vjp_LAWS.tensor_product_replayed",
+                "tensor_vjp_LAWS.tensor_add_vjp_values",
+                "tensor_vjp_LAWS.tensor_sub_vjp_values",
+                "tensor_vjp_LAWS.tensor_mul_vjp_values",
+                "tensor_vjp_LAWS.tensor_matmul_vjp_values",
+                "tensor_vjp_LAWS.tensor_matmul_nt_vjp_values",
+                "tensor_vjp_LAWS.tensor_matmul_nt_frozen_vjp_values",
+                "tensor_vjp_LAWS.nt_reads_transpose",
+                "tensor_vjp_LAWS.tn_reads_transpose",
+                "tensor_vjp_LAWS.tensor_relu_vjp_values",
+                "tensor_vjp_LAWS.tensor_mse_vjp_values",
+                "tensor_vjp_LAWS.tensor_cross_entropy_vjp_values",
             ],
         )
         controls = [
@@ -1068,7 +1068,7 @@ class GateRegistrationTests(unittest.TestCase):
             path, original, mutated = (
                 control
                 if len(control) == 3
-                else ("src/autograd/tensor-backward.bend", *control)
+                else ("src/autograd/tensor_backward.bend", *control)
             )
             self.assertEqual((ROOT / path).read_text().count(original), 1)
             self.assertNotEqual(original, mutated)

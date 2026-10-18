@@ -1,13 +1,13 @@
 import Base
-import ../from-values-contract.bend as FromValues
+import ../from_values_contract.bend as FromValues
 import ./LAWS.bend as Laws
 import ./replayed.bend as Replayed
-import ./pointwise-proof.bend as Proof
-import ./broadcast-proof.bend as BroadcastProof
-import ./sum-proof.bend as SumProof
-import ./dot-proof.bend as DotProof
-import ./matmul-proof.bend as MatmulOrdered
-import ./product-proof.bend as ProductOrdered
+import ./pointwise_proof.bend as Proof
+import ./broadcast_proof.bend as BroadcastProof
+import ./sum_proof.bend as SumProof
+import ./dot_proof.bend as DotProof
+import ./matmul_proof.bend as MatmulOrdered
+import ./product_proof.bend as ProductOrdered
 import ../matmul.bend as Matrix
 
 def Laws.new_replayed(shape, fill, P, h):

@@ -8,20 +8,20 @@ import ../../../src/tensor/elementwise.bend as Elementwise
 import ../../../src/tensor/reduction.bend as Reduction
 import ../../../src/tensor/layout.bend as Layout
 import ../../../src/tensor/matmul.bend as Matrix
-import ../../../src/tensor/dot-fold.bend as DotFold
-import ../../../src/tensor/from-values-contract.bend as FromValues
+import ../../../src/tensor/dot_fold.bend as DotFold
+import ../../../src/tensor/from_values_contract.bend as FromValues
 import ../../../src/tensor/contracts/replayed.bend as Replayed
 import ../../../src/tensor/contracts/LAWS.bend as Contracts
-import ../../../src/autograd/tensor-backward.bend as Backward
-import ../../../src/autograd/tensor-backward-LAWS.bend as TensorBackward
-import ../../../src/autograd/tensor-vjp-LAWS.bend as Laws
-import ../../../src/autograd/broadcast-pointwise-PROOF.bend as BroadcastProof
-import ../../../src/autograd/reduce-PROOF.bend as ReduceProof
-import ../../../src/autograd/reduce-fold-PROOF.bend as FoldProof
-import ../../../src/autograd/reduce-to-fold-PROOF.bend as ReduceToProof
-import ../../../src/autograd/sum-to-size-fold-PROOF.bend as SumProof
-import ../../../src/autograd/tensor-backward-PROOF.bend as TensorBackwardProof
-import ../../../src/autograd/tensor-vjp-PROOF.bend as Proof
+import ../../../src/autograd/tensor_backward.bend as Backward
+import ../../../src/autograd/tensor_backward_LAWS.bend as TensorBackward
+import ../../../src/autograd/tensor_vjp_LAWS.bend as Laws
+import ../../../src/autograd/broadcast_pointwise_PROOF.bend as BroadcastProof
+import ../../../src/autograd/reduce_PROOF.bend as ReduceProof
+import ../../../src/autograd/reduce_fold_PROOF.bend as FoldProof
+import ../../../src/autograd/reduce_to_fold_PROOF.bend as ReduceToProof
+import ../../../src/autograd/sum_to_size_fold_PROOF.bend as SumProof
+import ../../../src/autograd/tensor_backward_PROOF.bend as TensorBackwardProof
+import ../../../src/autograd/tensor_vjp_PROOF.bend as Proof
 
 def one_shape() -> Shape.Shape:
   Shape.SShape{[1], 1n, {==}, Unit{}, Unit{}}

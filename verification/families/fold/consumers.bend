@@ -6,13 +6,13 @@ import ../../../src/tensor/core.bend as Core
 import ../../../src/tensor/lifecycle.bend as Lifecycle
 import ../../../src/tensor/reduction.bend as Reduction
 import ../../../src/tensor/matmul.bend as Matrix
-import ../../../src/tensor/dot-fold.bend as DotFold
-import ../../../src/tensor/from-values-contract.bend as FromValues
+import ../../../src/tensor/dot_fold.bend as DotFold
+import ../../../src/tensor/from_values_contract.bend as FromValues
 import ../../../src/tensor/contracts/LAWS.bend as Contracts
 import ../../../src/tensor/contracts/PROOF.bend as ContractsProof
 import ../../../src/tensor/contracts/replayed.bend as Replayed
 import ../../../src/tensor/contracts/fold.bend as Fold
-import ../../../src/tensor/contracts/fold-records.bend as Records
+import ../../../src/tensor/contracts/fold_records.bend as Records
 import ../../../src/tensor/contracts/sum.bend as Sum
 import ../../../src/tensor/contracts/dot.bend as Dot
 

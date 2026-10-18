@@ -5,20 +5,20 @@ import ../../../src/storage/LAWS.bend as StorageLaws
 import ../../../src/tensor/core.bend as Core
 import ../../../src/tensor/layout.bend as Layout
 import ../../../src/tensor/lifecycle.bend as Lifecycle
-import ../../../src/tensor/from-values-contract.bend as FromValues
+import ../../../src/tensor/from_values_contract.bend as FromValues
 import ../../../src/tensor/contracts/LAWS.bend as Contracts
 import ../../../src/tensor/contracts/replayed.bend as Replayed
 import ../../../src/tensor/contracts/fold.bend as Fold
 import ../../../src/autograd/reduce.bend as Reduce
-import ../../../src/autograd/reduce-LAWS.bend as ReduceLaws
-import ../../../src/autograd/reduce-fold.bend as ReduceFold
-import ../../../src/autograd/reduce-fold-LAWS.bend as Laws
-import ../../../src/autograd/reduce-PROOF.bend as ReduceProof
-import ../../../src/autograd/reduce-fold-PROOF.bend as FoldProof
-import ../../../src/autograd/reduce-to-fold-PROOF.bend as ReduceToProof
-import ../../../src/autograd/sum-to-size.bend as SumToSize
-import ../../../src/autograd/sum-to-size-fold-LAWS.bend as SumLaws
-import ../../../src/autograd/sum-to-size-fold-PROOF.bend as SumProof
+import ../../../src/autograd/reduce_LAWS.bend as ReduceLaws
+import ../../../src/autograd/reduce_fold.bend as ReduceFold
+import ../../../src/autograd/reduce_fold_LAWS.bend as Laws
+import ../../../src/autograd/reduce_PROOF.bend as ReduceProof
+import ../../../src/autograd/reduce_fold_PROOF.bend as FoldProof
+import ../../../src/autograd/reduce_to_fold_PROOF.bend as ReduceToProof
+import ../../../src/autograd/sum_to_size.bend as SumToSize
+import ../../../src/autograd/sum_to_size_fold_LAWS.bend as SumLaws
+import ../../../src/autograd/sum_to_size_fold_PROOF.bend as SumProof
 
 def scalar_shape() -> Shape.Shape:
   Shape.SShape{[], 1n, {==}, Unit{}, Unit{}}

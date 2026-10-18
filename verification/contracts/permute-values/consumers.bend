@@ -1,14 +1,14 @@
 import Base
-import ../../../src/tensor/permute-values-contract-LAWS.bend as Contract
-import ../../../src/tensor/permute-values-records.bend as Records
-import ../../../src/tensor/permute-values-contract-PROOF.bend as ContractProof
+import ../../../src/tensor/permute_values_contract_LAWS.bend as Contract
+import ../../../src/tensor/permute_values_records.bend as Records
+import ../../../src/tensor/permute_values_contract_PROOF.bend as ContractProof
 import ../../../src/tensor/contracts/PROOF.bend as ContractsProof
 import ../../../src/shape/core.bend as Shape
 import ../../../src/tensor/core.bend as Core
-import ../../../src/tensor/axis-spec.bend as Axis
-import ../../../src/tensor/transpose-spec.bend as Transpose
+import ../../../src/tensor/axis_spec.bend as Axis
+import ../../../src/tensor/transpose_spec.bend as Transpose
 import ../../../src/tensor/observation.bend as Values
-import ../../../src/tensor/transform-observation.bend as Observation
+import ../../../src/tensor/transform_observation.bend as Observation
 
 def scalar_shape() -> Shape.Shape:
   Shape.SShape{[], 1n, {==}, Unit{}, Unit{}}
