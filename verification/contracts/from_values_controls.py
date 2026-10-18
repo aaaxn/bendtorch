@@ -22,10 +22,10 @@ class Site(NamedTuple):
 EXPERIMENT = "verification/contracts/from-values"
 SRC = reads.SRC
 CORE = reads.CORE
-CONTRACT = f"{SRC}from_2d_values_2d_contract_2d_LAWS."
+CONTRACT = f"{SRC}from_values_contract_LAWS."
 LAWS = (f"{CONTRACT}from_values_contract",)
 LIVE_RECORDS = (
-    f"{SRC}from_2d_values_2d_records.FromValuesContract.arms",
+    f"{SRC}from_values_records.FromValuesContract.arms",
     "consumers.ValuesCase.arms",
     "consumers.EmptyCase.arms",
 )
@@ -54,8 +54,8 @@ VALUES = {
     "wrong_value": reads.EIGHT,
 }
 MUTANTS = mutants.load(Path(__file__).resolve().parent / "from-values/mutants.toml")
-PROOF = "src/tensor/from-values-contract.bend"
-OTHER = "src/tensor/construction-contract-PROOF.bend"
+PROOF = "src/tensor/from_values_contract.bend"
+OTHER = "src/tensor/construction_contract_PROOF.bend"
 SITES = {
     "from-values-wrong-fill": Site("decided_step", "index, 0.0, Storage.set("),
     "from-values-cursor-off-by-one": Site("counted_lift", "valid}, 1n))"),
@@ -136,7 +136,7 @@ def kernel_reason(output: str, label: str) -> str:
         ):
             raise GateError(f"{label}: kernel rejection is not the value statement")
     elif label in SITES:
-        qualified = f"{SRC}from_2d_values_2d_contract.{SITES[label].definition}"
+        qualified = f"{SRC}from_values_contract.{SITES[label].definition}"
         if location != qualified or not expected or expected == observed:
             raise GateError(f"{label}: kernel rejection is not at {qualified}")
     else:

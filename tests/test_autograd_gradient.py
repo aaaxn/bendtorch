@@ -168,7 +168,7 @@ class GateRegistrationTests(unittest.TestCase):
         required = json.loads((ROOT / "verification/autograd.json").read_text())[
             "required_exports"
         ]
-        self.assertEqual(sum("gradient_2d_LAWS" in name for name in required), 10)
+        self.assertEqual(sum("gradient_LAWS" in name for name in required), 10)
         controls = [name for name in PROOF_CONTROLS if name.startswith("gradient-")]
         self.assertEqual(len(controls), 6)
         for path, original, _ in PROOF_CONTROLS.values():

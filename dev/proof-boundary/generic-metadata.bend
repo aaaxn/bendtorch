@@ -2,8 +2,8 @@ import Base
 import ../../src/shape/core.bend as Shape
 import ../../src/storage/arith.bend as Arith
 import ../../src/tensor/core.bend as Core
-import ../../src/tensor/allocation-spec.bend as Allocation
-import ../../src/tensor/allocation-PROOF.bend as AllocationProof
+import ../../src/tensor/allocation_spec.bend as Allocation
+import ../../src/tensor/allocation_PROOF.bend as AllocationProof
 import ./status.bend as Status
 import ./observations.bend as Observation
 

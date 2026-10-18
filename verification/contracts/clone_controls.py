@@ -25,13 +25,13 @@ class Site(NamedTuple):
 EXPERIMENT = "verification/contracts/clone"
 SRC = reads.SRC
 CORE = reads.CORE
-CONTRACT = f"{SRC}clone_2d_metadata_2d_contract_2d_LAWS."
+CONTRACT = f"{SRC}clone_metadata_contract_LAWS."
 LAWS = tuple(
     f"{CONTRACT}{name}"
     for name in ("clone_contract", "clone_write", "metadata_contract")
 )
 LIVE_RECORDS = tuple(
-    f"{SRC}clone_2d_metadata_2d_records.{name}.arms"
+    f"{SRC}clone_metadata_records.{name}.arms"
     for name in ("CloneContract", "CloneWrite", "MetadataContract")
 ) + tuple(
     f"consumers.{name}.arms"
@@ -69,37 +69,37 @@ REPLACEMENT = {"wrong_value": "Some{8.0}", "expected_written": "Some{9.0}"}
 MUTANTS = mutants.load(Path(__file__).resolve().parent / "clone/mutants.toml")
 SITES = {
     "clone-first-last-zeroed": Site(
-        "src/tensor/clone-contract.bend",
+        "src/tensor/clone_contract.bend",
         "first_value_done",
         "Core.first_last_zeroed(",
     ),
     "clone-second-first-zeroed": Site(
-        "src/tensor/clone-contract.bend",
+        "src/tensor/clone_contract.bend",
         "second_value_projection",
         "Core.drop_status(shape, Core.write_result(shape, second,",
     ),
     "length-off-by-one": Site(
-        "src/tensor/metadata-contract.bend",
+        "src/tensor/metadata_contract.bend",
         "number_projection",
         "1n+number",
     ),
     "length-owner-first-zeroed": Site(
-        "src/tensor/metadata-contract.bend",
+        "src/tensor/metadata_contract.bend",
         "owner_value_projection",
         "Core.drop_status(shape, Core.write_result(shape, storage,",
     ),
     "count-off-by-one": Site(
-        "src/tensor/metadata-contract.bend",
+        "src/tensor/metadata_contract.bend",
         "read_count_pair",
         "U32.add(U32.from_nat(Shape.elements(shape)), 1)",
     ),
 }
 KERNEL_SITES = {
-    "clone-first-last-zeroed": f"{SRC}clone_2d_contract.first_value_done",
-    "clone-second-first-zeroed": f"{SRC}clone_2d_contract.second_value_projection",
-    "length-off-by-one": f"{SRC}metadata_2d_contract.number_projection",
-    "length-owner-first-zeroed": f"{SRC}metadata_2d_contract.owner_value_projection",
-    "count-off-by-one": f"{SRC}read_2d_contract.read_count_pair",
+    "clone-first-last-zeroed": f"{SRC}clone_contract.first_value_done",
+    "clone-second-first-zeroed": f"{SRC}clone_contract.second_value_projection",
+    "length-off-by-one": f"{SRC}metadata_contract.number_projection",
+    "length-owner-first-zeroed": f"{SRC}metadata_contract.owner_value_projection",
+    "count-off-by-one": f"{SRC}read_contract.read_count_pair",
 }
 SEVEN = reads.SEVEN
 NINE = reads.NINE

@@ -71,7 +71,7 @@ no output word depends on the number of threads.
 ## Laws state the rules, and Bend proves them
 
 <p align="center">
-  <img src="docs/art/laws.gif" alt="The law sgd_descend_scalar in src/autograd/sgd-LAWS.bend, read line by line: for every learning rate, parameter word and gradient word, one SGD cell is exactly p - lr * g. Then bend PROOF.bend --verdict prints ALL PROOFS CHECK." width="100%">
+  <img src="docs/art/laws.gif" alt="The law sgd_descend_scalar in src/autograd/sgd_LAWS.bend, read line by line: for every learning rate, parameter word and gradient word, one SGD cell is exactly p - lr * g. Then bend PROOF.bend --verdict prints ALL PROOFS CHECK." width="100%">
 </p>
 
 Each module keeps its rules in `src/<module>/LAWS.bend` and their proofs in
@@ -174,7 +174,7 @@ the modules it uses:
 ```python
 import Base
 import bendtorch-core@0.1.0.0/src/tensor/core.bend as Core
-import bendtorch-core@0.1.0.0/src/autograd/tensor-backward.bend as Backward
+import bendtorch-core@0.1.0.0/src/autograd/tensor_backward.bend as Backward
 import bendtorch-core@0.1.0.0/src/autograd/sgd.bend as Sgd
 ```
 
@@ -220,7 +220,7 @@ result:
 export CC="$PWD/.tools/llvm/usr/bin/clang-19"
 export LD_LIBRARY_PATH="$PWD/.tools/llvm/usr/lib/x86_64-linux-gnu"
 mkdir -p .evidence/demo
-bend src/tensor/matmul-demo.bend -o .evidence/demo/matmul-demo
+bend src/tensor/matmul_demo.bend -o .evidence/demo/matmul-demo
 .evidence/demo/matmul-demo --threads 1 --gpu off
 ```
 

@@ -9,8 +9,8 @@ Law, Site, Value, Witness = (
     controls.Witness,
 )
 SRC = "_2e_._2f_.._2f_.._2f_src_2f_tensor_2f_"
-LAWS = f"{SRC}contracts_2f_binary_2d_LAWS"
-BUILD = "contracts_2f_binary_2d_build_2d_proof"
+LAWS = f"{SRC}contracts_2f_binary_LAWS"
+BUILD = "contracts_2f_binary_build_proof"
 OPERATION = "∀+x0 : _2e_._2f_.._2f_.._2f_src_2f_tensor_2f_elementwise.Operation -> "
 ZERO, THREE, FIVE, SEVEN, TEN = fold.ZERO, fold.THREE, fold.FIVE, fold.SEVEN, fold.TEN
 
@@ -116,6 +116,6 @@ FAMILY = controls.Family(
             ),
         ),
     },
-    proof="src/tensor/contracts/binary-PROOF.bend",
+    proof="src/tensor/contracts/binary_PROOF.bend",
     prefix=SRC,
 )

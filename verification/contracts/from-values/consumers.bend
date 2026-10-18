@@ -1,10 +1,10 @@
 import Base
-import ../../../src/tensor/from-values-contract-LAWS.bend as Contract
-import ../../../src/tensor/from-values-records.bend as Records
-import ../../../src/tensor/from-values-contract-PROOF.bend as ContractProof
+import ../../../src/tensor/from_values_contract_LAWS.bend as Contract
+import ../../../src/tensor/from_values_records.bend as Records
+import ../../../src/tensor/from_values_contract_PROOF.bend as ContractProof
 import ../../../src/shape/core.bend as Shape
 import ../../../src/tensor/core.bend as Core
-import ../../../src/tensor/allocation-spec.bend as Allocation
+import ../../../src/tensor/allocation_spec.bend as Allocation
 import ../../../src/tensor/observation.bend as Observation
 
 def scalar_shape() -> Shape.Shape:

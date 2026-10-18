@@ -17,9 +17,9 @@ class PackageTest(unittest.TestCase):
         self.assertIn("PROOF.bend", shipped)
         self.assertIn("LAWS.bend", shipped)
         self.assertIn("LICENSE", shipped)
-        self.assertIn("src/autograd/tensor-backward.bend", shipped)
-        self.assertIn("src/tensor/core-LAWS.bend", shipped)
-        self.assertNotIn("src/tensor/matmul-demo.bend", shipped)
+        self.assertIn("src/autograd/tensor_backward.bend", shipped)
+        self.assertIn("src/tensor/core_LAWS.bend", shipped)
+        self.assertNotIn("src/tensor/matmul_demo.bend", shipped)
         for path in shipped:
             self.assertTrue(
                 path.startswith("src/")
@@ -82,6 +82,22 @@ class PackageTest(unittest.TestCase):
             self.mini(root, "import ./src/a.bend as A\n", changelog="0.2.0.0")
             with self.assertRaisesRegex(PackageError, "CHANGELOG.md 0.2.0.0"):
                 check(root)
+
+    def test_paths_the_hub_refuses(self) -> None:
+        for path in ("src/a-b.bend", "src/a-b/c.bend", "src/1a.bend", "src/a.b.bend"):
+            with self.subTest(path), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                self.mini(root, f"import ./{path} as B\n")
+                (root / path).parent.mkdir(parents=True, exist_ok=True)
+                (root / path).write_text("import Base\n")
+                with self.assertRaisesRegex(PackageError, "BendHub refuses"):
+                    check(root)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.mini(root, "import ./src/a_B9/_c.bend as C\n")
+            (root / "src/a_B9").mkdir()
+            (root / "src/a_B9/_c.bend").write_text("import Base\n")
+            self.assertIn("src/a_B9/_c.bend", check(root))
 
     def test_a_licence_beside_a_shipped_file_ships(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

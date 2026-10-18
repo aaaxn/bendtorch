@@ -1,9 +1,9 @@
 import Base
-import ../../../src/tensor/transform-contract-LAWS.bend as Contract
-import ../../../src/tensor/transform-records.bend as Records
-import ../../../src/tensor/transform-contract-PROOF.bend as ContractProof
+import ../../../src/tensor/transform_contract_LAWS.bend as Contract
+import ../../../src/tensor/transform_records.bend as Records
+import ../../../src/tensor/transform_contract_PROOF.bend as ContractProof
 import ../../../src/tensor/core.bend as Core
-import ../../../src/tensor/transform-observation.bend as Observation
+import ../../../src/tensor/transform_observation.bend as Observation
 import ./consumers.bend as Cases
 
 def expected_fill() -> Maybe<&2, F32>:

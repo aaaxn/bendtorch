@@ -9,7 +9,7 @@ Law, Site, Value, Witness = (
     controls.Witness,
 )
 SRC = "_2e_._2f_.._2f_.._2f_src_2f_autograd_2f_"
-LAWS = f"{SRC}broadcast_2d_pointwise_2d_LAWS"
+LAWS = f"{SRC}broadcast_pointwise_LAWS"
 SHAPE = "∀+x0 : _2e_._2f_.._2f_.._2f_src_2f_shape_2f_core.Shape -> "
 ZERO, ONE, TWO, THREE, SEVEN = fold.ZERO, fold.ONE, fold.TWO, fold.THREE, fold.SEVEN
 
@@ -70,22 +70,22 @@ FAMILY = controls.Family(
         "adds-zero": Site(
             "run_lift",
             "Elementwise.Add{}",
-            "broadcast_2d_pointwise_2d_PROOF.run_lift",
+            "broadcast_pointwise_PROOF.run_lift",
             ("broadcast.zeroed",),
         ),
         "swapped-operands": Site(
             "run_lift",
             "KeepLeft{}, plan, Core.Packed{target,",
-            "broadcast_2d_pointwise_2d_PROOF.run_lift",
+            "broadcast_pointwise_PROOF.run_lift",
             ("broadcast.zeroed",),
         ),
         "returns-zero-owner": Site(
             "run_lift",
             "Core.Packed{target, Core.TTensor{StorageLaws.replay(zeros_kept,",
-            "broadcast_2d_pointwise_2d_PROOF.run_lift",
+            "broadcast_pointwise_PROOF.run_lift",
             ("broadcast.finish",),
         ),
     },
-    proof="src/autograd/broadcast-pointwise-PROOF.bend",
+    proof="src/autograd/broadcast_pointwise_PROOF.bend",
     prefix=SRC,
 )

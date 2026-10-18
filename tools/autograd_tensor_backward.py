@@ -122,7 +122,7 @@ RUNTIME_CONTROLS = {
     # instead of 0, a gradient delivered over the output's batch without
     # summing it to its operand's shape, and left^T @ g reading g by rows.
     "batched-stretched-axis-reads-own-index": (
-        "src/tensor/batched-matmul.bend",
+        "src/tensor/batched_matmul.bend",
         "    case True{}:\n      0n\n    case False{}:\n      index\n",
         "    case True{}:\n      index\n    case False{}:\n      index\n",
     ),
@@ -133,7 +133,7 @@ RUNTIME_CONTROLS = {
         "      Done{Contribution{target, shape, product}}\n",
     ),
     "batched-right-gradient-reads-g-by-rows": (
-        "src/tensor/batched-matmul.bend",
+        "src/tensor/batched_matmul.bend",
         "  Layout{Matrix.Swapped{}, Matrix.Swapped{}, rows, inner, columns, "
         "l1, l2, o1, o2, o2}",
         "  Layout{Matrix.Swapped{}, Matrix.Kept{}, rows, inner, columns, "
@@ -149,12 +149,12 @@ RUNTIME_CONTROLS = {
         "restored(shape, vjp_sum(a, input, Core.Packed{shape, tensor}))",
     ),
     "sum-dims-sums-next-axis": (
-        "src/autograd/sum-dims.bend",
+        "src/autograd/sum_dims.bend",
         "Bool.pick(U32, reduces(axes, axis), 1, extent)",
         "Bool.pick(U32, reduces(axes, U32.add(axis, 1)), 1, extent)",
     ),
     "sum-dims-ignores-keepdim": (
-        "src/autograd/sum-dims.bend",
+        "src/autograd/sum_dims.bend",
         "    case True{}:\n      Done{output}",
         "    case True{}:\n"
         "      transformed(Transforms.reshape_dynamic(output, dropped))",
@@ -383,7 +383,7 @@ RUNTIME_CONTROLS |= {
 }
 # Sweeps that break the chain rule: a dropped contribution, one added twice,
 # a VJP's contributions delivered in reverse operand order, and a contribution
-# sent to the next slot. The proof of tensor-chain-PROOF.bend, checked on its
+# sent to the next slot. The proof of tensor_chain_PROOF.bend, checked on its
 # own, fails at the named def for each, and the JavaScript lane rejects each.
 BUMP_HIT = (
     "# Accumulates a contribution into the slot of node target, in a newest-first\n"
@@ -422,13 +422,13 @@ DELIVERED = (
 )
 CHAIN_CONTROLS = {
     "sweep-drops-contribution": (
-        "src/autograd/tensor-backward.bend",
+        "src/autograd/tensor_backward.bend",
         DELIVERED,
         "      deliver(rest, count, Done{slots})",
         "Location: relay",
     ),
     "sweep-adds-contribution-twice": (
-        "src/autograd/tensor-backward.bend",
+        "src/autograd/tensor_backward.bend",
         BUMP_HIT,
         PLACED_TWICE
         + BUMP_HIT.replace(
@@ -438,13 +438,13 @@ CHAIN_CONTROLS = {
         "Location: hit_bumped",
     ),
     "sweep-swaps-delivery-order": (
-        "src/autograd/tensor-backward.bend",
+        "src/autograd/tensor_backward.bend",
         "      deliver(items, count, Done{slots})",
         "      deliver(List.reverse(&1, Contribution, items), count, Done{slots})",
         "Location: fired_stop",
     ),
     "sweep-sends-to-wrong-slot": (
-        "src/autograd/tensor-backward.bend",
+        "src/autograd/tensor_backward.bend",
         DELIVERED,
         "      deliver(rest, count, bump(slots, count, 1n+target, shape, gradient, "
         "at_head(count, 1n+target)))",
@@ -3579,8 +3579,8 @@ def program(selected: list[dict], directory: Path, source_root: Path) -> str:
         raise GateError("Refusing to generate an empty autograd tensor backward corpus")
     lines = ["import Base"]
     for path, alias in (
-        ("src/autograd/tensor-backward-harness.bend", "Harness"),
-        ("src/autograd/tensor-backward.bend", "Backward"),
+        ("src/autograd/tensor_backward_harness.bend", "Harness"),
+        ("src/autograd/tensor_backward.bend", "Backward"),
         ("src/tensor/signed.bend", "Signed"),
     ):
         relative = os.path.relpath(source_root / path, directory)
@@ -3700,7 +3700,7 @@ def runtime_controls(tool_root: Path, output: Path, selected: list[dict]) -> lis
         path, original, mutated = (
             control
             if len(control) == 3
-            else ("src/autograd/tensor-backward.bend", *control)
+            else ("src/autograd/tensor_backward.bend", *control)
         )
         copy = output / name
         shutil.copytree(ROOT / "src", copy / "src")
@@ -3709,7 +3709,7 @@ def runtime_controls(tool_root: Path, output: Path, selected: list[dict]) -> lis
         if text.count(original) != 1:
             raise GateError(f"{name}: runtime control anchor is missing or ambiguous")
         target.write_text(text.replace(original, mutated))
-        source = copy / "tensor-backward.bend"
+        source = copy / "tensor_backward.bend"
         source.write_text(program(selected, copy, copy))
         script = copy / "tensor-backward.js"
         evidence.run(f"{name}-javascript-build", bend(tool_root, source, "-o", script))
@@ -3730,7 +3730,7 @@ def runtime_controls(tool_root: Path, output: Path, selected: list[dict]) -> lis
         if text.count(original) != 1:
             raise GateError(f"{name}: native control anchor is missing or ambiguous")
         target.write_text(text.replace(original, mutated))
-        source = copy / "tensor-backward.bend"
+        source = copy / "tensor_backward.bend"
         source.write_text(program(selected, copy, copy))
         emitted = copy / "tensor-backward.c"
         executable = copy / "tensor-backward"

@@ -3,7 +3,7 @@ import ../shape/core.bend as Shape
 import ../tensor/core.bend as Core
 import ../tensor/elementwise.bend as Elementwise
 import ./gradient.bend as Gradient
-import ./tensor-backward.bend as Backward
+import ./tensor_backward.bend as Backward
 
 # Plain stochastic gradient descent on the tape, PyTorch's
 # torch.optim.SGD(params, lr) with no momentum, dampening, nesterov,

@@ -68,7 +68,7 @@ class SumDimsRegistrationTests(unittest.TestCase):
         required = json.loads((ROOT / "verification/autograd.json").read_text())[
             "required_exports"
         ]
-        laws = (ROOT / "src/autograd/sum-dims-LAWS.bend").read_text()
+        laws = (ROOT / "src/autograd/sum_dims_LAWS.bend").read_text()
         names = [
             line.removeprefix("law ").removesuffix(":")
             for line in laws.splitlines()
@@ -76,18 +76,16 @@ class SumDimsRegistrationTests(unittest.TestCase):
         ]
         self.assertEqual(len(names), 17)
         self.assertEqual(
-            [name for name in required if name.startswith("sum_2d_dims_2d_LAWS.")],
-            [f"sum_2d_dims_2d_LAWS.{name}" for name in names],
+            [name for name in required if name.startswith("sum_dims_LAWS.")],
+            [f"sum_dims_LAWS.{name}" for name in names],
         )
-        self.assertIn(
-            "tensor_2d_backward_2d_LAWS.tensor_sum_dims_vjp_pointwise", required
-        )
-        self.assertIn("tensor_2d_backward_2d_LAWS.tensor_sum_dims_wraps", required)
+        self.assertIn("tensor_backward_LAWS.tensor_sum_dims_vjp_pointwise", required)
+        self.assertIn("tensor_backward_LAWS.tensor_sum_dims_wraps", required)
         proofs = [name for name in PROOF_CONTROLS if "sum-dims-" in name]
         self.assertEqual(len(proofs), 9)
         errors = {name: v for name, v in ERROR_CONTROLS.items() if "sum-dims-" in name}
         self.assertEqual(len(errors), 3)
-        proof = (ROOT / "src/autograd/sum-dims-PROOF.bend").read_text()
+        proof = (ROOT / "src/autograd/sum_dims_PROOF.bend").read_text()
         for _, original, mutated, _, location in errors.values():
             self.assertIn(f"def {location}(", proof)
             self.assertNotEqual(original, mutated)

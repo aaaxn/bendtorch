@@ -85,7 +85,7 @@ def mutation_copy(snapshot: Path, target: Path) -> None:
     core.write_text(
         text.replace(old, "new_result(shape, Storage.new(Shape.count(shape), 0.0))")
     )
-    proof = target / "src/tensor/allocation-PROOF.bend"
+    proof = target / "src/tensor/allocation_PROOF.bend"
     text = proof.read_text()
     start = text.index("def core_new(+shape:")
     end = text.index("\ndef core_new_done", start)
@@ -378,7 +378,7 @@ def main() -> None:
         zero_name = declarations["wrong_fill_value"][1].strip()
         zero = declarations[zero_name][1].strip()
         wrong = text
-        for suffix in ("_2f_core.new", "_2f_allocation_2d_PROOF.core_new"):
+        for suffix in ("_2f_core.new", "_2f_allocation_PROOF.core_new"):
             names = [name for name in declarations if name.endswith(suffix)]
             if len(names) != 1:
                 raise GateError(f"Wrong-fill export target is ambiguous: {suffix}")

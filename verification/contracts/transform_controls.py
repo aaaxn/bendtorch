@@ -23,7 +23,7 @@ class Site(NamedTuple):
 
 EXPERIMENT = "verification/contracts/transforms"
 SRC = reads.SRC
-CONTRACT = f"{SRC}transform_2d_contract_2d_LAWS."
+CONTRACT = f"{SRC}transform_contract_LAWS."
 LAWS = tuple(
     f"{CONTRACT}{name}"
     for name in (
@@ -37,7 +37,7 @@ LAWS = tuple(
     )
 )
 LIVE_RECORDS = tuple(
-    f"{SRC}transform_2d_records.{name}.arms"
+    f"{SRC}transform_records.{name}.arms"
     for name in ("RetainedFailure", "ReshapeContract", "ReshapeWrite")
 ) + tuple(
     f"consumers.{name}.arms"
@@ -70,8 +70,8 @@ WITNESSES = {
 
 
 MUTANTS = mutants.load(Path(__file__).resolve().parent / "transforms/mutants.toml")
-RESHAPE = "src/tensor/reshape-contract.bend"
-PERMUTE = "src/tensor/permute-contract.bend"
+RESHAPE = "src/tensor/reshape_contract.bend"
+PERMUTE = "src/tensor/permute_contract.bend"
 SITES = {
     "reshape-zeroed": Site(RESHAPE, "decided_lift", "Transforms.drop_status(output,"),
     "reshape-unjustified-failure": Site(

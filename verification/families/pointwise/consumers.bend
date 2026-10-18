@@ -5,13 +5,13 @@ import ../../../src/storage/LAWS.bend as StorageLaws
 import ../../../src/tensor/core.bend as Core
 import ../../../src/tensor/elementwise.bend as Elementwise
 import ../../../src/tensor/lifecycle.bend as Lifecycle
-import ../../../src/tensor/from-values-contract.bend as FromValues
+import ../../../src/tensor/from_values_contract.bend as FromValues
 import ../../../src/tensor/contracts/LAWS.bend as Contracts
 import ../../../src/tensor/contracts/PROOF.bend as ContractsProof
 import ../../../src/tensor/contracts/replayed.bend as Replayed
 import ../../../src/tensor/contracts/broadcast.bend as Broadcast
 import ../../../src/tensor/contracts/pointwise.bend as Pointwise
-import ../../../src/tensor/contracts/pointwise-records.bend as Records
+import ../../../src/tensor/contracts/pointwise_records.bend as Records
 
 def scalar_shape() -> Shape.Shape:
   Shape.SShape{[], 1n, {==}, Unit{}, Unit{}}

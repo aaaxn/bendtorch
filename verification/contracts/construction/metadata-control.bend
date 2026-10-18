@@ -1,8 +1,8 @@
 import Base
-import ../../../src/tensor/construction-metadata.bend as Metadata
+import ../../../src/tensor/construction_metadata.bend as Metadata
 import ../../../src/shape/core.bend as Shape
 import ../../../src/tensor/core.bend as Core
-import ../../../src/tensor/allocation-spec.bend as Allocation
+import ../../../src/tensor/allocation_spec.bend as Allocation
 import ../../../src/tensor/observation.bend as Observation
 
 def expose(-shape: Shape.Shape, -fill: F32, evidence: Metadata.NewMetadata<shape, fill>) ->

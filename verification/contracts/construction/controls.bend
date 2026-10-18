@@ -1,6 +1,6 @@
 import Base
-import ../../../src/tensor/construction-contract-LAWS.bend as Contract
-import ../../../src/tensor/construction-contract-PROOF.bend as ContractProof
+import ../../../src/tensor/construction_contract_LAWS.bend as Contract
+import ../../../src/tensor/construction_contract_PROOF.bend as ContractProof
 import ../../../src/tensor/core.bend as Core
 import ./consumers.bend as Cases
 import ../../../src/tensor/observation.bend as Observation

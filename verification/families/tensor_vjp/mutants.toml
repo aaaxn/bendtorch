@@ -1,68 +1,68 @@
 [add-reduces-to-other-operand]
-file = "src/autograd/tensor-backward.bend"
+file = "src/autograd/tensor_backward.bend"
 before = '''
   added_first(b, right, reduced(a, left, g))'''
 after = '''
   added_first(b, right, reduced(a, right, g))'''
 
 [add-sends-second-to-first]
-file = "src/autograd/tensor-backward.bend"
+file = "src/autograd/tensor_backward.bend"
 before = '''
   added_first(b, right, reduced(a, left, g))'''
 after = '''
   added_first(a, right, reduced(a, left, g))'''
 
 [sub-keeps-sign]
-file = "src/autograd/tensor-backward.bend"
+file = "src/autograd/tensor_backward.bend"
 before = '''
       negated_pair(Elementwise.binary(Elementwise.NegateLeft{}, g,'''
 after = '''
       negated_pair(Elementwise.binary(Elementwise.KeepLeft{}, g,'''
 
 [mul-swaps-operands]
-file = "src/autograd/tensor-backward.bend"
+file = "src/autograd/tensor_backward.bend"
 before = '''
       multiplied_first(a, b, left, right, x, Elementwise.mul(g, y))'''
 after = '''
       multiplied_first(a, b, left, right, y, Elementwise.mul(g, x))'''
 
 [mul-product-swaps-inputs]
-file = "src/autograd/tensor-backward.bend"
+file = "src/autograd/tensor_backward.bend"
 before = '''
   multiplied_second(b, right, product_reduced(a, left, first), y, Elementwise.mul(g, x))'''
 after = '''
   multiplied_second(b, right, product_reduced(a, left, first), y, Elementwise.mul(x, g))'''
 
 [matmul-left-untransposed]
-file = "src/autograd/tensor-backward.bend"
+file = "src/autograd/tensor_backward.bend"
 before = '''
   matmul_second(b, right, x, g, left_product(a, left, copy, Transforms.transpose_dynamic(y, 0, 1)))'''
 after = '''
   matmul_second(b, right, x, g, left_product(a, left, copy, Transforms.transpose_dynamic(y, 0, 0)))'''
 
 [matmul-right-operands-swapped]
-file = "src/autograd/tensor-backward.bend"
+file = "src/autograd/tensor_backward.bend"
 before = '''
       (left, multiplied(target, shape, Matrix.matmul(flipped, copy)))'''
 after = '''
       (left, multiplied(target, shape, Matrix.matmul(copy, flipped)))'''
 
 [matmul-sends-second-to-first]
-file = "src/autograd/tensor-backward.bend"
+file = "src/autograd/tensor_backward.bend"
 before = '''
       matmul_first(a, b, left, right, x, y, Core.clone_dynamic(g))'''
 after = '''
       matmul_first(a, a, left, right, x, y, Core.clone_dynamic(g))'''
 
 [nt-vjp-tn-swaps-operands]
-file = "src/autograd/tensor-backward.bend"
+file = "src/autograd/tensor_backward.bend"
 before = '''
   Matrix.matmul_tn(copy, flipped)'''
 after = '''
   Matrix.matmul_tn(flipped, copy)'''
 
 [nt-vjp-left-reads-transposed]
-file = "src/autograd/tensor-backward.bend"
+file = "src/autograd/tensor_backward.bend"
 before = '''
   (right, multiplied(target, shape, Matrix.matmul(copy, flipped)))
 
@@ -73,56 +73,56 @@ after = '''
 # g^T @ x, g read in place. It has its own name so that the proofs of where'''
 
 [nt-vjp-sends-second-to-first]
-file = "src/autograd/tensor-backward.bend"
+file = "src/autograd/tensor_backward.bend"
 before = '''
       nt_first(a, b, left, right, x, y, Core.clone_dynamic(g))'''
 after = '''
       nt_first(a, a, left, right, x, y, Core.clone_dynamic(g))'''
 
 [relu-vjp-reads-gradient-as-input]
-file = "src/autograd/tensor-backward.bend"
+file = "src/autograd/tensor_backward.bend"
 before = '''
       relu_passed(a, input, zero, Elementwise.binary(Elementwise.ReluBackward{}, x, g))'''
 after = '''
       relu_passed(a, input, zero, Elementwise.binary(Elementwise.ReluBackward{}, g, x))'''
 
 [relu-vjp-sends-relu]
-file = "src/autograd/tensor-backward.bend"
+file = "src/autograd/tensor_backward.bend"
 before = '''
       relu_passed(a, input, zero, Elementwise.binary(Elementwise.ReluBackward{}, x, g))'''
 after = '''
       relu_passed(a, input, zero, Elementwise.binary(Elementwise.ReluLeft{}, x, g))'''
 
 [relu-vjp-sends-to-first-node]
-file = "src/autograd/tensor-backward.bend"
+file = "src/autograd/tensor_backward.bend"
 before = '''
   Pass{Operands{x, zero}, g, alone(product_reduced(a, input, result))}'''
 after = '''
   Pass{Operands{x, zero}, g, alone(product_reduced(0n, input, result))}'''
 
 [mse-vjp-sends-second-to-first-node]
-file = "src/autograd/tensor-backward.bend"
+file = "src/autograd/tensor_backward.bend"
 before = '''
   Pass{Operands{e, d}, g, both(first, product_reduced(b, right, second))}'''
 after = '''
   Pass{Operands{e, d}, g, both(first, product_reduced(0n, right, second))}'''
 
 [mse-vjp-scale-two]
-file = "src/autograd/tensor-backward.bend"
+file = "src/autograd/tensor_backward.bend"
 before = '''
   mse_first(a, b, left, right, Loss.mse_scale(shape), e, Elementwise.binary(Elementwise.MseGrad{Loss.mse_scale(shape)}, g, d))'''
 after = '''
   mse_first(a, b, left, right, Loss.mse_scale(shape), e, Elementwise.binary(Elementwise.MseGrad{2.0}, g, d))'''
 
 [cross-entropy-vjp-drops-softmax]
-file = "src/autograd/tensor-backward.bend"
+file = "src/autograd/tensor_backward.bend"
 before = '''
   entropy_second(a, input, product_reduced(a, input, first), onehot, Elementwise.binary(Elementwise.SoftmaxGrad{count, single}, g, lp))'''
 after = '''
   entropy_second(a, input, product_reduced(a, input, first), onehot, Elementwise.binary(Elementwise.OneHotGrad{count}, g, lp))'''
 
 [cross-entropy-vjp-ignores-one-class]
-file = "src/autograd/tensor-backward.bend"
+file = "src/autograd/tensor_backward.bend"
 before = '''
       entropy_first(a, input, Loss.count_f32(Loss.rows(input)), Loss.one_class(input), lp,'''
 after = '''

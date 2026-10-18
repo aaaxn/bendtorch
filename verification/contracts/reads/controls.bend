@@ -1,7 +1,7 @@
 import Base
-import ../../../src/tensor/read-write-contract-LAWS.bend as Contract
-import ../../../src/tensor/read-write-records.bend as Records
-import ../../../src/tensor/read-write-contract-PROOF.bend as ContractProof
+import ../../../src/tensor/read_write_contract_LAWS.bend as Contract
+import ../../../src/tensor/read_write_records.bend as Records
+import ../../../src/tensor/read_write_contract_PROOF.bend as ContractProof
 import ../../../src/tensor/core.bend as Core
 import ../../../src/tensor/observation.bend as Observation
 import ./consumers.bend as Cases

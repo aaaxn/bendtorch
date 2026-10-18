@@ -31,7 +31,7 @@ points of `src/tensor/signed.bend` accept both requests as PyTorch does
 | `dtype_float64`, `dtype_float16`, `dtype_bfloat16`, `dtype_int32`, `dtype_int64`, `dtype_bool`, `dtype_complex64` | `UnsupportedDtype` | accepts the dtype |
 
 These three corpus requests call `Matrix.matmul`, which keeps its rank-2
-contract. `Batched.matmul` in `src/tensor/batched-matmul.bend`, PyTorch's
+contract. `Batched.matmul` in `src/tensor/batched_matmul.bend`, PyTorch's
 `torch.matmul`, and the tape's
 `batched_matmul` accept them with PyTorch's shapes; they refuse a rank-0
 operand, as PyTorch does, and an output past 2^20 elements, which PyTorch
@@ -147,11 +147,11 @@ NaN payloads, infinities, `-0.0` and subnormals. The differences:
 | Saved operands that disagree with the leaves | Gradients use the saved values of a forged tape | Cannot be built (1 script, `forged_sound`, recorded as unrepresentable) |
 | `NaN_a - NaN_b` with two payloads | Native keeps `NaN_a`'s payload | Keeps `NaN_b`'s payload (1 script); `add` and `mul` agree |
 
-`src/autograd/backward-LAWS.bend` has the contract.
+`src/autograd/backward_LAWS.bend` has the contract.
 
 ## Tensor backward
 
-The tensor `backward` in `src/autograd/tensor-backward.bend` agrees with
+The tensor `backward` in `src/autograd/tensor_backward.bend` agrees with
 PyTorch's gradients word for word on every script of
 `oracle/autograd/fixtures/tensor-backward-torch.json` that PyTorch can
 represent, including arrival order, broadcast reductions, `-0.0`, infinities
@@ -208,5 +208,5 @@ accepted. The differences:
 | SGD step over a node that is not a leaf | `NotLeaf` (109) | `torch.optim.SGD` accepts a non-leaf that retains its gradient, as every non-leaf of the replay does (1 script) |
 | `backward` of a constant, or of an operation on constants only | Seeds the output with ones and sends nothing on | `RuntimeError`: the output does not require grad (no script) |
 
-`src/autograd/tensor-backward-LAWS.bend`, `tensor-vjp-LAWS.bend` and
-`tensor-chain-LAWS.bend` in `src/autograd/` have the contract.
+`src/autograd/tensor_backward_LAWS.bend`, `tensor_vjp_LAWS.bend` and
+`tensor_chain_LAWS.bend` in `src/autograd/` have the contract.

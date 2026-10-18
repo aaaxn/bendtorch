@@ -99,7 +99,7 @@ class ExperimentRunnerTests(unittest.TestCase):
     def test_failure_kernel_reason_requires_the_length_claim(self):
         prefix = "_2e_._2f_.._2f_.._2f_src_2f_"
         claim = f"== (.Some, (({prefix}shape_2f_core.logical_numel x0), ())) : N}}"
-        location = f"In {prefix}tensor_2f_allocation_2d_PROOF.new_result_length:"
+        location = f"In {prefix}tensor_2f_allocation_PROOF.new_result_length:"
         good = (
             f"SOME PROOFS FAIL\n{location}\n"
             f"expected: {{(len (({prefix}tensor_2f_core.new_result +x0) "
@@ -120,7 +120,7 @@ class ExperimentRunnerTests(unittest.TestCase):
             root = Path(directory)
             baseline = root / "baseline"
             (baseline / "src/tensor").mkdir(parents=True)
-            for name in ("core.bend", "allocation-PROOF.bend"):
+            for name in ("core.bend", "allocation_PROOF.bend"):
                 (baseline / "src/tensor" / name).write_bytes(
                     (ROOT / "src/tensor" / name).read_bytes()
                 )
@@ -130,8 +130,8 @@ class ExperimentRunnerTests(unittest.TestCase):
             self.assertIn(
                 "new_result(shape, Storage.new(Shape.count(shape), 0.0))", core
             )
-            before = (baseline / "src/tensor/allocation-PROOF.bend").read_text()
-            after = (target / "src/tensor/allocation-PROOF.bend").read_text()
+            before = (baseline / "src/tensor/allocation_PROOF.bend").read_text()
+            after = (target / "src/tensor/allocation_PROOF.bend").read_text()
             start = before.index("def core_new(+shape:")
             header_end = before.index(":\n", start)
             self.assertEqual(before[start:header_end], after[start:header_end])
@@ -326,7 +326,7 @@ class ExperimentRunnerTests(unittest.TestCase):
             )
 
     def test_transform_kernel_reason_refuses_other_locations(self):
-        site = f"{transforms.SRC}permute_2d_contract.bounded_failure"
+        site = f"{transforms.SRC}permute_contract.bounded_failure"
         good = f"In {site}:\nexpected: a\nobserved: b\n"
         self.assertIn(site, transforms.kernel_reason(good, "permute-wrong-error"))
         with self.assertRaises(runner.GateError):
@@ -387,7 +387,7 @@ class ExperimentRunnerTests(unittest.TestCase):
             )
 
     def test_from_values_kernel_reason_refuses_other_locations(self):
-        site = f"{values.SRC}from_2d_values_2d_contract.fill_lift"
+        site = f"{values.SRC}from_values_contract.fill_lift"
         good = f"In {site}:\nexpected: a\nobserved: b\n"
         self.assertIn(
             site, values.kernel_reason(good, "from-values-missing-last-write")
@@ -409,7 +409,7 @@ class ExperimentRunnerTests(unittest.TestCase):
             )
 
     def test_permute_mutants_edit_only_the_copy(self):
-        modules = ("src/tensor/transforms.bend", "src/tensor/permute-build.bend")
+        modules = ("src/tensor/transforms.bend", "src/tensor/permute_build.bend")
         for label, (path, old, new) in permutes.MUTANTS.items():
             self.assertIn(path, modules, label)
             self.assertEqual((ROOT / path).read_text().count(old), 1, label)
@@ -468,21 +468,21 @@ class ExperimentRunnerTests(unittest.TestCase):
             )
 
     def test_permute_kernel_reason_refuses_other_locations(self):
-        site = f"{permutes.SRC}permute_2d_build_2d_proof.source_word"
+        site = f"{permutes.SRC}permute_build_proof.source_word"
         good = f"In {site}:\nexpected: a\nobserved: b\n"
         self.assertIn(site, permutes.kernel_reason(good, "permute-identity-map"))
         with self.assertRaises(runner.GateError):
             permutes.kernel_reason(good, "permute-forward-map")
         with self.assertRaises(runner.GateError):
             permutes.kernel_reason(good, "transpose-swap-ignored")
-        inverse = f"{permutes.SRC}permute_2d_build_2d_proof.source_index"
+        inverse = f"{permutes.SRC}permute_build_proof.source_index"
         self.assertIn(
             inverse,
             permutes.kernel_reason(
                 f"In {inverse}:\nexpected: a\nobserved: b\n", "permute-forward-map"
             ),
         )
-        value = f"({permutes.SRC}transform_2d_observation.applied_value x)"
+        value = f"({permutes.SRC}transform_observation.applied_value x)"
         left = f"({value} ({permutes.CORE}from_values y))"
         witness = (
             "In cube_rotate_witness:\n"

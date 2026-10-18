@@ -8,7 +8,7 @@ import ./broadcast.bend as Broadcast
 
 import ./reduce.bend as Reduce
 
-import ./sum-to-size.bend as SumToSize
+import ./sum_to_size.bend as SumToSize
 
 import ./gradient.bend as Gradient
 

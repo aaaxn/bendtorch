@@ -2,8 +2,8 @@ import Base
 import ../../../src/shape/core.bend as Shape
 import ../../../src/tensor/lifecycle.bend as Lifecycle
 import ../../../src/tensor/contracts/replayed.bend as Replayed
-import ../../../src/autograd/broadcast-pointwise-LAWS.bend as Laws
-import ../../../src/autograd/broadcast-pointwise-PROOF.bend as Proof
+import ../../../src/autograd/broadcast_pointwise_LAWS.bend as Laws
+import ../../../src/autograd/broadcast_pointwise_PROOF.bend as Proof
 import ./consumers.bend as Cases
 
 def expected_columns() -> Maybe<&2, F32>:
