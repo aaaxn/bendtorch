@@ -10,7 +10,7 @@ import ./gather.bend as Gather
 import ./gather_LAWS.bend as Laws
 import ../storage/clone.bend as Clone
 import ../shape/plan_proofs.bend as Plans
-import ./parallel_proof.bend as Generic
+import ./parallel_proofs.bend as Generic
 import ./batched_matmul_PROOF.bend as BatchedProof
 
 # The checks and the plans.

@@ -27,7 +27,9 @@ with every file it imports: the modules of `src/`, the root `LAWS.bend` and
 and `docs/` stay in the repository. `uv run --locked python -m tools.package`
 prints the shipped files and fails if the entry pulls in anything else, or
 if a path breaks BendHub's rule: letters, digits and `_` only, so shipped
-files are named `tensor_vjp_LAWS.bend`, never `tensor-vjp-LAWS.bend`.
+files are named `tensor_vjp_LAWS.bend`, never `tensor-vjp-LAWS.bend`,
+and no two paths differ only by case (`parallel_proofs.bend` beside
+`parallel_PROOF.bend`, not `parallel_proof.bend`).
 
 A program imports the module it needs, by name or by hash:
 

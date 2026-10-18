@@ -17,7 +17,7 @@ import ./binary_storage_proof.bend as Owned
 
 # Facts the exports of the parallel builds share: natural-number facts about
 # the positions of a balanced tree, and two lifts of replayed storages. The
-# elementwise export (binary_proof.bend) and the permute export
+# elementwise export (binary_proofs.bend) and the permute export
 # (../permute_build_proof.bend) use them.
 
 def lt_zero_false(+x: Nat) -> {Nat.is_lt(x, 0n) == False{} : Bool}:

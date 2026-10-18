@@ -429,7 +429,7 @@ depth 1 or more below the forks builds its bottom level with `pair_join`;
 `leaf` builds a subtree of depth 0, a one-cell output or a branch of a build
 that forks down to single cells. The generic law `parallel_build_cells`
 (`src/tensor/parallel_LAWS.bend`) rejects all three too, in `node_cell`,
-`leaf_facts` and `pair_join_facts` of `src/tensor/parallel_proof.bend`, for
+`leaf_facts` and `pair_join_facts` of `src/tensor/parallel_proofs.bend`, for
 every operation. The erased `elementwise_parallel_proof.bend` would reject most of
 the mutants too, so the source check runs
 `src/tensor/contracts/binary_PROOF.bend`, which imports only the live proof. The erased `BinaryModel` states only the cells below the count;

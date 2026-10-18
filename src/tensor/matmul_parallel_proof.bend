@@ -6,7 +6,7 @@ import ./matrix_index_proof.bend as MatrixIndex
 import ./dot_fold.bend as DotFold
 import ./elementwise.bend as Elementwise
 import ./elementwise_parallel_proof.bend as Parallel
-import ./parallel_proof.bend as Generic
+import ./parallel_proofs.bend as Generic
 
 # Proofs that the parallel matmul build writes, at every cell of its output
 # tree, the value the cell's dot names: for two balanced arrays A and B, a

@@ -99,6 +99,17 @@ class PackageTest(unittest.TestCase):
             (root / "src/a_B9/_c.bend").write_text("import Base\n")
             self.assertIn("src/a_B9/_c.bend", check(root))
 
+    def test_paths_differing_only_by_case(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.mini(root, "import ./src/a_PROOF.bend as A\n")
+            (root / "src/a_PROOF.bend").write_text(
+                "import Base\nimport ./a_proof.bend as B\n"
+            )
+            (root / "src/a_proof.bend").write_text("import Base\n")
+            with self.assertRaisesRegex(PackageError, "only by case"):
+                check(root)
+
     def test_a_licence_beside_a_shipped_file_ships(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

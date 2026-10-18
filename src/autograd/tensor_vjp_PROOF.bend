@@ -11,7 +11,7 @@ import ../tensor/contracts/pointwise.bend as Pointwise
 import ../tensor/contracts/pointwise_proof.bend as PointwiseProof
 import ../tensor/contracts/broadcast.bend as PointwiseBroadcast
 import ../tensor/contracts/LAWS.bend as Contracts
-import ../tensor/contracts/binary_proof.bend as BinaryProof
+import ../tensor/contracts/binary_proofs.bend as BinaryProof
 # Proves binary_replayed, which importing the proof above would otherwise leave open.
 import ../tensor/contracts/binary_PROOF.bend as BinaryLaw
 import ./reduce_to_fold_PROOF.bend as ReduceTo

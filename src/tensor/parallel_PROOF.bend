@@ -1,7 +1,7 @@
 import Base
 import ../storage/model.bend as Model
 import ./parallel.bend as Parallel
-import ./parallel_proof.bend as Proof
+import ./parallel_proofs.bend as Proof
 import ./parallel_LAWS.bend as Laws
 
 def Laws.parallel_build_balanced(Q, P, A, B, prepare, split, cell, q, depth, splits, count, base, state):
