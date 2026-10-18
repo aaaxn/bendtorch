@@ -174,22 +174,26 @@ class CacheTests(unittest.TestCase):
         self.assertIsNotNone(before)
         self.assertNotEqual(before, after)
 
-    def test_an_export_and_its_kernel_check_replay(self):
+    def test_an_export_always_runs_and_its_kernel_check_replays(self):
         law = self.src / "law.bend"
         artifact = self.root / "out/law.bendtt"
         artifact.parent.mkdir()
-        self.run_bend(law, "-o", artifact)
+        self.assertIsNone(key(bend(TOOLS, law, "-o", artifact), self.root, self.env))
+        for _ in range(2):
+            artifact.unlink(missing_ok=True)
+            self.assertFalse(self.run_bend(law, "-o", artifact)[1])
+            self.assertTrue(artifact.exists())
         text = artifact.read_text()
-        artifact.unlink()
-        self.assertTrue(self.run_bend(law, "-o", artifact)[1])
-        self.assertEqual(artifact.read_text(), text)
         kernel = [str(TOOLS / "kernel/bendtt"), str(artifact)]
-        run = lambda: self.cache.run(kernel, cwd=self.root, env=self.env, timeout=300)  # noqa: E731
-        self.assertFalse(run()[1])
-        self.assertTrue(run()[1])
+
+        def run() -> bool:
+            return self.cache.run(kernel, cwd=self.root, env=self.env, timeout=300)[1]
+
+        self.assertFalse(run())
+        self.assertTrue(run())
         # A changed artifact is a different kernel input.
         artifact.write_text(text + "\n")
-        self.assertFalse(run()[1])
+        self.assertFalse(run())
 
     def test_a_tampered_or_broken_entry_is_run_again(self):
         law = self.src / "law.bend"
@@ -254,9 +258,7 @@ class CacheTests(unittest.TestCase):
         # Bend opens `absent/../law.bend` as given, and it does not exist.
         dotted = f"{self.src}/absent/../law.bend"
         self.assertIsNone(key(bend(TOOLS, dotted, "--check-only"), self.root, self.env))
-        target = f"{self.root}/absent/../out.bendtt"
         law = self.src / "law.bend"
-        self.assertIsNone(key(bend(TOOLS, law, "-o", target), self.root, self.env))
         # A relative or empty loader path is read from the working directory.
         for search in ("lib", "/nonexistent:", "::/usr/lib"):
             relative = {**self.env, "LD_LIBRARY_PATH": search}
@@ -270,8 +272,14 @@ class CacheTests(unittest.TestCase):
         self.assertIsNone(key(bend(TOOLS, linked, "--check-only"), self.root, self.env))
         # A foreign definition may sit on the def's own line.
         inline = self.src / "inline.bend"
-        inline.write_text('import Base\n\ndef f() -> U32: import "./f.c"\n')
-        self.assertIsNone(key(bend(TOOLS, inline, "--check-only"), self.root, self.env))
+        for foreign in (
+            'def f() -> U32: import "./f.c"\n',
+            'def f() -> U32: import # a comment\n  "./f.js"\n',
+        ):
+            inline.write_text("import Base\n\n" + foreign)
+            self.assertIsNone(
+                key(bend(TOOLS, inline, "--check-only"), self.root, self.env), foreign
+            )
         # An import under Bend's library, even one not made yet, is a hub file.
         library = {**self.env, "BEND_LIB": str(self.root / "hub")}
         hub = self.src / "hub.bend"
@@ -282,22 +290,6 @@ class CacheTests(unittest.TestCase):
         (self.root / "hub").mkdir()
         (self.root / "hub/x.bend").symlink_to(self.src / "lib.bend")
         self.assertIsNone(key(bend(TOOLS, hub, "--check-only"), self.root, library))
-
-    def test_an_export_onto_base_is_left_to_bend(self):
-        # Bend loads base.bend for `import Base` and refuses to write it.
-        target = self.root / "out.bendtt"
-        target.symlink_to(TOOLS / "bend/bend2/base.bend")
-        law = self.src / "law.bend"
-        self.assertIsNone(key(bend(TOOLS, law, "-o", target), self.root, self.env))
-
-    def test_an_export_onto_an_input_is_left_to_bend(self):
-        law = self.src / "law.bend"
-        target = self.root / "out.bendtt"
-        target.symlink_to(self.src / "lib.bend")
-        self.assertIsNone(key(bend(TOOLS, law, "-o", target), self.root, self.env))
-        result, _ = self.run_bend(law, "-o", target)
-        self.assertEqual(result.returncode, 1)
-        self.assertEqual((self.src / "lib.bend").read_text(), LIB)
 
     def shell_kernel(self) -> Path:
         """A real executable named bendtt that runs its input as a script."""

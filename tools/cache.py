@@ -1,9 +1,10 @@
 """Replay Bend checker and BendTT kernel results from an opt-in cache.
 
 With `--cache DIR`, the families, the contracts and `tools.check` look up
-each `bun .../bend2/main.ts <file> --check-only`, `--verdict` or
-`-o <file>.bendtt` command, and each direct `bendtt <file>` run, in DIR
-before they run it. The key holds everything that decides the result:
+each `bun .../bend2/main.ts <file> --check-only` or `--verdict` command,
+and each direct `bendtt <file>` run, in DIR before they run it. Exports
+(`-o`) always run: they write a file, and the kernel run on it is keyed on
+its bytes. The key holds everything that decides the result:
 
 - the bytes of the checked file and of every file it imports, transitively,
   with each one's path relative to the checked file (Bend names an import
@@ -13,16 +14,15 @@ before they run it. The key holds everything that decides the result:
 - the BendTT binary that runs, for `--verdict` and direct kernel runs,
   found as the command would find it, and for it and Bun every shared
   library the loader gives them (`ldd`);
-- the arguments, with the `-o` target relative to the checked file;
+- the arguments;
 - the environment, but for the variables in `INERT`.
 
 Every digest is computed for every command, so a file replaced during a
 run is seen. A command the key cannot pin runs as usual. That covers:
 
 - a hub or named import, or a foreign (`import "x.c"`) definition;
-- a checked or imported file reached through a symlink, a checked file or
-  `-o` target named with `..`, and a file in or under Bend's library;
-- an `-o` target that is one of its inputs or lies in `bend2`;
+- a checked or imported file reached through a symlink, a checked file
+  named with `..`, and a file in or under Bend's library;
 - a relative `PATH` entry, or a relative or empty loader path
   (`LD_PRELOAD`, `LD_LIBRARY_PATH`);
 - telemetry left on (Bend then reads its update notice);
@@ -35,12 +35,12 @@ run is seen. A command the key cannot pin runs as usual. That covers:
 After a command runs, its key is computed again, and the result is stored
 only if nothing changed meanwhile.
 
-An entry, a gzipped JSON file, stores the key, the exit code, stdout,
-stderr and the `-o` file's bytes, sealed with an HMAC under a secret kept in
+An entry, a gzipped JSON file, stores the key, the exit code, stdout and
+stderr, sealed with an HMAC under a secret kept in
 the repository's git directory, outside the cache. An entry whose key or
 seal does not match, such as one edited by hand or copied from another
 checkout, is reported, run again and replaced, never replayed. Only exit
-codes 0 and 1 are stored (and for `-o`, only 0), so a crash or a signal is
+codes 0 and 1 are stored, so a crash or a signal is
 never replayed.
 
 Whoever can read the secret can forge an entry. A run without `--cache` runs
@@ -48,7 +48,6 @@ every command, and stays the reference for the gates a merge needs.
 """
 
 import argparse
-import base64
 import gzip
 import hashlib
 import hmac
@@ -220,7 +219,7 @@ def sources(entry: Path, library: tuple[str, ...]) -> dict[str, str] | None:
             return None
         found[path] = sha256(data)
         text = data.decode("utf-8", "replace")
-        if re.search(r'import\s*"', text):
+        if re.search(r'import\s*"|"[^"\n]*\.(?:c|js)"', text):
             return None  # a foreign definition reads a .c or .js file
         for line in text.split("\n"):
             match = IMPORT.match(line)
@@ -259,11 +258,7 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
     if len(command) < 4 or not command[1].endswith("bend2/main.ts"):
         return None
     mode = command[3:]
-    if mode in (["--check-only"], ["--verdict"]):
-        arguments = mode
-    elif len(mode) == 2 and mode[0] == "-o" and mode[1].endswith(".bendtt"):
-        arguments = ["-o", "<target>"]
-    else:
+    if mode not in (["--check-only"], ["--verdict"]):
         return None
     given = os.path.join(cwd, command[2])
     if os.path.realpath(given) != given:
@@ -293,7 +288,7 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
         "format": FORMAT,
         "bun": bun,
         "runtime": reads,
-        "arguments": arguments,
+        "arguments": mode,
         "sources": sorted(
             [os.path.relpath(path, entry.parent), value]
             for path, value in files.items()
@@ -305,14 +300,6 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
         if kernel is None:
             return None  # Bend would build or find its own kernel
         material["kernel"] = kernel
-    if mode[0] == "-o":
-        target = os.path.join(cwd, mode[1])
-        real = os.path.realpath(target)
-        if os.path.normpath(target) != target:
-            return None  # Bend writes the name it was given
-        if real in files or real.startswith(f"{bend2}/") or os.path.isdir(target):
-            return None  # Bend refuses an input (Base too); let Bend say so
-        material["target"] = os.path.relpath(target, entry.parent)
     return material
 
 
@@ -369,11 +356,8 @@ class Cache:
             return run(command, cwd=cwd, env=env, timeout=timeout), False
         name = sha256(json.dumps(material, sort_keys=True).encode())
         path = self.directory / name[:2] / f"{name}.json.gz"
-        target = Path(cwd, str(command[4])) if "target" in material else None
         stored = self.load(path, material)
-        if stored is not None and (target is None) == (stored["artifact"] is None):
-            if target is not None:
-                target.write_bytes(base64.b64decode(stored["artifact"]))
+        if stored is not None:
             with self.lock:
                 self.replayed += 1
             result = subprocess.CompletedProcess(
@@ -383,24 +367,18 @@ class Cache:
         result = run(command, cwd=cwd, env=env, timeout=timeout)
         with self.lock:
             self.ran += 1
-        storable = result.returncode == 0 or (result.returncode == 1 and target is None)
-        if storable:
-            artifact = None
-            if target is not None:
-                artifact = base64.b64encode(target.read_bytes()).decode()
-            # A file that changed while the command ran may not be the one
-            # it read: store nothing then.
-            if key(command, cwd, env) == material:
-                self.store(path, material, result, artifact)
+        # A file that changed while the command ran may not be the one it
+        # read: store nothing then.
+        if result.returncode in (0, 1) and key(command, cwd, env) == material:
+            self.store(path, material, result)
         return result, False
 
-    def store(self, path: Path, material: dict, result, artifact: str | None) -> None:
+    def store(self, path: Path, material: dict, result) -> None:
         entry = {
             "key": material,
             "exit_code": result.returncode,
             "stdout": result.stdout,
             "stderr": result.stderr,
-            "artifact": artifact,
         }
         entry["seal"] = self.seal(entry)
         path.parent.mkdir(exist_ok=True)
