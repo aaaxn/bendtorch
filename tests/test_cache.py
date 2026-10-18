@@ -326,6 +326,14 @@ class CacheTests(unittest.TestCase):
         self.assertFalse(replayed)
         self.assertEqual(result.returncode, 1)
 
+    def test_a_file_argument_the_cli_reads_otherwise_is_not_cached(self):
+        dashed = self.src / "-law.bend"
+        dashed.write_text(LAW)
+        main = str(TOOLS / "bend/bend2/main.ts")
+        for argument in ("-law.bend", "guide"):
+            command = ["bun", main, argument, "--check-only"]
+            self.assertIsNone(key(command, self.src, self.env), argument)
+
     def test_a_file_reached_through_a_symlink_is_not_cached(self):
         link = self.root / "PROOF.bend"
         link.symlink_to(self.src / "law.bend")

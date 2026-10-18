@@ -22,6 +22,8 @@ its bytes. The key holds everything that decides the result:
 Every digest is computed for every command, so a file replaced during a
 run is seen. A command the key cannot pin runs as usual. That covers:
 
+- a file argument Bend's CLI could read as an option or a subcommand (one
+  that starts with `-` or does not end in `.bend`);
 - a hub or named import, or a foreign (`import "x.c"`) definition;
 - a checked or imported file reached through a symlink, a checked file
   named with `..`, and a file in or under Bend's library;
@@ -278,6 +280,8 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
     mode = command[3:]
     if mode not in (["--check-only"], ["--verdict"]):
         return None
+    if command[2].startswith("-") or not command[2].endswith(".bend"):
+        return None  # Bend's CLI would read it as an option or a subcommand
     given = os.path.join(cwd, command[2])
     if os.path.realpath(given) != given:
         # Bend reads the name it was given (`absent/../x.bend` does not
