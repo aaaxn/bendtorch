@@ -65,7 +65,9 @@ import threading
 import zlib
 from pathlib import Path
 
-FORMAT = 2
+# Every key holds this file's digest: when the rules for what is keyed,
+# refused or stored change, every older entry misses.
+FORMAT = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 # A loose superset of Bend's import lines: any line that starts with
 # `import`, anywhere in the file, not only in the header Bend reads. A
 # line Bend would not read only adds a file, or its absence, to the key.

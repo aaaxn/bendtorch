@@ -265,6 +265,13 @@ class CacheTests(unittest.TestCase):
         self.run_bend(self.src / "law.bend", "--check-only")
         self.assertEqual(len(self.entries()), 1)
 
+    def test_entries_from_other_cache_code_miss(self):
+        command = bend(TOOLS, self.src / "law.bend", "--check-only")
+        material = key(command, self.root, self.env)
+        assert material is not None
+        source = (ROOT / "tools/cache.py").read_bytes()
+        self.assertEqual(material["format"], hashlib.sha256(source).hexdigest())
+
     def test_a_tampered_or_broken_entry_is_run_again(self):
         law = self.src / "law.bend"
         self.run_bend(law, "--verdict")
