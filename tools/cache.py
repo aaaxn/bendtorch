@@ -14,7 +14,7 @@ its bytes. The key holds everything that decides the result:
 - the BendTT binary that runs, for `--verdict` and direct kernel runs,
   found as the command would find it, and for it and Bun every shared
   library the loader gives them (`ldd`);
-- the arguments and the working directory;
+- the arguments, the working directory and the timeout;
 - the environment, but for the variables in `INERT`.
 
 Every digest is computed for every command, so a file replaced during a
@@ -317,7 +317,9 @@ def names_a_place(command: list, cwd: Path, material: dict, result) -> bool:
     only by its relative path."""
     output = result.stdout + result.stderr
     if "sources" not in material:
-        return str(cwd) in output
+        artifact = os.path.normpath(os.path.join(cwd, str(command[1])))
+        names = [str(cwd), os.path.dirname(artifact), os.path.basename(artifact)]
+        return any(name in output for name in names)
     base = os.path.dirname(os.path.join(cwd, str(command[2])))
     paths = [
         os.path.normpath(os.path.join(base, relative))
@@ -376,9 +378,11 @@ class Cache:
         self, command: list, *, cwd: Path, env: dict[str, str], timeout: int
     ) -> tuple[subprocess.CompletedProcess[str], bool]:
         """Run `command`, or replay it; True when it was replayed."""
-        material = key(command, cwd, env)
-        if material is None:
+        inputs = key(command, cwd, env)
+        if inputs is None:
             return run(command, cwd=cwd, env=env, timeout=timeout), False
+        # A result is only known to fit in the timeout it ran under.
+        material = {**inputs, "timeout": timeout}
         name = sha256(json.dumps(material, sort_keys=True).encode())
         path = self.directory / name[:2] / f"{name}.json.gz"
         stored = self.load(path, material)
@@ -398,7 +402,7 @@ class Cache:
         # relative to each other.
         if (
             result.returncode in (0, 1)
-            and key(command, cwd, env) == material
+            and key(command, cwd, env) == inputs
             and not names_a_place(command, cwd, material, result)
         ):
             self.store(path, material, result)

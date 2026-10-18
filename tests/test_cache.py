@@ -206,6 +206,18 @@ class CacheTests(unittest.TestCase):
             relative = {**self.env, name: "tmp"}
             self.assertIsNone(key(command, self.root, relative), name)
 
+    def test_the_timeout_is_in_the_key(self):
+        law = self.src / "law.bend"
+        command = bend(TOOLS, law, "--check-only")
+        self.cache.run(command, cwd=self.root, env=self.env, timeout=300)
+        with self.assertRaises(subprocess.TimeoutExpired):
+            self.cache.run(command, cwd=self.root, env=self.env, timeout=0)
+
+    def test_a_kernel_output_that_names_its_input_is_not_stored(self):
+        kernel = self.shell_kernel()
+        self.run_kernel(kernel, "echo 'SOME PROOFS FAIL'; echo x.bendtt; exit 1\n")
+        self.assertEqual(self.entries(), [])
+
     def test_an_output_that_names_a_file_is_not_stored(self):
         missing = self.src / "missing.bend"
         missing.write_text("import Base\nimport ./absent.bend as A\n")
