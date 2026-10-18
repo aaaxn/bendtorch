@@ -14,6 +14,8 @@ from contextvars import ContextVar, copy_context
 from pathlib import Path
 from typing import Any
 
+from tools.cache import Cache, run
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -85,6 +87,16 @@ def native(target: Path | str, *args: str, threads: int | None = None) -> list[s
     """The command that runs a native Bend executable on the CPU."""
     count = THREADS if threads is None else threads
     return [str(target), "--threads", str(count), "--gpu", "off", *args]
+
+
+# Opt-in cache of checker and kernel results (tools/cache.py); None runs
+# every command.
+CACHE: Cache | None = None
+
+
+def set_cache(directory: Path | None) -> None:
+    global CACHE
+    CACHE = None if directory is None else Cache(directory)
 
 
 def set_jobs(jobs: int) -> None:
@@ -173,7 +185,7 @@ class Evidence:
         with self.lock:
             self.records.append(entry)
             self.places.append(place())
-            self.write_report()
+            self.write_report(artifacts=False)
 
     def run(
         self,
@@ -186,18 +198,17 @@ class Evidence:
         timeout: int = 300,
         cwd: Path = ROOT,
     ) -> subprocess.CompletedProcess[str]:
+        cached = False
         with SLOTS:
             start = time.monotonic()
+            env = environment(self.tool_root)
             try:
-                result = subprocess.run(
-                    command,
-                    cwd=cwd,
-                    env=environment(self.tool_root),
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout,
-                    check=False,
-                )
+                if CACHE is None:
+                    result = run(command, cwd=cwd, env=env, timeout=timeout)
+                else:
+                    result, cached = CACHE.run(
+                        command, cwd=cwd, env=env, timeout=timeout
+                    )
             except subprocess.TimeoutExpired:
                 result = None
             seconds = time.monotonic() - start
@@ -214,34 +225,36 @@ class Evidence:
         )
         if expected_output is not None:
             passed = passed and result.stdout == expected_output
-        self.record(
-            {
-                "name": name,
-                "command": command,
-                "cwd": str(cwd),
-                "exit_code": result.returncode,
-                "expected_code": expected_code,
-                "seconds": seconds,
-                "stdout_sha256": digest(self.directory / f"{name}.stdout"),
-                "stderr_sha256": digest(self.directory / f"{name}.stderr"),
-                "passed": passed,
-            }
-        )
+        entry = {
+            "name": name,
+            "command": command,
+            "cwd": str(cwd),
+            "exit_code": result.returncode,
+            "expected_code": expected_code,
+            "seconds": seconds,
+            "stdout_sha256": digest(self.directory / f"{name}.stdout"),
+            "stderr_sha256": digest(self.directory / f"{name}.stderr"),
+            "passed": passed,
+        }
+        if cached:
+            entry["cached"] = True
+        self.record(entry)
         if not passed:
             raise GateError(f"{name}: unexpected result; see {self.directory}")
         return result
 
     def save(self) -> None:
         with self.lock:
-            self.write_report()
+            self.write_report(artifacts=True)
 
-    def write_report(self) -> None:
+    def write_report(self, *, artifacts: bool) -> None:
+        """Write report.json. Every record rewrites it with the commands so
+        far, so a gate that stops early leaves its commands behind; only
+        `save`, at the end of a run, hashes the artifacts. A gate directory
+        holds up to 20,000 files, and hashing them after every command cost
+        the tensor and autograd gates minutes.
+        """
         order = sorted(range(len(self.records)), key=self.places.__getitem__)
-        files = {
-            str(path.relative_to(self.directory)): digest(path)
-            for path in sorted(self.directory.rglob("*"))
-            if path.is_file() and path.name != "report.json"
-        }
         report = {
             "hostname": platform.node(),
             "system": platform.platform(),
@@ -251,8 +264,13 @@ class Evidence:
             "workspace": str(ROOT),
             "reference_manifest_sha256": digest(ROOT / "verification/references.json"),
             "commands": [self.records[i] for i in order],
-            "artifacts": files,
         }
+        if artifacts:
+            report["artifacts"] = {
+                str(path.relative_to(self.directory)): digest(path)
+                for path in sorted(self.directory.rglob("*"))
+                if path.is_file() and path.name != "report.json"
+            }
         (self.directory / "report.json").write_text(json.dumps(report, indent=2) + "\n")
 
 

@@ -1231,6 +1231,7 @@ def run_gate(tool_root: Path, output: Path) -> None:
         ROOT / "tools/tensor_signed.py",
         ROOT / "probes/parallel_builds.bend",
         ROOT / "tools/common.py",
+        ROOT / "tools/cache.py",
         ROOT / "tools/storage.py",
         ROOT / "oracle/tensor/ordered_reference.py",
         ROOT / "oracle/tensor/tests/test_ordered_reference.py",

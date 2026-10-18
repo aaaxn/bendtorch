@@ -1,13 +1,14 @@
 import argparse
 from pathlib import Path
 
-from tools import autograd, shape, storage, tensor, toolchain
+from tools import autograd, common, shape, storage, tensor, toolchain
 from tools.common import (
     CHECK_JOBS,
     ROOT,
     THREADS,
     GateError,
     cpus,
+    set_cache,
     set_jobs,
     set_threads,
 )
@@ -42,7 +43,14 @@ def main() -> None:
         help=f"Threads for each native Bend run (default {THREADS}, at most 8; "
         "output is the same).",
     )
+    parser.add_argument(
+        "--cache",
+        type=Path,
+        help="Replay unchanged checker and kernel results from this directory "
+        "(tools/cache.py). Without it every command runs.",
+    )
     args = parser.parse_args()
+    set_cache(args.cache)
     set_jobs(args.jobs)
     set_threads(args.threads)
     names = list(SUITES) if "all" in args.suites else list(dict.fromkeys(args.suites))
@@ -52,6 +60,8 @@ def main() -> None:
     output.mkdir(parents=True)
     for name in names:
         SUITES[name](args.tool_root.resolve(), output / name)
+    if common.CACHE is not None:
+        print(f"cache: {common.CACHE.summary()}")
     print(f"Gates passed ({', '.join(names)}): {output}")
 
 

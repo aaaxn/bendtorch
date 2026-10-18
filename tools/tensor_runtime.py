@@ -448,6 +448,7 @@ def copy_sources(output: Path) -> dict:
     for relative in (
         "tools/tensor_runtime.py",
         "tools/common.py",
+        "tools/cache.py",
         "tools/storage.py",
         "tools/tensor_ordered.py",
         "oracle/tensor/ordered_reference.py",

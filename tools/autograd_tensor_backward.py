@@ -4,6 +4,7 @@ import math
 import os
 import shutil
 import struct
+from functools import partial
 from pathlib import Path
 
 from tools.autograd_backward import (
@@ -31,7 +32,7 @@ from tools.autograd_broadcast import (
     word,
 )
 from tools.autograd_reduce import bits, f32, value
-from tools.common import ROOT, Evidence, GateError, bend, native
+from tools.common import ROOT, Evidence, GateError, bend, native, parallel
 from tools.tensor_signed import position_source, positions_source, wrap
 
 VALUE_COUNT_MISMATCH = 10
@@ -3694,47 +3695,54 @@ def run_gate(tool_root: Path, output: Path) -> dict:
 
 
 def runtime_controls(tool_root: Path, output: Path, selected: list[dict]) -> list[str]:
+    """Run every control at once (up to `--jobs` commands) and return their
+    names, which each control's rejection adds, in control order."""
     evidence = Evidence(output, tool_root)
-    rejected = []
-    for name, control in RUNTIME_CONTROLS.items():
+    ids = [case["id"] for case in selected]
+
+    def mutated_copy(
+        kind: str, name: str, path: str, original: str, mutated: str
+    ) -> Path:
+        copy = output / name
+        shutil.copytree(ROOT / "src", copy / "src")
+        target = copy / path
+        text = target.read_text()
+        if text.count(original) != 1:
+            raise GateError(f"{name}: {kind} control anchor is missing or ambiguous")
+        target.write_text(text.replace(original, mutated))
+        source = copy / "tensor_backward.bend"
+        source.write_text(program(selected, copy, copy))
+        return copy
+
+    def javascript(name: str, control: tuple) -> str:
         path, original, mutated = (
             control
             if len(control) == 3
             else ("src/autograd/tensor_backward.bend", *control)
         )
-        copy = output / name
-        shutil.copytree(ROOT / "src", copy / "src")
-        target = copy / path
-        text = target.read_text()
-        if text.count(original) != 1:
-            raise GateError(f"{name}: runtime control anchor is missing or ambiguous")
-        target.write_text(text.replace(original, mutated))
-        source = copy / "tensor_backward.bend"
-        source.write_text(program(selected, copy, copy))
+        copy = mutated_copy("runtime", name, path, original, mutated)
         script = copy / "tensor-backward.js"
-        evidence.run(f"{name}-javascript-build", bend(tool_root, source, "-o", script))
+        evidence.run(
+            f"{name}-javascript-build",
+            bend(tool_root, copy / "tensor_backward.bend", "-o", script),
+        )
         result = evidence.run(
             f"{name}-javascript-run", [bend(tool_root)[0], str(script)], timeout=1800
         )
         try:
-            verify(selected, parse(result.stdout, [c["id"] for c in selected]), name)
+            verify(selected, parse(result.stdout, ids), name)
         except GateError:
-            rejected.append(name)
-            continue
+            return name
         raise GateError(f"{name}: the tensor backward lane accepted a broken engine")
-    for name, (path, original, mutated) in NATIVE_CONTROLS.items():
-        copy = output / name
-        shutil.copytree(ROOT / "src", copy / "src")
-        target = copy / path
-        text = target.read_text()
-        if text.count(original) != 1:
-            raise GateError(f"{name}: native control anchor is missing or ambiguous")
-        target.write_text(text.replace(original, mutated))
-        source = copy / "tensor_backward.bend"
-        source.write_text(program(selected, copy, copy))
+
+    def native_lane(name: str, control: tuple) -> str:
+        copy = mutated_copy("native", name, *control)
         emitted = copy / "tensor-backward.c"
         executable = copy / "tensor-backward"
-        evidence.run(f"{name}-c-export", bend(tool_root, source, "-o", emitted))
+        evidence.run(
+            f"{name}-c-export",
+            bend(tool_root, copy / "tensor_backward.bend", "-o", emitted),
+        )
         evidence.run(
             f"{name}-native-build",
             [
@@ -3749,7 +3757,7 @@ def runtime_controls(tool_root: Path, output: Path, selected: list[dict]) -> lis
             ],
         )
         result = evidence.run(f"{name}-native-run", native(executable), timeout=1800)
-        observations = parse(result.stdout, [c["id"] for c in selected])
+        observations = parse(result.stdout, ids)
         try:
             verify(selected, observations, name, native=True)
         except GateError as error:
@@ -3759,11 +3767,15 @@ def runtime_controls(tool_root: Path, output: Path, selected: list[dict]) -> lis
                 raise GateError(
                     f"{name}: rejected for another reason: {error}"
                 ) from error
-            rejected.append(name)
-            continue
+            return name
         raise GateError(
             f"{name}: the native tensor backward lane accepted a broken engine"
         )
+
+    rejected = parallel(
+        *(partial(javascript, *item) for item in RUNTIME_CONTROLS.items()),
+        *(partial(native_lane, *item) for item in NATIVE_CONTROLS.items()),
+    )
     evidence.save()
     return rejected
 
