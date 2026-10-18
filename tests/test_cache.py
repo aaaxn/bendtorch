@@ -195,6 +195,27 @@ class CacheTests(unittest.TestCase):
         artifact.write_text(text + "\n")
         self.assertFalse(run())
 
+    def test_the_working_directory_and_temporary_paths_are_in_the_key(self):
+        command = bend(TOOLS, self.src / "law.bend", "--verdict")
+        other = self.root / "other"
+        other.mkdir()
+        self.assertNotEqual(
+            key(command, self.root, self.env), key(command, other, self.env)
+        )
+        for name in ("TMPDIR", "TMP", "TEMP"):
+            relative = {**self.env, name: "tmp"}
+            self.assertIsNone(key(command, self.root, relative), name)
+
+    def test_an_output_that_names_a_file_is_not_stored(self):
+        missing = self.src / "missing.bend"
+        missing.write_text("import Base\nimport ./absent.bend as A\n")
+        result, _ = self.run_bend(missing, "--check-only")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(str(self.src), result.stdout + result.stderr)
+        self.assertEqual(self.entries(), [])
+        self.run_bend(self.src / "law.bend", "--check-only")
+        self.assertEqual(len(self.entries()), 1)
+
     def test_a_tampered_or_broken_entry_is_run_again(self):
         law = self.src / "law.bend"
         self.run_bend(law, "--verdict")

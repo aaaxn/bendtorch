@@ -14,7 +14,7 @@ its bytes. The key holds everything that decides the result:
 - the BendTT binary that runs, for `--verdict` and direct kernel runs,
   found as the command would find it, and for it and Bun every shared
   library the loader gives them (`ldd`);
-- the arguments;
+- the arguments and the working directory;
 - the environment, but for the variables in `INERT`.
 
 Every digest is computed for every command, so a file replaced during a
@@ -25,7 +25,8 @@ run is seen. A command the key cannot pin runs as usual. That covers:
   named with `..`, and a file in or under Bend's library;
 - a relative `PATH` entry, or a relative or empty loader path
   (`LD_PRELOAD`, `LD_LIBRARY_PATH`);
-- telemetry left on (Bend then reads its update notice);
+- telemetry left on (Bend then reads its update notice), or a relative
+  `TMPDIR`, `TMP` or `TEMP`;
 - a `BUN_*` or `NODE_*` variable but `BUN_INSTALL` (`BUN_OPTIONS` can
   preload files);
 - any configuration file Bun would read: `.env*`, `bunfig.toml`,
@@ -33,7 +34,8 @@ run is seen. A command the key cannot pin runs as usual. That covers:
   directory or above `bend2`, and the user's `.bunfig.toml`.
 
 After a command runs, its key is computed again, and the result is stored
-only if nothing changed meanwhile.
+only if nothing changed meanwhile and its output names no absolute path of
+its files (a missing import, an import cycle).
 
 An entry, a gzipped JSON file, stores the key, the exit code, stdout and
 stderr, sealed with an HMAC under a secret kept in
@@ -241,6 +243,11 @@ def sources(entry: Path, library: tuple[str, ...]) -> dict[str, str] | None:
 def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
     """What decides `argv`'s result, or None if it is not cached."""
     command = [str(part) for part in argv]
+    if any(
+        env.get(name) and not os.path.isabs(env[name])
+        for name in ("TMPDIR", "TMP", "TEMP")
+    ):
+        return None  # Bend and BendTT make temporary files there
     variables = {
         name: value for name, value in sorted(env.items()) if name not in INERT
     }
@@ -253,6 +260,7 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
             "format": FORMAT,
             "kernel": kernel,
             "input": file_digest(artifact),
+            "cwd": os.path.realpath(cwd),
             "env": variables,
         }
     if len(command) < 4 or not command[1].endswith("bend2/main.ts"):
@@ -293,6 +301,7 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
             [os.path.relpath(path, entry.parent), value]
             for path, value in files.items()
         ),
+        "cwd": os.path.realpath(cwd),
         "env": variables,
     }
     if mode == ["--verdict"]:
@@ -301,6 +310,22 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
             return None  # Bend would build or find its own kernel
         material["kernel"] = kernel
     return material
+
+
+def names_a_place(command: list, cwd: Path, material: dict, result) -> bool:
+    """Whether the output holds the absolute path of a file the key holds
+    only by its relative path."""
+    output = result.stdout + result.stderr
+    if "sources" not in material:
+        return str(cwd) in output
+    base = os.path.dirname(os.path.join(cwd, str(command[2])))
+    paths = [
+        os.path.normpath(os.path.join(base, relative))
+        for relative, _ in material["sources"]
+    ]
+    common = os.path.commonpath([base, *paths])
+    places = [common] if common != "/" else paths
+    return any(place in output for place in places)
 
 
 def repository_secret() -> Path:
@@ -368,8 +393,14 @@ class Cache:
         with self.lock:
             self.ran += 1
         # A file that changed while the command ran may not be the one it
-        # read: store nothing then.
-        if result.returncode in (0, 1) and key(command, cwd, env) == material:
+        # read: store nothing then. Nor an output that names where the files
+        # were (a missing import, a cycle): the key holds where they are only
+        # relative to each other.
+        if (
+            result.returncode in (0, 1)
+            and key(command, cwd, env) == material
+            and not names_a_place(command, cwd, material, result)
+        ):
             self.store(path, material, result)
         return result, False
 
