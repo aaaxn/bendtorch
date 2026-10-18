@@ -205,6 +205,12 @@ class CacheTests(unittest.TestCase):
         for name in ("TMPDIR", "TMP", "TEMP"):
             relative = {**self.env, name: "tmp"}
             self.assertIsNone(key(command, self.root, relative), name)
+        temporary = self.root / "tmp"
+        temporary.mkdir()
+        absolute = {**self.env, "TMPDIR": str(temporary)}
+        present = key(command, self.root, absolute)
+        temporary.rmdir()
+        self.assertNotEqual(key(command, self.root, absolute), present)
 
     def test_the_timeout_is_in_the_key(self):
         law = self.src / "law.bend"

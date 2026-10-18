@@ -14,7 +14,8 @@ its bytes. The key holds everything that decides the result:
 - the BendTT binary that runs, for `--verdict` and direct kernel runs,
   found as the command would find it, and for it and Bun every shared
   library the loader gives them (`ldd`);
-- the arguments, the working directory and the timeout;
+- the arguments, the working directory, the timeout, and whether the
+  temporary directory is there to write in;
 - the environment, but for the variables in `INERT`.
 
 Every digest is computed for every command, so a file replaced during a
@@ -248,6 +249,9 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
         for name in ("TMPDIR", "TMP", "TEMP")
     ):
         return None  # Bend and BendTT make temporary files there
+    # Bun's os.tmpdir(), and whether a run can make files in it.
+    tmp = env.get("TMPDIR") or env.get("TMP") or env.get("TEMP") or "/tmp"
+    temporary = [tmp, os.path.isdir(tmp) and os.access(tmp, os.W_OK | os.X_OK)]
     variables = {
         name: value for name, value in sorted(env.items()) if name not in INERT
     }
@@ -261,6 +265,7 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
             "kernel": kernel,
             "input": file_digest(artifact),
             "cwd": os.path.realpath(cwd),
+            "tmp": temporary,
             "env": variables,
         }
     if len(command) < 4 or not command[1].endswith("bend2/main.ts"):
@@ -302,6 +307,7 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
             for path, value in files.items()
         ),
         "cwd": os.path.realpath(cwd),
+        "tmp": temporary,
         "env": variables,
     }
     if mode == ["--verdict"]:
