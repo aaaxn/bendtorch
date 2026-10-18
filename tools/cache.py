@@ -17,17 +17,23 @@ before they run it. The key holds everything that decides the result:
 - the environment, but for the variables in `INERT`.
 
 Every digest is computed for every command, so a file replaced during a
-run is seen. A command the key cannot pin runs as usual: a hub or named
-import, a foreign (`import "x.c"`) definition, a checked file reached
-through a symlink, an `-o` target that is one of its inputs or in `bend2`,
-a relative `PATH` entry, a checked file inside Bend's library, telemetry
-left on (Bend then reads its update notice), a `BUN_*` or `NODE_*` variable
-but `BUN_INSTALL` (`BUN_OPTIONS` can preload files), a relative library
-path from the loader, or any configuration file Bun would read (`.env*`,
-`bunfig.toml`, `package.json`, `tsconfig.json`, `jsconfig.json` in the
-working directory or above `bend2`, and the user's `.bunfig.toml`). After a
-command runs, its key is computed again and the result is stored only if
-nothing changed meanwhile.
+run is seen. A command the key cannot pin runs as usual. That covers:
+
+- a hub or named import, or a foreign (`import "x.c"`) definition;
+- a checked or imported file reached through a symlink, a checked file or
+  `-o` target named with `..`, and a file in or under Bend's library;
+- an `-o` target that is one of its inputs or lies in `bend2`;
+- a relative `PATH` entry, or a relative or empty loader path
+  (`LD_PRELOAD`, `LD_LIBRARY_PATH`);
+- telemetry left on (Bend then reads its update notice);
+- a `BUN_*` or `NODE_*` variable but `BUN_INSTALL` (`BUN_OPTIONS` can
+  preload files);
+- any configuration file Bun would read: `.env*`, `bunfig.toml`,
+  `package.json`, `tsconfig.json` or `jsconfig.json` in the working
+  directory or above `bend2`, and the user's `.bunfig.toml`.
+
+After a command runs, its key is computed again, and the result is stored
+only if nothing changed meanwhile.
 
 An entry, a gzipped JSON file, stores the key, the exit code, stdout,
 stderr and the `-o` file's bytes, sealed with an HMAC under a secret kept in
@@ -121,10 +127,14 @@ def binary(name: str, cwd: Path, env: dict[str, str]) -> list | None:
     found = executable(name, cwd, env)
     if found is None:
         return None
-    for variable in ("LD_PRELOAD", "LD_LIBRARY_PATH"):
-        entries = re.split(r"[:\s]+", env.get(variable, "").strip())
-        if any(entry and not os.path.isabs(entry) for entry in entries):
-            return None  # the loader would read it from the working directory
+    preload = re.split(r"[:\s]+", env.get("LD_PRELOAD", "").strip())
+    search = (
+        re.split(r"[:;]", env["LD_LIBRARY_PATH"]) if env.get("LD_LIBRARY_PATH") else []
+    )
+    if any(entry and not os.path.isabs(entry) for entry in preload) or not all(
+        map(os.path.isabs, search)
+    ):
+        return None  # the loader would read it from the working directory
     listed = subprocess.run(
         ["ldd", found], cwd=cwd, env=env, capture_output=True, text=True, check=False
     )
@@ -194,13 +204,13 @@ def sources(entry: Path, library: tuple[str, ...]) -> dict[str, str] | None:
     todo = [str(entry)]
     if entry.name == "PROOF.bend":
         # Bend refuses a PROOF.bend whose sibling LAWS.bend it does not import.
-        todo.append(os.path.realpath(entry.parent / "LAWS.bend"))
+        todo.append(str(entry.parent / "LAWS.bend"))
     while todo:
         path = todo.pop()
         if path in found:
             continue
-        if path.startswith(library):
-            return None
+        if path.startswith(library) or os.path.realpath(path) != path:
+            return None  # a library file, or a link the key would not follow
         try:
             data = Path(path).read_bytes()
         except FileNotFoundError:
@@ -209,7 +219,10 @@ def sources(entry: Path, library: tuple[str, ...]) -> dict[str, str] | None:
         except OSError:
             return None
         found[path] = sha256(data)
-        for line in data.decode("utf-8", "replace").split("\n"):
+        text = data.decode("utf-8", "replace")
+        if re.search(r'import\s*"', text):
+            return None  # a foreign definition reads a .c or .js file
+        for line in text.split("\n"):
             match = IMPORT.match(line)
             if match is None:
                 continue
@@ -217,16 +230,12 @@ def sources(entry: Path, library: tuple[str, ...]) -> dict[str, str] | None:
             if target == "Base":
                 continue
             if not target.endswith(".bend"):
-                if target.startswith('"'):
-                    return None  # a foreign definition reads a .c or .js file
                 continue  # Bend rejects it, from the bytes the key holds
             if "@" in target or re.match(r"0x[0-9a-f]+/", target):
                 return None  # a hub or named import
             # Bend resolves the path by its text, then reads the file it names.
             lexical = os.path.normpath(os.path.join(Path(path).parent, target))
-            if lexical.startswith(library):
-                return None
-            todo.append(os.path.realpath(lexical))
+            todo.append(lexical)
     return found
 
 

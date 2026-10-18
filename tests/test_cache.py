@@ -257,9 +257,21 @@ class CacheTests(unittest.TestCase):
         target = f"{self.root}/absent/../out.bendtt"
         law = self.src / "law.bend"
         self.assertIsNone(key(bend(TOOLS, law, "-o", target), self.root, self.env))
-        # A relative loader path is read from the working directory.
-        relative = {**self.env, "LD_LIBRARY_PATH": "lib"}
-        self.assertIsNone(key(bend(TOOLS, law, "--check-only"), self.root, relative))
+        # A relative or empty loader path is read from the working directory.
+        for search in ("lib", "/nonexistent:", "::/usr/lib"):
+            relative = {**self.env, "LD_LIBRARY_PATH": search}
+            self.assertIsNone(
+                key(bend(TOOLS, law, "--check-only"), self.root, relative), search
+            )
+        # An import through a link: swapping two links would keep the bytes.
+        (self.src / "alias.bend").symlink_to(self.src / "lib.bend")
+        linked = self.src / "linked.bend"
+        linked.write_text(LAW.replace("./lib.bend", "./alias.bend"))
+        self.assertIsNone(key(bend(TOOLS, linked, "--check-only"), self.root, self.env))
+        # A foreign definition may sit on the def's own line.
+        inline = self.src / "inline.bend"
+        inline.write_text('import Base\n\ndef f() -> U32: import "./f.c"\n')
+        self.assertIsNone(key(bend(TOOLS, inline, "--check-only"), self.root, self.env))
         # An import under Bend's library, even one not made yet, is a hub file.
         library = {**self.env, "BEND_LIB": str(self.root / "hub")}
         hub = self.src / "hub.bend"
