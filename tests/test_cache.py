@@ -213,7 +213,7 @@ class CacheTests(unittest.TestCase):
         temporary.rmdir()
         self.assertNotEqual(key(command, self.root, absolute), present)
 
-    def test_resource_limits_are_in_the_key(self):
+    def test_resource_limits_and_the_umask_are_in_the_key(self):
         command = bend(TOOLS, self.src / "law.bend", "--check-only")
         before = key(command, self.root, self.env)
         soft, hard = resource.getrlimit(resource.RLIMIT_CORE)
@@ -222,6 +222,12 @@ class CacheTests(unittest.TestCase):
             self.assertNotEqual(key(command, self.root, self.env), before)
         finally:
             resource.setrlimit(resource.RLIMIT_CORE, (soft, hard))
+        mask = os.umask(0o777)
+        try:
+            self.assertNotEqual(key(command, self.root, self.env), before)
+        finally:
+            os.umask(mask)
+        self.assertEqual(key(command, self.root, self.env), before)
 
     def test_the_timeout_is_in_the_key(self):
         law = self.src / "law.bend"

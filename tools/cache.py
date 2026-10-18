@@ -15,7 +15,8 @@ its bytes. The key holds everything that decides the result:
   found as the command would find it, and for it and Bun every shared
   library the loader gives them (`ldd`);
 - the arguments, the working directory, the timeout, the resource limits,
-  and whether the temporary directory is there to write in;
+  the umask, the user and groups, and whether the temporary directory is
+  there to write in;
 - the environment, but for the variables in `INERT`.
 
 Every digest is computed for every command, so a file replaced during a
@@ -321,13 +322,23 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
     return material
 
 
-def limits() -> list:
-    """The resource limits a child inherits (memory, stack, files, ...)."""
-    return [
-        [name, *resource.getrlimit(getattr(resource, name))]
-        for name in sorted(dir(resource))
-        if name.startswith("RLIMIT_")
-    ]
+def limits() -> dict:
+    """What else a child inherits that can fail a run: its resource limits
+    (memory, stack, files, ...), its umask, and who it runs as."""
+    # Read, not set and restored: another thread may be starting a child.
+    status = Path("/proc/self/status").read_text()
+    found = re.search(r"^Umask:\s*([0-7]+)$", status, re.M)
+    mask = int(found.group(1), 8) if found else None
+    return {
+        "rlimits": [
+            [name, *resource.getrlimit(getattr(resource, name))]
+            for name in sorted(dir(resource))
+            if name.startswith("RLIMIT_")
+        ],
+        "umask": mask,
+        "ids": [os.getuid(), os.geteuid(), os.getgid(), os.getegid()],
+        "groups": sorted(os.getgroups()),
+    }
 
 
 def names_a_place(command: list, cwd: Path, material: dict, result) -> bool:
