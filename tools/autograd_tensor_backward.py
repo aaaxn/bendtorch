@@ -3757,8 +3757,9 @@ def runtime_controls(tool_root: Path, output: Path, selected: list[dict]) -> lis
             ],
         )
         result = evidence.run(f"{name}-native-run", native(executable), timeout=1800)
+        observations = parse(result.stdout, ids)
         try:
-            verify(selected, parse(result.stdout, ids), name, native=True)
+            verify(selected, observations, name, native=True)
         except GateError as error:
             # Only the exact relu words may reject it: the reference allows
             # the canonical NaN.

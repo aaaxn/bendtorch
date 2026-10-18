@@ -89,7 +89,7 @@ class CacheTests(unittest.TestCase):
         self.assertFalse(self.run_bend(law, "--verdict", env=other)[1])
         self.assertTrue(self.run_bend(law, "--verdict", env=other)[1])
 
-    def test_bend_bun_and_their_configuration_are_in_the_key(self):
+    def test_bend2_and_the_environment_are_in_the_key(self):
         fake = self.root / "bend"
         (fake / "bend2").mkdir(parents=True)
         (fake / "bend2/main.ts").write_text("// one\n")
@@ -97,22 +97,46 @@ class CacheTests(unittest.TestCase):
         first = key(command, self.root, self.env)
         (fake / "bend2/safe.ts").write_text("// a new file\n")
         second = key(command, self.root, self.env)
-        (fake / "package.json").write_text("{}\n")
-        third = key(command, self.root, self.env)
-        # Bun loads .env from its working directory.
-        (self.root / ".env").write_text("BENDTT=/elsewhere\n")
-        fourth = key(command, self.root, self.env)
-        self.assertEqual(
-            len({json.dumps(k) for k in (first, second, third, fourth)}), 4
-        )
-        other = {**self.env, "HOME": str(self.root)}
-        self.assertNotEqual(key(command, self.root, other), fourth)
+        self.assertIsNotNone(first)
+        self.assertNotEqual(first, second)
         # Bun reads variables of its own, such as NODE_OPTIONS.
         bun_options = {**self.env, "NODE_OPTIONS": "--stack-size=1"}
-        self.assertNotEqual(key(command, self.root, bun_options), fourth)
+        self.assertNotEqual(key(command, self.root, bun_options), second)
         # A variable that only names the session is not in the key.
         inert = {**self.env, "SSH_CONNECTION": "1.2.3.4 5 6.7.8.9 22"}
-        self.assertEqual(key(command, self.root, inert), fourth)
+        self.assertEqual(key(command, self.root, inert), second)
+        # Where Bend's library resolves decides how imports are named.
+        library = self.root / "library"
+        library.mkdir()
+        here = {**self.env, "BEND_LIB": str(self.root / "lib")}
+        (self.root / "lib").symlink_to(library)
+        before = key(command, self.root, here)
+        (self.root / "lib").unlink()
+        (self.root / "lib").symlink_to(self.src)
+        self.assertNotEqual(key(command, self.root, here), before)
+
+    def test_bun_configuration_or_a_relative_path_is_not_cached(self):
+        fake = self.root / "bend"
+        (fake / "bend2").mkdir(parents=True)
+        (fake / "bend2/main.ts").write_text("// one\n")
+        command = ["bun", fake / "bend2/main.ts", self.src / "law.bend", "--check-only"]
+        self.assertIsNotNone(key(command, self.root, self.env))
+        home = {**self.env, "HOME": str(self.root / "home")}
+        for config in (
+            fake / "package.json",
+            fake / "tsconfig.json",
+            self.root / "bunfig.toml",
+            self.root / ".env",
+            self.root / ".env.local",
+            self.root / "home/.bunfig.toml",
+        ):
+            config.parent.mkdir(exist_ok=True)
+            config.write_text("")
+            self.assertIsNone(key(command, self.root, home), config)
+            config.unlink()
+        self.assertIsNotNone(key(command, self.root, home))
+        relative = {**self.env, "PATH": f"bin:{self.env['PATH']}"}
+        self.assertIsNone(key(command, self.root, relative))
 
     def test_the_kernel_that_runs_is_in_the_key(self):
         law = self.src / "law.bend"
@@ -219,6 +243,13 @@ class CacheTests(unittest.TestCase):
         link = self.root / "PROOF.bend"
         link.symlink_to(self.src / "law.bend")
         self.assertIsNone(key(bend(TOOLS, link, "--check-only"), self.root, self.env))
+
+    def test_an_export_onto_base_is_left_to_bend(self):
+        # Bend loads base.bend for `import Base` and refuses to write it.
+        target = self.root / "out.bendtt"
+        target.symlink_to(TOOLS / "bend/bend2/base.bend")
+        law = self.src / "law.bend"
+        self.assertIsNone(key(bend(TOOLS, law, "-o", target), self.root, self.env))
 
     def test_an_export_onto_an_input_is_left_to_bend(self):
         law = self.src / "law.bend"

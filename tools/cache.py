@@ -8,10 +8,8 @@ before they run it. The key holds everything that decides the result:
 - the bytes of the checked file and of every file it imports, transitively,
   with each one's path relative to the checked file (Bend names an import
   after that path), and for a `PROOF.bend` its sibling `LAWS.bend`;
-- every file of the `bend2` directory that runs, the Bun binary, and the
-  files Bun reads as configuration (`.env*` and `bunfig.toml` in the working
-  directory, `package.json`, `tsconfig.json`, `jsconfig.json` and
-  `bunfig.toml` beside `bend2` and above it, and the user's `.bunfig.toml`);
+- every file of the `bend2` directory that runs, the Bun binary, and where
+  Bend's library (`BEND_LIB`) is;
 - the BendTT binary that runs, for `--verdict` and direct kernel runs,
   found as the command would find it;
 - the arguments, with the `-o` target relative to the checked file;
@@ -20,7 +18,10 @@ before they run it. The key holds everything that decides the result:
 Every digest is computed for every command, so a file replaced during a
 run is seen. A command the key cannot pin runs as usual: a hub or named
 import, a foreign (`import "x.c"`) definition, a checked file reached
-through a symlink, or an `-o` target that is one of its inputs. After a
+through a symlink, an `-o` target that is one of its inputs or in `bend2`,
+a relative `PATH` entry, or any configuration file Bun would read (`.env*`,
+`bunfig.toml`, `package.json`, `tsconfig.json`, `jsconfig.json` in the
+working directory or above `bend2`, and the user's `.bunfig.toml`). After a
 command runs, its key is computed again and the result is stored only if
 nothing changed meanwhile.
 
@@ -44,7 +45,6 @@ import hmac
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import threading
@@ -96,29 +96,49 @@ def file_digest(path: str | Path) -> str:
 
 
 def executable(name: str, cwd: Path, env: dict[str, str]) -> str | None:
-    """The file `name` runs, found as subprocess and Bun's spawn find it."""
+    """The file `name` runs, found as subprocess and Bun's spawn find it;
+    None if a relative PATH entry would make that depend on who looks."""
     if "/" in name:
         found = os.path.join(cwd, name)
-    else:
-        found = shutil.which(name, path=env.get("PATH", os.defpath))
-    return os.path.realpath(found) if found and os.path.isfile(found) else None
+        return os.path.realpath(found) if os.path.isfile(found) else None
+    for directory in env.get("PATH", os.defpath).split(os.pathsep):
+        if not os.path.isabs(directory):
+            return None
+        found = os.path.join(directory, name)
+        if os.path.isfile(found) and os.access(found, os.X_OK):
+            return os.path.realpath(found)
+    return None
 
 
-def runtime(bend2: Path, cwd: Path, env: dict[str, str]) -> list[list[str]]:
-    """The files Bun and Bend read besides the program's own: bend2 itself
-    and the configuration files Bun looks for."""
-    files = [
-        path
-        for path in sorted(bend2.rglob("*"))
-        if path.is_file() and "node_modules" not in path.parts
-    ]
-    for directory in bend2.parents:
-        files += [directory / name for name in CONFIGS]
-    files += [cwd / "bunfig.toml", *sorted(cwd.glob(".env*"))]
+def runtime(bend2: Path, cwd: Path, env: dict[str, str]) -> dict | None:
+    """What Bun and Bend read besides the program's own files: every file of
+    bend2, and where Bend's library lives. None if Bun would read a
+    configuration file (a bunfig.toml can preload code, a .env expands
+    variables, a tsconfig.json can extend another), since the key cannot
+    follow what those name."""
     home = Path(env.get("HOME", "~")).expanduser()
     config = Path(env.get("XDG_CONFIG_HOME") or home / ".config")
-    files += [home / ".bunfig.toml", config / ".bunfig.toml"]
-    return [[str(path), file_digest(path)] for path in files]
+    configs = [
+        *(directory / name for directory in bend2.parents for name in CONFIGS),
+        *(cwd / name for name in CONFIGS),
+        *cwd.glob(".env*"),
+        home / ".bunfig.toml",
+        config / ".bunfig.toml",
+    ]
+    if any(os.path.lexists(path) for path in configs):
+        return None
+    library = os.path.join(cwd, env.get("BEND_LIB") or home / ".bend" / "lib")
+    return {
+        "bend2": [
+            [str(path.relative_to(bend2)), file_digest(path)]
+            for path in sorted(bend2.rglob("*"))
+            if path.is_file() and "node_modules" not in path.parts
+        ],
+        # Bend names an import by its path inside the library, if it is one.
+        "library": [os.path.normpath(library), os.path.realpath(library)]
+        if os.path.exists(library)
+        else [os.path.normpath(library), None],
+    }
 
 
 def sources(entry: Path) -> dict[str, str] | None:
@@ -128,7 +148,7 @@ def sources(entry: Path) -> dict[str, str] | None:
     todo = [str(entry)]
     if entry.name == "PROOF.bend":
         # Bend refuses a PROOF.bend whose sibling LAWS.bend it does not import.
-        todo.append(str(entry.parent / "LAWS.bend"))
+        todo.append(os.path.realpath(entry.parent / "LAWS.bend"))
     while todo:
         path = todo.pop()
         if path in found:
@@ -194,13 +214,17 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
     entry = Path(given)
     bun = executable(command[0], cwd, env)
     main = os.path.realpath(os.path.join(cwd, command[1]))
+    if bun is None or not os.path.isfile(main):
+        return None
+    bend2 = Path(main).parent
     files = sources(entry)
-    if bun is None or files is None or not os.path.isfile(main):
+    reads = runtime(bend2, cwd, env)
+    if files is None or reads is None:
         return None
     material = {
         "format": FORMAT,
         "bun": file_digest(bun),
-        "runtime": runtime(Path(main).parent, cwd, env),
+        "runtime": reads,
         "arguments": arguments,
         "sources": sorted(
             [os.path.relpath(path, entry.parent), value]
@@ -217,8 +241,9 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
         material["kernel"] = file_digest(kernel)
     if mode[0] == "-o":
         target = os.path.normpath(os.path.join(cwd, mode[1]))
-        if os.path.realpath(target) in files or os.path.isdir(target):
-            return None  # Bend refuses it; let Bend say so
+        real = os.path.realpath(target)
+        if real in files or real.startswith(f"{bend2}/") or os.path.isdir(target):
+            return None  # Bend refuses an input (Base too); let Bend say so
         material["target"] = os.path.relpath(target, entry.parent)
     return material
 
@@ -233,14 +258,19 @@ def repository_secret() -> Path:
 
 
 def secret(path: Path) -> bytes:
-    """32 random bytes at `path`, made once with mode 0600."""
-    try:
-        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    except FileExistsError:
-        pass
-    else:
+    """32 random bytes at `path`, made once with mode 0600. The bytes are
+    written before the file appears, so a concurrent first use reads them."""
+    if not path.exists():
+        temporary = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}")
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(os.urandom(32))
+        try:
+            os.link(temporary, path)
+        except FileExistsError:
+            pass
+        finally:
+            os.unlink(temporary)
     data = path.read_bytes()
     if len(data) != 32:
         raise RuntimeError(f"cache secret {path} is not 32 bytes")
