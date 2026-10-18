@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import json
 import os
+import resource
 import shutil
 import subprocess
 import tempfile
@@ -212,6 +213,16 @@ class CacheTests(unittest.TestCase):
         temporary.rmdir()
         self.assertNotEqual(key(command, self.root, absolute), present)
 
+    def test_resource_limits_are_in_the_key(self):
+        command = bend(TOOLS, self.src / "law.bend", "--check-only")
+        before = key(command, self.root, self.env)
+        soft, hard = resource.getrlimit(resource.RLIMIT_CORE)
+        resource.setrlimit(resource.RLIMIT_CORE, (0 if soft else min(1, hard), hard))
+        try:
+            self.assertNotEqual(key(command, self.root, self.env), before)
+        finally:
+            resource.setrlimit(resource.RLIMIT_CORE, (soft, hard))
+
     def test_the_timeout_is_in_the_key(self):
         law = self.src / "law.bend"
         command = bend(TOOLS, law, "--check-only")
@@ -222,6 +233,8 @@ class CacheTests(unittest.TestCase):
     def test_a_kernel_output_that_names_its_input_is_not_stored(self):
         kernel = self.shell_kernel()
         self.run_kernel(kernel, "echo 'SOME PROOFS FAIL'; echo x.bendtt; exit 1\n")
+        self.assertEqual(self.entries(), [])
+        self.run_kernel(kernel, "echo 'SOME PROOFS FAIL'; echo /tmp/bendtt-x; exit 1\n")
         self.assertEqual(self.entries(), [])
 
     def test_an_output_that_names_a_file_is_not_stored(self):

@@ -14,8 +14,8 @@ its bytes. The key holds everything that decides the result:
 - the BendTT binary that runs, for `--verdict` and direct kernel runs,
   found as the command would find it, and for it and Bun every shared
   library the loader gives them (`ldd`);
-- the arguments, the working directory, the timeout, and whether the
-  temporary directory is there to write in;
+- the arguments, the working directory, the timeout, the resource limits,
+  and whether the temporary directory is there to write in;
 - the environment, but for the variables in `INERT`.
 
 Every digest is computed for every command, so a file replaced during a
@@ -36,7 +36,7 @@ run is seen. A command the key cannot pin runs as usual. That covers:
 
 After a command runs, its key is computed again, and the result is stored
 only if nothing changed meanwhile and its output names no absolute path of
-its files (a missing import, an import cycle).
+its files (a missing import, an import cycle) and no temporary file.
 
 An entry, a gzipped JSON file, stores the key, the exit code, stdout and
 stderr, sealed with an HMAC under a secret kept in
@@ -57,6 +57,7 @@ import hmac
 import json
 import os
 import re
+import resource
 import subprocess
 import sys
 import threading
@@ -266,6 +267,7 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
             "input": file_digest(artifact),
             "cwd": os.path.realpath(cwd),
             "tmp": temporary,
+            "limits": limits(),
             "env": variables,
         }
     if len(command) < 4 or not command[1].endswith("bend2/main.ts"):
@@ -308,6 +310,7 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
         ),
         "cwd": os.path.realpath(cwd),
         "tmp": temporary,
+        "limits": limits(),
         "env": variables,
     }
     if mode == ["--verdict"]:
@@ -318,10 +321,21 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
     return material
 
 
+def limits() -> list:
+    """The resource limits a child inherits (memory, stack, files, ...)."""
+    return [
+        [name, *resource.getrlimit(getattr(resource, name))]
+        for name in sorted(dir(resource))
+        if name.startswith("RLIMIT_")
+    ]
+
+
 def names_a_place(command: list, cwd: Path, material: dict, result) -> bool:
     """Whether the output holds the absolute path of a file the key holds
-    only by its relative path."""
+    only by its relative path, or a path in the temporary directory."""
     output = result.stdout + result.stderr
+    if material["tmp"][0] in output:
+        return True
     if "sources" not in material:
         artifact = os.path.normpath(os.path.join(cwd, str(command[1])))
         names = [str(cwd), os.path.dirname(artifact), os.path.basename(artifact)]
