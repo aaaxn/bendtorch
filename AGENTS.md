@@ -87,8 +87,8 @@ corpora, so run the gate of each module you touched too:
 ```sh
 bend PROOF.bend --verdict
 uv run --locked python -m tools.test
-uv run --locked ruff check tools tests verification experiments
-uv run --locked ruff format --check tools tests verification experiments
+uv run --locked ruff check tools tests verification dev
+uv run --locked ruff format --check tools tests verification dev
 uv run --locked ty check
 uv run --locked python -m tools.check <suite> --output .evidence/<new directory>
 ```
@@ -181,8 +181,14 @@ runs only if its suite's gate calls it.
 
 The unit of a PR is one independently verifiable capability. Name files,
 modules, gates and docs after what they check, not after a roadmap phase.
-Experimental work stays in `experiments/`, outside `src/`, until it is
-promoted.
+Experimental work stays in `dev/`, outside `src/`, until it is promoted.
+`examples/` holds programs that use the library, such as the MNIST run.
+
+The package is `bendtorch.bend` and what it imports. A new public module
+gets an import there. The package ships nothing outside `src/`, the root
+`LAWS.bend`, `PROOF.bend` and `LICENSE`; `python -m tools.package` checks
+it. [VERSIONING](docs/VERSIONING.md) has the version rules and the release
+steps. Publishing to BendHub is permanent and only its owner does it.
 
 No PR weakens a law, excludes a case or widens a numerical tolerance.
 

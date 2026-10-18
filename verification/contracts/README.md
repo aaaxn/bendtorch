@@ -1,6 +1,6 @@
 # Public proof contracts
 
-These contracts turn the pattern of `experiments/proof-boundary/` into laws,
+These contracts turn the pattern of `dev/proof-boundary/` into laws,
 one capability per PR. Each capability states its public contract as a law in
 `src/tensor/<capability>-contract-LAWS.bend` and proves it in the paired
 `-PROOF.bend`, so the root `PROOF.bend --verdict` and the tensor gate protect
@@ -171,7 +171,7 @@ Each law is generic over a `Core.new(input, fill)` producer:
   keeps its dimensions, length, word count and every value.
 
 The values a successful permute or transpose writes are not covered here; see
-`experiments/proof-boundary/BOUNDARY.md`.
+`dev/proof-boundary/BOUNDARY.md`.
 
 `transforms/` holds:
 

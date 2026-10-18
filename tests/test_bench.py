@@ -1,6 +1,6 @@
 """The bench command: its output parsing, its output check, and one real run.
 
-The real run builds experiments/bench/bench.bend natively, runs the small
+The real run builds dev/bench/bench.bend natively, runs the small
 `add` workload at one thread and at two, and checks that the command passes
 with the stored digests and fails when a stored digest is changed.
 """
@@ -22,7 +22,7 @@ from tools.bench import (
     parse,
     verdict,
 )
-from tools.bench_compare import compared
+from tools.bench_compare import compared, harness
 
 CPU = str(min(os.sched_getaffinity(0)))
 ADD = next(w for w in WORKLOADS if w.name == "add" and w.n == 1 << 14)
@@ -108,6 +108,16 @@ class RunTests(unittest.TestCase):
         code, out = self.bench(changed)
         self.assertEqual(code, 1, out)
         self.assertIn("CHANGED", out)
+
+
+class HarnessTest(unittest.TestCase):
+    def test_overlay_carries_the_mnist_example(self) -> None:
+        # A base revision from before the move lacks examples/mnist/, which
+        # dev/bench/bench.bend imports; the overlay must bring it.
+        got = [p.as_posix() for p in harness()]
+        self.assertEqual(got[0], "dev/bench/bench.bend")
+        self.assertIn("examples/mnist/train.bend", got)
+        self.assertFalse(any(p.startswith("src/") for p in got))
 
 
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ project in `oracle/`. PyTorch never computes a bendtorch result.
   <img src="docs/art/ops.png" alt="One MNIST step side by side: PyTorch calls F.linear, F.relu, F.cross_entropy, backward and step; bendtorch calls Backward.linear, Backward.relu, Backward.cross_entropy, Backward.backward and Sgd.step." width="100%">
 </p>
 
-`experiments/mnist/train.bend` trains a small MLP with the same steps as its
+`examples/mnist/train.bend` trains a small MLP with the same steps as its
 PyTorch copy in `oracle/mnist/train.py`: `linear`, `relu`, `linear`,
 `cross_entropy`, `backward`, and an SGD step. The calls look alike, but
 bendtorch is a Bend library, used from Bend programs. It has no Python API
@@ -107,7 +107,7 @@ arithmetic as opaque. A law can say "this element is `F32.add` of these two
 words in this order", but not that the result is correctly rounded. The
 trusted base also includes the Bend compiler, the native runtime, Clang, the
 BendTT translation, Lean, and the hardware. The
-[proof boundary](experiments/proof-boundary/BOUNDARY.md) page says which
+[proof boundary](dev/proof-boundary/BOUNDARY.md) page says which
 proofs later code can use as inputs.
 
 The numbers are tested at three levels, which the
@@ -158,9 +158,29 @@ Each module builds on the one below it.
 | `src/storage/` | F32 storage with one owner and a bounds check before every access | `src/storage/LAWS.bend` |
 | `src/tensor/` | The tensor core, elementwise operations, `sum`, `matmul`, `torch.matmul` (`Batched.matmul`), basic slicing (`Slice.slice`, `narrow`, `select`), `index_select` and `gather` (`Gather`), `reshape`, `permute_copy`, `transpose_copy`, PyTorch's signed axes and indices, and the proved contracts | `src/tensor/LAWS.bend` |
 | `src/autograd/` | `broadcast_to`, `reduce_to`, `sum_to_size`, `sum_dims`, gradient slots, scalar and tensor `backward`, the losses, SGD | `src/autograd/LAWS.bend` |
-| `experiments/` | The MNIST training run, the autograd prototypes, the benchmarks, and other experiments outside `src/` | [MNIST](docs/mnist.md), [autograd design](experiments/autograd-prototypes/DESIGN.md) |
+| `bendtorch.bend` | The package entry: it imports the public modules and `PROOF.bend`, so a publish ships both | [versions and releases](docs/VERSIONING.md) |
+| `examples/` | Programs that use the library: the MNIST training run | [MNIST](docs/mnist.md) |
+| `dev/` | Work outside the package: the autograd prototypes, the benchmarks, the proof-boundary experiment | [autograd design](dev/autograd-prototypes/DESIGN.md) |
 | `oracle/` | The PyTorch references, in their own uv project | [oracle](oracle/README.md) |
 | `tools/` | One gate per suite, run by `python -m tools.check` | [AGENTS.md](AGENTS.md#gates) |
+
+## Use it from Bend
+
+bendtorch is a Bend package, `bendtorch@A.B.C.D` on BendHub once a version is
+published; [CHANGELOG](CHANGELOG.md) lists the versions. A program imports
+the modules it uses:
+
+```python
+import Base
+import bendtorch@0.1.0.0/src/tensor/core.bend as Core
+import bendtorch@0.1.0.0/src/autograd/tensor-backward.bend as Backward
+import bendtorch@0.1.0.0/src/autograd/sgd.bend as Sgd
+```
+
+The package ships `src/` with every law and proof, plus `bendtorch.bend`,
+`LAWS.bend`, `PROOF.bend` and `LICENSE` at the root, and nothing else.
+[Versions and releases](docs/VERSIONING.md) says what each number means and
+how a release is made.
 
 ## Run it
 
@@ -209,12 +229,14 @@ the sum 415 and the matrix `[[59, 63], [140, 153]]`.
 
 ### Check the code
 
-These finish in seconds:
+The `Makefile` names each group below: `make check`, `make proofs`,
+`make test`, `make gates`, and `make verify` for all four. These finish in
+seconds:
 
 ```sh
 uv run --locked python -m unittest discover -s tests -p test_tensor_numerics.py -v
-uv run --locked ruff check tools tests verification experiments
-uv run --locked ruff format --check tools tests verification experiments
+uv run --locked ruff check tools tests verification dev
+uv run --locked ruff format --check tools tests verification dev
 uv run --locked ty check
 ```
 

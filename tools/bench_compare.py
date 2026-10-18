@@ -4,13 +4,14 @@
         [--only matmul,add] [--rounds 5] [--cpu 24] [--threads 1]
 
 Each revision is checked out in its own detached worktree under DIR and
-built with this tree's `experiments/bench/bench.bend`, so both sides run the
-same harness. The runs alternate, A then B in even rounds and B then A in odd ones,
-on the same CPUs. Each workload gets one line: the median time of one call
-with its range for A and for B, the median and range of the per-round ratio
-B / A, and whether the two printed the same digest, the one in this tree's
-`experiments/bench/expected.txt`. The command exits 1 when any run of either
-revision prints another digest, even when both revisions agree on it.
+built with this tree's `dev/bench/bench.bend` and the files outside `src/`
+it imports (the MNIST example), so both sides run the same harness. The runs
+alternate, A then B in even rounds and B then A in odd ones, on the same CPUs.
+Each workload gets one line: the median time of one call with its range for A
+and for B, the median and range of the per-round ratio B / A, and whether the
+two printed the same digest, the one in this tree's `dev/bench/expected.txt`.
+The command exits 1 when any run of either revision prints another digest,
+even when both revisions agree on it.
 """
 
 import argparse
@@ -32,6 +33,7 @@ from tools.bench import (
     verdict,
 )
 from tools.common import ROOT
+from tools.package import imports
 
 
 def git(*args: str) -> str:
@@ -40,23 +42,47 @@ def git(*args: str) -> str:
     ).stdout
 
 
+def harness() -> list[Path]:
+    """This tree's bench source and every file outside src/ it imports, such
+    as the MNIST example: the files each revision is built with."""
+    top = ROOT.resolve()
+    seen: list[Path] = []
+    todo = [SOURCE]
+    while todo:
+        rel = todo.pop()
+        if rel in seen:
+            continue
+        seen.append(rel)
+        path = top / rel
+        for target in imports(path, rel.as_posix()):
+            dep = (path.parent / target).resolve().relative_to(top)
+            if dep.parts[0] != "src":
+                todo.append(dep)
+    return seen
+
+
 def checkout(rev: str, place: Path) -> Path:
     """A built bench binary of `rev`, its worktree at `place`."""
     git("worktree", "add", "--detach", str(place), rev)
     (place / ".tools").symlink_to((ROOT / ".tools").resolve())
-    source = place / SOURCE
-    tracked = source.exists()
-    source.parent.mkdir(parents=True, exist_ok=True)
-    source.write_text((ROOT / SOURCE).read_text())
+    tracked = []
+    overlays = harness()
+    for rel in overlays:
+        target = place / rel
+        if target.exists():
+            tracked.append(rel)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text((ROOT / rel).read_text())
     try:
         return build(place, place.parent / f"{place.name}.bench")
     finally:
-        if tracked:
-            subprocess.run(
-                ["git", "checkout", "--", str(SOURCE)], cwd=place, check=True
-            )
-        else:
-            source.unlink()
+        for rel in overlays:
+            if rel in tracked:
+                subprocess.run(
+                    ["git", "checkout", "--", str(rel)], cwd=place, check=True
+                )
+            else:
+                (place / rel).unlink()
         (place / ".tools").unlink()
         git("worktree", "remove", str(place))
 

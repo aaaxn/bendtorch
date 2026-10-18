@@ -96,7 +96,7 @@ without changing `toolchain.json`.
 
 ## MNIST training copy
 
-`mnist/train.py` is PyTorch's copy of `experiments/mnist/train.bend`, and
+`mnist/train.py` is PyTorch's copy of `examples/mnist/train.bend`, and
 `mnist/compare.py` runs both over seeds and checks that they agree
 ([MNIST end to end](../docs/mnist.md)). They read MNIST from a directory outside
 the repository and write nothing under `fixtures/`; no gate runs them.
