@@ -101,9 +101,9 @@ class CacheTests(unittest.TestCase):
         second = key(command, self.root, self.env)
         self.assertIsNotNone(first)
         self.assertNotEqual(first, second)
-        # Bun reads variables of its own, such as NODE_OPTIONS.
-        bun_options = {**self.env, "NODE_OPTIONS": "--stack-size=1"}
-        self.assertNotEqual(key(command, self.root, bun_options), second)
+        # Any variable may change a run, such as one glibc reads.
+        tunables = {**self.env, "GLIBC_TUNABLES": "glibc.malloc.check=3"}
+        self.assertNotEqual(key(command, self.root, tunables), second)
         # A variable that only names the session is not in the key.
         inert = {**self.env, "SSH_CONNECTION": "1.2.3.4 5 6.7.8.9 22"}
         self.assertEqual(key(command, self.root, inert), second)
@@ -274,6 +274,11 @@ class CacheTests(unittest.TestCase):
         assert material is not None
         source = (ROOT / "tools/cache.py").read_bytes()
         self.assertEqual(material["format"], hashlib.sha256(source).hexdigest())
+        artifact = self.root / "x.bendtt"
+        artifact.write_text("")
+        kernel = key([str(TOOLS / "kernel/bendtt"), str(artifact)], self.root, self.env)
+        assert kernel is not None
+        self.assertEqual(kernel["format"], material["format"])
 
     def test_a_tampered_or_broken_entry_is_run_again(self):
         law = self.src / "law.bend"
