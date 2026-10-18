@@ -1,4 +1,4 @@
-# bendtorch: a PyTorch-like tensor library in Bend (F32 tensors, matmul, autograd tape, losses, SGD), with its laws and proofs; import one module, e.g. bendtorch@0.1.0.0/src/tensor/core.bend.
+# bendtorch: a PyTorch-like tensor library in Bend (F32 tensors, matmul, autograd tape, losses, SGD), with its laws and proofs; import one module, e.g. bendtorch-core@0.1.0.0/src/tensor/core.bend.
 # Source, docs and license: https://github.com/aaaxn/bendtorch
 #
 # This file is the package entry. `bend bendtorch.bend --publish` ships it with

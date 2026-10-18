@@ -28,7 +28,7 @@ SHIPPED_ROOTS = ("bendtorch.bend", "LAWS.bend", "PROOF.bend")
 # blank and `#` lines, each line trimmed; the first other line ends them.
 IMPORT = re.compile(r"^import\s+(\S+)(?:\s+as\s+([A-Za-z_]\w*))?\s*(?:#.*)?$")
 SPDX = re.compile(r"^\s*SPDX-License-Identifier:\s*\S")
-ENTRY_VERSION = re.compile(r"bendtorch@(\d+\.\d+\.\d+\.\d+)/")
+ENTRY_VERSION = re.compile(r"bendtorch-core@(\d+\.\d+\.\d+\.\d+)/")
 CHANGELOG_VERSION = re.compile(r"^## \[?(\d+\.\d+\.\d+\.\d+)\]?", re.MULTILINE)
 
 

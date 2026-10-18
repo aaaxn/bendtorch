@@ -166,15 +166,16 @@ Each module builds on the one below it.
 
 ## Use it from Bend
 
-bendtorch is a Bend package, `bendtorch@A.B.C.D` on BendHub once a version is
+bendtorch is a Bend package, `bendtorch-core@A.B.C.D` on BendHub (the hub auctions
+names under 12 characters, so the package is not `bendtorch`) once a version is
 published; [CHANGELOG](CHANGELOG.md) lists the versions. A program imports
 the modules it uses:
 
 ```python
 import Base
-import bendtorch@0.1.0.0/src/tensor/core.bend as Core
-import bendtorch@0.1.0.0/src/autograd/tensor-backward.bend as Backward
-import bendtorch@0.1.0.0/src/autograd/sgd.bend as Sgd
+import bendtorch-core@0.1.0.0/src/tensor/core.bend as Core
+import bendtorch-core@0.1.0.0/src/autograd/tensor-backward.bend as Backward
+import bendtorch-core@0.1.0.0/src/autograd/sgd.bend as Sgd
 ```
 
 The package ships `src/` with every law and proof, plus `bendtorch.bend`,

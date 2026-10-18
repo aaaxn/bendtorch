@@ -31,7 +31,7 @@ class PackageTest(unittest.TestCase):
         (directory / "src").mkdir()
         (directory / "src/a.bend").write_text("import Base\n")
         (directory / "bendtorch.bend").write_text(
-            "# bendtorch: x; e.g. bendtorch@0.1.0.0/src/a.bend.\n" + entry
+            "# bendtorch: x; e.g. bendtorch-core@0.1.0.0/src/a.bend.\n" + entry
         )
         (directory / "LICENSE").write_text("SPDX-License-Identifier: MIT\n\nMIT\n")
         (directory / "CHANGELOG.md").write_text(f"# Changelog\n\n## {changelog} (x)\n")
