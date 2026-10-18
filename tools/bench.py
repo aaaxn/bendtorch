@@ -3,7 +3,7 @@
     uv run --locked python -m tools.bench [--only add,matmul] [--runs 5]
         [--cpu 24] [--cpus 24-31 --threads 8] [--binary PATH]
 
-`experiments/bench/bench.bend` builds each workload's inputs from a fixed
+`dev/bench/bench.bend` builds each workload's inputs from a fixed
 formula, runs the workload once untimed, then `reps` times between two clock
 reads, and prints the milliseconds and a digest of the last output's words.
 This command runs it `--runs` times on one thread pinned to `--cpu`, then
@@ -11,7 +11,7 @@ This command runs it `--runs` times on one thread pinned to `--cpu`, then
 per workload: the median time of one call with the range over the runs at
 each thread count, the speedup, the time per unit of work at one thread, the
 peak memory and the load average. Every run's digest must equal the one in
-`experiments/bench/expected.txt`; a changed output exits 1. `--record FILE`
+`dev/bench/expected.txt`; a changed output exits 1. `--record FILE`
 writes the digests to a new file instead of checking them.
 """
 
@@ -25,8 +25,8 @@ from pathlib import Path
 
 from tools.common import ROOT, bend, environment
 
-SOURCE = Path("experiments/bench/bench.bend")
-EXPECTED = ROOT / "experiments/bench/expected.txt"
+SOURCE = Path("dev/bench/bench.bend")
+EXPECTED = ROOT / "dev/bench/expected.txt"
 
 
 @dataclass(frozen=True)
@@ -106,7 +106,7 @@ def parse(text: str) -> tuple[int, str]:
 
 
 def build(root: Path, binary: Path) -> Path:
-    """Compile root's experiments/bench/bench.bend to a native binary."""
+    """Compile root's dev/bench/bench.bend to a native binary."""
     binary.parent.mkdir(parents=True, exist_ok=True)
     tools = root / ".tools"
     subprocess.run(

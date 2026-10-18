@@ -1,6 +1,6 @@
 """The bench command: its output parsing, its output check, and one real run.
 
-The real run builds experiments/bench/bench.bend natively, runs the small
+The real run builds dev/bench/bench.bend natively, runs the small
 `add` workload at one thread and at two, and checks that the command passes
 with the stored digests and fails when a stored digest is changed.
 """

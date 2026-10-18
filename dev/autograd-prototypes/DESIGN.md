@@ -2,7 +2,7 @@
 
 **Status: EXPERIMENTAL.** This experiment does not establish a verified
 autograd foundation, and the proof-interface work is still open. All code lives
-in `experiments/autograd-prototypes/`, outside `src/`. No `src/` file and no
+in `dev/autograd-prototypes/`, outside `src/`. No `src/` file and no
 `LAWS.bend` under `src/` or `verification/` changed. Nothing here is a
 benchmark claim.
 
@@ -62,12 +62,12 @@ builds no alias. Applying a B pullback value or a tensor twice without
 
 The reduction of a broadcast cotangent over the leading axis (`dW*x` to `[3]`,
 `g` to `[3]`) is `ones[1,r] @ g` through tensor `Matrix.matmul`, then a reshape
-(`experiments/autograd-prototypes/tensor-ops.bend`, `unbroadcast`). It supports only that
+(`dev/autograd-prototypes/tensor-ops.bend`, `unbroadcast`). It supports only that
 pattern and answers `Unsupported` otherwise.
 
 ## Measurements
 
-Native times come from `experiments/autograd-prototypes/bench.bend`. Each job runs the case
+Native times come from `dev/autograd-prototypes/bench.bend`. Each job runs the case
 `n` times with inputs that change per iteration, and folds every value and
 gradient into a printed checksum, so the work cannot be skipped. The checksums
 are identical across the three designs and across the native and JS lanes. Each
@@ -113,7 +113,7 @@ Notes on the numbers:
 
 ## Laws and proof composition
 
-Each design has a `LAWS.bend`/`PROOF.bend` pair under `experiments/autograd-prototypes/`. The
+Each design has a `LAWS.bend`/`PROOF.bend` pair under `dev/autograd-prototypes/`. The
 scalar core of each prototype is a template over `T` with `~plus`/`~times`, so
 the same code that runs at F32 in the binaries is instantiated at `U32` and
 `Nat` in the laws. F32 literals do not reduce in the checker, for example
@@ -142,7 +142,7 @@ accumulation order gave the shortest proof.
 ## Design constraint: tensor gradient laws must be generic
 
 Closed evaluations of concrete tensor computations do not pass `--verdict`.
-`experiments/autograd-prototypes/kernel-fuel-probe.bend` states whole-run facts about case 4
+`dev/autograd-prototypes/kernel-fuel-probe.bend` states whole-run facts about case 4
 and rank-0 case 1 (input count, clones, saved values). `--check-only` accepts
 them in 0.7 s. The BendTT kernel answers "out of fuel" on each one (its `FUEL`
 is 400,000,000 steps). The minimal repro, `kernel-fuel-adds.bend`, is three
@@ -214,14 +214,14 @@ How each prototype fits that style:
 export BEND_NO_TELEMETRY=1 BENDTT="$PWD/.tools/kernel/bendtt" LEAN_STACK_SIZE_KB=4194304
 export CC="$PWD/.tools/llvm/usr/bin/clang-19" LD_LIBRARY_PATH="$PWD/.tools/llvm/usr/lib/x86_64-linux-gnu"
 B="bun .tools/bend/bend2/main.ts"
-for p in tape pullback dual compare; do $B experiments/autograd-prototypes/$p-PROOF.bend --verdict; done
+for p in tape pullback dual compare; do $B dev/autograd-prototypes/$p-PROOF.bend --verdict; done
 for f in tape-cases pullback-cases dual-cases tape-tensor-cases pullback-tensor-cases dual-tensor-cases; do
-  $B experiments/autograd-prototypes/$f.bend -o "$EVIDENCE/$f" && "$EVIDENCE/$f" --threads 1 --gpu off
+  $B dev/autograd-prototypes/$f.bend -o "$EVIDENCE/$f" && "$EVIDENCE/$f" --threads 1 --gpu off
 done
-$B experiments/autograd-prototypes/bench.bend -o "$EVIDENCE/bench"
+$B dev/autograd-prototypes/bench.bend -o "$EVIDENCE/bench"
 "$EVIDENCE/bench" --threads 1 --gpu off tape-tensor 20000
-$B experiments/autograd-prototypes/kernel-fuel-adds.bend --check-only   # ALL PROOFS CHECK
-$B experiments/autograd-prototypes/kernel-fuel-adds.bend --verdict      # exits 1: kernel out of fuel
+$B dev/autograd-prototypes/kernel-fuel-adds.bend --check-only   # ALL PROOFS CHECK
+$B dev/autograd-prototypes/kernel-fuel-adds.bend --verdict      # exits 1: kernel out of fuel
 ```
 
 The case binaries print F32 bit words, one per line. `bench` prints one

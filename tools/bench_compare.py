@@ -4,12 +4,12 @@
         [--only matmul,add] [--rounds 5] [--cpu 24] [--threads 1]
 
 Each revision is checked out in its own detached worktree under DIR and
-built with this tree's `experiments/bench/bench.bend`, so both sides run the
+built with this tree's `dev/bench/bench.bend`, so both sides run the
 same harness. The runs alternate, A then B in even rounds and B then A in odd ones,
 on the same CPUs. Each workload gets one line: the median time of one call
 with its range for A and for B, the median and range of the per-round ratio
 B / A, and whether the two printed the same digest, the one in this tree's
-`experiments/bench/expected.txt`. The command exits 1 when any run of either
+`dev/bench/expected.txt`. The command exits 1 when any run of either
 revision prints another digest, even when both revisions agree on it.
 """
 

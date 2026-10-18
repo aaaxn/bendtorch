@@ -222,7 +222,7 @@ def main() -> None:
         ).strip(),
         "repository_dirty": bool(
             subprocess.check_output(
-                ["git", "status", "--porcelain", "src", "experiments/proof-boundary"],
+                ["git", "status", "--porcelain", "src", "dev/proof-boundary"],
                 cwd=ROOT,
                 text=True,
             )
@@ -278,10 +278,8 @@ def main() -> None:
     bend = ["bun", str(bend_root / "bend2/main.ts")]
     snapshot = output / "snapshot"
     shutil.copytree(ROOT / "src", snapshot / "src")
-    shutil.copytree(
-        ROOT / "experiments/proof-boundary", snapshot / "experiments/proof-boundary"
-    )
-    experiment = snapshot / "experiments/proof-boundary"
+    shutil.copytree(ROOT / "dev/proof-boundary", snapshot / "dev/proof-boundary")
+    experiment = snapshot / "dev/proof-boundary"
     controls = (experiment / "controls.bend").read_text()
     for witness in CASE_NAMES:
         (experiment / f"false-{witness}.bend").write_text(false_twin(controls, witness))

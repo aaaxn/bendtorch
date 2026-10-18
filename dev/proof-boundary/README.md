@@ -32,14 +32,14 @@ Bootstrap the pinned tools first (`uv sync --locked` and
 `uv run --locked python -m tools.bootstrap`). Then, from the repository root:
 
 ```sh
-uv run --locked python -m experiments.proof-boundary.run --output <fresh directory>
+uv run --locked python -m dev.proof-boundary.run --output <fresh directory>
 ```
 
 To check against another Bend checkout, pass its root and a BendTT kernel built
 from its `bend2/bendtt.lean` with the pinned Lean:
 
 ```sh
-uv run --locked python -m experiments.proof-boundary.run --output <fresh directory> \
+uv run --locked python -m dev.proof-boundary.run --output <fresh directory> \
   --bend-root <bend checkout> --kernel <bendtt binary>
 ```
 
@@ -53,8 +53,8 @@ either way.
 Unit tests and lint for the runner:
 
 ```sh
-uv run --locked python -m unittest experiments/proof-boundary/test_run.py -v
-uv run --locked ruff check experiments/proof-boundary
-uv run --locked ruff format --check experiments/proof-boundary
-uv run --locked ty check experiments/proof-boundary/run.py experiments/proof-boundary/test_run.py
+uv run --locked python -m unittest dev/proof-boundary/test_run.py -v
+uv run --locked ruff check dev/proof-boundary
+uv run --locked ruff format --check dev/proof-boundary
+uv run --locked ty check dev/proof-boundary/run.py dev/proof-boundary/test_run.py
 ```

@@ -9,7 +9,7 @@ import ../../src/autograd/reduce.bend as Reduce
 import ../../src/autograd/sum-to-size.bend as SumToSize
 import ../../src/autograd/tensor-backward.bend as Backward
 import ../../src/autograd/sgd.bend as Sgd
-import ../mnist/train.bend as Mnist
+import ../../examples/mnist/train.bend as Mnist
 
 # Times one workload on fixed inputs. tools/bench.py drives it.
 #
