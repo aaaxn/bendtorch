@@ -365,6 +365,20 @@ class CacheTests(unittest.TestCase):
         self.assertIsNone(key(command, self.root, telemetry))
         inside = {**self.env, "BEND_LIB": str(self.src)}
         self.assertIsNone(key(command, self.root, inside))
+        # An empty BEND_LIB is the working directory to Bend, not the default.
+        elsewhere = self.root / "elsewhere"
+        elsewhere.mkdir()
+        empty = key(command, elsewhere, {**self.env, "BEND_LIB": ""})
+        assert empty is not None
+        self.assertEqual(empty["runtime"]["library"][1], str(elsewhere))
+        self.assertIsNone(key(command, self.root, {**self.env, "BEND_LIB": ""}))
+        options = {**self.env, "BUN_OPTIONS": "--preload ./x.js"}
+        self.assertIsNone(key(command, self.root, options))
+        relative = {**self.env, "LD_PRELOAD": "./x.so"}
+        (self.root / "x.so").write_bytes(
+            Path(shutil.which("sh") or "/bin/sh").read_bytes()
+        )
+        self.assertIsNone(key(command, self.root, relative))
 
     def test_the_cli_exits_with_the_commands_code(self):
         law = self.src / "law.bend"

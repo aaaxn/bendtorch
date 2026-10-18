@@ -21,8 +21,9 @@ run is seen. A command the key cannot pin runs as usual: a hub or named
 import, a foreign (`import "x.c"`) definition, a checked file reached
 through a symlink, an `-o` target that is one of its inputs or in `bend2`,
 a relative `PATH` entry, a checked file inside Bend's library, telemetry
-left on (Bend then reads its update notice), or any configuration file Bun
-would read (`.env*`,
+left on (Bend then reads its update notice), a `BUN_*` or `NODE_*` variable
+but `BUN_INSTALL` (`BUN_OPTIONS` can preload files), a relative library
+path from the loader, or any configuration file Bun would read (`.env*`,
 `bunfig.toml`, `package.json`, `tsconfig.json`, `jsconfig.json` in the
 working directory or above `bend2`, and the user's `.bunfig.toml`). After a
 command runs, its key is computed again and the result is stored only if
@@ -125,10 +126,23 @@ def binary(name: str, cwd: Path, env: dict[str, str]) -> list | None:
     )
     if listed.returncode != 0:
         return None
-    libraries = sorted(
-        {os.path.realpath(path) for path in re.findall(r"(/\S+) \(0x", listed.stdout)}
+    # "libc.so.6 => /lib/libc.so.6 (0x...)", "/lib64/ld-linux.so.2 (0x...)",
+    # "libx.so => not found": the lines without their load addresses, and
+    # the digest of each library they name.
+    lines = sorted(
+        re.sub(r"\s*\(0x[0-9a-f]+\)$", "", line.strip())
+        for line in listed.stdout.splitlines()
+        if line.strip()
     )
-    return [[path, file_digest(path)] for path in [found, *libraries]]
+    libraries = []
+    for line in lines:
+        path = line.split(" => ", 1)[-1]
+        if path == "not found" or "/" not in path:
+            continue  # the vDSO, or a library the run will not find either
+        if not os.path.isabs(path):
+            return None  # relative to the loader's working directory
+        libraries.append([path, file_digest(os.path.realpath(path))])
+    return [[found, file_digest(found)], lines, libraries]
 
 
 def runtime(bend2: Path, cwd: Path, env: dict[str, str]) -> dict | None:
@@ -137,6 +151,8 @@ def runtime(bend2: Path, cwd: Path, env: dict[str, str]) -> dict | None:
     configuration file (a bunfig.toml can preload code, a .env expands
     variables, a tsconfig.json can extend another), since the key cannot
     follow what those name."""
+    if "HOME" in env and not os.path.isabs(env["HOME"]):
+        return None  # Bun and Bend would read HOME as given
     home = Path(env.get("HOME", "~")).expanduser()
     config = Path(env.get("XDG_CONFIG_HOME") or home / ".config")
     configs = [
@@ -148,7 +164,10 @@ def runtime(bend2: Path, cwd: Path, env: dict[str, str]) -> dict | None:
     ]
     if any(os.path.lexists(path) for path in configs):
         return None
-    library = os.path.join(cwd, env.get("BEND_LIB") or home / ".bend" / "lib")
+    # Bend takes BEND_LIB as given, even empty (the working directory).
+    library = os.path.join(
+        cwd, env["BEND_LIB"] if "BEND_LIB" in env else home / ".bend/lib"
+    )
     return {
         "bend2": [
             [str(path.relative_to(bend2)), file_digest(path)]
@@ -235,6 +254,10 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
     entry = Path(given)
     if not env.get("BEND_NO_TELEMETRY"):
         return None  # Bend would read and print its update notice
+    if any(
+        name.startswith(("BUN_", "NODE_")) and name != "BUN_INSTALL" for name in env
+    ):
+        return None  # such as BUN_OPTIONS=--preload, which names more files
     bun = binary(command[0], cwd, env)
     main = os.path.realpath(os.path.join(cwd, command[1]))
     if bun is None or not os.path.isfile(main):
