@@ -41,6 +41,7 @@ package:          # the files `bend bendtorch.bend --publish` would ship
 mnist:            # build the MNIST example natively; docs/mnist.md runs it
 	mkdir -p .evidence/mnist-$(RUN)
 	$(BEND) examples/mnist/train.bend -o .evidence/mnist-$(RUN)/train.c
-	$(CURDIR)/.tools/llvm/usr/bin/clang-19 -std=c11 -O3 \
+	LD_LIBRARY_PATH=$(CURDIR)/.tools/llvm/usr/lib/x86_64-linux-gnu \
+	  $(CURDIR)/.tools/llvm/usr/bin/clang-19 -std=c11 -O3 \
 	  .evidence/mnist-$(RUN)/train.c -lpthread -lm -o .evidence/mnist-$(RUN)/train
 	@echo built .evidence/mnist-$(RUN)/train

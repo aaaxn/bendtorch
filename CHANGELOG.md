@@ -22,7 +22,7 @@ The first release. Bend2 pin `32d23b43` (Bend 2.0.37), BendTT on Lean 4.34.0.
   `mse_loss`, `cross_entropy`, and SGD.
 - Large outputs build in balanced parallel halves; every output word is the
   word the one-thread build computes.
-- 480 laws in `src/*/*LAWS.bend`, proved in the matching `PROOF.bend` files
+- 493 laws under `src/`, proved in the matching `PROOF.bend` files
   and checked again by the BendTT kernel.
 - `examples/mnist/train.bend` trains a 784-128-10 MLP next to its PyTorch copy
   in `oracle/mnist/`.

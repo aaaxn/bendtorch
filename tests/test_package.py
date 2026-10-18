@@ -39,8 +39,16 @@ class PackageTest(unittest.TestCase):
     def test_each_refusal(self) -> None:
         cases = {
             "stray": ("import ./examples/x.bend as X\n", "outside src/"),
+            "stray bare": ("import examples/x.bend as X\n", "outside src/"),
+            "stray indented": ("  import ./examples/x.bend as X\n", "outside src/"),
+            "stray after comment": ("\n# c\nimport examples/x.bend as X # c\n", "src/"),
             "missing": ("import ./src/none.bend as N\n", "does not exist"),
+            "missing bare": ("import src/none.bend as N\n", "does not exist"),
             "climb": ("import ../outside.bend as O\n", "above the repository"),
+            "hub": ("import 0xabc/main.bend as H\n", "not a path in the repo"),
+            "named": ("import x@0.1.0.0/main.bend as H\n", "not a path in the repo"),
+            "absolute": ("import /tmp/x.bend as H\n", "not a path in the repo"),
+            "no alias": ("import ./src/a.bend\n", "malformed import"),
         }
         for name, (entry, message) in cases.items():
             with self.subTest(name), tempfile.TemporaryDirectory() as tmp:
@@ -52,6 +60,14 @@ class PackageTest(unittest.TestCase):
                 (Path(tmp) / "outside.bend").write_text("import Base\n")
                 with self.assertRaisesRegex(PackageError, message):
                     check(root)
+
+    def test_imports_end_at_the_first_other_line(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.mini(root, "import src/a.bend as A\ndef x() -> U32:\n  0\n")
+            with (root / "bendtorch.bend").open("a") as f:
+                f.write("import ./examples/x.bend as X\n")
+            self.assertEqual(check(root), ["LICENSE", "bendtorch.bend", "src/a.bend"])
 
     def test_license_and_version(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

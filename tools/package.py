@@ -24,7 +24,9 @@ from tools.common import ROOT
 
 ENTRY = "bendtorch.bend"
 SHIPPED_ROOTS = ("bendtorch.bend", "LAWS.bend", "PROOF.bend")
-IMPORT = re.compile(r"^import\s+(\.{1,2}/\S+\.bend)\b", re.MULTILINE)
+# The header grammar of bend2/bend.ts book_load: imports lead the file, after
+# blank and `#` lines, each line trimmed; the first other line ends them.
+IMPORT = re.compile(r"^import\s+(\S+)(?:\s+as\s+([A-Za-z_]\w*))?\s*(?:#.*)?$")
 SPDX = re.compile(r"^\s*SPDX-License-Identifier:\s*\S")
 ENTRY_VERSION = re.compile(r"bendtorch@(\d+\.\d+\.\d+\.\d+)/")
 CHANGELOG_VERSION = re.compile(r"^## \[?(\d+\.\d+\.\d+\.\d+)\]?", re.MULTILINE)
@@ -49,9 +51,31 @@ def closure(root: Path, entry: str) -> list[str]:
         if not path.is_file():
             raise PackageError(f"{rel} is imported but does not exist")
         seen.add(rel)
-        for target in IMPORT.findall(path.read_text()):
-            todo.append((path.parent / target).resolve())
+        todo.extend((path.parent / t).resolve() for t in imports(path, rel))
     return sorted(seen)
+
+
+def imports(path: Path, rel: str) -> list[str]:
+    """The local paths `path` imports, read as Bend reads its header."""
+    found = []
+    for raw in path.read_text().split("\n"):
+        line = raw.strip()
+        if line == "" or line.startswith("#"):
+            continue
+        if not re.match(r"import(\s|$)", line):
+            break
+        m = IMPORT.match(line)
+        if m is None:
+            raise PackageError(f"{rel}: malformed import {line!r}")
+        target, alias = m.group(1), m.group(2)
+        if target == "Base" and alias is None:
+            continue
+        if alias is None or not target.endswith(".bend"):
+            raise PackageError(f"{rel}: malformed import {line!r}")
+        if target.startswith(("/", "0x")) or "@" in target.split("/")[0]:
+            raise PackageError(f"{rel}: imports {target}, not a path in the repo")
+        found.append(target)
+    return found
 
 
 def check(root: Path, entry: str = ENTRY) -> list[str]:

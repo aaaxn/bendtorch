@@ -177,7 +177,8 @@ import bendtorch@0.1.0.0/src/autograd/tensor-backward.bend as Backward
 import bendtorch@0.1.0.0/src/autograd/sgd.bend as Sgd
 ```
 
-The package ships `src/` with every law and proof, and nothing else.
+The package ships `src/` with every law and proof, plus `bendtorch.bend`,
+`LAWS.bend`, `PROOF.bend` and `LICENSE` at the root, and nothing else.
 [Versions and releases](docs/VERSIONING.md) says what each number means and
 how a release is made.
 
