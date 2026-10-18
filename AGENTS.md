@@ -116,7 +116,7 @@ While you iterate, `tools.check`, the families and the contracts take
 `--cache DIR`, and `python -m tools.cache --cache DIR -- bun ... --verdict`
 runs one command the same way. They replay a `--check-only` or `--verdict`
 result, or a BendTT kernel run, when the checked file, every file it imports,
-`bend2`, Bun and its configuration files, the kernel binary, the arguments
+`bend2`, Bun, the kernel binary, the libraries they load, the arguments
 and the environment are all unchanged (`tools/cache.py`). Entries are sealed
 with a secret kept in the git directory, so a cache edited by hand or copied
 from another checkout is run again. Exports (`-o`) always run. A command
