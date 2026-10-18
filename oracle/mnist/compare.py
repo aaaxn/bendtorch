@@ -2,7 +2,7 @@
 
 `run` trains both over a few seeds: for each seed it writes the shared
 initial parameters and training order (train.py prepare), runs the native
-Bend binary built from experiments/mnist/train.bend and train.py on them,
+Bend binary built from examples/mnist/train.bend and train.py on them,
 and compares their outputs. `check` compares two saved outputs.
 
 Each output must be well formed: exactly the expected number of

@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-runner = importlib.import_module("experiments.proof-boundary.run")
+runner = importlib.import_module("dev.proof-boundary.run")
 ROOT = Path(__file__).resolve().parents[2]
 
 

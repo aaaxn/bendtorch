@@ -1,4 +1,4 @@
-"""PyTorch's copy of experiments/mnist/train.bend.
+"""PyTorch's copy of examples/mnist/train.bend.
 
 prepare writes the files both sides share: the initial parameters of a
 784-128-10 MLP from PyTorch's default nn.Linear init under a seed, as

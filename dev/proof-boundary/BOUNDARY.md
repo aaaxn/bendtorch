@@ -7,7 +7,7 @@ previous pin (`947db722`). On the bytes in this branch, the source checker,
 consumer. Four false expected-value twins and an aligned wrong-fill
 implementation mutant are rejected for the intended value reason, and the
 metadata-only control passes on the wrong-fill copy. The work stays in
-`experiments/proof-boundary/`; no law, runtime file, pin, corpus or numerical
+`dev/proof-boundary/`; no law, runtime file, pin, corpus or numerical
 policy changed.
 
 The proof-boundary experiment covers construction through
@@ -129,12 +129,12 @@ directory for review.
 Run from the repository root with up to four CPUs:
 
 ```sh
-uv run --locked python -m experiments.proof-boundary.run --output <fresh directory>
-uv run --locked python -m experiments.proof-boundary.run --output <fresh directory> \
+uv run --locked python -m dev.proof-boundary.run --output <fresh directory>
+uv run --locked python -m dev.proof-boundary.run --output <fresh directory> \
   --bend-root <bend main checkout> --kernel <bendtt built from its bendtt.lean>
 ```
 
-The runner snapshots `src/` and `experiments/proof-boundary/`, writes the twins and
+The runner snapshots `src/` and `dev/proof-boundary/`, writes the twins and
 the wrong-fill copy, runs the source checks, `--verdict` and exports, checks
 the export, writes the export-level negatives and runs BendTT on all of them.
 It writes `summary.json` with the repository commit, Bend commit, each command,

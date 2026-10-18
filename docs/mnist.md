@@ -1,6 +1,6 @@
 # MNIST end to end
 
-`experiments/mnist/train.bend` trains a 784-128-10 MLP on MNIST with the tape:
+`examples/mnist/train.bend` trains a 784-128-10 MLP on MNIST with the tape:
 `linear`, `relu`, `linear`, `cross_entropy` with mean reduction, `backward`
 and `Sgd.step`, one mini-batch per step, then counts the test rows it
 classifies right. `oracle/mnist/train.py` is PyTorch's copy, and
@@ -71,7 +71,7 @@ wall time goes to stderr as `train_ms`, the test pass's as `test_ms`.
 
 ```sh
 export BEND_NO_TELEMETRY=1 BENDTT=$PWD/.tools/kernel/bendtt
-bun .tools/bend/bend2/main.ts experiments/mnist/train.bend -o train.c
+bun .tools/bend/bend2/main.ts examples/mnist/train.bend -o train.c
 .tools/llvm/usr/bin/clang-19 -std=c11 -O3 train.c -lpthread -lm -o train
 cd oracle
 uv run --frozen python -I mnist/train.py prepare 0 WORK

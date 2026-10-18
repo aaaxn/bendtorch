@@ -1,4 +1,4 @@
-"""A smoke run of experiments/mnist/train.bend.
+"""A smoke run of examples/mnist/train.bend.
 
 It writes a tiny MNIST in IDX format (6 training and 12 test images), initial
 parameters and an order, builds the program natively, trains two steps of
@@ -33,7 +33,7 @@ from tools.autograd_tensor_backward import (
 from tools.common import ROOT, THREADS, bend, environment, native
 
 TOOLS = ROOT / ".tools"
-SOURCE = ROOT / "experiments/mnist/train.bend"
+SOURCE = ROOT / "examples/mnist/train.bend"
 SHAPES = [[128, 784], [128], [10, 128], [10]]
 TRAIN = 6
 TEST = 12
