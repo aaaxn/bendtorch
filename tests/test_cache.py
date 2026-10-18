@@ -240,7 +240,10 @@ class CacheTests(unittest.TestCase):
         kernel = self.shell_kernel()
         self.run_kernel(kernel, "echo 'SOME PROOFS FAIL'; echo x.bendtt; exit 1\n")
         self.assertEqual(self.entries(), [])
-        self.run_kernel(kernel, "echo 'SOME PROOFS FAIL'; echo /tmp/bendtt-x; exit 1\n")
+        tmp = self.env.get("TMPDIR") or "/tmp"
+        self.run_kernel(
+            kernel, f"echo 'SOME PROOFS FAIL'; echo {tmp}/bendtt-x; exit 1\n"
+        )
         self.assertEqual(self.entries(), [])
         # However the temporary directory is spelled, outside the work dir.
         elsewhere = tempfile.TemporaryDirectory()
