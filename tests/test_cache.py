@@ -242,6 +242,18 @@ class CacheTests(unittest.TestCase):
         self.assertEqual(self.entries(), [])
         self.run_kernel(kernel, "echo 'SOME PROOFS FAIL'; echo /tmp/bendtt-x; exit 1\n")
         self.assertEqual(self.entries(), [])
+        # However the temporary directory is spelled, outside the work dir.
+        elsewhere = tempfile.TemporaryDirectory()
+        self.addCleanup(elsewhere.cleanup)
+        real = os.path.realpath(elsewhere.name)
+        linked = Path(elsewhere.name + "-link")
+        linked.symlink_to(real)
+        self.addCleanup(linked.unlink)
+        for spelling in (f"{real}/.", str(linked)):
+            self.env["TMPDIR"] = spelling
+            named = f"echo 'SOME PROOFS FAIL'; echo {real}/bendtt-y; exit 1\n"
+            self.run_kernel(kernel, named)
+            self.assertEqual(self.entries(), [], spelling)
 
     def test_an_output_that_names_a_file_is_not_stored(self):
         missing = self.src / "missing.bend"

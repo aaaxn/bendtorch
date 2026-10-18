@@ -345,7 +345,9 @@ def names_a_place(command: list, cwd: Path, material: dict, result) -> bool:
     """Whether the output holds the absolute path of a file the key holds
     only by its relative path, or a path in the temporary directory."""
     output = result.stdout + result.stderr
-    if material["tmp"][0] in output:
+    tmp = material["tmp"][0]
+    spellings = {tmp, os.path.normpath(tmp), os.path.realpath(tmp)}
+    if any(place in output for place in spellings):
         return True
     if "sources" not in material:
         artifact = os.path.normpath(os.path.join(cwd, str(command[1])))
