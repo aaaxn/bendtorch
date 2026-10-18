@@ -11,7 +11,8 @@ before they run it. The key holds everything that decides the result:
 - every file of the `bend2` directory that runs, the Bun binary, and where
   Bend's library (`BEND_LIB`) is;
 - the BendTT binary that runs, for `--verdict` and direct kernel runs,
-  found as the command would find it;
+  found as the command would find it, and for it and Bun every shared
+  library the loader gives them (`ldd`);
 - the arguments, with the `-o` target relative to the checked file;
 - the environment, but for the variables in `INERT`.
 
@@ -19,7 +20,9 @@ Every digest is computed for every command, so a file replaced during a
 run is seen. A command the key cannot pin runs as usual: a hub or named
 import, a foreign (`import "x.c"`) definition, a checked file reached
 through a symlink, an `-o` target that is one of its inputs or in `bend2`,
-a relative `PATH` entry, or any configuration file Bun would read (`.env*`,
+a relative `PATH` entry, a checked file inside Bend's library, telemetry
+left on (Bend then reads its update notice), or any configuration file Bun
+would read (`.env*`,
 `bunfig.toml`, `package.json`, `tsconfig.json`, `jsconfig.json` in the
 working directory or above `bend2`, and the user's `.bunfig.toml`). After a
 command runs, its key is computed again and the result is stored only if
@@ -99,15 +102,33 @@ def executable(name: str, cwd: Path, env: dict[str, str]) -> str | None:
     """The file `name` runs, found as subprocess and Bun's spawn find it;
     None if a relative PATH entry would make that depend on who looks."""
     if "/" in name:
-        found = os.path.join(cwd, name)
-        return os.path.realpath(found) if os.path.isfile(found) else None
-    for directory in env.get("PATH", os.defpath).split(os.pathsep):
-        if not os.path.isabs(directory):
+        candidates = [os.path.join(cwd, name)]
+    else:
+        directories = env.get("PATH", os.defpath).split(os.pathsep)
+        if not all(map(os.path.isabs, directories)):
             return None
-        found = os.path.join(directory, name)
+        candidates = [os.path.join(directory, name) for directory in directories]
+    for found in candidates:
         if os.path.isfile(found) and os.access(found, os.X_OK):
             return os.path.realpath(found)
     return None
+
+
+def binary(name: str, cwd: Path, env: dict[str, str]) -> list | None:
+    """The digests of the executable `name` runs and of every shared library
+    the loader gives it under `env` (LD_PRELOAD and LD_LIBRARY_PATH too)."""
+    found = executable(name, cwd, env)
+    if found is None:
+        return None
+    listed = subprocess.run(
+        ["ldd", found], env=env, capture_output=True, text=True, check=False
+    )
+    if listed.returncode != 0:
+        return None
+    libraries = sorted(
+        {os.path.realpath(path) for path in re.findall(r"(/\S+) \(0x", listed.stdout)}
+    )
+    return [[path, file_digest(path)] for path in [found, *libraries]]
 
 
 def runtime(bend2: Path, cwd: Path, env: dict[str, str]) -> dict | None:
@@ -189,13 +210,13 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
         name: value for name, value in sorted(env.items()) if name not in INERT
     }
     if len(command) == 2 and Path(command[0]).name == "bendtt":
-        kernel = executable(command[0], cwd, env)
+        kernel = binary(command[0], cwd, env)
         artifact = os.path.join(cwd, command[1])
         if kernel is None or not os.path.isfile(artifact):
             return None
         return {
             "format": FORMAT,
-            "kernel": file_digest(kernel),
+            "kernel": kernel,
             "input": file_digest(artifact),
             "env": variables,
         }
@@ -212,7 +233,9 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
     if os.path.realpath(given) != given:
         return None  # Bend reads the name it was given and the file it reaches
     entry = Path(given)
-    bun = executable(command[0], cwd, env)
+    if not env.get("BEND_NO_TELEMETRY"):
+        return None  # Bend would read and print its update notice
+    bun = binary(command[0], cwd, env)
     main = os.path.realpath(os.path.join(cwd, command[1]))
     if bun is None or not os.path.isfile(main):
         return None
@@ -221,9 +244,12 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
     reads = runtime(bend2, cwd, env)
     if files is None or reads is None:
         return None
+    library = reads["library"][1]
+    if library is not None and any(path.startswith(f"{library}/") for path in files):
+        return None  # Bend names a library file by its place in the library
     material = {
         "format": FORMAT,
-        "bun": file_digest(bun),
+        "bun": bun,
         "runtime": reads,
         "arguments": arguments,
         "sources": sorted(
@@ -233,12 +259,10 @@ def key(argv: list, cwd: Path, env: dict[str, str]) -> dict | None:
         "env": variables,
     }
     if mode == ["--verdict"]:
-        kernel = (
-            executable(env.get("BENDTT", ""), cwd, env) if env.get("BENDTT") else None
-        )
+        kernel = binary(env["BENDTT"], cwd, env) if env.get("BENDTT") else None
         if kernel is None:
             return None  # Bend would build or find its own kernel
-        material["kernel"] = file_digest(kernel)
+        material["kernel"] = kernel
     if mode[0] == "-o":
         target = os.path.normpath(os.path.join(cwd, mode[1]))
         real = os.path.realpath(target)

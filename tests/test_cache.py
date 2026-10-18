@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -150,13 +151,6 @@ class CacheTests(unittest.TestCase):
         )
         self.assertFalse(replayed)
         self.assertEqual(result.returncode, 0)
-        # Replaced at the same path, in the same process: a new key.
-        fake.write_text("#!/bin/sh\necho 'SOME PROOFS FAIL'; exit 1\n")
-        result, replayed = self.run_bend(
-            law, "--verdict", env={**self.env, "BENDTT": str(fake)}
-        )
-        self.assertFalse(replayed)
-        self.assertEqual(result.returncode, 1)
         # A bare name is found on PATH, as the run finds it.
         artifact = self.root / "x.bendtt"
         artifact.write_text("x")
@@ -165,8 +159,20 @@ class CacheTests(unittest.TestCase):
         material = key(command, self.root, on_path)
         assert material is not None
         self.assertEqual(
-            material["kernel"], hashlib.sha256(fake.read_bytes()).hexdigest()
+            material["kernel"][0],
+            [str(fake), hashlib.sha256(fake.read_bytes()).hexdigest()],
         )
+        # Replaced at the same path, in the same process: a new key.
+        before = key(
+            bend(TOOLS, law, "--verdict"), self.root, {**self.env, "BENDTT": str(fake)}
+        )
+        with fake.open("ab") as stream:
+            stream.write(b"\0")
+        after = key(
+            bend(TOOLS, law, "--verdict"), self.root, {**self.env, "BENDTT": str(fake)}
+        )
+        self.assertIsNotNone(before)
+        self.assertNotEqual(before, after)
 
     def test_an_export_and_its_kernel_check_replay(self):
         law = self.src / "law.bend"
@@ -260,20 +266,31 @@ class CacheTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertEqual((self.src / "lib.bend").read_text(), LIB)
 
-    def test_an_input_changed_during_the_run_is_not_stored(self):
+    def shell_kernel(self) -> Path:
+        """A real executable named bendtt that runs its input as a script."""
+        kernel = self.root / "sh/bendtt"
+        kernel.parent.mkdir(exist_ok=True)
+        shutil.copy(shutil.which("sh") or "/bin/sh", kernel)
+        return kernel
+
+    def run_kernel(self, kernel: Path, script: str):
         artifact = self.root / "x.bendtt"
-        artifact.write_text("before")
-        script = self.root / "bin/bendtt"
-        script.parent.mkdir()
-        script.write_text(
-            f"#!/bin/sh\necho after > {artifact}\necho 'ALL PROOFS CHECK'\n"
+        artifact.write_text(script)
+        return self.cache.run(
+            [str(kernel), str(artifact)], cwd=self.root, env=self.env, timeout=60
         )
-        script.chmod(0o755)
-        result, _ = self.cache.run(
-            [str(script), str(artifact)], cwd=self.root, env=self.env, timeout=60
+
+    def test_an_input_changed_during_the_run_is_not_stored(self):
+        kernel = self.shell_kernel()
+        self.assertEqual(
+            self.run_kernel(kernel, "echo 'ALL PROOFS CHECK'\n")[0].returncode, 0
         )
-        self.assertEqual(result.returncode, 0)
-        self.assertEqual(self.entries(), [])
+        self.assertEqual(len(self.entries()), 1)
+        # The kernel edits its own input after reading it, then passes.
+        artifact = self.root / "x.bendtt"
+        changes = f"echo '# changed' >> {artifact}; echo 'ALL PROOFS CHECK'; exit 0\n"
+        self.assertEqual(self.run_kernel(kernel, changes)[0].returncode, 0)
+        self.assertEqual(len(self.entries()), 1)
 
     def test_a_forged_pass_for_a_false_law_is_not_replayed(self):
         # An entry moved under another key, with a valid digest of its own,
@@ -303,16 +320,51 @@ class CacheTests(unittest.TestCase):
         self.assertIsNone(key(bend(TOOLS, self.src / "law.bend"), self.root, self.env))
 
     def test_a_crash_is_not_stored(self):
-        script = self.root / "bendtt"
-        script.write_text("#!/bin/sh\nkill -9 $$\n")
-        script.chmod(0o755)
-        artifact = self.root / "x.bendtt"
-        artifact.write_text("x")
-        result, _ = self.cache.run(
-            [str(script), str(artifact)], cwd=self.root, env=self.env, timeout=60
-        )
+        kernel = self.shell_kernel()
+        self.assertEqual(self.run_kernel(kernel, "exit 1\n")[0].returncode, 1)
+        self.assertEqual(len(self.entries()), 1)
+        result, _ = self.run_kernel(kernel, "kill -9 $$\n")
         self.assertLess(result.returncode, 0)
-        self.assertEqual(self.entries(), [])
+        self.assertEqual(len(self.entries()), 1)
+
+    def test_the_loaded_libraries_are_in_the_key(self):
+        kernel = self.shell_kernel()
+        artifact = self.root / "x.bendtt"
+        artifact.write_text("")
+        command = [str(kernel), str(artifact)]
+        plain = key(command, self.root, self.env)
+        library = self.root / "libpreload.so"
+        libm = next(
+            path
+            for path in ("/lib/x86_64-linux-gnu/libm.so.6", "/usr/lib64/libm.so.6")
+            if Path(path).exists()
+        )
+        shutil.copy(libm, library)
+        preload = {**self.env, "LD_PRELOAD": str(library)}
+        first = key(command, self.root, preload)
+        with library.open("ab") as stream:
+            stream.write(b"\0")
+        second = key(command, self.root, preload)
+        self.assertEqual(len({json.dumps(k) for k in (plain, first, second)}), 3)
+
+    def test_a_kernel_that_cannot_run_is_not_cached(self):
+        kernel = self.shell_kernel()
+        kernel.chmod(0o644)
+        artifact = self.root / "x.bendtt"
+        artifact.write_text("")
+        self.assertIsNone(key([str(kernel), str(artifact)], self.root, self.env))
+        law = self.src / "law.bend"
+        unrunnable = {**self.env, "BENDTT": str(kernel)}
+        self.assertIsNone(key(bend(TOOLS, law, "--verdict"), self.root, unrunnable))
+
+    def test_telemetry_or_a_file_in_the_library_is_not_cached(self):
+        law = self.src / "law.bend"
+        command = bend(TOOLS, law, "--check-only")
+        self.assertIsNotNone(key(command, self.root, self.env))
+        telemetry = {k: v for k, v in self.env.items() if k != "BEND_NO_TELEMETRY"}
+        self.assertIsNone(key(command, self.root, telemetry))
+        inside = {**self.env, "BEND_LIB": str(self.src)}
+        self.assertIsNone(key(command, self.root, inside))
 
     def test_the_cli_exits_with_the_commands_code(self):
         law = self.src / "law.bend"
