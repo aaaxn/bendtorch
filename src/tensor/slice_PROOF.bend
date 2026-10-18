@@ -14,7 +14,7 @@ import ./slice_LAWS.bend as Laws
 import ./contracts/build_facts.bend as Facts
 import ./elementwise.bend as Elementwise
 import ./elementwise_parallel_proof.bend as Parallel
-import ./parallel_proof.bend as Generic
+import ./parallel_proofs.bend as Generic
 import ./batched_matmul_PROOF.bend as BatchedProof
 import ../storage/array.bend as ArrayCore
 import ./elementwise_walk_proof.bend as Walk

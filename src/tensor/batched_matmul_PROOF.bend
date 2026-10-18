@@ -11,7 +11,7 @@ import ./dot_fold.bend as DotFold
 import ./elementwise.bend as Elementwise
 import ./elementwise_parallel_proof.bend as Parallel
 import ./parallel.bend as Build
-import ./parallel_proof.bend as Generic
+import ./parallel_proofs.bend as Generic
 import ./matrix_index_proof.bend as MatrixIndex
 import ../shape/nat_proofs.bend as Nats
 import ../shape/index_proofs.bend as Index

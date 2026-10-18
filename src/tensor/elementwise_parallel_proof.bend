@@ -19,7 +19,7 @@ import ./lifecycle.bend as Lifecycle
 import ./elementwise.bend as Elementwise
 import ./elementwise_totality.bend as Totality
 import ./word_conversion.bend as WordConversion
-import ./parallel_proof.bend as Generic
+import ./parallel_proofs.bend as Generic
 import ./elementwise_walk_proof.bend as WalkProof
 
 # Proofs that the parallel elementwise build writes, at every output index,

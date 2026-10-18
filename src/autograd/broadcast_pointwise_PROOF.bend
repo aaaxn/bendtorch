@@ -12,7 +12,7 @@ import ../tensor/contracts/replayed.bend as Replayed
 import ../tensor/contracts/pointwise_proof.bend as PointwiseProof
 import ../tensor/contracts/broadcast.bend as PointwiseBroadcast
 import ../tensor/contracts/binary_LAWS.bend as BinaryLaws
-import ../tensor/contracts/binary_proof.bend as Binary
+import ../tensor/contracts/binary_proofs.bend as Binary
 import ../tensor/contracts/binary_PROOF.bend as BinaryProof
 import ./broadcast.bend as Broadcast
 import ./reduce_LAWS.bend as ReduceLaws

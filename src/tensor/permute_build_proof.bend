@@ -15,7 +15,7 @@ import ../storage/route.bend as Route
 import ./core.bend as Core
 import ./lifecycle.bend as Lifecycle
 import ./transforms.bend as Transforms
-import ./parallel_proof.bend as Generic
+import ./parallel_proofs.bend as Generic
 import ./parallel.bend as Parallel
 import ./transform_totality.bend as Totality
 import ./read_contract.bend as Reads

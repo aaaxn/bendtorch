@@ -2,7 +2,7 @@ import Base
 import ../shape/core.bend as Shape
 import ../tensor/core.bend as Core
 import ../tensor/elementwise.bend as Elementwise
-import ../tensor/contracts/binary_proof.bend as BinaryProof
+import ../tensor/contracts/binary_proofs.bend as BinaryProof
 # Proves binary_replayed, which importing the proof above would otherwise leave open.
 import ../tensor/contracts/binary_PROOF.bend as BinaryLaw
 import ./gradient.bend as Gradient

@@ -2,7 +2,7 @@ import Base
 import ../storage/model.bend as Model
 import ../storage/refinement.bend as Refinement
 import ../tensor/elementwise_parallel_proof.bend as Parallel
-import ../tensor/parallel_proof.bend as Generic
+import ../tensor/parallel_proofs.bend as Generic
 import ../shape/core.bend as Shape
 import ../shape/flat.bend as Flat
 import ../shape/broadcast_proofs.bend as Broadcast

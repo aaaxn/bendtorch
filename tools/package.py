@@ -126,6 +126,13 @@ def check(root: Path, entry: str = ENTRY) -> list[str]:
             f"BendHub refuses {len(bad)} path(s), e.g. {bad[0]}: segments must be"
             " [A-Za-z_][A-Za-z0-9_]*, ending in .bend, .c or .js or naming LICENSE"
         )
+    folded: dict[str, str] = {}
+    for f in shipped:
+        other = folded.setdefault(f.lower(), f)
+        if other != f:
+            raise PackageError(
+                f"BendHub refuses paths differing only by case: {other}, {f}"
+            )
     return sorted(shipped)
 
 
