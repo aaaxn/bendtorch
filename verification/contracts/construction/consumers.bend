@@ -1,11 +1,11 @@
 import Base
-import ../../../src/tensor/construction-contract-LAWS.bend as Contract
-import ../../../src/tensor/construction-contract-PROOF.bend as ContractProof
-import ../../../src/tensor/construction-metadata.bend as Metadata
+import ../../../src/tensor/construction_contract_LAWS.bend as Contract
+import ../../../src/tensor/construction_contract_PROOF.bend as ContractProof
+import ../../../src/tensor/construction_metadata.bend as Metadata
 import ../../../src/shape/core.bend as Shape
 import ../../../src/shape/nat_proofs.bend as Nats
 import ../../../src/tensor/core.bend as Core
-import ../../../src/tensor/allocation-spec.bend as Allocation
+import ../../../src/tensor/allocation_spec.bend as Allocation
 import ../../../src/tensor/observation.bend as Observation
 
 def scalar_shape() -> Shape.Shape:

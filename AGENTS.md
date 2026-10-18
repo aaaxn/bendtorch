@@ -186,8 +186,9 @@ Experimental work stays in `dev/`, outside `src/`, until it is promoted.
 
 The package is `bendtorch.bend` and what it imports. A new public module
 gets an import there. The package ships nothing outside `src/`, the root
-`LAWS.bend`, `PROOF.bend` and `LICENSE`; `python -m tools.package` checks
-it. [VERSIONING](docs/VERSIONING.md) has the version rules and the release
+`LAWS.bend`, `PROOF.bend` and `LICENSE`, and names files under `src/` with
+letters, digits and `_` only (BendHub refuses `-`); `python -m tools.package`
+checks it. [VERSIONING](docs/VERSIONING.md) has the version rules and the release
 steps. Publishing to BendHub is permanent and only its owner does it.
 
 No PR weakens a law, excludes a case or widens a numerical tolerance.

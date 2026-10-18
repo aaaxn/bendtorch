@@ -2,7 +2,7 @@ import Base
 import ../shape/core.bend as Shape
 import ./core.bend as Core
 import ./layout.bend as Layout
-import ./axis-spec.bend as Axis
+import ./axis_spec.bend as Axis
 
 def dimensions_pair(pair: Core.Dynamic & Shape.Shape) -> Maybe<&2, List<&2, U32>>:
   (dynamic, shape) = pair

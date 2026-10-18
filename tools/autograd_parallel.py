@@ -206,7 +206,7 @@ CONTROLS = {
     ),
     # torch.matmul with a batch.
     "batched-matmul-fork-copies-a-wrong-word": own_split(
-        "src/tensor/batched-matmul.bend",
+        "src/tensor/batched_matmul.bend",
         "def build(",
         pair_split("Elementwise.halves"),
         folds(
@@ -217,7 +217,7 @@ CONTROLS = {
     ),
     # permute and transpose.
     "permute-fork-copies-a-wrong-word": own_split(
-        "src/tensor/permute-build.bend",
+        "src/tensor/permute_build.bend",
         "def build(",
         pair_split("halves"),
         folds(

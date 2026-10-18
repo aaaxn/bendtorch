@@ -113,7 +113,7 @@ scalar axes, U32 boundaries, unchanged positive-rank mappings, negative-axis
 decoder rejection, exact scalar value/shape rejection and the one-ID proposal
 change against unchanged frozen hashes. They do not execute Bend or PyTorch.
 
-`src/tensor/scalar-transpose-demo.bend` is a native/JS behavioral probe
+`src/tensor/scalar_transpose_demo.bend` is a native/JS behavioral probe
 using the existing transform demo's owner-threaded reporters. It exercises:
 
 - Scalar `7.0`, negative zero and the smallest positive subnormal, including

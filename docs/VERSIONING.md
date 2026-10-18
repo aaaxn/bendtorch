@@ -25,13 +25,15 @@ with every file it imports: the modules of `src/`, the root `LAWS.bend` and
 `PROOF.bend` with every module's laws and proofs, and the root `LICENSE`.
 `tools/`, `tests/`, `verification/`, `oracle/`, `examples/`, `dev/`, `probes/`
 and `docs/` stay in the repository. `uv run --locked python -m tools.package`
-prints the shipped files and fails if the entry pulls in anything else.
+prints the shipped files and fails if the entry pulls in anything else, or
+if a path breaks BendHub's rule: letters, digits and `_` only, so shipped
+files are named `tensor_vjp_LAWS.bend`, never `tensor-vjp-LAWS.bend`.
 
 A program imports the module it needs, by name or by hash:
 
 ```python
 import bendtorch-core@0.1.0.0/src/tensor/core.bend as Core
-import bendtorch-core@0.1.0.0/src/autograd/tensor-backward.bend as Backward
+import bendtorch-core@0.1.0.0/src/autograd/tensor_backward.bend as Backward
 ```
 
 An import is local to the file that makes it, so importing `bendtorch.bend`

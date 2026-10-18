@@ -1,8 +1,8 @@
 import Base
 import ../../../src/tensor/contracts/LAWS.bend as Contracts
-import ../../../src/autograd/tensor-backward.bend as Backward
-import ../../../src/autograd/tensor-backward-LAWS.bend as TensorBackward
-import ../../../src/autograd/tensor-vjp-LAWS.bend as Laws
+import ../../../src/autograd/tensor_backward.bend as Backward
+import ../../../src/autograd/tensor_backward_LAWS.bend as TensorBackward
+import ../../../src/autograd/tensor_vjp_LAWS.bend as Laws
 import ./consumers.bend as Cases
 
 def kept_word() -> Maybe<&2, F32>:

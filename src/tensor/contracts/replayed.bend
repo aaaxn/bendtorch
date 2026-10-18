@@ -5,9 +5,9 @@ import ../../storage/LAWS.bend as StorageLaws
 import ../../storage/arith.bend as Arith
 import ../core.bend as Core
 import ../lifecycle.bend as Lifecycle
-import ../word-conversion.bend as Conversion
-import ../read-contract.bend as Reads
-import ../from-values-contract.bend as FromValues
+import ../word_conversion.bend as Conversion
+import ../read_contract.bend as Reads
+import ../from_values_contract.bend as FromValues
 
 # A replayed tensor holds the storage that `Storage.new(count, fill)` creates,
 # changed by a list of storage operations in order. `Core.new(shape, fill)` is

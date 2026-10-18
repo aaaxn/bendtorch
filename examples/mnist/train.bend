@@ -1,6 +1,6 @@
 import Base
 import ../../src/tensor/core.bend as Core
-import ../../src/autograd/tensor-backward.bend as Backward
+import ../../src/autograd/tensor_backward.bend as Backward
 import ../../src/autograd/sgd.bend as Sgd
 
 # Trains a 784-128-10 MLP on MNIST with the tape: Linear, relu, Linear,

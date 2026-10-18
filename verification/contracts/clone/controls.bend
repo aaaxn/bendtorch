@@ -1,7 +1,7 @@
 import Base
-import ../../../src/tensor/clone-metadata-contract-LAWS.bend as Contract
-import ../../../src/tensor/clone-metadata-records.bend as Records
-import ../../../src/tensor/clone-metadata-contract-PROOF.bend as ContractProof
+import ../../../src/tensor/clone_metadata_contract_LAWS.bend as Contract
+import ../../../src/tensor/clone_metadata_records.bend as Records
+import ../../../src/tensor/clone_metadata_contract_PROOF.bend as ContractProof
 import ../../../src/tensor/core.bend as Core
 import ../../../src/tensor/observation.bend as Observation
 import ./consumers.bend as Cases

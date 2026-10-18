@@ -72,15 +72,15 @@ class PointwiseControlTests(unittest.TestCase):
         self.assertTrue(all(not site.consumer for site in pointwise.sites.values()))
         for label, (path, _, _) in reduce.mutants.items():
             live = {
-                "src/autograd/reduce.bend": "reduce-to-fold-PROOF.bend",
-                "src/autograd/sum-to-size.bend": "sum-to-size-fold-PROOF.bend",
+                "src/autograd/reduce.bend": "reduce_to_fold_PROOF.bend",
+                "src/autograd/sum_to_size.bend": "sum_to_size_fold_PROOF.bend",
             }.get(path, "PROOF.bend")
             expected = f"src/autograd/{live}"
             self.assertEqual(reduce.rejecting_module(label), expected, label)
         for label in broadcast_to.mutants:
             self.assertEqual(
                 broadcast_to.rejecting_module(label),
-                "src/autograd/broadcast-pointwise-PROOF.bend",
+                "src/autograd/broadcast_pointwise_PROOF.bend",
                 label,
             )
         for label in tensor_vjp.mutants:
@@ -90,7 +90,7 @@ class PointwiseControlTests(unittest.TestCase):
         for label in binary.mutants:
             self.assertEqual(
                 binary.rejecting_module(label),
-                "src/tensor/contracts/binary-PROOF.bend",
+                "src/tensor/contracts/binary_PROOF.bend",
                 label,
             )
 
@@ -173,7 +173,7 @@ class PointwiseControlTests(unittest.TestCase):
             pointwise.kernel_reason(other, "sub_witness")
 
     def test_kernel_reason_requires_the_named_declaration(self):
-        site = f"{controls.SRC}pointwise_2d_proof.step_lift.qvvvvv"
+        site = f"{controls.SRC}pointwise_proof.step_lift.qvvvvv"
         self.assertIn(
             site, pointwise.kernel_reason(kernel(site, "a", "b"), "missing-write")
         )

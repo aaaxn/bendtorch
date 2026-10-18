@@ -3,7 +3,7 @@ import ../shape/core.bend as Shape
 import ./core.bend as Core
 import ./layout.bend as Layout
 import ./transforms.bend as Transforms
-import ./transpose-spec.bend as Transpose
+import ./transpose_spec.bend as Transpose
 import ./slice.bend as Slice
 
 # PyTorch's signed axes, indices and reshape sizes, parsed into the unsigned

@@ -63,7 +63,7 @@ class ExperimentRunnerTests(unittest.TestCase):
             root = Path(directory)
             baseline = root / "baseline"
             (baseline / "src/tensor").mkdir(parents=True)
-            for name in ("core.bend", "allocation-PROOF.bend"):
+            for name in ("core.bend", "allocation_PROOF.bend"):
                 (baseline / "src/tensor" / name).write_bytes(
                     (ROOT / "src/tensor" / name).read_bytes()
                 )
@@ -73,8 +73,8 @@ class ExperimentRunnerTests(unittest.TestCase):
             self.assertIn(
                 "new_result(shape, Storage.new(Shape.count(shape), 0.0))", core
             )
-            before = (baseline / "src/tensor/allocation-PROOF.bend").read_text()
-            after = (target / "src/tensor/allocation-PROOF.bend").read_text()
+            before = (baseline / "src/tensor/allocation_PROOF.bend").read_text()
+            after = (target / "src/tensor/allocation_PROOF.bend").read_text()
             start = before.index("def core_new(+shape:")
             header_end = before.index(":\n", start)
             self.assertEqual(before[start:header_end], after[start:header_end])

@@ -219,7 +219,7 @@ class GateRegistrationTests(unittest.TestCase):
             "required_exports"
         ]
         self.assertEqual(
-            sum(name.startswith("backward_2d_LAWS.") for name in required), 35
+            sum(name.startswith("backward_LAWS.") for name in required), 35
         )
         controls = [name for name in PROOF_CONTROLS if name.startswith("backward-")]
         self.assertEqual(len(controls), 9)

@@ -150,7 +150,7 @@ class GateRegistrationTests(unittest.TestCase):
         required = json.loads((ROOT / "verification/autograd.json").read_text())[
             "required_exports"
         ]
-        self.assertEqual(sum("reduce_2d_LAWS" in name for name in required), 7)
+        self.assertEqual(sum("reduce_LAWS" in name for name in required), 7)
         for path, original, _ in PROOF_CONTROLS.values():
             self.assertEqual((ROOT / path).read_text().count(original), 1)
 

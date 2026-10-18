@@ -1,6 +1,6 @@
 import Base
-import ../../../src/tensor/read-write-records.bend as Records
-import ../../../src/tensor/read-contract.bend as Reads
+import ../../../src/tensor/read_write_records.bend as Records
+import ../../../src/tensor/read_contract.bend as Reads
 import ../../../src/tensor/core.bend as Core
 import ../../../src/tensor/observation.bend as Observation
 import ../../../src/shape/core.bend as Shape

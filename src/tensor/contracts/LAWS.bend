@@ -4,16 +4,16 @@ import ../../storage/LAWS.bend as StorageLaws
 import ../core.bend as Core
 import ../lifecycle.bend as Lifecycle
 import ../elementwise.bend as Elementwise
-import ../from-values-contract.bend as FromValues
+import ../from_values_contract.bend as FromValues
 import ../reduction.bend as Reduction
 import ../matmul.bend as Matrix
-import ../dot-fold.bend as DotFold
+import ../dot_fold.bend as DotFold
 import ./replayed.bend as Replayed
 import ./broadcast.bend as Broadcast
-import ./pointwise-records.bend as Records
+import ./pointwise_records.bend as Records
 import ./sum.bend as Sum
 import ./dot.bend as Dot
-import ./fold-records.bend as FoldRecords
+import ./fold_records.bend as FoldRecords
 
 # Replayed tensors. `Core.new(shape, fill)` is the replayed tensor with an
 # empty history, `Core.from_values` the one that writes each value once in

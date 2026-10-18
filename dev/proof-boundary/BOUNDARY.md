@@ -177,7 +177,7 @@ cloud verdict that was SIGKILLed did not reproduce on that host.
 
 ## Live transform contracts: what is LIVE and what is not
 
-The live transform contract (`src/tensor/transform-contract-LAWS.bend`) states
+The live transform contract (`src/tensor/transform_contract_LAWS.bend`) states
 LIVE laws for the parts of `reshape`, `permute_copy` and `transpose_copy` that
 can be proved live today:
 
@@ -205,14 +205,14 @@ checked by the existing erased laws and by the tensor native/JS corpus, not by
 a LIVE contract.
 
 The LIVE distinct-values producer for `from_values` is `from_values_contract`
-(`src/tensor/from-values-contract-LAWS.bend`), which states, with LIVE fields,
+(`src/tensor/from_values_contract_LAWS.bend`), which states, with LIVE fields,
 that `Core.from_values(shape, values)` with `length(values) == numel(shape)`
 succeeds with the shape's metadata and reads `values[i]` at every in-bounds
 `i`.
 
 The LIVE permute and transpose value contracts over this producer are
 `permute_contract` and `transpose_contract`
-(`src/tensor/permute-values-contract-LAWS.bend`). They state that output index
+(`src/tensor/permute_values_contract_LAWS.bend`). They state that output index
 `i` holds `values[permute_source(input, axes, i)]` and that the returned source
 keeps every value. The proof re-walks the copy loop with live code, as an
 instance of a generic index-map copy built on the pointwise contract family.

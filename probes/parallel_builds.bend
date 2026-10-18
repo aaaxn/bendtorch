@@ -2,15 +2,15 @@ import Base
 import ../src/shape/core.bend as Shape
 import ../src/tensor/core.bend as Core
 import ../src/tensor/matmul.bend as Matrix
-import ../src/tensor/batched-matmul.bend as Batched
+import ../src/tensor/batched_matmul.bend as Batched
 import ../src/autograd/broadcast.bend as Broadcast
 import ../src/tensor/layout.bend as Layout
 import ../src/tensor/transforms.bend as Transforms
-import ../src/tensor/permute-build.bend as Permute
+import ../src/tensor/permute_build.bend as Permute
 import ../src/tensor/elementwise.bend as Elementwise
 import ../src/tensor/reduction.bend as Reduction
 import ../src/autograd/reduce.bend as Reduce
-import ../src/autograd/reduce-fold.bend as ReduceFold
+import ../src/autograd/reduce_fold.bend as ReduceFold
 
 # The parallel builds next to the sequential definitions, on inputs large
 # enough to fork. For each product, elementwise operation, sum, reduction,

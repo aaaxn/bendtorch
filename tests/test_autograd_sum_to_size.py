@@ -91,12 +91,8 @@ class GateRegistrationTests(unittest.TestCase):
         required = json.loads((ROOT / "verification/autograd.json").read_text())[
             "required_exports"
         ]
-        self.assertEqual(
-            sum("sum_2d_to_2d_size_2d_LAWS" in name for name in required), 3
-        )
-        self.assertEqual(
-            sum("sum_2d_to_2d_size_2d_fold_2d_LAWS" in name for name in required), 3
-        )
+        self.assertEqual(sum("sum_to_size_LAWS" in name for name in required), 3)
+        self.assertEqual(sum("sum_to_size_fold_LAWS" in name for name in required), 3)
         controls = [name for name in PROOF_CONTROLS if name.startswith("sum-to-size-")]
         self.assertEqual(len(controls), 3)
         for path, original, _ in PROOF_CONTROLS.values():

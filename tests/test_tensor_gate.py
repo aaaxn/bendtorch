@@ -127,7 +127,7 @@ class GateAcceptanceTests(unittest.TestCase):
 
     def test_relu_controls_apply_once_and_name_a_relu_law(self):
         source = (ROOT / "src/tensor/elementwise.bend").read_text()
-        laws = (ROOT / "src/tensor/relu-LAWS.bend").read_text()
+        laws = (ROOT / "src/tensor/relu_LAWS.bend").read_text()
         self.assertEqual(len(RELU_CONTROLS), 7)
         for original, mutated, location in RELU_CONTROLS.values():
             self.assertEqual(source.count(original), 1)
@@ -146,7 +146,7 @@ class GateAcceptanceTests(unittest.TestCase):
 
     def test_loss_controls_apply_once_and_name_a_loss_law(self):
         source = (ROOT / "src/tensor/elementwise.bend").read_text()
-        laws = (ROOT / "src/tensor/loss-ops-LAWS.bend").read_text()
+        laws = (ROOT / "src/tensor/loss_ops_LAWS.bend").read_text()
         self.assertEqual(len(LOSS_CONTROLS), 8)
         for original, mutated, location in LOSS_CONTROLS.values():
             self.assertEqual(source.count(original), 1)
@@ -154,9 +154,9 @@ class GateAcceptanceTests(unittest.TestCase):
             self.assertIn(f"law {location.removeprefix('Laws.')}:\n", laws)
 
     def test_batched_controls_apply_once_and_name_a_batched_proof(self):
-        source = (ROOT / "src/tensor/batched-matmul.bend").read_text()
-        laws = (ROOT / "src/tensor/batched-matmul-LAWS.bend").read_text()
-        proof = (ROOT / "src/tensor/batched-matmul-PROOF.bend").read_text()
+        source = (ROOT / "src/tensor/batched_matmul.bend").read_text()
+        laws = (ROOT / "src/tensor/batched_matmul_LAWS.bend").read_text()
+        proof = (ROOT / "src/tensor/batched_matmul_PROOF.bend").read_text()
         self.assertEqual(len(BATCHED_CONTROLS), 7)
         for original, mutated, location in BATCHED_CONTROLS.values():
             self.assertEqual(source.count(original), 1)
@@ -167,8 +167,8 @@ class GateAcceptanceTests(unittest.TestCase):
 
     def test_slice_controls_apply_once_and_name_a_slice_proof(self):
         source = (ROOT / "src/tensor/slice.bend").read_text()
-        laws = (ROOT / "src/tensor/slice-LAWS.bend").read_text()
-        proof = (ROOT / "src/tensor/slice-PROOF.bend").read_text()
+        laws = (ROOT / "src/tensor/slice_LAWS.bend").read_text()
+        proof = (ROOT / "src/tensor/slice_PROOF.bend").read_text()
         self.assertEqual(len(SLICE_CONTROLS), 28)
         for original, mutated, location in SLICE_CONTROLS.values():
             self.assertEqual(source.count(original), 1)
@@ -179,8 +179,8 @@ class GateAcceptanceTests(unittest.TestCase):
 
     def test_gather_controls_apply_once_and_name_a_gather_proof(self):
         source = (ROOT / "src/tensor/gather.bend").read_text()
-        laws = (ROOT / "src/tensor/gather-LAWS.bend").read_text()
-        proof = (ROOT / "src/tensor/gather-PROOF.bend").read_text()
+        laws = (ROOT / "src/tensor/gather_LAWS.bend").read_text()
+        proof = (ROOT / "src/tensor/gather_PROOF.bend").read_text()
         self.assertEqual(len(GATHER_CONTROLS), 15)
         for original, mutated, location in GATHER_CONTROLS.values():
             self.assertEqual(source.count(original), 1)
@@ -207,11 +207,11 @@ class GateAcceptanceTests(unittest.TestCase):
         self.assertEqual(
             law_exports(text, "m."), {"m.first", "m.generic.qvv", "m.closed"}
         )
-        parallel = (ROOT / "src/tensor/parallel-LAWS.bend").read_text()
+        parallel = (ROOT / "src/tensor/parallel_LAWS.bend").read_text()
         self.assertEqual(
-            law_exports(parallel, "parallel_2d_LAWS."),
+            law_exports(parallel, "parallel_LAWS."),
             {
-                f"parallel_2d_LAWS.parallel_build_{name}.qvvvvvvv"
+                f"parallel_LAWS.parallel_build_{name}.qvvvvvvv"
                 for name in ("balanced", "cells", "sequential")
             },
         )

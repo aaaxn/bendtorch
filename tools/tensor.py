@@ -194,7 +194,7 @@ def verify_supplement(supplement: dict, observations: list[dict]) -> dict:
 
 # Mutants of ReLU, its gradient and the comparisons with zero they use, each
 # applied to a copy of src/tensor/elementwise.bend, and the law of
-# src/tensor/relu-LAWS.bend whose proof rejects it. Each law named here is
+# src/tensor/relu_LAWS.bend whose proof rejects it. Each law named here is
 # false for the mutant.
 RELU_CONTROLS = {
     "relu-passes-negatives": (
@@ -271,7 +271,7 @@ def relu_controls(evidence: Evidence, source_root: Path) -> None:
         if location in RELU_WITNESSES:
             checked, words = relu_witness(copy, location), RELU_WITNESSES[location][1]
         else:
-            checked, words = copy / "src/tensor/relu-PROOF.bend", ()
+            checked, words = copy / "src/tensor/relu_PROOF.bend", ()
         evidence.run(
             f"relu-control-{name}",
             bend(evidence.tool_root, checked, "--check-only"),
@@ -299,7 +299,7 @@ def relu_controls(evidence: Evidence, source_root: Path) -> None:
 
 # Mutants of the scalar operations of the mean and the losses, each applied
 # to a copy of src/tensor/elementwise.bend, and the law of
-# src/tensor/loss-ops-LAWS.bend whose proof rejects it. Each law named here
+# src/tensor/loss_ops_LAWS.bend whose proof rejects it. Each law named here
 # is false for the mutant.
 LOSS_CONTROLS = {
     "divide-multiplies": (
@@ -358,7 +358,7 @@ def loss_controls(evidence: Evidence, source_root: Path) -> None:
             f"loss-control-{name}",
             bend(
                 evidence.tool_root,
-                copy / "src/tensor/loss-ops-PROOF.bend",
+                copy / "src/tensor/loss_ops_PROOF.bend",
                 "--check-only",
             ),
             expected_code=1,
@@ -375,7 +375,7 @@ def loss_controls(evidence: Evidence, source_root: Path) -> None:
 
 # Mutants of the signed wrap, the reshape size inference and signed slicing,
 # each applied to a copy of src/tensor/signed.bend, and the definition of
-# src/tensor/signed-PROOF.bend that rejects it: a law, or the lemma that
+# src/tensor/signed_PROOF.bend that rejects it: a law, or the lemma that
 # proves one.
 SIGNED_CONTROLS = {
     "last-wraps-to-limit-minus-k": (
@@ -543,7 +543,7 @@ def signed_controls(evidence: Evidence, source_root: Path) -> None:
             f"signed-control-{name}",
             bend(
                 evidence.tool_root,
-                copy / "src/tensor/signed-PROOF.bend",
+                copy / "src/tensor/signed_PROOF.bend",
                 "--check-only",
             ),
             expected_code=1,
@@ -558,9 +558,9 @@ def signed_controls(evidence: Evidence, source_root: Path) -> None:
     )
 
 
-# Mutants of torch.matmul (src/tensor/batched-matmul.bend), each applied to
+# Mutants of torch.matmul (src/tensor/batched_matmul.bend), each applied to
 # a copy of the source, and where the proof of
-# src/tensor/batched-matmul-PROOF.bend fails: the law, or the lemma of the
+# src/tensor/batched_matmul_PROOF.bend fails: the law, or the lemma of the
 # law, that is false for the mutant. A rank-2 pair sent to the plan breaks
 # batched_matmul_matrices, a rank-0 left operand read as a vector breaks
 # batched_matmul_left_scalar, a plan that skips the inner check breaks the
@@ -621,7 +621,7 @@ def batched_controls(evidence: Evidence, source_root: Path) -> None:
     def control(name: str, original: str, mutated: str, location: str) -> None:
         copy = evidence.directory / "batched-controls" / name
         shutil.copytree(source_root / "src", copy / "src")
-        target = copy / "src/tensor/batched-matmul.bend"
+        target = copy / "src/tensor/batched_matmul.bend"
         text = target.read_text()
         if text.count(original) != 1:
             raise GateError(f"{name}: control anchor is missing or ambiguous")
@@ -630,7 +630,7 @@ def batched_controls(evidence: Evidence, source_root: Path) -> None:
             f"batched-control-{name}",
             bend(
                 evidence.tool_root,
-                copy / "src/tensor/batched-matmul-PROOF.bend",
+                copy / "src/tensor/batched_matmul_PROOF.bend",
                 "--check-only",
             ),
             expected_code=1,
@@ -646,7 +646,7 @@ def batched_controls(evidence: Evidence, source_root: Path) -> None:
 
 
 # Mutants of basic slicing (src/tensor/slice.bend), each applied to a copy of
-# the source, and where the proof of src/tensor/slice-PROOF.bend fails: the
+# the source, and where the proof of src/tensor/slice_PROOF.bend fails: the
 # first law, or lemma of a law, whose proof no longer checks. Each mutant
 # makes at least one slice law false. The clamp mutants all fail at the
 # proof of the clamped case, which follows Nat.min and Nat.max: a start or
@@ -844,7 +844,7 @@ def slice_controls(evidence: Evidence, source_root: Path) -> None:
         evidence.run(
             f"slice-control-{name}",
             bend(
-                evidence.tool_root, copy / "src/tensor/slice-PROOF.bend", "--check-only"
+                evidence.tool_root, copy / "src/tensor/slice_PROOF.bend", "--check-only"
             ),
             expected_code=1,
             contains=("SOME PROOFS FAIL", f"Location: {location}"),
@@ -859,7 +859,7 @@ def slice_controls(evidence: Evidence, source_root: Path) -> None:
 
 
 # Mutants of index_select and gather (src/tensor/gather.bend), each applied to
-# a copy of the source, and where the proof of src/tensor/gather-PROOF.bend
+# a copy of the source, and where the proof of src/tensor/gather_PROOF.bend
 # fails: the law, or the lemma of a law, whose proof no longer checks. An
 # index_select that reads the next entry, or a gather that reads the entry
 # of its row's first cell, falsifies gather_build_cells (entry_same), and a
@@ -991,7 +991,7 @@ def gather_controls(evidence: Evidence, source_root: Path) -> None:
             f"gather-control-{name}",
             bend(
                 evidence.tool_root,
-                copy / "src/tensor/gather-PROOF.bend",
+                copy / "src/tensor/gather_PROOF.bend",
                 "--check-only",
             ),
             expected_code=1,

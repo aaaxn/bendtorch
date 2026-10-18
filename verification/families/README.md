@@ -4,10 +4,10 @@ The family laws in `src/tensor/contracts/LAWS.bend` are proved in
 `src/tensor/contracts/PROOF.bend`, aggregated by `src/tensor/LAWS.bend`, and
 required by `verification/tensor.json`, so the root `PROOF.bend --verdict` and
 the tensor gate protect them. The `reduce_to` laws are stated in
-`src/autograd/reduce-fold-LAWS.bend`, the `sum_to_size` laws in
-`src/autograd/sum-to-size-fold-LAWS.bend`, the `broadcast_to` laws in
-`src/autograd/broadcast-pointwise-LAWS.bend` and the tensor VJP value laws in
-`src/autograd/tensor-vjp-LAWS.bend`, and `verification/autograd.json`
+`src/autograd/reduce_fold_LAWS.bend`, the `sum_to_size` laws in
+`src/autograd/sum_to_size_fold_LAWS.bend`, the `broadcast_to` laws in
+`src/autograd/broadcast_pointwise_LAWS.bend` and the tensor VJP value laws in
+`src/autograd/tensor_vjp_LAWS.bend`, and `verification/autograd.json`
 requires them. This
 directory holds literal consumers, false twins and implementation mutants,
 beside the runner that checks them.
@@ -58,7 +58,7 @@ beside the runner that checks them.
 
 The first five mutants change the generic loop in `pointwise.bend`, and the
 generic proof rejects them. The last two change only the broadcast instance.
-The source checker rejects them where `broadcast-proof.bend` instantiates the
+The source checker rejects them where `broadcast_proof.bend` instantiates the
 theorem. BendTT rechecks each template instance, so it rejects the swapped
 maps in the broadcast copy of the generic step proof, `step_lift.qvvvvv_1`.
 It rejects the wrong output shape in `broadcast_pointwise` itself, whose
@@ -146,17 +146,17 @@ the runner checks them against `fold/consumers.bend` instead, where the
 failure consumers reject them. The next two change one instance each. The
 proof that relates the instance's `Fold.total` to its specification rejects
 them. The next four change the parallel `matmul` build in
-`src/tensor/matmul.bend`. `src/tensor/contracts/matmul-parallel-proof.bend`,
+`src/tensor/matmul.bend`. `src/tensor/contracts/matmul_parallel_proof.bend`,
 the live walk of the build that proves `matmul_ordered`, rejects them in a
 step of the walk: `dot_eq` (the reversed order and the swapped strides),
 `cell_inside_eq` and `run_last`. The contracts
-take `dot_fold` from `src/tensor/dot-fold.bend`, which holds no law, so the
+take `dot_fold` from `src/tensor/dot_fold.bend`, which holds no law, so the
 kernel artifact holds no erased matmul proof and BendTT rejects them at the
 same declarations. The products that read an operand in place add three:
 `matmul_nt_ordered` and `matmul_tn_ordered` state which orders the public
 `matmul_nt` and `matmul_tn` pass to `Matrix.product`, so they reject a
 `matmul_nt` that reads `W` untransposed and a `matmul_tn` with swapped
-operands; `read_below`, which bounds every read of `product-parallel-proof.bend`,
+operands; `read_below`, which bounds every read of `product_parallel_proof.bend`,
 rejects a `Kept` read at the swapped index. Two change the row block, the
 loop that runs eight cells of a product row: `row_last` rejects a cell that
 adds another cell's word, and `row_block_tree` a block whose eight cells are
@@ -226,26 +226,26 @@ declarations.
 | `sum_to_size` identity folds | `decided` runs `reduce_to` when the dimensions are equal | `sum_to_size_clone` | `sum_to_size_clone` |
 | `sum_to_size` reduced clones | `decided` clones when the dimensions differ | `sum_to_size_fiber` | `sum_to_size_fiber` |
 
-The first four mutants change `src/autograd/reduce-fold.bend`, and the proofs
-in `src/autograd/reduce-fold-PROOF.bend` reject them. The five `reduce_to`
+The first four mutants change `src/autograd/reduce_fold.bend`, and the proofs
+in `src/autograd/reduce_fold_PROOF.bend` reject them. The five `reduce_to`
 mutants change the parallel build in `src/autograd/reduce.bend`: the first
 changes `fiber`, the walk the proofs follow, and the second the strided loop
 of `fiber_fast`, which the build runs for a column, row or single-axis sum.
-The source check runs `src/autograd/reduce-to-fold-PROOF.bend`, the live proof of
+The source check runs `src/autograd/reduce_to_fold_PROOF.bend`, the live proof of
 `reduce_to_fiber`, instead of `src/autograd/PROOF.bend`. It imports the build
 proofs, so both checkers reject each mutant in the first build proof it
 breaks: `fiber_run`, `fast_fiber`, `run_of` and `leaf_run` in
-`src/autograd/reduce-parallel-proof.bend`, which the live proof imports
+`src/autograd/reduce_parallel_proof.bend`, which the live proof imports
 before its own, and `fiber_cons`, the fiber-walk step of
-`src/autograd/reduce-fiber-proof.bend`, for a skipped digit.
-The two `sum_to_size` mutants change `src/autograd/sum-to-size.bend`. The
-erased `sum-to-size-PROOF.bend` would reject them too, so the source check runs
-`src/autograd/sum-to-size-fold-PROOF.bend`, and the kernel artifact holds no
+`src/autograd/reduce_fiber_proof.bend`, for a skipped digit.
+The two `sum_to_size` mutants change `src/autograd/sum_to_size.bend`. The
+erased `sum_to_size_PROOF.bend` would reject them too, so the source check runs
+`src/autograd/sum_to_size_fold_PROOF.bend`, and the kernel artifact holds no
 erased `sum_to_size` proof. Each mutant breaks one case and leaves the other
 case's law true, and both checkers reject it in the law of the case it breaks.
 `reduce/entry.bend` imports
-`broadcast.bend` and `sum.bend` before `reduce-fold.bend`, `reduce.bend` and
-`sum-to-size.bend`, for the same export names as `fold/entry.bend`.
+`broadcast.bend` and `sum.bend` before `reduce_fold.bend`, `reduce.bend` and
+`sum_to_size.bend`, for the same export names as `fold/entry.bend`.
 
 ## Broadcast to
 
@@ -284,8 +284,8 @@ case's law true, and both checkers reject it in the law of the case it breaks.
 | Returns zero owner | `finish` returns the zero tensor as the owner | `run_lift` | `run_lift` |
 
 The mutants change `src/autograd/broadcast.bend`. The erased
-`broadcast-PROOF.bend` would reject them too, so the source check runs
-`src/autograd/broadcast-pointwise-PROOF.bend`, the live proof, and the kernel
+`broadcast_PROOF.bend` would reject them too, so the source check runs
+`src/autograd/broadcast_pointwise_PROOF.bend`, the live proof, and the kernel
 artifact holds no erased `broadcast_to` proof. `run_lift` follows
 `broadcast_to` through the planner, the target check and the zero allocation
 into the parallel build's replayed lemma, `allocated_replayed`, so a changed
@@ -365,12 +365,12 @@ template constant.
 | CrossEntropy VJP drops the softmax | `entropy_first` runs `OneHotGrad` of `g` and `lp` instead of `SoftmaxGrad` | `Laws.tensor_cross_entropy_vjp_values` | `tensor_cross_entropy_vjp_values` |
 | CrossEntropy VJP ignores one class | `vjp_cross_entropy` passes `False{}` for `Loss.one_class(input)`, so one-column logits add `+0.0` to the row sum | `Laws.tensor_cross_entropy_vjp_values` | `tensor_cross_entropy_vjp_values` |
 
-The mutants change `src/autograd/tensor-backward.bend`, and the source check
+The mutants change `src/autograd/tensor_backward.bend`, and the source check
 runs `src/autograd/PROOF.bend`. The structural laws in
-`tensor-backward-LAWS.bend` say nothing about the values the VJPs send, so
+`tensor_backward_LAWS.bend` say nothing about the values the VJPs send, so
 only the value laws reject these mutants. The `Matmul` mutants fail in
 `matmul_values`, the proof of `tensor_matmul_vjp_values` in
-`tensor-vjp-PROOF.bend`: the first hands `transpose_replayed` a call that
+`tensor_vjp_PROOF.bend`: the first hands `transpose_replayed` a call that
 law does not state, the other two produce a pass other than the stated one.
 The `MatmulNT` mutants fail in `nt_values`, the proof of
 `tensor_matmul_nt_vjp_values`, the `Relu` mutants in the proof of
@@ -385,7 +385,7 @@ reads `g` as the input, as well, in the JavaScript lane.
 walks of the copy loop and of the matmul loops. The permute value contract's
 mutants in `verification/contracts/permute-values/` and the `matmul` mutants
 of the fold family fail those walks, so they cover the transport laws too.
-`tensor_vjp/entry.bend` imports only `tensor-backward.bend`.
+`tensor_vjp/entry.bend` imports only `tensor_backward.bend`.
 
 ## Binary
 
@@ -428,11 +428,11 @@ certificate still checks, and only the laws reject them. Every subtree of
 depth 1 or more below the forks builds its bottom level with `pair_join`;
 `leaf` builds a subtree of depth 0, a one-cell output or a branch of a build
 that forks down to single cells. The generic law `parallel_build_cells`
-(`src/tensor/parallel-LAWS.bend`) rejects all three too, in `node_cell`,
-`leaf_facts` and `pair_join_facts` of `src/tensor/parallel-proof.bend`, for
-every operation. The erased `elementwise-parallel-proof.bend` would reject most of
+(`src/tensor/parallel_LAWS.bend`) rejects all three too, in `node_cell`,
+`leaf_facts` and `pair_join_facts` of `src/tensor/parallel_proof.bend`, for
+every operation. The erased `elementwise_parallel_proof.bend` would reject most of
 the mutants too, so the source check runs
-`src/tensor/contracts/binary-PROOF.bend`, which imports only the live proof. The erased `BinaryModel` states only the cells below the count;
+`src/tensor/contracts/binary_PROOF.bend`, which imports only the live proof. The erased `BinaryModel` states only the cells below the count;
 `binary_replayed` states the whole output storage, so its statement, and not
 only its proof, excludes `padding-not-zero`. A change to `splits`, the number
 of forks, keeps every word and is not a mutant: `build_eq` holds for any

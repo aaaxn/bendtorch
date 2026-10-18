@@ -8,7 +8,7 @@ import ../tensor/matmul.bend as Matrix
 import ../tensor/parallel.bend as Parallel
 import ../tensor/reduction.bend as Reduction
 import ./reduce.bend as Reduce
-import ./sum-to-size.bend as SumToSize
+import ./sum_to_size.bend as SumToSize
 
 # Loss functions with mean reduction, as PyTorch's mse_loss and
 # cross_entropy over class logits. Every step is a tensor operation that

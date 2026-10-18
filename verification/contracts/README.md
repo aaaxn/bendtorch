@@ -2,14 +2,14 @@
 
 These contracts turn the pattern of `dev/proof-boundary/` into laws,
 one capability per PR. Each capability states its public contract as a law in
-`src/tensor/<capability>-contract-LAWS.bend` and proves it in the paired
-`-PROOF.bend`, so the root `PROOF.bend --verdict` and the tensor gate protect
+`src/tensor/<capability>_contract_LAWS.bend` and proves it in the paired
+`_PROOF.bend`, so the root `PROOF.bend --verdict` and the tensor gate protect
 it. The literal consumers, false twins and implementation mutants live here,
 beside the runner that checks them.
 
 ## Construction
 
-Laws in `src/tensor/construction-contract-LAWS.bend`, aggregated by
+Laws in `src/tensor/construction_contract_LAWS.bend`, aggregated by
 `src/tensor/LAWS.bend` and required by `verification/tensor.json`:
 
 - `new_metadata(shape, fill) : NewMetadata<shape, fill>`: actual
@@ -42,10 +42,10 @@ The runner adds three kinds of control:
 
 ## Reads and writes
 
-Laws in `src/tensor/read-write-contract-LAWS.bend`, aggregated by
+Laws in `src/tensor/read_write_contract_LAWS.bend`, aggregated by
 `src/tensor/LAWS.bend` and required by `verification/tensor.json`. The record types
-are in `src/tensor/read-write-records.bend`; the proofs are split into
-`read-contract.bend` and `write-contract.bend` so a read-only control does not
+are in `src/tensor/read_write_records.bend`; the proofs are split into
+`read_contract.bend` and `write_contract.bend` so a read-only control does not
 import the write proofs.
 
 Each law is generic over a `Core.new(shape, fill)` producer and talks about the
@@ -101,10 +101,10 @@ kernel rechecks the unchanged proofs against the mutated operation.
 
 ## Clone and metadata
 
-Laws in `src/tensor/clone-metadata-contract-LAWS.bend`, aggregated by
+Laws in `src/tensor/clone_metadata_contract_LAWS.bend`, aggregated by
 `src/tensor/LAWS.bend` and required by `verification/tensor.json`. The record types
-are in `src/tensor/clone-metadata-records.bend`; the proofs are in
-`clone-contract.bend` and `metadata-contract.bend`, each a separate import so a
+are in `src/tensor/clone_metadata_records.bend`; the proofs are in
+`clone_contract.bend` and `metadata_contract.bend`, each a separate import so a
 clone mutant leaves the metadata proof checking and the reverse.
 
 Each law is generic over a `Core.new(shape, fill)` producer:
@@ -147,11 +147,11 @@ Each law is generic over a `Core.new(shape, fill)` producer:
 
 ## Transforms
 
-Laws in `src/tensor/transform-contract-LAWS.bend`, aggregated by
+Laws in `src/tensor/transform_contract_LAWS.bend`, aggregated by
 `src/tensor/LAWS.bend` and required by `verification/tensor.json`. Record types
-are in `src/tensor/transform-records.bend` and observations in
-`src/tensor/transform-observation.bend`. The proofs are in
-`reshape-contract.bend` and `permute-contract.bend`, separate imports so a
+are in `src/tensor/transform_records.bend` and observations in
+`src/tensor/transform_observation.bend`. The proofs are in
+`reshape_contract.bend` and `permute_contract.bend`, separate imports so a
 reshape mutant leaves the permute proof checking and the reverse.
 
 Each law is generic over a `Core.new(input, fill)` producer:
@@ -200,10 +200,10 @@ export.
 
 ## From values
 
-Law in `src/tensor/from-values-contract-LAWS.bend`, aggregated by
+Law in `src/tensor/from_values_contract_LAWS.bend`, aggregated by
 `src/tensor/LAWS.bend` and required by `verification/tensor.json`. The record type
-is in `src/tensor/from-values-records.bend` and the proof in
-`src/tensor/from-values-contract.bend`.
+is in `src/tensor/from_values_records.bend` and the proof in
+`src/tensor/from_values_contract.bend`.
 
 - `from_values_contract(shape, values, counted) : FromValuesContract`: when
   `length(values) == numel(shape)`, `Core.from_values(shape, values)` succeeds,
@@ -233,17 +233,17 @@ each index. The existing `public_from_values_elements` and
 | Wrong index (WI) | `from_values_new` starts the cursor at 1 | `counted_lift`, source and kernel; construction proof passes |
 | Missing write (MW) | `fill_values` skips the write of the last value | `fill_lift`, source and kernel; construction proof passes |
 
-The "construction proof passes" check runs `construction-contract-PROOF.bend`
+The "construction proof passes" check runs `construction_contract_PROOF.bend`
 on each mutated copy: the `Core.new` laws do not depend on the fill loop. The
 kernel lane exports the mutated `core.bend` alone and transplants its changed
 declarations into the positive export.
 
 ## Permute and transpose values
 
-Laws in `src/tensor/permute-values-contract-LAWS.bend`, aggregated by
+Laws in `src/tensor/permute_values_contract_LAWS.bend`, aggregated by
 `src/tensor/LAWS.bend` and required by `verification/tensor.json`. The record
-types are in `src/tensor/permute-values-records.bend` and the proof in
-`src/tensor/permute-values.bend`.
+types are in `src/tensor/permute_values_records.bend` and the proof in
+`src/tensor/permute_values.bend`.
 
 - `permute_contract(input, values, counted, axes, valid) : PermuteContract`:
   for `Core.from_values(input, values)` with `length(values) == numel(input)`
@@ -261,18 +261,18 @@ the reference map: decode `i` against the output dimensions, scatter the
 output coordinate back through `axes`, and flatten it against the input
 dimensions. Every field is LIVE.
 
-The proof is generic over the index map. `src/tensor/index-map.bend` states
+The proof is generic over the index map. `src/tensor/index_map.bend` states
 the copy `out[i] = input[map(plan, i)]` as the pointwise family of
 `src/tensor/contracts/` with a scalar function that keeps its first operand,
 so the write history and the final-value theorem
 (`PointwiseProof.writes_value`) are the family's. Permute supplies the map
 `permute_source` and discharges its bound from the `Layout.Mapping` of each
 output index; transpose reuses the permute proof with the swapped axes. The
-copy itself is the parallel build of `src/tensor/permute-build.bend`, and
-`permute-values.bend` walks it with live code: the source comes back as the
+copy itself is the parallel build of `src/tensor/permute_build.bend`, and
+`permute_values.bend` walks it with live code: the source comes back as the
 First half of its clone, and the build's output, cell by cell, is the
 family's write history replayed on the storage `Core.new` allocates
-(`made`, from `build_eq` in `permute-build-proof.bend`).
+(`made`, from `build_eq` in `permute_build_proof.bend`).
 
 `permute-values/` holds:
 
@@ -288,18 +288,18 @@ family's write history replayed on the storage `Core.new` allocates
 | Control | Change | Expected rejection |
 | --- | --- | --- |
 | False twins (3) | one witness statement says `wrong_value` | `Some(v) == Some(8.0)` at that witness, source and kernel |
-| Forward map (WI) | `recipe` in `permute-build.bend` builds the inverse map, so output index `map(i)` gets source word `i` | `source_index` in `permute-build-proof.bend`, source and kernel; the released transform contract passes |
-| Identity map (WI) | `Build.at` in `permute-build.bend` reads the source at the output index itself | `source_word` in `permute-build-proof.bend`, source and kernel; the released transform contract passes |
+| Forward map (WI) | `recipe` in `permute_build.bend` builds the inverse map, so output index `map(i)` gets source word `i` | `source_index` in `permute_build_proof.bend`, source and kernel; the released transform contract passes |
+| Identity map (WI) | `Build.at` in `permute_build.bend` reads the source at the output index itself | `source_word` in `permute_build_proof.bend`, source and kernel; the released transform contract passes |
 | Swap ignored (WI) | `transpose_decided` permutes by `transpose_axes(dims, a, a)` | `transpose_route`, source and kernel; the released transform contract passes |
 
 The three WI mutants keep every existing law: the erased value laws do not
-reach the kernel, and `transform-contract-PROOF.bend`, which states failures
+reach the kernel, and `transform_contract_PROOF.bend`, which states failures
 and reshape values only, still checks on each mutated copy. The rotation
 consumer uses a 3-cycle because a swap of two axes is its own inverse, so the
 forward map reads the same words as the permute on a swap. On `[2,2,2]` by
 `(2,0,1)` the permute reads source indices `0 2 4 6 1 3 5 7`, the forward map
 `0 4 1 5 2 6 3 7` and the identity map `0 1 2 3 4 5 6 7`. The kernel lane exports the mutated module
-alone (`permute-build.bend` or `transforms.bend`) and transplants its changed
+alone (`permute_build.bend` or `transforms.bend`) and transplants its changed
 declarations into the positive export.
 
 ## Run
