@@ -11,7 +11,8 @@ separate checker built with Lean, checks the proofs again. Python gates in
 result with references, including frozen records from a separate PyTorch
 project in `oracle/`. PyTorch never computes a bendtorch result.
 
-> **Disclaimer.** bendtorch is an experiment, and im learning while building this... so expects things to be rough, broken and stupid....
+> **Disclaimer.** bendtorch is an experiment, and im learning while building this... so expects things to be rough, broken and stupid.... 
+> i dont have much time to maintain
 
 <p align="center">
   <img src="docs/art/hero.gif" alt="A short tour: the MNIST step in PyTorch and in Bend, matmul cells built in parallel halves, a law with its proof verdict, and the MNIST loss of bendtorch on top of PyTorch's." width="100%">
